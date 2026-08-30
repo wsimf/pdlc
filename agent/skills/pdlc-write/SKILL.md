@@ -11,7 +11,7 @@ Author product specifications that are clear, actionable, and suitable for imple
 Section format, numbering, and writing rules: [references/product-spec-format.md](references/product-spec-format.md). Read it before Step 1.
 
 When the artifact includes local files such as mockups, pass each one to
-`pdlc-post-write.py` as `--attachment PATH [--attachment-description TEXT]`.
+`pdlc post write` as `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 
@@ -21,7 +21,7 @@ A work item states **current, correct intent** — what to build and why, not a 
 
 - Requirements are edited **in place**. Never strike through superseded text or append "amendment" trails — that duplicates the revision history and makes the body grow forever.
 - The product evidence comment is where the *why* of a change lives, not the body.
-- Never write lifecycle state into the body. `Status`, `Gate State`, `Lifecycle`, `Slug`, and `Skipped States` are tracked fields, owned by the scripts. No frontmatter, no state block, no identity marker.
+- Never write lifecycle state into the body. `Status`, `Gate State`, `Lifecycle`, `Slug`, and `Skipped States` are tracked fields, owned by the `pdlc` commands. No frontmatter, no state block, no identity marker.
 
 Keep the whole specification proportional to the feature — a well-scoped record with a dozen tasks should still be readable in one sitting once implemented. If it isn't, the detail belongs in evidence comments, not here.
 
@@ -43,7 +43,7 @@ Keep the whole specification proportional to the feature — a well-scoped recor
 |---|---|
 | A concrete feature idea, no work item yet | New record. Nothing is published until the specification passes review. |
 | An exact work item number at `Product / {Pending, Changes Required, Stale}` | Reconcile that work item's sections in place. |
-| An exact work item number at `Product / Approval Required`, with a driver request to change the spec | Re-author in place. `pdlc-post-write.py` returns Product to Stale itself and re-lands the reviewed spec in one call. |
+| An exact work item number at `Product / Approval Required`, with a driver request to change the spec | Re-author in place. `pdlc post write` returns Product to Stale itself and re-lands the reviewed spec in one call. |
 
 Never infer either from the branch, recent files, open PRs, or conversation history. A work item at `Product / Approval Required` is a reconcile input **only** when the driver is asking for a change this turn; otherwise it is awaiting the driver's approval — report that and stop. If the named work item is not at a Product stage at all, report the state it is actually at and stop.
 
@@ -55,9 +55,9 @@ When reconciling an existing record, preserve its identity, `Slug`, tasks, plans
 
 Skip this step for a fresh feature idea with no existing work item.
 
-When reconciling an existing record, run `python3 .agents/skills/pdlc/scripts/pdlc-inspect.py <WORK_ITEM>` before creating the scratch file or asking questions. Treat its `# Work Item`, work item metadata, and `# Due Next` as the current record snapshot. Continue only when `Due Next` confirms `Product.Pending`, `Product.Changes Required`, or `Product.Stale` — or `Product.Approval Required` when the driver has asked this turn to change the spec (`pdlc-post-write.py` returns it to Stale itself on landing). Otherwise report the actual state and stop. Use the snapshot to preserve the record's identity and existing sections during reconciliation.
+When reconciling an existing record, run `pdlc inspect <WORK_ITEM>` before creating the scratch file or asking questions. Treat its `# Work Item`, work item metadata, and `# Due Next` as the current record snapshot. Continue only when `Due Next` confirms `Product.Pending`, `Product.Changes Required`, or `Product.Stale` — or `Product.Approval Required` when the driver has asked this turn to change the spec (`pdlc post write` returns it to Stale itself on landing). Otherwise report the actual state and stop. Use the snapshot to preserve the record's identity and existing sections during reconciliation.
 
-The snapshot does not include evidence comments; read `pdlc-inspect-timeline.py <WORK_ITEM>` when the evidence history is needed.
+The snapshot does not include evidence comments; read `pdlc inspect timeline <WORK_ITEM>` when the evidence history is needed.
 
 ## Step 1: Clarifying questions
 
@@ -85,7 +85,7 @@ Write the sections yourself, from the settled answers. Do not hand drafting to a
 
 ## Step 2: Write the draft, then have it reviewed
 
-Complete the scratch file created in Step 1 per [references/product-spec-format.md](references/product-spec-format.md). It contains only `## Product`, `## Decisions`, `## Open Questions`, in that order. The reviewer and `pdlc-post-write.py` accept no other level-2 headings. Name it for the slug, e.g. `/tmp/pdlc-route-shape-detection-body.md`.
+Complete the scratch file created in Step 1 per [references/product-spec-format.md](references/product-spec-format.md). It contains only `## Product`, `## Decisions`, `## Open Questions`, in that order. The reviewer and `pdlc post write` accept no other level-2 headings. Name it for the slug, e.g. `/tmp/pdlc-route-shape-detection-body.md`.
 
 When reconciling an existing record, read the full work item for context, then write the final form of only those three owned sections. The script preserves every later-stage section unchanged.
 
@@ -105,7 +105,7 @@ Pass the reviewed file straight through as `--body`, with the evidence body on s
 **New record** — derive the slug and pass `--title` and `--slug`:
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-write.py \
+pdlc post write \
   --title "Route shape detection" \
   --slug route-shape-detection \
   --body /tmp/pdlc-route-shape-detection-body.md \
@@ -124,7 +124,7 @@ Creates the work item, stamps `Slug`, posts evidence, sets `Product / Approval R
 **Existing record** — pass the same reviewed three-section file with `--work-item`. The script resolves its work item, requires `Product / {Pending, Changes Required, Stale}` — or `Product / Approval Required`, whose gate it resets to Stale itself first (no comment — the re-land's own Product evidence records the change) — reconstructs the full work item body with only those sections replaced, and performs one work-item body edit before it posts Product evidence and sets `Product / Approval Required`.
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-write.py \
+pdlc post write \
   --work-item WORK_ITEM \
   --body /tmp/pdlc-route-shape-detection-body.md \
   --evidence - <<'EOF'
@@ -133,7 +133,7 @@ Verdict: clean on re-review.
 EOF
 ```
 
-Never set `Approved` — the driver does that with `pdlc-post-approve.py`. On failure, keep the scratch file, report the exact failure, and inspect the work item before retrying. The scratch file is temporary input only — never leave a local product-specification document behind once landed.
+Never set `Approved` — the driver does that with `pdlc post approve`. On failure, keep the scratch file, report the exact failure, and inspect the work item before retrying. The scratch file is temporary input only — never leave a local product-specification document behind once landed.
 
 ---
 
@@ -167,4 +167,4 @@ The reader may be a junior developer or an AI agent:
 - [ ] `pdlc-product-reviewer` reviewed the scratch body file itself and its verdict is clean
 - [ ] The file landed is the reviewed file, not a regenerated copy
 - [ ] Evidence holds the comment body only — scope, verdict, coverage boundaries, unresolved risk
-- [ ] Landed at `Product / Approval Required` via `pdlc-post-write.py`
+- [ ] Landed at `Product / Approval Required` via `pdlc post write`

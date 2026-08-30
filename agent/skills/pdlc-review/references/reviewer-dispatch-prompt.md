@@ -1,7 +1,7 @@
 # Stage-reviewer dispatch prompt
 
 `pdlc-review` Step 3 fills the placeholders below and spawns the agent named in
-`pdlc-inspect-review.py`'s `## Reviewer Target` once with the result. The
+`pdlc inspect review`'s `## Reviewer Target` once with the result. The
 reviewer cannot see the driver's conversation, so everything it needs is stated
 here. Read-only: it returns findings and a verdict, and changes nothing.
 

@@ -106,7 +106,7 @@ def state_after_skip(stage: str) -> tuple[str, str]:
 # Routing table
 
 # Maps (Status, Gate State) to (action, autonomous, reason) as pure logic so
-# both the mutating pdlc-next-task.py and read-only pdlc-inspect.py apply the
+# both the mutating pdlc next and read-only pdlc inspect apply the
 # exact same routing policy.
 # *.Approval Required and *.Decision Required always stop for a human
 # regardless of stage.

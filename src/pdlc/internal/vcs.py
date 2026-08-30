@@ -2,8 +2,8 @@
 
 A delivery task is exactly one commit touching only its own files, so a
 `(Verified @ <commit>)` anchor's own diff against `HEAD` is what decides
-whether the evidence that cited it still holds. Both `pdlc-inspect-verify.py`
-and `pdlc-inspect-complete.py` (and completion's own readiness check) reuse
+whether the evidence that cited it still holds. Both `pdlc inspect verify`
+and `pdlc inspect complete` (and completion's own readiness check) reuse
 this so the audit-time and lock-time passes can never drift apart.
 """
 

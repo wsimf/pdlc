@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Publishes the reviewed Product artifact for a new or existing PDLC record.
 
-    pdlc-post-write.py --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
-    pdlc-post-write.py --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
+    pdlc post write --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
+    pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
 
 The supplied body contains exactly the three sections owned by Product:
 `Product`, `Decisions`, and `Open Questions`. New records use it as their
@@ -76,7 +76,7 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path,
     elif gate not in ("Pending", "Changes Required", "Stale"):
         raise PdlcError(
             f"Product is at {gate or 'an unset Gate State'}; "
-            "return it to Stale with pdlc-post-invalidate.py before re-authoring"
+            "return it to Stale with pdlc post invalidate before re-authoring"
         )
     headings = level_two_headings(record.get("issueBody") or "")
     duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]

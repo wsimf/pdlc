@@ -7,7 +7,7 @@ implementation routinely touches files the write-up never mentions). The
 agent still reads the implementation write-ups and the touched source for
 behaviour and real API signatures; this stops short of that judgment.
 
-    pdlc-inspect-test.py WORK_ITEM
+    pdlc inspect test WORK_ITEM
 
     ## Readiness
 
@@ -108,7 +108,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-inspect-test.py WORK_ITEM", file=sys.stderr)
+        print("usage: pdlc inspect test WORK_ITEM", file=sys.stderr)
         return 1
     issue = args[0]
 

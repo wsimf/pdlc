@@ -46,7 +46,7 @@ Per task planned, that task's **plan content only — no heading**, covering:
 - test / validation strategy mapped to the task's acceptance criteria
 - any unresolved decision, called out explicitly
 
-`pdlc-post-plan.py` posts this as a standalone `## Technical Plan` comment on the
+`pdlc post plan` posts this as a standalone `## Technical Plan` comment on the
 delivery task and never touches the body, so do not retype scope, non-goals,
 dependencies, coverage, or acceptance criteria — they stay exactly as the Tasks
 stage authored them.

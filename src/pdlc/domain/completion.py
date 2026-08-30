@@ -1,5 +1,5 @@
-"""One completion-readiness policy, shared by `pdlc-inspect-complete.py`
-(reports the blockers) and `pdlc-post-complete.py` (refuses to lock while any
+"""One completion-readiness policy, shared by `pdlc inspect complete`
+(reports the blockers) and `pdlc post complete` (refuses to lock while any
 remain), so the inspector and the mutator can never disagree about what
 "ready to complete" means.
 

@@ -1,0 +1,74 @@
+"""`pdlc next` routing: per-item lookups, the queue scan, Complete records,
+and the retry loop's give-up path."""
+
+from _support import FileBackendTest
+
+
+class RoutingTests(FileBackendTest):
+    def _seed_lifecycle_spread(self) -> None:
+        self.seed_record(14, "Product", "Changes Required")
+        self.seed_record(15, "Product", "Approval Required")
+        self.seed_record(16, "Complete", "Approved")
+        self.seed_record(17, "UI", "Pending")
+        self.seed_record(18, "Tasks", "Pending")
+        self.seed_record(19, "Technical Plan", "Pending")
+        self.seed_record(20, "Implementation", "Pending")
+        self.seed_record(21, "Testing", "Pending")
+        self.seed_record(22, "Verification", "Pending")
+
+    def test_queue_scan_skips_product_and_dispatches_first_autonomous(self):
+        self._seed_lifecycle_spread()
+        result = self.next()
+        self.assertEqual(result.code, 0)
+        self.assertEqual(result.front_matter("action"), "pdlc-tasks")
+        self.assertEqual(result.front_matter("work_item_number"), "17")
+
+    def test_product_changes_required_routes_to_write(self):
+        self._seed_lifecycle_spread()
+        result = self.next("--work-item", 14)
+        self.assertEqual(result.front_matter("action"), "pdlc-write")
+        self.assertEqual(result.front_matter("current_status"), "Product.ChangesRequired")
+        self.assertEqual(result.front_matter("next_status"), "Product.ApprovalRequired")
+
+    def test_product_approval_required_stops_for_human(self):
+        self._seed_lifecycle_spread()
+        result = self.next("--work-item", 15)
+        self.assertEqual(result.front_matter("action"), "human-approval")
+        self.assertEqual(result.front_matter("next_status"), "Product.Approved")
+
+    def test_each_stage_routes_to_its_specialist(self):
+        self._seed_lifecycle_spread()
+        for number, action in (
+            (17, "pdlc-tasks"),
+            (18, "pdlc-tasks"),
+            (19, "pdlc-plan"),
+            (20, "pdlc-implement"),
+            (21, "pdlc-test"),
+            (22, "pdlc-verify"),
+        ):
+            with self.subTest(number=number):
+                result = self.next("--work-item", number)
+                self.assertEqual(result.front_matter("action"), action)
+
+    def test_complete_record_reports_done(self):
+        self._seed_lifecycle_spread()
+        result = self.next("--work-item", 16)
+        self.assertEqual(result.front_matter("action"), "none")
+        self.assertIn("# Complete", result.stdout)
+
+    def test_loop_gives_up_and_reports_attempt_count(self):
+        self.seed_record(16, "Complete", "Approved")
+        self.set_env(
+            PDLC_MAX_ATTEMPTS="3",
+            PDLC_INITIAL_DELAY_SECONDS="0",
+            PDLC_MAX_DELAY_SECONDS="0",
+        )
+        result = self.next("loop")
+        self.assertEqual(result.front_matter("action"), "none")
+        self.assertEqual(result.front_matter("attempts"), "3")
+        self.assertIn("Invoke this script again", result.stdout)
+
+    def test_unknown_state_is_blocked(self):
+        self.seed_record(30, "Implementation", "Bogus Gate")
+        result = self.next("--work-item", 30)
+        self.assertEqual(result.front_matter("action"), "blocked")

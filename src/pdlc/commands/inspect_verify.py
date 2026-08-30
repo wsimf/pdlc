@@ -24,7 +24,7 @@ from the raw work item body itself.
    with an instruction for what to go confirm — never silently passed or
    silently blocked.
 3. Timeline: every PDLC evidence comment, chronological (see
-   pdlc-inspect-timeline.py, which this shares its rendering with).
+   pdlc inspect timeline, which this shares its rendering with).
 4. Journeys to review: not applicable when no task is tagged `isUI`. Else,
    every `UJ-*` journey block from the parent's own `UI` section that is
    either new since the last verification pass or was marked stale by the
@@ -47,7 +47,7 @@ from the raw work item body itself.
 7. Deferred: findings recorded as deferred in the parent work item body's Open
    Questions section (`"Deferred — <finding>, accepted because <reason>"`).
 
-    pdlc-inspect-verify.py WORK_ITEM
+    pdlc inspect verify WORK_ITEM
 
     ## Readiness
 
@@ -216,7 +216,7 @@ def _bullets_by_section(body: str) -> list[tuple[str, str]]:
 
 # Every bullet here is fixed by construction, since Findings only ever
 # lists what a pass fixed and re-verified. The `(Verified @ ...)` marker on
-# each line is pdlc-post-verify.py's, not the agent's — strip it here
+# each line is pdlc post verify's, not the agent's — strip it here
 # rather than exposing it as something the caller must parse itself.
 def _fixed_findings_in(body: str) -> list[str]:
     return _bullets_under(body, FINDINGS_HEADING)
@@ -397,7 +397,7 @@ def _readiness(item: dict) -> tuple[bool, str]:
         return False, (
             "Not ready: parked at Decision Required — a finding needs a driver call. "
             "The driver clears it via references/decision-resolver-workflow.md "
-            "(pdlc-post-decision.py), which returns it to Changes Required for a re-verify."
+            "(pdlc post decision), which returns it to Changes Required for a re-verify."
         )
 
     return False, f"Not ready: malformed Gate State {gate!r}."
@@ -455,7 +455,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-inspect-verify.py WORK_ITEM", file=sys.stderr)
+        print("usage: pdlc inspect verify WORK_ITEM", file=sys.stderr)
         return 1
     issue = args[0]
 

@@ -8,10 +8,10 @@ argument-hint: "Parent work item number to complete"
 
 Close out one PDLC record: confirm `pdlc-verify` has already proven it is done, capture what shipped as completion evidence, and lock it. This skill is record-only — it never touches source or tests, and never re-runs verification; that all lives in `pdlc-verify`, which must run first.
 
-Completion does not edit the verified record. Product, UI, requirement, and task wording are frozen at Verification — any substantive change to them is a new parent work item, or a bounce to the owning stage and re-verification. The only parent-body edit `pdlc-post-complete.py` makes is blanking the now-settled `## Open Questions` section to a pointer; every decision that emerged during delivery and every open-question resolution is recorded in the completion evidence comment instead.
+Completion does not edit the verified record. Product, UI, requirement, and task wording are frozen at Verification — any substantive change to them is a new parent work item, or a bounce to the owning stage and re-verification. The only parent-body edit `pdlc post complete` makes is blanking the now-settled `## Open Questions` section to a pointer; every decision that emerged during delivery and every open-question resolution is recorded in the completion evidence comment instead.
 
 When completion evidence includes local files, pass each one to
-`pdlc-post-complete.py` as `--attachment PATH [--attachment-description TEXT]`.
+`pdlc post complete` as `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 
@@ -21,17 +21,17 @@ Read `../pdlc/references/parity-contract.md` before checking readiness.
 
 Require an exact parent work item number. Check the current conversation for an unambiguous one before asking; never infer it from the branch, recent files, open PRs, or history alone.
 
-Completion also requires an **explicit driver instruction to complete this record, in this turn**, naming it. `pdlc-post-complete.py` carries no identity check — every agent acts under the driver's own store credentials, so an identity match would prove nothing. The boundary is procedural: never complete on a verifier's recommendation, because the state looks finished, because approval was implied earlier, or as a step folded into some other action.
+Completion also requires an **explicit driver instruction to complete this record, in this turn**, naming it. `pdlc post complete` carries no identity check — every agent acts under the driver's own store credentials, so an identity match would prove nothing. The boundary is procedural: never complete on a verifier's recommendation, because the state looks finished, because approval was implied earlier, or as a step folded into some other action.
 
 ---
 
 ## Step 1: Confirm the record is actually ready
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect-complete.py WORK_ITEM
+pdlc inspect complete WORK_ITEM
 ```
 
-`## Readiness` runs the same `completion_blockers` policy `pdlc-post-complete.py` enforces: status and gate, open tasks, closed tasks with no `## Implementation` evidence, closing PRs not merged and green, missing or structurally invalid `PDLC-VERIFICATION` evidence, stale verification rows, and missing stage evidence or settlement markers. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the mechanical detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, ultra review `clean`. A line that passes the policy but doesn't actually say that is still not ready — judging what the words say is yours, not the script's. `## Open Questions` lists the live entries your completion evidence must disposition; the evidence parser, not the readiness check, enforces that.
+`## Readiness` runs the same `completion_blockers` policy `pdlc post complete` enforces: status and gate, open tasks, closed tasks with no `## Implementation` evidence, closing PRs not merged and green, missing or structurally invalid `PDLC-VERIFICATION` evidence, stale verification rows, and missing stage evidence or settlement markers. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the mechanical detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, ultra review `clean`. A line that passes the policy but doesn't actually say that is still not ready — judging what the words say is yours, not the script's. `## Open Questions` lists the live entries your completion evidence must disposition; the evidence parser, not the readiness check, enforces that.
 
 Each non-skipped stage must carry exactly one settlement marker: `PDLC-APPROVED`, `PDLC-AUTOAPPROVED` (churn-gated auto-approval on Implementation or Testing), or `PDLC-SKIPPED`. The policy checks this; a stage in the item's `Skipped States` was deliberately bypassed — note it in the completion evidence rather than treating it as a gap.
 
@@ -55,7 +55,7 @@ Wait for its report. Relay its judgments without reinterpreting them. If the com
 One call does everything: it validates the evidence body, posts it, locks the record, and blanks the settled `## Open Questions` section. Run it only on the driver's explicit instruction from this turn:
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-complete.py WORK_ITEM - <<'EOF'
+pdlc post complete WORK_ITEM - <<'EOF'
 ## Shipped
 
 Offline tile pinning across 7 tasks, PRs #144-#153, all merged.
@@ -102,8 +102,8 @@ Completed records are locked. Only a mechanical, non-semantic fix — a typo, a 
 - Do not edit source, tests, project files, other documentation, agents, or skills.
 - Do not build, test, render, launch the simulator, or push.
 - Do not re-run verification, journeys, UX review, or cumulative review — `pdlc-verify` owns all of it.
-- Do not edit the verified record — Product, UI, requirement, and task wording are frozen. A substantive change bounces to its owning stage and re-verification, or becomes a new parent work item. `pdlc-post-complete.py`'s Open Questions blanking is the only permitted parent-body edit.
-- Do not run `pdlc-post-approve.py`, `pdlc-post-skip.py`, or `pdlc-post-invalidate.py` — driver-only, like completion itself.
+- Do not edit the verified record — Product, UI, requirement, and task wording are frozen. A substantive change bounces to its owning stage and re-verification, or becomes a new parent work item. `pdlc post complete`'s Open Questions blanking is the only permitted parent-body edit.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post invalidate` — driver-only, like completion itself.
 - Do not write lifecycle state into the work item body — those fields are script-owned.
 - Preserve unrelated staged, unstaged, and untracked local work.
 - Do not claim delegated evidence preparation, review, or runtime validation that did not happen.
@@ -111,7 +111,7 @@ Completed records are locked. Only a mechanical, non-semantic fix — a typo, a 
 ## Checklist
 
 - [ ] The driver explicitly asked to complete this exact record, in this turn
-- [ ] `## Readiness` from `pdlc-inspect-complete.py` reports ready
+- [ ] `## Readiness` from `pdlc inspect complete` reports ready
 - [ ] Every delivery task closed; every linked PR merged or dispositioned with checks passing
 - [ ] `## Verification Evidence` shows nothing stale, and every line's wording actually says Confirmed/Accepted/Deferred/reviewed/clean, or the driver sent it back to `pdlc-verify`
 - [ ] Each non-skipped stage carries one settlement marker (`PDLC-APPROVED`, `PDLC-AUTOAPPROVED`, or `PDLC-SKIPPED`); skipped stages noted rather than mistaken for gaps
@@ -119,4 +119,4 @@ Completed records are locked. Only a mechanical, non-semantic fix — a typo, a 
 - [ ] Completion evidence has all six sections; Decisions capture only what shaped what shipped, no changelog
 - [ ] Every live Open Questions entry is dispositioned Resolved or Deferred in the evidence
 - [ ] The verified record was not edited beyond the script's Open Questions blanking
-- [ ] Locked with `pdlc-post-complete.py`, and reported only after it actually succeeded
+- [ ] Locked with `pdlc post complete`, and reported only after it actually succeeded

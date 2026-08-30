@@ -3,15 +3,15 @@
 the work item's "Skipped States" text field as a comma-separated list. Always
 posts a durable PDLC-SKIPPED evidence comment naming the actor and the
 skipped stage(s); --justification appends the reason. Does not itself change
-Status/Gate State/Lifecycle — pdlc-next-task.py consults this field when a
+Status/Gate State/Lifecycle — pdlc next consults this field when a
 skipped stage is reached. Only the orchestrator may call this, and only on an
-explicit human instruction, same as pdlc-post-approve.py/pdlc-post-complete.py: a skip
+explicit human instruction, same as pdlc post approve/pdlc post complete: a skip
 carries the same weight as an approval and must not be requestable by an
 unattended agent — this is a procedural boundary, not an authentication
 check, since gh identity cannot tell a human from an agent acting on their
 behalf.
 
-    pdlc-post-skip.py --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post skip --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT] [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def main() -> int:
 
     if not args.work_item or not args.state:
         print(
-            "usage: pdlc-post-skip.py --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT]",
+            "usage: pdlc post skip --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT]",
             file=sys.stderr,
         )
         return 1

@@ -2,9 +2,9 @@
 """Closes out a `Decision Required` gate in one call, once the driver has
 settled every open decision the reviewer raised.
 
-    pdlc-post-decision.py WORK_ITEM --manifest FILE [--attachment PATH [--attachment-description TEXT]]
+    pdlc post decision WORK_ITEM --manifest FILE [--attachment PATH [--attachment-description TEXT]]
 
-Driver-only, like pdlc-post-approve.py / pdlc-post-invalidate.py: the scripts carry no
+Driver-only, like pdlc post approve / pdlc post invalidate: the scripts carry no
 identity check, so only the orchestrator runs this, and only on an explicit
 human instruction naming the record in this turn.
 
@@ -176,7 +176,7 @@ def main() -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 3 or args[1] != "--manifest":
-        print("usage: pdlc-post-decision.py WORK_ITEM --manifest FILE", file=sys.stderr)
+        print("usage: pdlc post decision WORK_ITEM --manifest FILE", file=sys.stderr)
         return 1
     issue, _, manifest = args
 

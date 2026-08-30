@@ -11,7 +11,7 @@ This skill does not implement anything itself. It confirms one PDLC record is du
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill records each task's `task`-depth review outcome in that task's `## Implementation` note, but never sets a PDLC gate to `Approved` — the stage-level review outcome stays with `pdlc-review`.
 
 When implementation or validation produces local files, pass each one to the
-relevant `pdlc-post-implement-*.py` script as
+relevant `pdlc post implement-*` command as
 `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
 for multiple files; a description applies only to the immediately preceding
 file. See [PDLC attachments](../pdlc/references/attachments.md).
@@ -31,7 +31,7 @@ The driver may also scope the run:
 ## Step 1: Resolve the record and confirm the stage
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect.py WORK_ITEM
+pdlc inspect WORK_ITEM
 ```
 
 Returns the work item, raw work item body, and the delivery task tree Step 3 reads (metadata only, no bodies yet). No item or an ambiguous match is a hard stop.
@@ -40,7 +40,7 @@ Read `# Due Next` rather than re-deriving whether implementation is due. Require
 
 ## Step 2: Handle the gate
 
-`Pending` (normal state for this stage), `Changes Required` (a reviewer found something in the completed implementation — read `pdlc-inspect-timeline.py WORK_ITEM`, that's this pass's scope), and `Stale` (upstream intent changed — reconcile against it) are the only gates that reach this step; `# Due Next` already stopped anything else in Step 1.
+`Pending` (normal state for this stage), `Changes Required` (a reviewer found something in the completed implementation — read `pdlc inspect timeline WORK_ITEM`, that's this pass's scope), and `Stale` (upstream intent changed — reconcile against it) are the only gates that reach this step; `# Due Next` already stopped anything else in Step 1.
 
 Implementation is the one stage that stays at `Pending` across many passes, potentially many tasks each. Do not try to move the gate after each task — only Step 6, once every delivery task on the whole record is closed, moves it.
 
@@ -51,7 +51,7 @@ Step 1's `# Tasks` section carries the whole tree, classified by `taskId`, state
 A task is mechanically **eligible** when `completed: false`, `hasPlan: true`, `hasImplementation: false`. Narrow to that shortlist, then to the driver's requested scope (a named task, a phase's `isUI` value, or everything). Fetch each remaining candidate's full body:
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect-task.py DELIVERY_TASK [DELIVERY_TASK ...]
+pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]
 ```
 
 For each, confirm the two things the tree cannot tell you, by reading the body and the record's own comments:
@@ -87,7 +87,7 @@ After it returns:
 6. Post the summary and close the task, in one call — the `task`-depth review passed and local validation is clean, so the task is done for this pass:
 
    ```bash
-   python3 .agents/skills/pdlc/scripts/pdlc-post-implement-task.py DELIVERY_TASK - --close <<'EOF'
+   pdlc post implement-task DELIVERY_TASK - --close <<'EOF'
    <summary from references/implementation-summary.md>
    EOF
    ```
@@ -100,22 +100,22 @@ The parent stays at `Implementation / Pending` while any delivery task is open. 
 
 If open tasks remain outside this run's scope, or something in scope was blocked or stopped early, stop here and report exactly what landed, what's still open, and why. The driver — or the loop — dispatches the rest.
 
-You do **not** wait for CI here. The task commits are already pushed, so CI is running; the Implementation stage review (`pdlc-review`) runs against the code while checks are in flight, and the `CI Pending` gate after that review is what reconciles the outcome — `pdlc-post-ci.py` advances to `Approval Required` on green and drops to `Changes Required` (with a `PDLC-IMPLEMENTATION` note) on red. Publish once the task graph is closed. The one exception: if CI has *already* failed on commits from this run by the time you publish, dispatch the owning task's agent to fix it on the shared PR first rather than publishing a known-red implementation.
+You do **not** wait for CI here. The task commits are already pushed, so CI is running; the Implementation stage review (`pdlc-review`) runs against the code while checks are in flight, and the `CI Pending` gate after that review is what reconciles the outcome — `pdlc post ci` advances to `Approval Required` on green and drops to `Changes Required` (with a `PDLC-IMPLEMENTATION` note) on red. Publish once the task graph is closed. The one exception: if CI has *already* failed on commits from this run by the time you publish, dispatch the owning task's agent to fix it on the shared PR first rather than publishing a known-red implementation.
 
 Only when **every** delivery task on the whole record is closed:
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-implement.py WORK_ITEM - <<'EOF'
+pdlc post implement WORK_ITEM - <<'EOF'
 Result: all 7 delivery tasks closed; shared PR #148 is ready for review.
 Exceptions: none; CI is in flight.
 EOF
 ```
 
-`pdlc-post-implement.py` first verifies the shared PR exists and is linked to the parent work item, then refuses this while any delivery task is open, posts the evidence, and sets `Review Required` in one step. Leave the shared PR open — merging it is a driver/review decision, not this skill's. The stage review then lands `CI Pending`, and `pdlc-post-ci.py` reconciles the checks — a red result routes back here at `Changes Required`.
+`pdlc post implement` first verifies the shared PR exists and is linked to the parent work item, then refuses this while any delivery task is open, posts the evidence, and sets `Review Required` in one step. Leave the shared PR open — merging it is a driver/review decision, not this skill's. The stage review then lands `CI Pending`, and `pdlc post ci` reconciles the checks — a red result routes back here at `Changes Required`.
 
 ## Requirement corrections
 
-Do not silently work around a requirement, constraint, plan, or acceptance criterion that is factually wrong. A mechanically provable error — a renamed type, a dead path — may be corrected in place, with every affected reference updated. Anything that changes approved intent needs the driver: stop, report it, and let them run `pdlc-post-invalidate.py` against the owning stage. Never edit the approved specification to match what was built.
+Do not silently work around a requirement, constraint, plan, or acceptance criterion that is factually wrong. A mechanically provable error — a renamed type, a dead path — may be corrected in place, with every affected reference updated. Anything that changes approved intent needs the driver: stop, report it, and let them run `pdlc post invalidate` against the owning stage. Never edit the approved specification to match what was built.
 
 ## Step 7: Report
 
@@ -128,7 +128,7 @@ Never set `Approved` and never continue into Testing.
 ## Boundaries
 
 - Do not author tests — `pdlc-test` owns coverage. `swift-pro`/`swiftui-pro` are instructed not to create, edit, or delegate tests as part of a task.
-- Do not run `pdlc-post-approve.py`, `pdlc-post-skip.py`, `pdlc-post-invalidate.py`, or `pdlc-post-complete.py` — driver-only.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not edit the parent's `Product`, `UI`, `Decisions`, or `Open Questions` sections.
 - Do not write lifecycle state into any work item body — those fields are script-owned.
 - Never mix a CORE and a UI task in the same agent dispatch, even when both are in scope.
@@ -144,7 +144,7 @@ Never set `Approved` and never continue into Testing.
 
 Each run:
 
-- [ ] Resolved the record with `pdlc-inspect.py`, and `Status` is `Implementation`
+- [ ] Resolved the record with `pdlc inspect`, and `Status` is `Implementation`
 - [ ] `Gate State` was `Pending`, `Changes Required`, or `Stale`
 - [ ] Scope resolved (named task, phase, or all) before selecting anything
 - [ ] Every dispatched task was eligible by plan, dependencies, and HITL approval
@@ -154,7 +154,7 @@ Each run:
 - [ ] Validation actually run per task before its `task`-depth review
 - [ ] Each task passed a `task`-depth `pdlc-implementation-reviewer` review before its commit was pushed
 - [ ] A review `Changes Required` looped back to the implementing agent; a second failure stopped the run
-- [ ] `## Implementation` comment posted on each task via `pdlc-post-implement-task.py`, recording the review outcome; the task body left untouched
+- [ ] `## Implementation` comment posted on each task via `pdlc post implement-task`, recording the review outcome; the task body left untouched
 - [ ] Each reviewed task closed and the run moved straight on to the next in scope
 - [ ] Published once the task graph closed without waiting on CI; only an already-red check from this run was fixed first
 - [ ] The run continued through the rest of its scope rather than stopping after one task

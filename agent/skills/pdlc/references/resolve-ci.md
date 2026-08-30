@@ -7,7 +7,7 @@ Orientation is read-only — it reports this state and never runs the resolver.
 ## When this applies
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect.py <work-item>
+pdlc inspect <work-item>
 ```
 
 Proceed only if `Gate State` is `CI Pending` (equivalently `# Due Next` routes to
@@ -16,7 +16,7 @@ state.
 
 ## Step 1: Read the live check state
 
-`pdlc-inspect.py`'s `pullRequests[].checks` carries the rollup for each linked
+`pdlc inspect`'s `pullRequests[].checks` carries the rollup for each linked
 PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
 
 ## Step 2: Act on the driver's "continue"
@@ -28,12 +28,12 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
 - **Green** (`SUCCESS`, or `NONE` — nothing to wait on) — run:
 
   ```bash
-  python3 .agents/skills/pdlc/scripts/pdlc-post-ci.py <work-item>
+  pdlc post ci <work-item>
   ```
 
   It sets `Implementation / Approval Required`. Nothing is posted — the stage
   review was already clean. The record now awaits the driver's explicit
-  approval (`pdlc-post-approve.py`).
+  approval (`pdlc post approve`).
 
 - **Red** (`FAILURE` / `ERROR` / …) — run the same command. It posts a
   `PDLC-IMPLEMENTATION` note naming the failed checks and sets
@@ -41,7 +41,7 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
   `pdlc-implement` — it reads the note, fixes the checks on the shared PR, and
   re-publishes for review.
 
-`pdlc-post-ci.py` is mechanical: it records the CI outcome and makes no
+`pdlc post ci` is mechanical: it records the CI outcome and makes no
 judgement, so the autonomous loop runs it unattended and a driver may run it
 directly. It carries no identity check and refuses any gate other than
 `CI Pending`.

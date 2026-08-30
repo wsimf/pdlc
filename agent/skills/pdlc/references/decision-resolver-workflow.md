@@ -12,7 +12,7 @@ driver's chosen agent then follows.
 ## When this applies
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect.py <work-item>
+pdlc inspect <work-item>
 ```
 
 Proceed only if `Gate State` is `Decision Required` (equivalently `# Due Next`
@@ -22,7 +22,7 @@ apply, report the actual state.
 ## Step 1: Read every open decision
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect-timeline.py <work-item>
+pdlc inspect timeline <work-item>
 ```
 
 Each `## DECISION` entry is a `PDLC-DECISION` comment carrying one
@@ -93,7 +93,7 @@ deferred:
 ```
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-decision.py <work-item> --manifest /tmp/pdlc-decisions.json
+pdlc post decision <work-item> --manifest /tmp/pdlc-decisions.json
 ```
 
 One call does everything: each `defer` becomes its own `Product / Pending` work
@@ -115,7 +115,7 @@ records emergent decisions in the completion evidence at close-out.
 
 Some answers mean an approved constraint, requirement, journey, or task is
 wrong — not that the current stage needs a tweak. That is not this workflow:
-stop, tell the driver to run `pdlc-post-invalidate.py <owning-stage>` so the owning
+stop, tell the driver to run `pdlc post invalidate <owning-stage>` so the owning
 skill re-authors it. The cascade clears the `Decision Required` gate by moving
 `Status` back.
 

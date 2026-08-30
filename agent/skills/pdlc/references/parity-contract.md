@@ -30,7 +30,7 @@ delivery tasks, pull requests, and evidence comments.
 UI applicability is always explicit. `UI not required` still receives review
 and human approval. Each task must cover at least one FR/C, every UI task must
 cover one UJ, and each UJ must be covered by at least one UI task. These are
-checked by `pdlc-post-tasks.py` against the parent record's own identifiers before
+checked by `pdlc post tasks` against the parent record's own identifiers before
 anything is written, not asserted by the agent that wrote the breakdown.
 
 ## Tasks, planning, and implementation
@@ -62,23 +62,23 @@ anything is written, not asserted by the agent that wrote the breakdown.
   `Approval Required`.
 - The Implementation reviewer does not wait for CI — it judges the code while
   the shared PR's checks are still in flight. A clean verdict lands `CI Pending`,
-  not `Approval Required`; `pdlc-post-ci.py` then reconciles that gate against
+  not `Approval Required`; `pdlc post ci` then reconciles that gate against
   the live check rollup (green, or no checks configured → `Approval Required`;
   red → `Changes Required` with a `PDLC-IMPLEMENTATION` note). It is mechanical
   and the autonomous loop resolves it with no human step. Testing is unchanged.
 - `Decision Required` is for a finding the owning skill cannot mechanically
   reconcile — one turning on a product, architecture, UX, safety, or scope call.
   It is raised by an `Implementation` or `Testing` reviewer, or by the
-  `Verification` audit itself (`pdlc-post-verify.py --recommendation "Decision
+  `Verification` audit itself (`pdlc post verify --recommendation "Decision
   Required" --decision`). It carries a `## Decision Required` block, posts under
   `PDLC-DECISION`, sets `Gate State = Decision Required`, and stops the
   autonomous loop immediately with no reconciliation passes. The driver resolves
-  it through `decision-resolver-workflow.md` — `pdlc-post-decision.py` lands a
+  it through `decision-resolver-workflow.md` — `pdlc post decision` lands a
   manifest of per-decision outcomes (answered, or deferred into its own
   `Product / Pending` work item) and moves the gate to `Changes Required`,
   routing back to the stage owner (`pdlc-implement`, `pdlc-test`, or
   `pdlc-verify`); a decision that invalidates approved upstream intent goes
-  through `pdlc-post-invalidate.py` instead. Nothing else proceeds meanwhile.
+  through `pdlc post invalidate` instead. Nothing else proceeds meanwhile.
 - `pdlc-implement` additionally runs a `task`-depth `pdlc-implementation-reviewer`
   pass on every task before its commit is pushed — a shallow acceptance-criteria
   and code-level check, recorded in the task's `## Implementation` note. This
@@ -89,18 +89,18 @@ anything is written, not asserted by the agent that wrote the breakdown.
   reviewer returns `Decision Required`.
 - Human approval requires the named active stage at `Approval Required`, an
   unchanged reviewed artifact, settled upstream stages, an explicit human
-  instruction in this turn (the scripts carry no identity check), and a
+  instruction in this turn (the commands carry no identity check), and a
   durable `PDLC-APPROVED` comment.
 - One exception to the human instruction: on a record that has been reworked one
   to three times (any stage bounce), the script that would park it at
-  `Implementation` or `Testing` `Approval Required` — `lib/ci_gate.py` on green
-  CI, `pdlc-post-review.py` on a clean Testing review — advances straight past
+  `Implementation` or `Testing` `Approval Required` — the CI gate on green
+  CI, `pdlc post review` on a clean Testing review — advances straight past
   the gate instead, posting a `PDLC-AUTOAPPROVED` comment and landing the record
   on the next stage's `Pending`. The reviewed artifact is still clean and
   upstream still settled; only the human step is dropped while the record
   iterates. Past three loops, and for `Verification` always, the human
   instruction is still required. A `Verification` `Changes Required` run may
-  itself bounce an upstream stage back to `Stale` (`pdlc-post-verify.py
+  itself bounce an upstream stage back to `Stale` (`pdlc post verify
   --bounce STAGE`) with no driver step, which is what advances the loop count.
 - An override must explicitly name the stage and the request to skip review.
   It cannot approve Pending or bypass unapproved upstream work. Record every
@@ -130,7 +130,7 @@ in Open Questions; a clean report is never written while a finding is open.
 
 Complete only after every stage is approved, every task is complete, linked PRs
 and checks are settled, and Verification is clean. The verified record is not
-edited at completion: `pdlc-post-complete.py` validates one structured evidence
+edited at completion: `pdlc post complete` validates one structured evidence
 body (shipped scope, verification reference, delivery decisions, a
 Resolved/Deferred disposition for every live Open Question, limitations, skipped
 stages), posts it, locks the record, and blanks the settled `## Open Questions`

@@ -1,6 +1,6 @@
 """Return a stage to Stale.
 
-Shared by pdlc-post-invalidate.py (driver-run) and pdlc-post-verify.py's --bounce
+Shared by pdlc post invalidate (driver-run) and pdlc post verify's --bounce
 (autonomous, on a Verification "Changes Required" run). Both post one
 PDLC-INVALIDATED comment whose body opens with a script-owned
 `Invalidated stage: <STAGE>` line, drop the stage to Stale, and clear it from
@@ -30,7 +30,7 @@ def reauthor_invalidate_stage(record: dict, stage: str) -> None:
     """Silently return a pre-publication stage from Approval Required to Stale so
     its owning skill can re-land a reviewed artifact in the same call.
 
-    Used only by pdlc-post-write.py / pdlc-post-tasks.py / pdlc-post-plan.py when
+    Used only by pdlc post write / pdlc post tasks / pdlc post plan when
     the driver asks for a change before the stage's approval gate has cleared.
     No comment is posted: the re-land's own `PDLC-PRODUCT` / `PDLC-TASKS` /
     `PDLC-PLAN` evidence records the change, and the stage never settled at

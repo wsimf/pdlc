@@ -6,16 +6,16 @@ and publishes the stage at Approval Required.
 UI and Tasks are reviewed before they are published — pdlc-tasks runs that
 review on the local files, so what lands is already reviewed and
 needs only the driver's approval. Neither stage ever enters Review Required,
-and since pdlc-post-review.py is the only thing that sets Changes Required, neither
+and since pdlc post review is the only thing that sets Changes Required, neither
 reaches that either: their gate set is Pending, Stale, Approval Required,
 Approved. A landed artifact is reworked by returning it to Stale with
-pdlc-post-invalidate.py. A record still at `<stage> / Approval Required` is
+pdlc post invalidate. A record still at `<stage> / Approval Required` is
 re-authored in place: a non-dry-run call resets the stage to Stale itself (no
 comment — the artifact never settled at Approved, and the re-land's own evidence
 records the change) and re-lands the reviewed artifact.
 
-    pdlc-post-tasks.py --work-item N --stage UI    --body FILE     --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
-    pdlc-post-tasks.py --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post tasks --work-item N --stage UI    --body FILE     --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 Everything is validated before anything is written, so a manifest with a
 typo'd requirement or a dependency cycle fails without having touched the
@@ -400,7 +400,7 @@ def main() -> int:
             # Stale ourselves and re-land the reviewed artifact in this call.
             reauthor_invalidate_stage(record, args.stage)
         elif gate == "Approval Required":
-            raise PdlcError(f"{args.stage} is at {gate}; return it to Stale with pdlc-post-invalidate.py before re-authoring it")
+            raise PdlcError(f"{args.stage} is at {gate}; return it to Stale with pdlc post invalidate before re-authoring it")
         elif gate in ("Review Required", "Changes Required"):
             raise PdlcError(f"{args.stage} is at {gate}, which no path in this flow produces for {args.stage}; report it rather than landing over it")
         else:

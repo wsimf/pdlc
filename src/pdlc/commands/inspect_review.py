@@ -5,9 +5,9 @@ under review and the reviewer agent that owns it, so the agent never has to
 re-apply the Status→artifact→reviewer table by hand. Also flags a stage that
 reached Review Required but shouldn't have (Product/Verification never do;
 UI/Tasks/Technical Plan are reviewed locally before publication) and a stage
-listed in Skipped States, which pdlc-post-review.py refuses to review.
+listed in Skipped States, which pdlc post review refuses to review.
 
-    pdlc-inspect-review.py WORK_ITEM
+    pdlc inspect review WORK_ITEM
 
     ## Readiness
 
@@ -56,7 +56,7 @@ def _readiness(item: dict) -> tuple[bool, str]:
         return False, "Not ready: Gate State is 'Decision Required' — a prior review raised a blocking finding the driver must resolve (see the PDLC-DECISION comment) before review can resume."
 
     if gate == "CI Pending":
-        return False, "Not ready: Gate State is 'CI Pending' — the implementation review already passed; the record is waiting on the shared PR's CI. pdlc-post-ci.py resolves it once checks finish (see references/resolve-ci.md)."
+        return False, "Not ready: Gate State is 'CI Pending' — the implementation review already passed; the record is waiting on the shared PR's CI. pdlc post ci resolves it once checks finish (see references/resolve-ci.md)."
 
     if gate != "Review Required":
         return False, f"Not ready: Gate State is {gate!r}, not Review Required."
@@ -68,7 +68,7 @@ def _readiness(item: dict) -> tuple[bool, str]:
         return False, f"Not ready: no reviewer target for Status {status!r}."
 
     if is_stage_skipped(item, status):
-        return False, f"Not ready: {status} is in this record's Skipped States — pdlc-post-review.py refuses a skipped stage."
+        return False, f"Not ready: {status} is in this record's Skipped States — pdlc post review refuses a skipped stage."
 
     return True, f"Ready — Status: {status}, Gate State: {gate}."
 
@@ -92,7 +92,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-inspect-review.py WORK_ITEM", file=sys.stderr)
+        print("usage: pdlc inspect review WORK_ITEM", file=sys.stderr)
         return 1
     issue = args[0]
 

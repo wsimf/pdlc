@@ -5,7 +5,7 @@ A work item is a title plus named sections. Write **no frontmatter** — the bod
 **Title:** human-readable and free to reword later; it is never identity.
 **Slug:** short kebab-case, derived from the title, stamped once at creation as the work item's `Slug` and never rewritten.
 
-Every section is a level-2 heading whose text is its exact name, and it runs until the next level-2 heading. That heading is the only anchor the scripts have, so use these spellings verbatim and structure everything inside a section at level 3 or deeper:
+Every section is a level-2 heading whose text is its exact name, and it runs until the next level-2 heading. That heading is the only anchor the commands have, so use these spellings verbatim and structure everything inside a section at level 3 or deeper:
 
 ```md
 ## Product
@@ -53,7 +53,7 @@ Never draw `erDiagram` or `classDiagram` (technical plan), `journey` (the `UI` s
 
 ## Section: `## Product`
 
-Write these subsections in the order below, under their exact names. They are unnumbered on purpose: two of them are omitted whenever they have no content, and everything downstream — reviewers, `pdlc-plan`, the scripts — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
+Write these subsections in the order below, under their exact names. They are unnumbered on purpose: two of them are omitted whenever they have no content, and everything downstream — reviewers, `pdlc-plan`, the commands — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
 
 ### Problem statement
 Two to four sentences: who is affected, what they cannot do today, and why it matters. State the problem, not the solution — no requirement restatement, no design, no feature tour. If it runs past a short paragraph, the detail belongs in Goals, Functional requirements, or the product evidence comment.

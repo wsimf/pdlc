@@ -9,9 +9,9 @@ By default the complete inspection is written to a file under the system temp
 directory and stdout carries a compact index. Use `--full` for the complete
 inspection on stdout, or `--file` to print the complete inspection's path.
 
-    pdlc-inspect.py ISSUE_NUMBER
-    pdlc-inspect.py ISSUE_NUMBER --full
-    pdlc-inspect.py ISSUE_NUMBER --file
+    pdlc inspect ISSUE_NUMBER
+    pdlc inspect ISSUE_NUMBER --full
+    pdlc inspect ISSUE_NUMBER --file
 
 Always includes a `# Tasks` section: every delivery task as its own YAML
 front-matter block (number, title, completed, isUI, hasPlan,
@@ -20,13 +20,13 @@ a task has been technically planned; `hasImplementation` is true once
 implementation work has been carried out for it. A single GraphQL call computes
 every flag, so this costs nothing extra; it omits the body text itself, which is
 usually only needed for a handful of tasks. Fetch those with
-`pdlc-inspect-task.py DELIVERY_TASK [DELIVERY_TASK ...]`. Dependency closure and
+`pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]`. Dependency closure and
 HITL approval still require reading a candidate's body and the record's own
 comments; this stops short of that judgment. Evidence comments are
 deliberately not included — they are read through their own script.
 
 Also includes a `# Due Next` section: the same `(Status, Gate State) → action`
-table pdlc-next-task.py routes on, applied read-only — it looks ahead through
+table pdlc next routes on, applied read-only — it looks ahead through
 any consecutive stages declared in `Skipped States` the same way that script's
 skip cascade does, but never posts a comment or writes work item state. This is
 what tells a caller what's actually due without hand-applying the table in
@@ -106,7 +106,7 @@ from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref
 # Translates due_next()'s bare action into the script name (or human role) a
 # caller would actually name in a report — the same distinction pdlc/SKILL.md's
 # "Next action by state" table draws between an ordinary Approval Required
-# (pdlc-post-approve.py) and Verification's (pdlc-post-complete.py), which due_next()
+# (pdlc post approve) and Verification's (pdlc post complete), which due_next()
 # itself doesn't need to know since it only routes, never names a script.
 _OWNER_FOR_ACTION = {
     "pdlc-write": "pdlc-write",
@@ -122,11 +122,11 @@ _OWNER_FOR_ACTION = {
 def _due_next_owner(due: dict) -> str:
     action = due["action"]
     if action == "human-approval":
-        return "human — pdlc-post-complete.py" if due["status"] == "Verification" else "human — pdlc-post-approve.py"
+        return "human — pdlc post complete" if due["status"] == "Verification" else "human — pdlc post approve"
     if action == "human-decision":
         return "human — resolve the blocking review decision (see the PDLC-DECISION comment)"
     if action == "pdlc-post-ci":
-        return "pdlc-post-ci.py — record the shared PR's CI outcome"
+        return "pdlc post ci — record the shared PR's CI outcome"
     if action == "none":
         return "none — record is Complete"
     if action == "blocked":

@@ -25,7 +25,7 @@ criteria>
 ## Technical Plan
 
 <the task's `## Technical Plan` comment, verbatim — it lives in a comment,
-rendered by `pdlc-inspect-task.py` after the body>
+rendered by `pdlc inspect task` after the body>
 
 ## Context
 
