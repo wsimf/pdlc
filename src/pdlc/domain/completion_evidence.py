@@ -1,6 +1,6 @@
 """Strict, typed parser for the `PDLC-COMPLETE` evidence body.
 
-`pdlc-post-complete.py` is the only writer of a completion record. It merges
+`pdlc post complete` is the only writer of a completion record. It merges
 what used to be two skill steps — reconciling the parent body and locking the
 record — into one call, and it never edits the parent body except to blank
 the now-settled `## Open Questions` section. Everything a reader needs about

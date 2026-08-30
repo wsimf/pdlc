@@ -3,7 +3,7 @@
 on the delivery task, and optionally closes it — the two things Step 5 of
 pdlc-implement does together, in one call.
 
-    pdlc-post-implement-task.py DELIVERY_TASK IMPLEMENTATION_FILE|- [--close] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|- [--close] [--attachment PATH [--attachment-description TEXT]]
 
 IMPLEMENTATION_FILE is the summary body. Cover what shipped, the files touched,
 which acceptance criteria the evidence establishes, the validation run, the

@@ -6,8 +6,12 @@ import importlib
 import os
 import sys
 
+from pdlc.config import ConfigurationError, Config, load_config
+from pdlc.domain.lifecycle import wants_help
+
 
 COMMANDS = {
+    ("setup",): "pdlc.commands.setup",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "timeline"): "pdlc.commands.inspect_timeline",
@@ -81,12 +85,19 @@ def _resolve(arguments: list[str]) -> tuple[str, list[str]]:
 
 
 def main() -> int:
-    if not sys.argv[1:] or sys.argv[1:] in (["--help"], ["-h"]):
+    raw_arguments = sys.argv[1:]
+    if not raw_arguments or raw_arguments in (["--help"], ["-h"]):
         print(_usage())
         return 0
     try:
-        arguments, _ = _options(sys.argv[1:])
+        load_config()
+        arguments, _ = _options(raw_arguments)
         module_name, command_arguments = _resolve(arguments)
+        if module_name != "pdlc.commands.setup" and not wants_help(command_arguments):
+            Config.from_environment().validate_for_backend()
+    except ConfigurationError as error:
+        print(f"pdlc: {error}")
+        return 1
     except ValueError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

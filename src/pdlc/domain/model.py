@@ -350,7 +350,7 @@ def timeline_compact(comments: list[dict], file_path: str) -> str:
 
 # Rework-loop detection -------------------------------------------------
 
-# Stamped by pdlc-post-invalidate.py / pdlc-post-verify.py --bounce into the
+# Stamped by pdlc post invalidate / pdlc post verify --bounce into the
 # PDLC-INVALIDATED comment body, so the rework loop is reconstructable from
 # comment history with no extra work-item state.
 _INVALIDATED_STAGE_LINE = re.compile(r"^Invalidated stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)

@@ -1,0 +1,287 @@
+"""Shared harness for exercising pdlc commands against the on-disk file backend.
+
+Every test seeds a temporary ``PDLC_HOME`` record store, invokes a command
+module's ``main()`` exactly the way the CLI dispatcher would (argv + stdin +
+captured stdout/stderr), and inspects the resulting record directory. This is
+the Python port of the former ``agent/skills/pdlc/tests/test-pdlc.sh`` suite:
+the file backend only ever calls the ``workitem`` / ``code_host`` facades, so
+driving it on a real store proves the same contract without a GitHub round-trip.
+"""
+
+from __future__ import annotations
+
+import importlib
+import io
+import json
+import os
+import re
+import shutil
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+
+from pdlc.hosts import attachment_host, code_host, workitem_host
+
+BODY_DEFAULT = """## Product
+
+### 4. Functional requirements
+- FR-1: The record lands.
+- FR-2: The record publishes.
+
+### 5. Constraints
+- C-1: Commands own every mutation.
+
+## UI
+
+UJ-1 covers the first run.
+
+## Decisions
+- none
+
+## Open Questions
+- none
+"""
+
+TASK_BODY_DEFAULT = "## Scope\nx\n\n## Acceptance criteria\n- ok\n"
+
+_ENV_DEFAULTS = {
+    "PDLC_BACKEND": "file",
+    "PDLC_CODE_HOST": "file",
+    "PDLC_ATTACHMENT_HOST": "file",
+    "PDLC_ACTOR": "tester",
+    "PDLC_NO_SLEEP": "1",
+}
+
+
+class Result:
+    """The outcome of one command invocation."""
+
+    def __init__(self, code: int, stdout: str, stderr: str):
+        self.code = code
+        self.stdout = stdout
+        self.stderr = stderr
+
+    @property
+    def json(self) -> dict:
+        return json.loads(self.stdout)
+
+    def front_matter(self, key: str) -> str | None:
+        match = re.search(rf"^{re.escape(key)}: (.*)$", self.stdout, re.MULTILINE)
+        if match is None:
+            return None
+        return match.group(1).strip().strip('"')
+
+
+class FileBackendTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.home = Path(tempfile.mkdtemp(prefix="pdlc-home-"))
+        self.work = Path(tempfile.mkdtemp(prefix="pdlc-work-"))
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, self.work, ignore_errors=True)
+
+        self._saved_env: dict[str, str | None] = {}
+        for key, value in {**_ENV_DEFAULTS, "PDLC_HOME": str(self.home)}.items():
+            self._saved_env[key] = os.environ.get(key)
+            os.environ[key] = value
+        # Drop anything a developer's shell might inject that would steer the run.
+        for key in ("PDLC_AUTOAPPROVE_CHURN_CAP", "PDLC_REF_LABEL"):
+            self._saved_env[key] = os.environ.pop(key, None)
+
+        (self.home / "records").mkdir(parents=True)
+        (self.home / "seq").write_text("40")
+
+        self._reset_hosts()
+        self.addCleanup(self._restore_env)
+        self.addCleanup(self._reset_hosts)
+
+    # --- environment / singletons ---
+
+    def _reset_hosts(self) -> None:
+        workitem_host.reset_backend()
+        code_host.reset_code_host()
+        attachment_host.reset_host()
+
+    def _restore_env(self) -> None:
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def set_env(self, **values: str) -> None:
+        for key, value in values.items():
+            self._saved_env.setdefault(key, os.environ.get(key))
+            os.environ[key] = value
+
+    # --- seeding ---
+
+    def records_dir(self) -> Path:
+        return self.home / "records"
+
+    def seed_record(
+        self,
+        number: int,
+        status: str,
+        gate: str,
+        *,
+        slug: str | None = None,
+        skipped: str = "",
+        body: str | None = None,
+    ) -> Path:
+        directory = self.records_dir() / str(number)
+        (directory / "tasks").mkdir(parents=True)
+        (directory / "comments.jsonl").write_text("")
+        (directory / "body.md").write_text(BODY_DEFAULT if body is None else body)
+        (directory / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": f"FILE-{number}",
+                    "number": number,
+                    "title": f"Record {number}",
+                    "url": f"file://x/{number}",
+                    "fields": {
+                        "Status": status,
+                        "Gate State": gate,
+                        "Lifecycle": "Planning",
+                        "Skipped States": skipped,
+                        "Slug": slug or f"record-{number}",
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        return directory
+
+    def seed_task(
+        self,
+        record: int,
+        number: int,
+        task_id: str,
+        state: str,
+        title: str,
+        *,
+        body: str | None = None,
+    ) -> Path:
+        directory = self.records_dir() / str(record) / "tasks" / str(number)
+        directory.mkdir(parents=True)
+        (directory / "comments.jsonl").write_text("")
+        (directory / "body.md").write_text(TASK_BODY_DEFAULT if body is None else body)
+        (directory / "meta.json").write_text(
+            json.dumps(
+                {
+                    "number": number,
+                    "title": title,
+                    "url": "file://x",
+                    "state": state,
+                    "taskId": task_id,
+                }
+            )
+            + "\n"
+        )
+        return directory
+
+    def seed_prs(self, record: int, pull_requests: list[dict]) -> None:
+        path = self.records_dir() / str(record) / "pull_requests.json"
+        path.write_text(json.dumps(pull_requests))
+
+    def green_pr(self, record: int, *, number: int = 900, checks: str = "SUCCESS") -> None:
+        self.seed_prs(
+            record,
+            [
+                {
+                    "number": number,
+                    "title": "impl",
+                    "url": "u",
+                    "state": "OPEN",
+                    "isDraft": False,
+                    "branch": "b",
+                    "mergedAt": None,
+                    "checks": checks,
+                    "relation": "closes",
+                }
+            ],
+        )
+
+    def add_invalidation(self, record: int, stage: str = "Implementation") -> None:
+        """Append one PDLC-INVALIDATED comment — one recorded rework loop."""
+        log = self.records_dir() / str(record) / "comments.jsonl"
+        entry = {
+            "body": f"PDLC-INVALIDATED\n\nInvalidated stage: {stage}\ndetail",
+            "createdAt": "2026-04-01T00:00:00Z",
+            "url": "",
+            "author": {"login": "t"},
+        }
+        with log.open("a") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    # --- scratch files ---
+
+    def write_file(self, name: str, content: str) -> str:
+        path = self.work / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        return str(path)
+
+    def evidence_file(self, content: str = "evidence body\n") -> str:
+        return self.write_file("evidence.md", content)
+
+    def head_sha(self) -> str:
+        """The real repository HEAD — verification/completion freshness checks
+        shell out to git, and only a resolvable commit survives them."""
+        import subprocess
+
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    # --- invocation ---
+
+    def invoke(self, command: str, *args: object, stdin: str | None = None) -> Result:
+        module = importlib.import_module(f"pdlc.commands.{command}")
+        out, err = io.StringIO(), io.StringIO()
+        saved_argv, saved_stdin = sys.argv, sys.stdin
+        sys.argv = [f"pdlc {command}", *[str(argument) for argument in args]]
+        if stdin is not None:
+            sys.stdin = io.StringIO(stdin)
+        try:
+            with redirect_stdout(out), redirect_stderr(err):
+                try:
+                    code = int(module.main())
+                except SystemExit as exit_error:  # some commands exit rather than return
+                    code = int(exit_error.code or 0)
+        finally:
+            sys.argv, sys.stdin = saved_argv, saved_stdin
+        return Result(code, out.getvalue(), err.getvalue())
+
+    def next(self, *args: object, stdin: str | None = None) -> Result:
+        # `next` is a module name, not the builtin, inside pdlc.commands.
+        return self.invoke("next", *args, stdin=stdin)
+
+    # --- record inspection ---
+
+    def meta(self, number: int) -> dict:
+        return json.loads((self.records_dir() / str(number) / "meta.json").read_text())
+
+    def fields(self, number: int) -> dict:
+        return self.meta(number)["fields"]
+
+    def state(self, number: int) -> tuple[str, str]:
+        fields = self.fields(number)
+        return fields["Status"], fields["Gate State"]
+
+    def body(self, number: int) -> str:
+        return (self.records_dir() / str(number) / "body.md").read_text()
+
+    def comments_text(self, number: int) -> str:
+        return (self.records_dir() / str(number) / "comments.jsonl").read_text()
+
+    def task_meta(self, record: int, task_number: int) -> dict:
+        path = self.records_dir() / str(record) / "tasks" / str(task_number) / "meta.json"
+        return json.loads(path.read_text())
+
+    def task_comments_text(self, record: int, task_number: int) -> str:
+        path = self.records_dir() / str(record) / "tasks" / str(task_number) / "comments.jsonl"
+        return path.read_text()

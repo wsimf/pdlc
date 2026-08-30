@@ -1,6 +1,12 @@
+import io
+import os
+import sys
 import unittest
+from contextlib import redirect_stdout, redirect_stderr
+from unittest.mock import patch
 
-from pdlc.cli import _resolve
+from pdlc.cli import _options, _resolve, _usage, main
+from pdlc.config import ConfigurationError
 
 
 class CliTests(unittest.TestCase):
@@ -9,6 +15,58 @@ class CliTests(unittest.TestCase):
         self.assertEqual(module, "pdlc.commands.post_complete")
         self.assertEqual(arguments, ["236", "completion.md"])
 
+    def test_resolves_single_and_two_word_commands(self):
+        self.assertEqual(_resolve(["inspect", "9"])[0], "pdlc.commands.inspect")
+        self.assertEqual(_resolve(["inspect", "timeline", "9"])[0], "pdlc.commands.inspect_timeline")
+        self.assertEqual(_resolve(["next"])[0], "pdlc.commands.next")
+
     def test_supports_exec_alias(self):
         module, _ = _resolve(["exec", "post", "complete"])
         self.assertEqual(module, "pdlc.commands.post_complete")
+
+    def test_unknown_command_raises_with_usage(self):
+        with self.assertRaises(ValueError) as caught:
+            _resolve(["frobnicate"])
+        self.assertIn("unknown command", str(caught.exception))
+
+    def test_options_are_promoted_to_environment_variables(self):
+        saved = {key: os.environ.get(key) for key in ("PDLC_REPOSITORY", "PDLC_BACKEND")}
+        try:
+            remaining, _ = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
+            self.assertEqual(remaining, ["inspect", "9"])
+            self.assertEqual(os.environ["PDLC_REPOSITORY"], "o/r")
+            self.assertEqual(os.environ["PDLC_BACKEND"], "file")
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_option_without_a_value_is_rejected(self):
+        with self.assertRaises(ValueError):
+            _options(["--repo"])
+
+    def test_bare_invocation_prints_usage(self):
+        output = io.StringIO()
+        with patch.object(sys, "argv", ["pdlc"]), redirect_stdout(output):
+            self.assertEqual(main(), 0)
+        self.assertIn("usage: pdlc", output.getvalue())
+
+    def test_unknown_command_through_main_exits_one(self):
+        err = io.StringIO()
+        with patch.object(sys, "argv", ["pdlc", "frobnicate"]), redirect_stderr(err):
+            self.assertEqual(main(), 1)
+        self.assertIn("unknown command", err.getvalue())
+
+    def test_configuration_errors_are_printed_to_stdout(self):
+        output = io.StringIO()
+        with patch.object(sys, "argv", ["pdlc", "inspect", "236"]):
+            with patch(
+                "pdlc.cli.load_config",
+                side_effect=ConfigurationError("configure me"),
+            ), redirect_stdout(output):
+                from pdlc.cli import main
+
+                self.assertEqual(main(), 1)
+        self.assertIn("configure me", output.getvalue())

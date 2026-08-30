@@ -12,10 +12,10 @@ decisions: this script owns the Findings section (including its "None" empty
 case and the `(Verified @ ...)` marker on each fixed item), the Open
 Questions deferral lines (the `Deferred — ` marker), and the Recommendation
 line. Deferred findings are filed into Open Questions only — never echoed
-into the comment itself; pdlc-inspect-verify.py is how a later pass reads
+into the comment itself; pdlc inspect verify is how a later pass reads
 both back, and owns parsing these same markers on the way in.
 
-    pdlc-post-verify.py WORK_ITEM REPORT_FILE|- --recommendation TEXT [--attachment PATH [--attachment-description TEXT]]
+    pdlc post verify WORK_ITEM REPORT_FILE|- --recommendation TEXT [--attachment PATH [--attachment-description TEXT]]
         [--fixed FIXED_FILE|-] [--deferred DEFERRED_FILE|-]
         [--decision DECISION_FILE|-] [--bounce STAGE]
 
@@ -33,11 +33,11 @@ Omit either file, or leave it empty, when there's nothing to report for it.
 --recommendation is one of "Approval Required", "Changes Required", or
 "Decision Required", and sets the gate to that value on a successful post:
 
-  - Approval Required — clean run; the driver approves, then pdlc-post-complete.py.
+  - Approval Required — clean run; the driver approves, then pdlc post complete.
   - Changes Required  — a finding the skill can reconcile itself; the loop
                         routes straight back to pdlc-verify. With --bounce STAGE
                         the run instead returns that upstream stage to Stale
-                        (same effect as pdlc-post-invalidate.py, stamping the
+                        (same effect as pdlc post invalidate, stamping the
                         `Invalidated stage:` line the churn counter reads), so
                         the Implementation -> Testing -> Verification loop keeps
                         moving with no driver step. The verifier chooses the
@@ -48,7 +48,7 @@ Omit either file, or leave it empty, when there's nothing to report for it.
                         `## Decision Required` blocks; it is posted through
                         the backend's blocker channel under a PDLC-DECISION
                         marker, the autonomous loop halts on it, and the
-                        driver clears it with pdlc-post-decision.py.
+                        driver clears it with pdlc post decision.
 
 The gate is only moved when Status is Verification and the current gate is
 Pending, Changes Required, or Stale — a run against an already-approved or
@@ -228,7 +228,7 @@ def post_verify(
         post_blocker(issue, decision_body, "DECISION")
 
     # --bounce routes a Changes Required run straight back to an upstream stage
-    # with no driver step: same effect as pdlc-post-invalidate.py, stamping the
+    # with no driver step: same effect as pdlc post invalidate, stamping the
     # `Invalidated stage:` line the churn counter reads. The verifier picks the
     # target stage; findings live in the PDLC-VERIFICATION comment just posted.
     if bounce:

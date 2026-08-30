@@ -2,7 +2,7 @@
 """Records an independent reviewer's read-only verdict. A reviewer may set
 Changes Required, Approval Required, or Decision Required — never Approved.
 
-    pdlc-post-review.py WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
 
 `decision-required` is for a finding the owning skill cannot mechanically
 reconcile — one that needs a product, architecture, UX, or scope call from the
@@ -15,7 +15,7 @@ not `Approval Required`: the reviewer judged the code while the shared PR's CI
 was still in flight. This script then reconciles it immediately against the live
 check state (advancing to `Approval Required` if CI is already green, dropping to
 `Changes Required` with a PDLC-IMPLEMENTATION note if already red) and otherwise
-leaves it at `CI Pending` for pdlc-post-ci.py / the loop to resolve when CI
+leaves it at `CI Pending` for pdlc post ci / the loop to resolve when CI
 finishes. Every other stage lands `Approval Required` as before — except a
 clean Testing review on a record that has already been reworked within the churn
 cap, which skips the human approval step (PDLC-AUTOAPPROVED) and lands on
@@ -113,7 +113,7 @@ def main() -> int:
         return 1
     if len(args) != 3:
         print(
-            "usage: pdlc-post-review.py WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|-",
+            "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|-",
             file=sys.stderr,
         )
         return 1

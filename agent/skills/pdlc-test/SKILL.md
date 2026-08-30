@@ -11,7 +11,7 @@ This skill does not write or run tests itself. It reads one PDLC record's implem
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
 
 When testing produces local files such as screenshots, pass each one to
-`pdlc-post-test.py` as `--attachment PATH [--attachment-description TEXT]`.
+`pdlc post test` as `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 
@@ -24,7 +24,7 @@ Require an exact parent work item number. Check the current conversation for an 
 ## Step 1: Resolve the record and the testable scope
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect-test.py WORK_ITEM
+pdlc inspect test WORK_ITEM
 ```
 
 `## Readiness` already resolves whether coverage is due. Not ready → stop, report the reason verbatim, name the actual owner. Testing is gated behind implementation, not a substitute for it.
@@ -35,7 +35,7 @@ If the driver explicitly asks for ad hoc coverage on a record not due for `pdlc-
 
 ## Step 2: Handle the gate
 
-`Pending` (first pass), `Changes Required` (a reviewer found missing/failing coverage — read `pdlc-inspect-timeline.py WORK_ITEM`, that's this pass's scope), and `Stale` (implementation changed under existing coverage — reconcile it) are the only gates `## Readiness` lets through.
+`Pending` (first pass), `Changes Required` (a reviewer found missing/failing coverage — read `pdlc inspect timeline WORK_ITEM`, that's this pass's scope), and `Stale` (implementation changed under existing coverage — reconcile it) are the only gates `## Readiness` lets through.
 
 ## Step 3: Build the traceability map
 
@@ -45,7 +45,7 @@ Produce one map, in plain terms, that the test writer can act on without reading
 
 Include every in-scope `FR-*` and task acceptance criterion. Include a `C-*` constraint only when it creates an observable invariant a test can actually assert. Note coverage boundaries you already know about — anything needing a device, a fixture, a permission, or manual verification.
 
-This map is the deliverable of the stage as much as the tests are: the contract requires requirement-to-source traceability, not just a green suite. `pdlc-post-test.py` persists it verbatim into the `PDLC-TESTING` evidence under a `## Traceability` heading (Step 6), and that persisted copy is the exact artifact `pdlc-testing-reviewer` audits — so write it to a file you can pass through unchanged.
+This map is the deliverable of the stage as much as the tests are: the contract requires requirement-to-source traceability, not just a green suite. `pdlc post test` persists it verbatim into the `PDLC-TESTING` evidence under a `## Traceability` heading (Step 6), and that persisted copy is the exact artifact `pdlc-testing-reviewer` audits — so write it to a file you can pass through unchanged.
 
 ## Step 4: Dispatch `pdlc-test-writer`
 
@@ -66,7 +66,7 @@ Do not take the report on trust:
 ## Step 6: Publish and stop at Review Required
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-test.py WORK_ITEM /tmp/pdlc-test-evidence.md \
+pdlc post test WORK_ITEM /tmp/pdlc-test-evidence.md \
   --traceability /tmp/pdlc-traceability.md
 ```
 
@@ -78,7 +78,7 @@ Coverage changes: all in-scope requirements covered except FR-9.
 Exception: FR-9 needs a physical device and remains uncovered.
 ```
 
-`pdlc-post-test.py` confirms the shared implementation PR still links the parent, appends the `--traceability` map under a `## Traceability` heading, posts the evidence, and sets `Review Required` — one step. Body only — the script stamps the `PDLC-TESTING` marker and refuses one that already carries it, so strip any marker line the sub-agent returned. No linked PR is `Changes Required` territory: the coverage was never pushed.
+`pdlc post test` confirms the shared implementation PR still links the parent, appends the `--traceability` map under a `## Traceability` heading, posts the evidence, and sets `Review Required` — one step. Body only — the script stamps the `PDLC-TESTING` marker and refuses one that already carries it, so strip any marker line the sub-agent returned. No linked PR is `Changes Required` territory: the coverage was never pushed.
 
 Do not publish for ad hoc or partial scope (Step 1): report the coverage added and leave the stage exactly as found, since publishing would misrepresent what was verified.
 
@@ -96,18 +96,18 @@ Never claim the record is done from coverage alone, and never set `Approved`.
 - Do not edit fixtures, package manifests, project files, agents, or other skills.
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
 - Do not create or switch branches — coverage is committed and pushed on the current branch, onto the shared implementation PR.
-- Do not run `pdlc-post-approve.py`, `pdlc-post-skip.py`, `pdlc-post-invalidate.py`, or `pdlc-post-complete.py` — driver-only.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not write lifecycle state into any work item body — those fields are script-owned.
 - Preserve unrelated staged, unstaged, and untracked local work.
 - Do not claim delegated coverage, traceability, or test-run validation unless `pdlc-test-writer` actually reported it.
 
 ## Checklist
 
-- [ ] `## Readiness` from `pdlc-inspect-test.py` reports ready; gate was `Pending`, `Changes Required`, or `Stale`
+- [ ] `## Readiness` from `pdlc inspect test` reports ready; gate was `Pending`, `Changes Required`, or `Stale`
 - [ ] Scope came from `## Testable Scope`, cross-checked against real source at each seam
 - [ ] The traceability map covers every in-scope FR, criterion, and observable constraint, and was passed through `--traceability` so it persists in the Testing evidence
 - [ ] No coverage was dispatched for unimplemented requirements
-- [ ] Coverage was committed and pushed on the current branch; `pdlc-post-test.py` confirmed the shared implementation PR links the parent and its checks were re-read
+- [ ] Coverage was committed and pushed on the current branch; `pdlc post test` confirmed the shared implementation PR links the parent and its checks were re-read
 - [ ] Coverage boundaries are recorded rather than passed off as covered
 - [ ] Evidence holds only the durable result, changed coverage, evidence, and exceptions
 - [ ] Published exactly once, landing the stage at `Review Required`

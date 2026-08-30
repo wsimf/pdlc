@@ -12,7 +12,7 @@ This skill may touch production source or tests when resolving an approved findi
 
 Read `../pdlc/references/parity-contract.md` before starting.
 
-When verification produces local files, pass each one to `pdlc-post-verify.py`
+When verification produces local files, pass each one to `pdlc post verify`
 as `--attachment PATH [--attachment-description TEXT]`. Repeat
 `--attachment PATH` for multiple files; a description applies only to the
 immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
@@ -26,7 +26,7 @@ Require an exact parent work item number. Check the current conversation for an 
 ## Step 1: Resolve and confirm readiness
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-inspect-verify.py WORK_ITEM
+pdlc inspect verify WORK_ITEM
 ```
 
 Its `## Readiness` line already resolves `Status`/`Gate State` and the outcome. Not ready → stop, report the reason verbatim, do nothing further. Verification records its own outcome; it never uses `Review Required`. Keep this output at hand — nothing below needs re-fetching.
@@ -38,7 +38,7 @@ Its `## Readiness` line already resolves `Status`/`Gate State` and the outcome. 
 - One or two edge-case tasks incomplete **with** a recorded reason — note and continue.
 - Any meaningful work incomplete **without** one, or any leftover-Plan/unsettled-PR flag — stop, list what's unfinished, ask the driver.
 
-Call `pdlc-inspect.py WORK_ITEM` only if you need the body or task bodies beyond `## Task Completion`.
+Call `pdlc inspect WORK_ITEM` only if you need the body or task bodies beyond `## Task Completion`.
 
 `## Still valid` items need no further work; `## Stale — re-verify` items must be re-verified by the check below that owns that claim kind — this is what keeps a resumed pass cheap.
 
@@ -72,13 +72,13 @@ Work through every finding from Steps 3-5 with the driver rather than fixing sil
 
 - **Fix** — bounce to the owning stage: post at `Changes Required` with `--bounce STAGE` (Step 7), `Implementation` for a production change, `Testing` for a coverage or test change. The script returns that stage to `Stale` with no driver step, and the record goes back through review, approval, and testing before this audit resumes. Never edit source from this skill.
 - **Accept** — note the finding and the driver's reason; it becomes a one-line Open Questions deferral when the report posts (Step 7 writes it, not you).
-- **Decision** — for a finding that turns on a product, architecture, UX, safety, or scope call you cannot make, and that the driver may want to split into its own work item rather than settle inline. Write it as a `## Decision Required` block (question, options, your recommendation, what it blocks, why it is not mechanical) and post at `Decision Required` (Step 7). The autonomous loop halts; the driver clears it with `references/decision-resolver-workflow.md` (`pdlc-post-decision.py`), which returns the record to `Changes Required` for a re-verify with any deferred point out of scope. Do not use this for a finding you and the driver can just accept — that is **Accept**.
+- **Decision** — for a finding that turns on a product, architecture, UX, safety, or scope call you cannot make, and that the driver may want to split into its own work item rather than settle inline. Write it as a `## Decision Required` block (question, options, your recommendation, what it blocks, why it is not mechanical) and post at `Decision Required` (Step 7). The autonomous loop halts; the driver clears it with `references/decision-resolver-workflow.md` (`pdlc post decision`), which returns the record to `Changes Required` for a re-verify with any deferred point out of scope. Do not use this for a finding you and the driver can just accept — that is **Accept**.
 
 Every finding that turns on a production-source, test, or task-Result change goes back to its owning stage via `--bounce STAGE` (Step 7), naming the earliest stage that must rework — `Implementation`, or `Testing` for a coverage or test-only gap. The script returns that stage to `Stale` itself (no driver step) and the record goes back through review, approval, and testing before this audit resumes; the bounce is what advances the churn loop count. When the audit resumes after a bounce, don't blanket re-run everything — diff the reworked commits against each item's scope files and re-verify only what they actually touched, originating check first.
 
 ## Step 7: Post the verification report
 
-`pdlc-post-verify.py` assembles the comment, writes the Findings section, files deferrals into Open Questions, and sets the gate from `--recommendation`. Give it these inputs; make no formatting decisions yourself.
+`pdlc post verify` assembles the comment, writes the Findings section, files deferrals into Open Questions, and sets the gate from `--recommendation`. Give it these inputs; make no formatting decisions yourself.
 
 1. A report fragment with only Claims Audit, User Journeys, UX, and Ultra Review sections. Every item carries the `Verified @` commit the check actually ran against — never "now":
 
@@ -104,15 +104,15 @@ Every finding that turns on a production-source, test, or task-Result change goe
 5. `--bounce STAGE` — only with `--recommendation "Changes Required"`, when a finding needs an upstream stage to rework (Step 6). Returns that stage to `Stale` with a `PDLC-INVALIDATED` comment, no driver step.
 
 ```bash
-python3 .agents/skills/pdlc/scripts/pdlc-post-verify.py WORK_ITEM /tmp/pdlc-report.md \
+pdlc post verify WORK_ITEM /tmp/pdlc-report.md \
     --recommendation "Approval Required" \
     --fixed /tmp/pdlc-fixed.txt \
     --deferred /tmp/pdlc-deferred.txt
 ```
 
-`--recommendation` is `Approval Required` once every finding is fixed or accepted, `Decision Required` (with `--decision`) when a finding was routed to the driver in Step 6, and `Changes Required` when you are stopping mid-pass — with `--bounce STAGE` when the rework belongs to an upstream stage, without it when you can reconcile it in a re-verify. The script sets the gate: `Approval Required` awaits the driver's approval then `pdlc-complete`; plain `Changes Required` and (after `pdlc-post-decision.py`) `Decision Required` route back to `pdlc-verify`; `--bounce` routes to the named stage's owner. Do not edit `Product`, `UI`, `Decisions`, or Open Questions yourself — this script is the only thing that writes to the body at this stage.
+`--recommendation` is `Approval Required` once every finding is fixed or accepted, `Decision Required` (with `--decision`) when a finding was routed to the driver in Step 6, and `Changes Required` when you are stopping mid-pass — with `--bounce STAGE` when the rework belongs to an upstream stage, without it when you can reconcile it in a re-verify. The script sets the gate: `Approval Required` awaits the driver's approval then `pdlc-complete`; plain `Changes Required` and (after `pdlc post decision`) `Decision Required` route back to `pdlc-verify`; `--bounce` routes to the named stage's owner. Do not edit `Product`, `UI`, `Decisions`, or Open Questions yourself — this script is the only thing that writes to the body at this stage.
 
-**There is no `pdlc-verify.sh`**, and the stage publishers (`pdlc-post-implement.py`, `pdlc-post-test.py`) land `Review Required`, which Verification doesn't use — don't reach for them. Stop after posting (report the blocker if the workflow stopped early). Never set `Approved` or `Complete` from this skill.
+**There is no `pdlc-verify.sh`**, and the stage publishers (`pdlc post implement`, `pdlc post test`) land `Review Required`, which Verification doesn't use — don't reach for them. Stop after posting (report the blocker if the workflow stopped early). Never set `Approved` or `Complete` from this skill.
 
 ## Step 8: Report
 
@@ -122,10 +122,10 @@ Report the readiness check, what reuse found still valid vs. stale, the claims a
 
 ## Boundaries
 
-- Do not edit the parent's requirements, UI, Decisions, or Open Questions yourself — evidence, deferrals, and decision blocks go through `pdlc-post-verify.py`'s `--fixed`/`--deferred`/`--decision` only.
+- Do not edit the parent's requirements, UI, Decisions, or Open Questions yourself — evidence, deferrals, and decision blocks go through `pdlc post verify`'s `--fixed`/`--deferred`/`--decision` only.
 - Do not edit task scope, criteria, or Results; a wrong Result is a finding, not something to correct here.
 - Do not set `Status = Complete` — that's `pdlc-complete`, on explicit driver instruction.
-- Do not run `pdlc-post-approve.py`, `pdlc-post-skip.py`, `pdlc-post-invalidate.py`, `pdlc-post-decision.py`, or `pdlc-post-complete.py` — driver-only.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, `pdlc post decision`, or `pdlc post complete` — driver-only.
 - Preserve unrelated staged, unstaged, and untracked local work.
 - Do not claim delegated review, build, or runtime validation that did not happen, and never mark an item `Verified @` a commit the check wasn't run against.
 
@@ -134,10 +134,10 @@ Report the readiness check, what reuse found still valid vs. stale, the claims a
 - [ ] `Status` is `Verification`, gate was `Pending`, `Changes Required`, or `Stale`
 - [ ] Every task closed or explicitly deferred on record; PRs merged, checks settled
 - [ ] Prior evidence reused only where `git log` proved its scope untouched
-- [ ] `pdlc-inspect-verify.py` checked so no already-fixed/deferred finding was raised again
+- [ ] `pdlc inspect verify` checked so no already-fixed/deferred finding was raised again
 - [ ] Every stale claim checked against current source, constraints included
 - [ ] Journeys/UX ran in one `user-journey-reviewer` dispatch, or recorded not applicable
 - [ ] Cumulative review ran in one dispatch over a scope you resolved, and is clean, or the workflow stopped
 - [ ] Every finding fixed and re-verified, accepted with a reason for `--deferred`, or routed to the driver as a `## Decision Required` block via `--decision`
 - [ ] Every item carries the real commit its check ran against
-- [ ] Report posted via `pdlc-post-verify.py` with an explicit `--recommendation`, plus `--fixed`/`--deferred`/`--decision` as they apply
+- [ ] Report posted via `pdlc post verify` with an explicit `--recommendation`, plus `--fixed`/`--deferred`/`--decision` as they apply

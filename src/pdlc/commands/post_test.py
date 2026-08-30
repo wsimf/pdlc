@@ -7,7 +7,7 @@ requirement-to-source traceability map verbatim into the evidence under a
 `## Traceability` heading so the independent reviewer audits the exact
 artifact the stage produced, and sets `Review Required` — all in one step.
 
-    pdlc-post-test.py WORK_ITEM EVIDENCE_FILE|- --traceability FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post test WORK_ITEM EVIDENCE_FILE|- --traceability FILE|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations

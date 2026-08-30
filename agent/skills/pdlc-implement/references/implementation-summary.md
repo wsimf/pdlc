@@ -1,7 +1,7 @@
 # Task implementation summary outline
 
 `pdlc-implement` Step 5 writes one summary of what was done per task and posts it
-with `pdlc-post-implement-task.py`. It is a comment on the delivery task — the task
+with `pdlc post implement-task`. It is a comment on the delivery task — the task
 body and its `## Technical Plan` are never touched.
 
 Keep it to a few plain lines. Include only:

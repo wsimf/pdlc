@@ -5,13 +5,13 @@ mechanical facts a completion pass needs: which delivery tasks are open,
 which linked PRs aren't both merged and green, which live Open Questions the
 completion evidence must disposition, and whether the evidence in
 the latest `PDLC-VERIFICATION` comment still holds against current source
-(the same staleness check pdlc-inspect-verify.py's reuse pass runs, applied
+(the same staleness check pdlc inspect verify's reuse pass runs, applied
 here at lock time instead of audit time). The agent supplies judgment only
 where the data is genuinely ambiguous — is an open task's deferral durable,
 is unfinished work small enough to note and continue; every mechanical fact
 is resolved here, never by the agent querying the work-item store or `git` itself.
 
-    pdlc-inspect-complete.py WORK_ITEM
+    pdlc inspect complete WORK_ITEM
 
     ## Readiness
 
@@ -214,7 +214,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-inspect-complete.py WORK_ITEM", file=sys.stderr)
+        print("usage: pdlc inspect complete WORK_ITEM", file=sys.stderr)
         return 1
     issue = args[0]
 

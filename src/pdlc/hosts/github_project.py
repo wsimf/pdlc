@@ -10,12 +10,11 @@ import os
 from functools import cache
 
 from pdlc.hosts.github_common import (
-    PROJECT_NUMBER,
-    PROJECT_OWNER,
     owner_repository,
     run_gh_json,
     run_graphql,
 )
+from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import SKIP_FIELD_NAME, SLUG_FIELD_NAME, VALID_GATES
 
@@ -123,23 +122,25 @@ def _normalize_project_item(item: dict) -> dict:
 
 # PDLC_ITEMS_FILE lets tests/fixtures stand in for a live `gh project` call.
 def project_items() -> dict:
-    fixture = os.environ.get("PDLC_ITEMS_FILE")
+    config = get_config()
+    fixture = config.items_file
     if fixture:
         with open(fixture) as handle:
             result = json.load(handle)
     else:
         result = run_gh_json([
-            "project", "item-list", PROJECT_NUMBER,
-            "--owner", PROJECT_OWNER, "--format", "json", "--limit", "1000",
+            "project", "item-list", config.project_number,
+            "--owner", config.project_owner, "--format", "json", "--limit", "1000",
         ])
     return {**result, "items": [_normalize_project_item(item) for item in result.get("items", [])]}
 
 
 @cache
 def project_fields() -> dict:
+    config = get_config()
     return run_gh_json([
-        "project", "field-list", PROJECT_NUMBER,
-        "--owner", PROJECT_OWNER, "--format", "json",
+        "project", "field-list", config.project_number,
+        "--owner", config.project_owner, "--format", "json",
     ])
 
 
@@ -169,7 +170,8 @@ def item_for_issue(issue: str) -> dict:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
 
-    if os.environ.get("PDLC_ITEMS_FILE"):
+    config = get_config()
+    if config.items_file:
         matches = [
             item for item in project_items().get("items", [])
             if str(item.get("content", {}).get("number", item.get("number"))) == issue
@@ -181,7 +183,7 @@ def item_for_issue(issue: str) -> dict:
     owner, repository = owner_repository()
     data = run_graphql(ITEM_FOR_ISSUE_QUERY, owner=owner, repo=repository, issue=int(issue))
     issue_node = data["data"]["repository"]["issue"]
-    project_number = int(PROJECT_NUMBER)
+    project_number = int(config.project_number)
     matches = [
         node for node in issue_node["projectItems"]["nodes"]
         if node["project"]["number"] == project_number
@@ -212,9 +214,10 @@ def resolve_item(issue: str) -> dict:
 
 @cache
 def _project_id() -> str:
+    config = get_config()
     data = run_gh_json([
-        "project", "view", PROJECT_NUMBER,
-        "--owner", PROJECT_OWNER, "--format", "json",
+        "project", "view", config.project_number,
+        "--owner", config.project_owner, "--format", "json",
     ])
     return data["id"]
 
@@ -241,7 +244,7 @@ def _edit_text_field(item_id: str, field: str, value: str) -> dict:
     ])
 
 
-# Pre-declared skip list (see pdlc-post-skip.py)
+# Pre-declared skip list (see pdlc post skip)
 
 # Overwrites the Skipped States text field with an explicit comma-joined
 # value; callers own list validation, merging, and dedup.
@@ -249,7 +252,7 @@ def set_skipped_states(item_id: str, value: str) -> dict:
     return _edit_text_field(item_id, SKIP_FIELD_NAME, value)
 
 
-# Stable slug (see pdlc-post-write.py)
+# Stable slug (see pdlc post write)
 
 # Sets the Slug text field once, at record creation; never overwritten after.
 def set_slug(item_id: str, value: str) -> dict:

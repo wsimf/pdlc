@@ -11,14 +11,12 @@ from __future__ import annotations
 import pdlc.hosts.github_issues as github_issues
 import pdlc.hosts.github_project as github_project
 from pdlc.hosts.github_common import (
-    PROJECT_NUMBER,
-    PROJECT_OWNER,
-    REPOSITORY,
     body_file,
     repo_args,
     run_gh,
     run_gh_json,
 )
+from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.workitem_host.base import WorkItemBackend
 
@@ -85,6 +83,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
     # --- creation ---
 
     def create(self, title: str, body: str, slug: str) -> dict:
+        config = get_config()
         with body_file(body) as body_path:
             # `gh issue create` has no --json: the new Issue's URL is the last
             # line of its output.
@@ -96,8 +95,8 @@ class GitHubWorkItemBackend(WorkItemBackend):
             raise PdlcError(f"could not parse Issue number from: {url}")
 
         item = run_gh_json([
-            "project", "item-add", PROJECT_NUMBER,
-            "--owner", PROJECT_OWNER, "--url", url, "--format", "json",
+            "project", "item-add", config.project_number,
+            "--owner", config.project_owner, "--url", url, "--format", "json",
         ])
         return {"id": item["id"], "number": int(number), "url": url}
 
@@ -107,4 +106,5 @@ class GitHubWorkItemBackend(WorkItemBackend):
         return run_gh_json(["api", "user"])["login"]
 
     def ref_label(self) -> str:
-        return REPOSITORY.rsplit("/", 1)[-1] if REPOSITORY else "pdlc"
+        repository = get_config().repository
+        return repository.rsplit("/", 1)[-1] if repository else "pdlc"

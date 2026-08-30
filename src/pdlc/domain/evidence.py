@@ -1,6 +1,6 @@
 """Strict, typed parser for the assembled `PDLC-VERIFICATION` comment body.
 
-`pdlc-post-verify.py` composes that body from an agent-supplied report (the
+`pdlc post verify` composes that body from an agent-supplied report (the
 Claims Audit / User Journeys / UX / Ultra Review sections) plus a
 script-owned `### Findings` block and a `Recommendation:` line. Every reader
 of that evidence — publication, Verification inspection, and Completion

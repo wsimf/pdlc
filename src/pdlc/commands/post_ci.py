@@ -2,7 +2,7 @@
 """Resolves an Implementation record parked at `CI Pending` against the live
 check state of its pull request(s).
 
-    pdlc-post-ci.py WORK_ITEM
+    pdlc post ci WORK_ITEM
 
   - checks still running          -> no change; reports "still running"
   - checks green / none tracked   -> Implementation / Approval Required
@@ -30,7 +30,7 @@ def post_ci(issue: str) -> dict:
     record = item_for_issue(issue)
 
     if item_gate(record) != "CI Pending":
-        raise PdlcError(f"pdlc-post-ci requires Gate State = CI Pending, not {item_gate(record) or 'unset'}")
+        raise PdlcError(f"pdlc post ci requires Gate State = CI Pending, not {item_gate(record) or 'unset'}")
     if item_status(record) != "Implementation":
         raise PdlcError(f"a CI Pending gate is only reachable at Implementation, not {item_status(record)}")
 
@@ -44,7 +44,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-post-ci.py WORK_ITEM", file=sys.stderr)
+        print("usage: pdlc post ci WORK_ITEM", file=sys.stderr)
         return 1
 
     try:

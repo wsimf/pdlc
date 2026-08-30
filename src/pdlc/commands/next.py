@@ -2,9 +2,9 @@
 """Routes one work item's (Status, Gate State) to the next pdlc-* skill to run,
 per action_for() in lib/pdlc_common.py.
 
-    pdlc-next-task.py [--work-item N]        one item, or scan the queue for the
+    pdlc next [--work-item N]        one item, or scan the queue for the
                                             next autonomous action
-    pdlc-next-task.py loop [--work-item N]   same, but retry with backoff while
+    pdlc next loop [--work-item N]   same, but retry with backoff while
                                             nothing is actionable before giving up
 
 Output is a Markdown document: YAML front matter — id, work_item_number, title,
@@ -22,7 +22,7 @@ same way for a single --work-item lookup or a queue scan:
     PDLC-SKIPPED comment and the state advanced past it.
 
 Churn-gated auto-approval of the Implementation/Testing approval gates is not
-done here — the script that writes each gate (lib/ci_gate.py, pdlc-post-review.py)
+done here — the script that writes each gate (lib/ci_gate.py, pdlc post review)
 advances straight past it, so this router only ever sees real on-disk state.
 """
 
@@ -74,11 +74,11 @@ def decision(item: dict, action: str, reason: str, current_status: str, next_sta
 
 
 # When the arriving stage was pre-declared in the work item's "Skipped States"
-# field (see pdlc-post-skip.py), bypass its specialist skill entirely instead of
+# field (see pdlc post skip), bypass its specialist skill entirely instead of
 # routing to it: post a PDLC-SKIPPED comment and advance state automatically.
 # Cascades through consecutive skipped stages. Verification is terminal — a
 # skipped Verification stops at Approval Required rather than Complete, so
-# pdlc-post-complete.py still requires an explicit human completion instead of one
+# pdlc post complete still requires an explicit human completion instead of one
 # being triggered silently.
 def advance_past_skips(item: dict) -> dict:
     while True:
@@ -146,7 +146,7 @@ def next_once(selector: str | None) -> dict:
 
     item = advance_past_skips(item)
 
-    # CI Pending is resolved by pdlc-post-ci.py, but only once the checks have
+    # CI Pending is resolved by pdlc post ci, but only once the checks have
     # finished — while they run there is genuinely nothing to do, so report it
     # as no work and let loop_ back off.
     if item_gate(item) == "CI Pending" and peek_ci_state(item_issue(item)) == "pending":
@@ -236,7 +236,7 @@ def render(result: dict, *, attempts: int | None = None) -> str:
         instruction = (
             f"Work item {number} is at {result['current_status']}: the implementation review passed and "
             f"the shared PR's CI has finished. Run "
-            f"`python3 .agents/skills/pdlc/scripts/pdlc-post-ci.py {number}` to record the outcome — it "
+            f"`pdlc post ci {number}` to record the outcome — it "
             f"advances to Approval Required on green, or back to Changes Required on red — then re-poll."
         )
     elif action == "blocked":

@@ -17,7 +17,7 @@ Expect: a requirement-to-source traceability map (`FR-* / C-* / acceptance crite
 
 1. Build coverage from the supplied traceability map — do not derive scope yourself. Confirm each named source file and seam is real before writing against it; never infer an API from requirement wording or a task title.
 2. Walk the testing skill's Edge Case Thinking Framework against the behaviour in scope, on top of the map's own entries.
-3. Write the suite, then run it with `.agents/skills/create-swift-tests/scripts/test-with-coverage.sh` — one pass gives you both the result and the coverage.
+3. Write the suite, then run the test-with-coverage command specified by `$create-swift-tests` — one pass gives you both the result and the coverage.
 4. Read uncovered lines and close gaps representing real scenarios. Leave the others and explain why, and record any requirement you could not cover.
 5. When the suite is settled, commit your test files on the current branch, naming the parent work item in the message, then push the current branch so the shared implementation PR reflects the new commits. Do not create or switch branches.
 

@@ -10,8 +10,8 @@ with its marker, local time, author, a one-line preview, and the line span
 to read from that file for the whole comment. A long history stays out of
 the context window while remaining one Read away.
 
-    pdlc-inspect-timeline.py WORK_ITEM           # compact index + temp file
-    pdlc-inspect-timeline.py WORK_ITEM --full    # whole timeline to stdout
+    pdlc inspect timeline WORK_ITEM           # compact index + temp file
+    pdlc inspect timeline WORK_ITEM --full    # whole timeline to stdout
 
 The Work Item's local attachments are appended after the timeline.
 
@@ -63,7 +63,7 @@ def main() -> int:
         print_help(__doc__)
         return 0
     if len(args) != 1:
-        print("usage: pdlc-inspect-timeline.py WORK_ITEM [--full]", file=sys.stderr)
+        print("usage: pdlc inspect timeline WORK_ITEM [--full]", file=sys.stderr)
         return 1
     issue = args[0]
 

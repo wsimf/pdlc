@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify and link the implementation pull request, then complete the stage.
 
-    pdlc-post-implement.py WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post implement WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def main() -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 2:
-        print("usage: pdlc-post-implement.py WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post implement WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
         return 1
 
     issue, evidence = args

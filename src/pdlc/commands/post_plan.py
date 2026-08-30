@@ -3,10 +3,10 @@
 state, records each task's plan on its delivery task, and publishes the stage at
 Approval Required.
 
-    pdlc-post-plan.py --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post plan --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 Technical Plan is reviewed before this script publishes it. To rework a landed
-plan, return it to Stale with pdlc-post-invalidate.py and re-run this script;
+plan, return it to Stale with pdlc post invalidate and re-run this script;
 pdlc-inspect then reports the latest plan for each task. A record still at
 `Technical Plan / Approval Required` is re-authored in place: a non-dry-run call
 resets the stage to Stale itself (no comment — the plan never settled at
@@ -148,7 +148,7 @@ def main() -> int:
             # Plan to Stale ourselves and re-land the reviewed plans in this call.
             reauthor_invalidate_stage(record, "Technical Plan")
         elif gate == "Approval Required":
-            raise PdlcError(f"Technical Plan is at {gate}; return it to Stale with pdlc-post-invalidate.py before re-planning it")
+            raise PdlcError(f"Technical Plan is at {gate}; return it to Stale with pdlc post invalidate before re-planning it")
         elif gate in ("Review Required", "Changes Required"):
             raise PdlcError(f"Technical Plan is at {gate}, which no path in this flow produces for it; report it rather than landing over it")
         else:

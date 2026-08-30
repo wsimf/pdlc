@@ -17,10 +17,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 from pdlc.domain.lifecycle import PdlcError
-
-PROJECT_NUMBER = os.environ.get("PDLC_PROJECT_NUMBER", "2")
-PROJECT_OWNER = os.environ.get("PDLC_PROJECT_OWNER", "wsimf")
-REPOSITORY = os.environ.get("PDLC_REPOSITORY", "wsimf/TrailNest-iOS")
+from pdlc.config import get_config
 
 
 def _require_command(name: str) -> None:
@@ -54,14 +51,16 @@ def run_graphql(query: str, **variables: Any) -> dict:
 
 
 def repo_args() -> list[str]:
-    return ["--repo", REPOSITORY] if REPOSITORY else []
+    repository = get_config().repository
+    return ["--repo", repository] if repository else []
 
 
 def owner_repository() -> tuple[str, str]:
-    if not REPOSITORY or "/" not in REPOSITORY:
+    repository = get_config().repository
+    if not repository or "/" not in repository:
         raise PdlcError("PDLC_REPOSITORY must be owner/name to resolve an Issue")
-    owner, _, repository = REPOSITORY.partition("/")
-    return owner, repository
+    owner, _, name = repository.partition("/")
+    return owner, name
 
 
 # A bare `#123` that GitHub would autolink to an issue/PR and record as a

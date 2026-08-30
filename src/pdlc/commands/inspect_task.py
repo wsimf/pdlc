@@ -2,7 +2,7 @@
 """Read-only: renders one or more delivery tasks, each as its own
 YAML front-matter block (number, title, url, state, taskId, isUI, hasPlan,
 hasImplementation, needsPlan) followed by its full body as a `# Task` markdown
-section — pdlc-inspect.py's shape, but for whichever tasks a caller actually
+section — pdlc inspect's shape, but for whichever tasks a caller actually
 needs in full, rather than every task on the record.
 
 `hasPlan` reflects that this task has been technically planned; `hasImplementation`
@@ -10,11 +10,11 @@ reflects that implementation work has been carried out for it. When the task has
 a plan, it is rendered after the `# Task` body. Read these flags and the rendered
 plan rather than fetching task comments directly.
 
-    pdlc-inspect-task.py DELIVERY_TASK [DELIVERY_TASK ...] [--file]
+    pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...] [--file]
 
-Pair this with `pdlc-inspect.py WORK_ITEM`, whose default output is a compact
+Pair this with `pdlc inspect WORK_ITEM`, whose default output is a compact
 index: read it first to shortlist which task numbers are worth fetching in
-full, then pass those numbers here. Use `pdlc-inspect.py --full` when the full
+full, then pass those numbers here. Use `pdlc inspect --full` when the full
 work item body is needed inline.
 
 The parent Work Item's local attachments are rendered before the requested

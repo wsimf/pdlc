@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Records explicit human approval of the current stage and advances the
 work item to the next stage's Pending. Refuses Verification — that
-transition is completion, handled by pdlc-post-complete.py instead. Only the
+transition is completion, handled by pdlc post complete instead. Only the
 orchestrator may call this, and only on an explicit human instruction — gh
 identity cannot distinguish a human from an agent acting on their behalf, so
 this is a procedural boundary, not an authentication check.
 
-    pdlc-post-approve.py WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post approve WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     if item_gate(record) != "Approval Required":
         raise PdlcError("approval requires Gate State = Approval Required")
     if stage == "Verification":
-        raise PdlcError("use pdlc-post-complete.py after Verification approval")
+        raise PdlcError("use pdlc post complete after Verification approval")
     if is_stage_skipped(record, stage):
         raise PdlcError(f"{stage} is declared in Skipped States; nothing to approve")
 
@@ -70,7 +70,7 @@ def main() -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 2:
-        print("usage: pdlc-post-approve.py WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
         return 1
     issue, evidence = args
 
