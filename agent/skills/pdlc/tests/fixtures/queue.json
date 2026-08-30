@@ -1,0 +1,120 @@
+{
+  "items": [
+    {
+      "id": "PVTI_product",
+      "title": "Home Screen System Sheet Shell",
+      "content": {
+        "number": 14,
+        "title": "Home Screen System Sheet Shell",
+        "type": "Issue",
+        "url": "https://github.com/wsimf/TrailNest-iOS/issues/14"
+      },
+      "Status": "Product",
+      "Gate State": "Changes Required",
+      "Lifecycle": "Pending"
+    },
+    {
+      "id": "PVTI_approval",
+      "title": "Needs approval",
+      "content": {
+        "number": 15,
+        "title": "Needs approval",
+        "type": "Issue"
+      },
+      "issueBody": "## Product\n\nThe canonical product content.",
+      "comments": [
+        "PDLC-PRODUCT: drafted",
+        "PDLC-REVIEW: clean"
+      ],
+      "Status": "Product",
+      "Gate State": "Approval Required",
+      "Lifecycle": "Planning"
+    },
+    {
+      "id": "PVTI_complete",
+      "title": "Complete",
+      "content": {
+        "number": 16,
+        "title": "Complete",
+        "type": "Issue"
+      },
+      "Status": "Complete",
+      "Gate State": "Approved",
+      "Lifecycle": "Completed"
+    },
+    {
+      "id": "PVTI_ui",
+      "title": "UI due",
+      "content": {
+        "number": 17,
+        "title": "UI due",
+        "type": "Issue"
+      },
+      "Status": "UI",
+      "Gate State": "Pending",
+      "Lifecycle": "Planning",
+      "issueBody": "## Product\n\n### 4. Functional requirements\n- FR-1: The record lands.\n- FR-2: The record publishes.\n\n### 5. Constraints\n- C-1: Scripts own every GitHub mutation.\n"
+    },
+    {
+      "id": "PVTI_tasks",
+      "title": "Tasks due",
+      "content": {
+        "number": 18,
+        "title": "Tasks due",
+        "type": "Issue"
+      },
+      "Status": "Tasks",
+      "Gate State": "Pending",
+      "Lifecycle": "Planning",
+      "issueBody": "## Product\n\n### 4. Functional requirements\n- FR-1: The record lands.\n- FR-2: The record publishes.\n\n### 5. Constraints\n- C-1: Scripts own every GitHub mutation.\n\n## UI\n\nUI is required.\n\n### UJ-1 Author a breakdown\n### UJ-2 Review a breakdown\n\n## Decisions\n\nNone yet.\n"
+    },
+    {
+      "id": "PVTI_plan",
+      "title": "Plan due",
+      "content": {
+        "number": 19,
+        "title": "Plan due",
+        "type": "Issue"
+      },
+      "Status": "Technical Plan",
+      "Gate State": "Stale",
+      "Lifecycle": "Planning"
+    },
+    {
+      "id": "PVTI_implementation",
+      "title": "Implementation due",
+      "content": {
+        "number": 20,
+        "title": "Implementation due",
+        "type": "Issue"
+      },
+      "Status": "Implementation",
+      "Gate State": "Pending",
+      "Lifecycle": "Implementing"
+    },
+    {
+      "id": "PVTI_testing",
+      "title": "Testing due",
+      "content": {
+        "number": 21,
+        "title": "Testing due",
+        "type": "Issue"
+      },
+      "Status": "Testing",
+      "Gate State": "Pending",
+      "Lifecycle": "Implementing"
+    },
+    {
+      "id": "PVTI_verification",
+      "title": "Verification due",
+      "content": {
+        "number": 22,
+        "title": "Verification due",
+        "type": "Issue"
+      },
+      "Status": "Verification",
+      "Gate State": "Pending",
+      "Lifecycle": "Implementing"
+    }
+  ]
+}

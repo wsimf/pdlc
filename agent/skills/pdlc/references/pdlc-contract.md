@@ -1,0 +1,204 @@
+# PDLC contract
+
+The PDLC work item store is the system of record; local files are temporary
+inputs only. The `pdlc-*` scripts are the only interface to it — never assume a
+particular backing store.
+
+## Record ownership
+
+- The parent work item owns the canonical product specification, decisions,
+  open questions, phase artifacts, and durable evidence.
+- The work item's own state owns the current `Status`, current-gate `Gate
+  State`, `Lifecycle`, `Slug`, and queue metadata.
+- Delivery tasks own their own scope, dependencies, acceptance criteria,
+  plans, implementation links, and task evidence. A delivery task is never a
+  work item in its own right.
+- Pull requests own code and test changes. They must link the relevant task and
+  parent work item.
+- Evidence comments are append-only and explain transitions. Never
+  use a comment as a substitute for work item state.
+
+## Local attachments
+
+Attachments are local agent inputs, not PDLC record data. Post scripts may save
+them under `.pdlc/<work-item-number>/attachments/`; inspectors read that local
+directory and render the attachment description and path. Attachment metadata
+and file contents are never written to the work item, Project, issue, or
+evidence comments.
+
+## Identity
+
+A work item registered with PDLC is a parent record; one without is not. `Slug`
+is a stable machine identifier set once by `pdlc-post-write.py` at creation and
+never rewritten afterward. The title remains human-readable and free to reword.
+The controller matches stable work item numbers and IDs, never titles
+or in-body markers.
+
+## Stages and gates
+
+The work item's `Status` is the active stage:
+
+`Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`
+
+`Gate State` describes the active stage:
+
+`Pending | Review Required | Changes Required | Decision Required | CI Pending | Approval Required | Approved | Stale`
+
+`CI Pending` is set on `Implementation` when a clean stage review lands but the
+shared PR's checks have not finished — the reviewer judged the code while CI was
+still in flight. It is not a human gate: `pdlc-post-ci.py` reconciles it against
+the live check state — green, or no checks configured, advances to
+`Approval Required`; red posts a `PDLC-IMPLEMENTATION` note and drops to
+`Changes Required`. The autonomous loop backs off while checks run, then
+resolves it with no human involvement.
+
+`Decision Required` is set by a post-publication reviewer (Implementation,
+Testing), or by the Verification audit itself (`pdlc-post-verify.py
+--recommendation "Decision Required" --decision`), when a finding turns on a
+product, architecture, UX, safety, or scope call the owning skill cannot make.
+It halts the autonomous loop with no reconciliation passes, and its evidence —
+a `## Decision Required` block stating the question, options, recommendation,
+and what it blocks — is posted through the backend's blocker channel under
+`PDLC-DECISION`.
+
+Only the driver clears it, through `references/decision-resolver-workflow.md`:
+`pdlc-post-decision.py` takes a manifest of per-decision outcomes — each either
+answered or deferred into its own `Product / Pending` work item — records them
+all under one `PDLC-RESOLUTION` comment, and moves the gate to `Changes
+Required`, which routes back to the stage owner (`pdlc-implement`, `pdlc-test`,
+or `pdlc-verify`). A decision that invalidates approved upstream intent goes
+through `pdlc-post-invalidate.py` against the owning stage instead.
+
+The normal phase loop is:
+
+`Pending/Changes Required/Stale → phase work → Review Required → independent review → Approval Required → explicit human approval → next stage Pending`
+
+Only the local controller may mutate work item fields. Agents request transitions
+through it. `pdlc-post-approve.py`, `pdlc-post-skip.py`, and `pdlc-post-complete.py` carry no
+identity check — every agent acts under the driver's own credentials, so an
+identity match proves nothing. The boundary is procedural: only the orchestrator
+calls these scripts, and only in direct response to the human's own words in this
+turn, never inferred from conversation or a specialist's recommendation. A
+human approval is recorded as a work item comment and atomically advances the
+record to the next stage at `Pending`. Verification is the exception: its
+approval is consumed by the completion transition.
+
+The work item has one active stage, not a hidden map of all historical gate
+states. Historical phase status is preserved in evidence comments and artifact
+markers. When an upstream artifact changes, move the work item back to that
+stage, set `Gate State = Stale`, set `Lifecycle = Planning`, and
+record which downstream evidence is invalidated.
+
+## Transition policy
+
+- Product authoring is never autonomous. `pdlc-write` interviews the driver,
+  has the draft reviewed locally, and creates or updates the record only once
+  that review is clean — landing it at `Product / Approval Required`.
+- The pre-publication stages (`Product`, `UI`, `Tasks`, `Technical Plan`) reach
+  `Approval Required` directly. A driver request to change one of them before it
+  is approved is handled by that stage's own land script
+  (`pdlc-post-write.py` / `pdlc-post-tasks.py` / `pdlc-post-plan.py`): it resets
+  the gate to `Stale` itself and re-lands the reviewed artifact in one call. No
+  `PDLC-INVALIDATED` comment — the artifact never settled at `Approved`, the
+  re-land's own stage evidence records the change, and nothing feeds the
+  rework/churn total. No separate `pdlc-post-invalidate.py` step.
+- Every later stage transition requires the current stage to be
+  `Approval Required` and an explicit human approval. The one exception:
+  when a record has already been reworked between one and three times (any
+  stage bounce, counted from the `Invalidated stage: <STAGE>` evidence),
+  the script that would set the `Implementation` or `Testing`
+  `Approval Required` gate — `lib/ci_gate.py` on green CI, `pdlc-post-review.py`
+  on a clean Testing review — advances straight past it instead, posting a
+  `PDLC-AUTOAPPROVED` comment and landing the next stage's `Pending`. Past three
+  loops the gate stops for the driver again; `Verification` approval is never
+  auto-cleared; `PDLC_AUTOAPPROVE_CHURN_CAP=0` disables it. A `Verification`
+  `Changes Required` run bounces an upstream stage to `Stale` on its own when
+  invoked with `pdlc-post-verify.py --bounce STAGE`, replacing the driver's
+  `pdlc-post-invalidate.py` call for that loop.
+- Agents may set `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, and `Approval Required`.
+- Agents may not set `Approved` or `Complete`. Only the churn auto-approval in
+  `lib/ci_gate.py` / `pdlc-post-review.py` advances a stage without a recorded
+  human approval, within the bounds above.
+- `Complete` requires clean Verification evidence, all delivery tasks closed,
+  linked PRs merged, and passing required checks.
+- `Complete` is locked. New scope creates a new parent work item.
+- A malformed or unsupported work item state is `blocked`; never guess.
+
+## Phase ownership
+
+- Product: problem, goals, requirements, constraints, non-goals, success,
+  assumptions, decisions, and open questions.
+- UI: UI specification, accessibility, states, and user journeys.
+- Tasks: stable `WORK-NNN-TASK-NNN` delivery tasks with requirements,
+  dependencies, acceptance criteria, and HITL/AFK classification.
+- Technical Plan: source ownership, architecture, sequencing, risks, and
+  validation plan.
+- Implementation: production changes, task PRs, and result evidence. The
+  parent remains at `Implementation / Pending` while any delivery task is
+  open; only after all task evidence is settled does it enter phase review.
+- Testing: requirement traceability, acceptance coverage, and CI evidence.
+- Verification: claims, runtime behavior, UX journeys, review findings, and
+  completion recommendation.
+
+## Artifact structure
+
+The parent work item body uses stable, named sections for Product, UI, Decisions,
+Open Questions, and Verification. A stage owner may prepare a replacement only for
+its owned section and must preserve approved upstream sections. Controller
+scripts re-read the live record before publishing it. Completion is not a stage
+owner of any section: `pdlc-post-complete.py` records what shipped in its evidence
+comment and makes exactly one body edit — blanking the settled Open Questions
+section to a pointer.
+
+## Evidence markers
+
+Every evidence comment starts with one of these markers so the controller and
+humans can find durable evidence without parsing prose. **No agent writes one.**
+The `pdlc-post-*` scripts stamp the marker from the calling script's own
+knowledge of the stage, refuse an evidence file that already carries one, and
+refuse an unknown or missing marker with the valid list. Evidence files hold the
+comment body only:
+
+- `PDLC-PRODUCT`
+- `PDLC-UI`
+- `PDLC-TASKS`
+- `PDLC-PLAN`
+- `PDLC-IMPLEMENTATION`
+- `PDLC-TESTING`
+- `PDLC-VERIFICATION`
+- `PDLC-COMPLETE`
+- `PDLC-APPROVED` — a driver approved a stage (`pdlc-post-approve.py`)
+- `PDLC-AUTOAPPROVED` — the `Implementation`/`Testing` approval gate was cleared with no human step on a churning record (`lib/ci_gate.py`, `pdlc-post-review.py`)
+- `PDLC-INVALIDATED` — a settled stage was returned to `Stale`, by a driver (`pdlc-post-invalidate.py`) or an autonomous `Verification` bounce (`pdlc-post-verify.py --bounce`); the comment opens with a script-owned `Invalidated stage: <stage>` line and counts toward the rework/churn total. (A pre-publication stage re-authored in place from `Approval Required` posts no such comment — it is a bare gate reset.)
+- `PDLC-SKIPPED` — a stage declared skipped, or auto-advanced past (`pdlc-post-skip.py`, `pdlc-next-task.py`)
+- `PDLC-DECISION`
+- `PDLC-RESOLUTION`
+
+Each evidence comment should include the work item/PR links, actor, timestamp,
+scope, result, and unresolved risks. Specialists prepare the body; the scripts
+stamp, publish, and record the validated stage transition.
+
+One exception: a delivery task's per-task Technical Plan and implementation
+note are each a plain comment on the delivery task whose first non-empty line is
+`## Technical Plan` or `## Implementation` — no marker. `pdlc-post-plan.py` and
+`pdlc-post-implement-task.py` post them (the latter prepends the
+`## Implementation` heading when the supplied summary omits it), and
+`pdlc-inspect` derives the
+`hasPlan` / `hasImplementation` flags (and renders the plan) from those
+headings. The parent's `Technical Plan` / `PDLC-IMPLEMENTATION` markers still
+belong to the respective *stage* publication evidence.
+
+Every script that posts evidence accepts either a path or `-` to read the body
+from stdin, so short evidence goes inline through a quoted heredoc without a
+temp file. Empty evidence is refused on both paths.
+
+## Determinism and idempotency
+
+- Re-running a phase must update the same parent work item sections or stable task
+  IDs instead of creating duplicates.
+- Re-running record creation, field updates, or comments must not silently select
+  a different record.
+- Every mutation must address its target by explicit ID and validate the
+  response.
+- Backend failures, missing fields, rate limits, and ambiguous matches are hard
+  failures, not reasons to continue.
