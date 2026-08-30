@@ -11,7 +11,6 @@ from typing import Callable
 from pdlc.config import Config, config_path, load_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.github_common import run_gh_json
-from pdlc.domain.lifecycle import wants_help
 
 
 Input = Callable[[str], str]
@@ -88,7 +87,9 @@ def _write_config(
 
 
 def main(input_fn: Input = input) -> int:
-    if wants_help(sys.argv[1:]):
+    # `setup` takes no positional arguments, so only an explicit flag is help;
+    # an empty argv means "run the wizard".
+    if any(argument in ("-h", "--help") for argument in sys.argv[1:]):
         print(__doc__.strip())
         return 0
     config = load_config()

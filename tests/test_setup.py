@@ -74,9 +74,20 @@ class MainTests(_QuietStdout):
         with patch.object(setup, "config_path", return_value=target), \
              patch.object(setup, "_origin", return_value=origin), \
              patch.object(setup, "_projects", return_value=projects or []), \
-             patch.object(setup.sys, "argv", ["pdlc setup", "run"]):
+             patch.object(setup.sys, "argv", ["pdlc setup"]):
             code = setup.main(scripted(answers))
         return code, target
+
+    def test_help_flag_prints_usage_and_skips_the_wizard(self):
+        with patch.object(setup.sys, "argv", ["pdlc setup", "--help"]):
+            # No scripted input: reaching a prompt would raise StopIteration.
+            self.assertEqual(setup.main(scripted([])), 0)
+
+    def test_bare_invocation_runs_the_wizard(self):
+        # Regression: an empty argv must not be mistaken for a help request.
+        code, target = self._run(["2"])
+        self.assertEqual(code, 0)
+        self.assertTrue(target.exists())
 
     def test_file_backend_end_to_end(self):
         # Backend prompt -> choice 2 (file); nothing else is asked.
