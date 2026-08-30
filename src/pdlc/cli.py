@@ -1,9 +1,4 @@
-"""Public PDLC command-line dispatcher.
-
-The legacy command modules retain the established validation and transition
-behavior while the public command names migrate from script filenames to a
-stable CLI surface.
-"""
+"""Public PDLC command-line dispatcher."""
 
 from __future__ import annotations
 
@@ -13,28 +8,28 @@ import sys
 
 
 COMMANDS = {
-    ("inspect",): "pdlc.legacy.pdlc_inspect",
-    ("inspect", "task"): "pdlc.legacy.pdlc_inspect_task",
-    ("inspect", "timeline"): "pdlc.legacy.pdlc_inspect_timeline",
-    ("inspect", "verify"): "pdlc.legacy.pdlc_inspect_verify",
-    ("inspect", "complete"): "pdlc.legacy.pdlc_inspect_complete",
-    ("inspect", "test"): "pdlc.legacy.pdlc_inspect_test",
-    ("inspect", "review"): "pdlc.legacy.pdlc_inspect_review",
-    ("next",): "pdlc.legacy.pdlc_next_task",
-    ("post", "approve"): "pdlc.legacy.pdlc_post_approve",
-    ("post", "ci"): "pdlc.legacy.pdlc_post_ci",
-    ("post", "complete"): "pdlc.legacy.pdlc_post_complete",
-    ("post", "decision"): "pdlc.legacy.pdlc_post_decision",
-    ("post", "implement-task"): "pdlc.legacy.pdlc_post_implement_task",
-    ("post", "implement"): "pdlc.legacy.pdlc_post_implement",
-    ("post", "invalidate"): "pdlc.legacy.pdlc_post_invalidate",
-    ("post", "plan"): "pdlc.legacy.pdlc_post_plan",
-    ("post", "review"): "pdlc.legacy.pdlc_post_review",
-    ("post", "skip"): "pdlc.legacy.pdlc_post_skip",
-    ("post", "tasks"): "pdlc.legacy.pdlc_post_tasks",
-    ("post", "test"): "pdlc.legacy.pdlc_post_test",
-    ("post", "verify"): "pdlc.legacy.pdlc_post_verify",
-    ("post", "write"): "pdlc.legacy.pdlc_post_write",
+    ("inspect",): "pdlc.commands.inspect",
+    ("inspect", "task"): "pdlc.commands.inspect_task",
+    ("inspect", "timeline"): "pdlc.commands.inspect_timeline",
+    ("inspect", "verify"): "pdlc.commands.inspect_verify",
+    ("inspect", "complete"): "pdlc.commands.inspect_complete",
+    ("inspect", "test"): "pdlc.commands.inspect_test",
+    ("inspect", "review"): "pdlc.commands.inspect_review",
+    ("next",): "pdlc.commands.next",
+    ("post", "approve"): "pdlc.commands.post_approve",
+    ("post", "ci"): "pdlc.commands.post_ci",
+    ("post", "complete"): "pdlc.commands.post_complete",
+    ("post", "decision"): "pdlc.commands.post_decision",
+    ("post", "implement-task"): "pdlc.commands.post_implement_task",
+    ("post", "implement"): "pdlc.commands.post_implement",
+    ("post", "invalidate"): "pdlc.commands.post_invalidate",
+    ("post", "plan"): "pdlc.commands.post_plan",
+    ("post", "review"): "pdlc.commands.post_review",
+    ("post", "skip"): "pdlc.commands.post_skip",
+    ("post", "tasks"): "pdlc.commands.post_tasks",
+    ("post", "test"): "pdlc.commands.post_test",
+    ("post", "verify"): "pdlc.commands.post_verify",
+    ("post", "write"): "pdlc.commands.post_write",
 }
 
 
