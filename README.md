@@ -2,6 +2,36 @@
 
 The PDLC command-line tool and its agent workflow instructions.
 
+## Installation
+
+Install the `pdlc` CLI as a `uv` tool so it lands on `PATH`:
+
+```bash
+uv tool install 'git+ssh://git@github.com/wsimf/pdlc.git@master'
+```
+
+Pin a branch or tag by changing the `@master` suffix (for example `@my-branch` or `@v0.1.0`).
+
+Verify with:
+
+```bash
+pdlc --help
+```
+
+### Updating
+
+Re-pull the pinned ref and reinstall:
+
+```bash
+uv tool upgrade pdlc --reinstall
+```
+
+To switch to a different branch or tag, reinstall with `--force`:
+
+```bash
+uv tool install --force 'git+ssh://git@github.com/wsimf/pdlc.git@my-branch'
+```
+
 ## Development
 
 ```bash
@@ -9,17 +39,7 @@ uv run pdlc --help
 uv build
 ```
 
-Install from the current branch with:
-
-```bash
-uv tool install 'git+ssh://git@github.com/ORG/pdlc.git@master'
-```
-
-Update a branch-based installation with:
-
-```bash
-uv tool upgrade pdlc --reinstall
-```
+Run from a local checkout without installing with `uv run pdlc ...`.
 
 ## Environment variables
 
