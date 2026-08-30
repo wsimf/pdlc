@@ -18,11 +18,11 @@ class PdlcError(RuntimeError):
     print str(error) to stderr, and exit 1 — mirroring the shell `die`."""
 
 
-# True when the script was invoked with no arguments or an explicit
-# -h/--help flag, so a caller unsure of a script's positional arguments can
-# recover its usage from the module docstring instead of guessing.
+# True when the script was invoked with no arguments or an explicit -h/--help
+# flag anywhere in the argument list, so a caller unsure of positional
+# arguments can recover its usage from the module docstring instead of guessing.
 def wants_help(argv: list[str]) -> bool:
-    return not argv or argv[0] in ("-h", "--help")
+    return not argv or any(argument in ("-h", "--help") for argument in argv)
 
 
 def print_help(doc: str | None) -> None:
