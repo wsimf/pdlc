@@ -183,9 +183,39 @@ class FileBackendTest(unittest.TestCase):
         )
         return directory
 
-    def seed_prs(self, record: int, pull_requests: list[dict]) -> None:
+    def seed_prs(self, record: int, pull_requests: list[dict], *, register: bool = True) -> None:
         path = self.records_dir() / str(record) / "pull_requests.json"
         path.write_text(json.dumps(pull_requests))
+        if register:
+            self.register_prs(record, [pr["number"] for pr in pull_requests])
+
+    def register_prs(self, ref: int, numbers: list[int]) -> None:
+        """Record PR numbers on a record (or task) body the way `pdlc post
+        attach-pr` / `pdlc post implement` do — the registry the gates read."""
+        from pdlc.domain.model import read_task_meta, write_task_meta
+
+        candidates = [self.records_dir() / str(ref)]
+        task_path = self._task_path(ref)
+        if task_path is not None:
+            candidates.append(task_path)
+        for base in candidates:
+            body_path = base / "body.md"
+            if body_path.exists():
+                break
+        else:
+            raise AssertionError(f"no record or task #{ref}")
+        body = body_path.read_text()
+        meta = read_task_meta(body)
+        have = {int(n) for n in meta.get("prs", [])}
+        meta["prs"] = [str(n) for n in sorted(have | set(numbers))]
+        body_path.write_text(write_task_meta(body, meta))
+
+    def _task_path(self, number: int):
+        for record in self.records_dir().glob("*"):
+            candidate = record / "tasks" / str(number)
+            if candidate.is_dir():
+                return candidate
+        return None
 
     def green_pr(self, record: int, *, number: int = 900, checks: str = "SUCCESS") -> None:
         self.seed_prs(

@@ -41,6 +41,7 @@ from pathlib import Path
 from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.workitem import due_next, resolve_item, task_tree  # type: ignore
 
 
@@ -56,7 +57,7 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
     if not in_scope:
         return ["## Testable Scope", "", "No task has closed with its implementation recorded yet — nothing is implemented."]
 
-    pr_by_number = {pr["number"]: pr for pr in pull_requests if pr["relation"] == "closes"}
+    pr_by_number = {pr["number"]: pr for pr in pull_requests}
 
     sections = ["## Testable Scope"]
     for task in in_scope:
@@ -95,7 +96,7 @@ def inspect(issue: str) -> str:
         return "\n".join(sections) + "\n"
 
     tasks = task_tree(issue)
-    pull_requests = get_code_host().pull_requests(issue)
+    pull_requests = record_pull_requests(issue)
 
     sections += ["", *_testable_scope_section(tasks, pull_requests)]
 

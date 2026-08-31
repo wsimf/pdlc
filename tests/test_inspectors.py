@@ -101,3 +101,106 @@ class ReadinessReportTests(FileBackendTest):
         result = self.invoke("inspect_complete", 44)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("Not ready", result.stdout)
+
+
+class InspectImplementTests(FileBackendTest):
+    """`pdlc inspect implement`: readiness + the single next eligible task."""
+
+    def _plan(self, record: int, task_number: int, text: str = "## Technical Plan\n\nDo the thing.\n") -> None:
+        log = self.records_dir() / str(record) / "tasks" / str(task_number) / "comments.jsonl"
+        entry = {"body": text, "createdAt": "2026-03-01T00:00:00Z", "url": "", "author": {"login": "t"}}
+        with log.open("a") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    def _implemented(self, record: int, task_number: int) -> None:
+        self._plan(record, task_number, "## Implementation\n\nShipped.\n")
+
+    def _seed(self, record: int = 60, slug: str = "record-60", **kw) -> None:
+        self.seed_record(record, "Implementation", "Pending", slug=slug, **kw)
+
+    def test_reports_the_next_eligible_core_task_before_ui(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] UI work")
+        self._plan(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Ready — Gate State: Pending.", result.stdout)
+        self.assertIn("### WORK-60-TASK-001 [CORE] Core work", result.stdout)
+        self.assertIn("taskId: TASK-001", result.stdout)
+        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
+        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
+        self.assertIn("Do the thing.", result.stdout)
+        self.assertIn("Judgment Required", result.stdout)
+
+    def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
+        self._implemented(60, 601)
+        self._plan(60, 602)
+        self.register_prs(601, [40])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("### WORK-60-TASK-002 [CORE] Second", result.stdout)
+        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
+        self.assertIn("stackEntryPr: 40", result.stdout)
+        self.assertIn("1 of 2 delivery tasks closed.", result.stdout)
+
+    def test_predecessor_without_a_registered_pr_gives_no_entry_point(self):
+        # `gh stack checkout` needs a PR to discover the stack from. An
+        # implemented task that never registered one cannot serve as one, so the
+        # inspector says so by falling back to `init` rather than guessing.
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
+        self._implemented(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-002", result.stdout)
+        self.assertNotIn("stackEntryPr", result.stdout)
+
+    def test_unplanned_task_is_not_eligible(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] No plan yet")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("no task is OPEN, planned, and not yet implemented", result.stdout)
+        self.assertIn("not yet planned", result.stdout)
+        self.assertNotIn("Judgment Required", result.stdout)
+
+    def test_task_filter_scopes_to_one_task(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] One")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Two")
+        self._plan(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60, "--task", "2")
+        self.assertIn("### WORK-60-TASK-002 [CORE] Two", result.stdout)
+        self.assertNotIn("### WORK-60-TASK-001", result.stdout)
+
+    def test_phase_filter_selects_ui(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Interface")
+        self._plan(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60, "--phase", "ui")
+        self.assertIn("### WORK-60-TASK-002 [UI] Interface", result.stdout)
+
+    def test_not_ready_when_stage_is_not_implementation(self):
+        self.seed_record(61, "Testing", "Pending", slug="record-61")
+        result = self.invoke("inspect_implement", 61)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Not ready: Status is 'Testing'", result.stdout)
+        self.assertNotIn("Next Task", result.stdout)
+
+    def test_not_ready_at_review_required(self):
+        self.seed_record(62, "Implementation", "Review Required", slug="record-62")
+        result = self.invoke("inspect_implement", 62)
+        self.assertIn("Not ready: Gate State is 'Review Required'", result.stdout)

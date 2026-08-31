@@ -45,12 +45,12 @@ The work item's `Status` is the active stage:
 `Pending | Review Required | Changes Required | Decision Required | CI Pending | Approval Required | Approved | Stale`
 
 `CI Pending` is set on `Implementation` when a clean stage review lands but the
-shared PR's checks have not finished — the reviewer judged the code while CI was
-still in flight. It is not a human gate: `pdlc post ci` reconciles it against
-the live check state — green, or no checks configured, advances to
-`Approval Required`; red posts a `PDLC-IMPLEMENTATION` note and drops to
-`Changes Required`. The autonomous loop backs off while checks run, then
-resolves it with no human involvement.
+task PR stack's checks have not finished — the reviewer judged the code while CI
+was still in flight. It is not a human gate: `pdlc post ci` reconciles it against
+the live check state across every PR in the stack — all green, or no checks
+configured, advances to `Approval Required`; any red posts a
+`PDLC-IMPLEMENTATION` note and drops to `Changes Required`. The autonomous loop
+backs off while checks run, then resolves it with no human involvement.
 
 `Decision Required` is set by a post-publication reviewer (Implementation,
 Testing), or by the Verification audit itself (`pdlc post verify
@@ -120,7 +120,10 @@ record which downstream evidence is invalidated.
   the CI gate / `pdlc post review` advances a stage without a recorded
   human approval, within the bounds above.
 - `Complete` requires clean Verification evidence, all delivery tasks closed,
-  linked PRs merged, and passing required checks.
+  the record's registered PRs merged, and passing required checks.
+- A record's pull requests are read from the explicit registry on the work item
+  and its tasks (`pdlc post implement-task` / `attach-pr` / `implement` / `test`
+  record them), never inferred from a `Closes #N` keyword or a branch name.
 - `Complete` is locked. New scope creates a new parent work item.
 - A malformed or unsupported work item state is `blocked`; never guess.
 
@@ -133,22 +136,27 @@ record which downstream evidence is invalidated.
   dependencies, acceptance criteria, and HITL/AFK classification.
 - Technical Plan: source ownership, architecture, sequencing, risks, and
   validation plan.
-- Implementation: production changes, task PRs, and result evidence. The
-  parent remains at `Implementation / Pending` while any delivery task is
-  open; only after all task evidence is settled does it enter phase review.
-- Testing: requirement traceability, acceptance coverage, and CI evidence.
+- Implementation: production changes plus each task's unit coverage, one
+  stacked PR per delivery task, and result evidence. `pdlc-implement` lands one
+  task per invocation; the parent remains at `Implementation / Pending` while
+  any delivery task is open, and only after all task evidence is settled does it
+  enter phase review.
+- Testing: whole-feature requirement traceability, acceptance coverage, and CI
+  evidence across the task PR stack.
 - Verification: claims, runtime behavior, UX journeys, review findings, and
   completion recommendation.
 
 ## Artifact structure
 
 The parent work item body uses stable, named sections for Product, UI, Decisions,
-Open Questions, and Verification. A stage owner may prepare a replacement only for
-its owned section and must preserve approved upstream sections. Controller
-scripts re-read the live record before publishing it. Completion is not a stage
-owner of any section: `pdlc post complete` records what shipped in its evidence
-comment and makes exactly one body edit — blanking the settled Open Questions
-section to a pointer.
+Open Questions, and Verification, optionally preceded by a machine-owned
+`<!-- pdlc:meta -->` block holding the record's registered pull-request numbers
+(linear flow only; the stacked flow registers PRs on the tasks). A stage owner
+may prepare a replacement only for its owned section and must preserve approved
+upstream sections. Controller scripts re-read the live record before publishing
+it. Completion is not a stage owner of any section: `pdlc post complete` records
+what shipped in its evidence comment and makes exactly one section edit —
+blanking the settled Open Questions section to a pointer.
 
 ## Evidence markers
 

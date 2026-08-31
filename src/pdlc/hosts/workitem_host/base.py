@@ -99,6 +99,11 @@ class WorkItemBackend(ABC):
     @abstractmethod
     def close_task(self, task_ref: str) -> None: ...
 
+    @abstractmethod
+    def write_task_body(self, task_ref: str, body: str) -> None:
+        """Replace a delivery task's whole body — used to persist its
+        machine-owned metadata block (the facade composes the block)."""
+
     # --- creation ---
 
     @abstractmethod

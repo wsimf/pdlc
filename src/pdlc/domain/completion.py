@@ -91,8 +91,7 @@ def completion_blockers(
 
     unsettled_prs = [
         pr for pr in pull_requests
-        if pr.get("relation") == "closes"
-        and (pr.get("state") != "MERGED" or pr.get("checks") not in ("SUCCESS", "NONE"))
+        if pr.get("state") != "MERGED" or pr.get("checks") not in ("SUCCESS", "NONE")
     ]
     if unsettled_prs:
         listed = ", ".join(

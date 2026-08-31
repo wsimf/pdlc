@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
 from pdlc.domain.completion import completion_blockers  # type: ignore
 from pdlc.domain.evidence import parse_verification_report  # type: ignore
@@ -80,7 +80,7 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
         status=item_status(record),
         gate=item_gate(record),
         tasks=task_tree(issue),
-        pull_requests=get_code_host().pull_requests(issue),
+        pull_requests=record_pull_requests(issue),
         timeline_markers=[comment["marker"] for comment in marked_comments(issue, comments=comments)],
         skipped_states=item_skipped_states(record),
         verification_body=verification_body,

@@ -372,44 +372,35 @@ class CodeHostTest(GitHubHostTest):
         super().setUp()
         self.host = GitHubCodeHost()
 
-    def test_pull_requests_merges_closing_and_referencing_prs(self) -> None:
-        self.gh.graphql(
-            "closedByPullRequestsReferences",
-            graphql_data({
-                "repository": {
-                    "issue": {
-                        "closedByPullRequestsReferences": {
-                            "nodes": [
-                                {
-                                    "number": 5, "title": "impl", "url": "u5", "state": "OPEN",
-                                    "isDraft": False, "headRefName": "feat", "mergedAt": None,
-                                    "commits": {"nodes": [
-                                        {"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}
-                                    ]},
-                                }
-                            ]
-                        },
-                        "timelineItems": {
-                            "nodes": [
-                                {"source": {
-                                    "number": 4, "title": "spike", "url": "u4", "state": "MERGED",
-                                    "isDraft": False, "headRefName": "spike", "mergedAt": "2026-01-01T00:00:00Z",
-                                    "commits": {"nodes": []},
-                                }},
-                                {"source": {}},
-                            ]
-                        },
-                    }
-                }
-            }),
-        )
+    def test_pull_requests_by_number_fetches_each_and_skips_unknown(self) -> None:
+        def view(args, _input):
+            number = int(args[2])
+            if number == 9:
+                raise PdlcError("no pull requests found")
+            return {
+                "number": number, "title": "impl", "url": f"u{number}", "state": "OPEN",
+                "isDraft": False, "headRefName": "feat", "mergedAt": None,
+                "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]},
+            }
 
-        prs = self.host.pull_requests("3")
+        self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
+
+        prs = self.host.pull_requests_by_number([5, 9, 4])
 
         self.assertEqual([pr["number"] for pr in prs], [5, 4])
         self.assertEqual(prs[0]["checks"], "SUCCESS")
-        self.assertEqual(prs[0]["relation"], "closes")
-        self.assertEqual(prs[1]["checks"], "NONE")
+        self.assertEqual(prs[0]["branch"], "feat")
+        self.assertNotIn("relation", prs[0])
+
+    def test_pull_requests_by_number_reraises_transient_failure(self) -> None:
+        def view(args, _input):
+            raise PdlcError("HTTP 401: Bad credentials")
+
+        self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
+
+        with self.assertRaises(PdlcError) as caught:
+            self.host.pull_requests_by_number([5])
+        self.assertIn("#5", str(caught.exception))
 
     def test_pull_request_files_lists_changed_paths(self) -> None:
         self.gh.gh(
@@ -418,39 +409,21 @@ class CodeHostTest(GitHubHostTest):
         )
         self.assertEqual(self.host.pull_request_files(7), ["a.py", "b.md"])
 
-    def test_ensure_pull_request_linked_returns_existing_closing_pr(self) -> None:
+    def test_ensure_pull_request_linked_returns_the_current_branch_pr_without_editing(self) -> None:
         self.gh.gh(
             "pr", "view",
             response={
                 "number": 5, "title": "impl", "url": "u5", "state": "OPEN",
                 "isDraft": False, "headRefName": "feat", "mergedAt": None,
                 "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]},
-                "body": "Closes #3\n",
             },
-        )
-        self.gh.graphql(
-            "closedByPullRequestsReferences",
-            graphql_data({
-                "repository": {
-                    "issue": {
-                        "closedByPullRequestsReferences": {"nodes": [
-                            {
-                                "number": 5, "title": "impl", "url": "u5", "state": "OPEN",
-                                "isDraft": False, "headRefName": "feat", "mergedAt": None,
-                                "commits": {"nodes": [
-                                    {"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}
-                                ]},
-                            }
-                        ]},
-                        "timelineItems": {"nodes": []},
-                    }
-                }
-            }),
         )
 
         linked = self.host.ensure_pull_request_linked("3")
 
         self.assertEqual(linked["number"], 5)
+        self.assertEqual(linked["branch"], "feat")
+        self.assertNotIn("relation", linked)
         self.assertFalse(any(call[0][:2] == ["pr", "edit"] for call in self.gh.calls))
 
 

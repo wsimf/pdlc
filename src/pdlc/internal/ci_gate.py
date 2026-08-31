@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 from pdlc.internal.churn_gate import autoapprove_stage
-from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.workitem import post_comment, set_gate
 
 # statusCheckRollup states that mean the run is settled and failed, still
@@ -29,17 +29,11 @@ _RED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTU
 _PENDING = {"PENDING", "EXPECTED", "IN_PROGRESS", "QUEUED", "WAITING", "REQUESTED"}
 
 
-def _relevant_pull_requests(issue: str) -> list[dict]:
-    pull_requests = get_code_host().pull_requests(str(issue))
-    closing = [pr for pr in pull_requests if pr.get("relation") == "closes"]
-    return closing or pull_requests
-
-
 def ci_state(issue: str) -> tuple[str, list[dict]]:
     """One of "pending", "red", "green", "untracked", plus the pull requests it
-    was read from. "untracked" means no linked PR, or none with CI configured —
-    there is nothing to wait on, so the caller advances."""
-    pull_requests = _relevant_pull_requests(issue)
+    was read from. "untracked" means no registered PR, or none with CI
+    configured — there is nothing to wait on, so the caller advances."""
+    pull_requests = record_pull_requests(issue)
     if not pull_requests:
         return "untracked", []
 
@@ -48,7 +42,10 @@ def ci_state(issue: str) -> tuple[str, list[dict]]:
         return "red", pull_requests
     if any(state in _PENDING for state in checks):
         return "pending", pull_requests
-    if all(state == "SUCCESS" for state in checks):
+    # "NONE" (no checks configured on that PR) is neutral, not disqualifying: a
+    # stack where every tracked PR is green and the rest have no CI is green.
+    tracked = [state for state in checks if state != "NONE"]
+    if tracked and all(state == "SUCCESS" for state in tracked):
         return "green", pull_requests
     return "untracked", pull_requests
 
@@ -78,7 +75,7 @@ def resolve_ci_gate(issue: str, record: dict) -> dict:
             "CI checks failed on the implementation pull request(s) after the implementation "
             f"review was approved: {failed}.\n\n"
             "Implementation returns to Changes Required. pdlc-implement inspects the failing "
-            "checks, fixes them on the shared PR, and re-publishes for review."
+            "checks, fixes them on the implementation pull request(s), and re-publishes for review."
         )
         descriptor, name = tempfile.mkstemp()
         with os.fdopen(descriptor, "w") as handle:

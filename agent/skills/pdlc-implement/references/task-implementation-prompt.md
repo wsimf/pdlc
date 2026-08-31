@@ -2,7 +2,8 @@
 
 `pdlc-implement` Step 4 fills the placeholders below and spawns exactly one
 `swiftui-pro` (when the task's tag is `[UI]`) or `swift-pro` (otherwise) with the
-result — one dispatch per task.
+result — one dispatch per task, after the skill has checked out the task's own
+branch.
 
 The agent knows nothing about the PDLC pipeline. Give it only what it needs to
 write the code; never tell it to "figure out the PDLC conventions" itself. This

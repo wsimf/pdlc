@@ -45,7 +45,7 @@ for orientation, and points at the full file with the raw work item body.
     Gate State: Approval Required       the three may be null
     Lifecycle: Planning
     Skipped States: ""                  comma-joined stage names, or empty
-    pullRequests:                       newest first; empty when none
+    pullRequests:                       registered on the record + its tasks
       - number: 139
         title: "..."
         url: "..."
@@ -54,8 +54,6 @@ for orientation, and points at the full file with the raw work item body.
         branch: "feat/..."             head ref
         mergedAt: "..." | null
         checks: SUCCESS | FAILURE | PENDING | ... | NONE
-        relation: closes               closing/Development-panel link
-                | references           mention only
     ---
 
     # Work Item
@@ -97,11 +95,11 @@ import tempfile
 from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree  # type: ignore
+from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, strip_task_meta, task_tree  # type: ignore
 
 # Translates due_next()'s bare action into the script name (or human role) a
 # caller would actually name in a report — the same distinction pdlc/SKILL.md's
@@ -170,7 +168,7 @@ def _task_front_matter(task: dict) -> str:
 def _compact_pull_request(pr: dict) -> dict:
     return {
         key: pr[key]
-        for key in ("number", "url", "state", "checks", "relation")
+        for key in ("number", "url", "state", "checks")
         if key in pr
     }
 
@@ -207,7 +205,7 @@ def _compact_render(
     full_output: str,
     path: Path,
 ) -> str:
-    body = (item.get("issueBody") or "").rstrip("\n")
+    body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
     sections = [_compact_metadata(item, pull_requests)]
     sections.append(attachments_markdown(attachments))
     sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
@@ -224,7 +222,7 @@ def _compact_render(
 
 def render(issue: str) -> tuple[str, str, Path]:
     item = resolve_item(issue)
-    pull_requests = get_code_host().pull_requests(issue)
+    pull_requests = record_pull_requests(issue)
     attachments = attachments_for_item(item)
 
     metadata = {
@@ -240,7 +238,10 @@ def render(issue: str) -> tuple[str, str, Path]:
     sections = [yaml_front_matter(metadata)]
     sections.append(attachments_markdown(attachments))
 
-    body = (item.get("issueBody") or "").rstrip("\n")
+    # Strip the machine-owned `<!-- pdlc:meta -->` block: its registered PR
+    # numbers are already surfaced in the front matter above, and the raw
+    # comment is noise in the rendered body (inspect_task strips it too).
+    body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
     sections.append(f"# Work Item\n\n{body}")
 
     tasks = task_tree(issue)

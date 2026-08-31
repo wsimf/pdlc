@@ -56,7 +56,7 @@ from pathlib import Path
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number  # type: ignore
+from pdlc.internal.workitem import ref_label, resolve_item, strip_task_meta, tasks_by_number  # type: ignore
 
 
 def _render_task(task: dict) -> str:
@@ -70,8 +70,9 @@ def _render_task(task: dict) -> str:
         "hasPlan": task["hasPlan"],
         "hasImplementation": task["hasImplementation"],
         "needsPlan": task["needsPlan"],
+        "prs": task["prs"],
     })
-    body = (task.get("body") or "").rstrip("\n")
+    body = strip_task_meta(task.get("body") or "").rstrip("\n")
     rendered = f"{front_matter}\n\n# Task\n\n{body}"
     plan = (task.get("planComment") or "").strip()
     if plan:

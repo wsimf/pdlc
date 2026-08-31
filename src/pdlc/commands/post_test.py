@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Complete the Testing stage and submit it for review.
 
-Confirms the shared implementation PR still links the parent (the coverage is
-committed on the same branch, so it rides that PR), persists the
+Resolves the current branch's PR — the shared implementation PR in the linear
+flow, the top task PR in the stacked flow — since the coverage is committed on
+that same branch and rides that PR, registers it on the record, persists the
 requirement-to-source traceability map verbatim into the evidence under a
 `## Traceability` heading so the independent reviewer audits the exact
 artifact the stage produced, and sets `Review Required` — all in one step.
@@ -21,6 +22,7 @@ from pathlib import Path
 from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.complete_transition import complete_transition  # type: ignore
 from pdlc.internal.attachments import parse_attachment_arguments  # type: ignore
+from pdlc.internal.workitem import register_record_pr  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
 
 
@@ -38,6 +40,7 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
         raise PdlcError("stdin can supply only one of EVIDENCE or --traceability")
 
     pull_request = get_code_host().ensure_pull_request_linked(issue)
+    register_record_pr(issue, pull_request["number"])
 
     body = (
         f"{_read('evidence', evidence).rstrip()}\n\n"

@@ -54,7 +54,7 @@ import sys
 from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.completion import completion_blockers  # type: ignore
 from pdlc.domain.completion_evidence import live_open_questions  # type: ignore
@@ -102,7 +102,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> li
     unsettled_prs = [
         f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
-        if pr["relation"] == "closes" and (pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE"))
+        if pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE")
     ]
 
     if not open_tasks and not unsettled_prs:
@@ -176,7 +176,7 @@ def inspect(issue: str) -> str:
     item = resolve_item(issue)
     attachments = attachments_for_item(item)
     tasks = task_tree(issue)
-    pull_requests = get_code_host().pull_requests(issue)
+    pull_requests = record_pull_requests(issue)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
     verification_comments = find_marked_comments(issue, "VERIFICATION", comments=comments)

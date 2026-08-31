@@ -103,6 +103,55 @@ def due_next(item: dict) -> dict:
     }
 
 
+# Delivery-task metadata block ------------------------------------------
+
+# A machine-owned HTML comment pinned to the very top of a delivery task's
+# body. Commands record data here that must outlive re-planning without
+# touching the human-authored body below it — today just the task's pull
+# request numbers. Invisible in rendered Markdown. Everything after the
+# closing `-->` (and one blank line) is the untouched task body.
+#
+# Each `key: value` line's value is whitespace-split into a token list with no
+# quoting or escaping — fine for the numeric/identifier tokens stored today,
+# not a general key-value store.
+_TASK_META_OPEN = "<!-- pdlc:meta"
+_TASK_META_RE = re.compile(r"\A<!-- pdlc:meta\n(.*?)\n-->\n?", re.DOTALL)
+
+
+def read_task_meta(body: str) -> dict[str, list[str]]:
+    match = _TASK_META_RE.match(body or "")
+    if not match:
+        return {}
+    meta: dict[str, list[str]] = {}
+    for line in match.group(1).splitlines():
+        if ":" in line:
+            key, _, rest = line.partition(":")
+            meta[key.strip()] = rest.split()
+    return meta
+
+
+def strip_task_meta(body: str) -> str:
+    """The task body with any leading metadata block removed."""
+    return _TASK_META_RE.sub("", body or "", count=1).lstrip("\n")
+
+
+def write_task_meta(body: str, meta: dict[str, list[str]]) -> str:
+    """`body` with its metadata block replaced by `meta` (keys with an empty
+    value list are dropped; an empty `meta` removes the block entirely)."""
+    clean = strip_task_meta(body)
+    entries = {key: list(values) for key, values in meta.items() if values}
+    if not entries:
+        return clean
+    lines = "\n".join(f"{key}: {' '.join(values)}" for key, values in entries.items())
+    return f"{_TASK_META_OPEN}\n{lines}\n-->\n\n{clean}"
+
+
+def task_prs(body: str) -> list[int]:
+    """The pull-request numbers registered on a task, ascending."""
+    numbers = [int(value) for value in read_task_meta(body).get("prs", []) if value.isdigit()]
+    return sorted(set(numbers))
+
+
 # Delivery-task comment classification ------------------------------------
 
 # The newest comment that opens with `heading` (first non-empty line matches
@@ -154,6 +203,7 @@ def classify_task(task: dict) -> dict:
         "planComment": plan_comment,
         "needsPlan": task["state"] == "OPEN" and not has_implementation,
         "isUI": rest.startswith(UI_TAG),
+        "prs": task_prs(task.get("body") or ""),
     }
 
 

@@ -77,6 +77,10 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def upsert_tasks(self, parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
         return github_issues.upsert_tasks(parent, tasks, existing)
 
+    def write_task_body(self, task_ref: str, body: str) -> None:
+        with body_file(body) as path:
+            run_gh(["issue", "edit", str(task_ref), *repo_args(), "--body-file", path])
+
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
 
