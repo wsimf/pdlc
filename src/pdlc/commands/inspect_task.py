@@ -17,8 +17,9 @@ index: read it first to shortlist which task numbers are worth fetching in
 full, then pass those numbers here. Use `pdlc inspect --full` when the full
 work item body is needed inline.
 
-The parent Work Item's local attachments are rendered before the requested
-task bodies.
+The parent Work Item's local attachments and its `## User Comments` (comments
+carrying no `PDLC-*` marker) are rendered once, between the first task's front
+matter and its `# Task` body.
 
 --file writes the rendered markdown to {TEMPDIR}/{repo}-task-{numbers}.md
 instead of stdout, and prints that path — for callers (e.g. subagent
@@ -35,6 +36,14 @@ prompts) that want a file reference rather than inline content.
     hasImplementation: false
     needsPlan: false
     ---
+
+    ## Attachments
+
+    ...the parent Work Item's attachments, on the first task only...
+
+    ## User Comments
+
+    ...the parent Work Item's unmarked comments, on the first task only...
 
     # Task
 
@@ -56,10 +65,13 @@ from pathlib import Path
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import ref_label, resolve_item, strip_task_meta, tasks_by_number  # type: ignore
+from pdlc.internal.workitem import ref_label, resolve_item, strip_task_meta, tasks_by_number, user_comments_markdown  # type: ignore
 
 
-def _render_task(task: dict) -> str:
+# `preamble` is the parent Work Item's attachment and user-comment sections: they
+# sit between the first task's front matter and its `# Task` body, matching
+# `pdlc inspect`'s front-matter -> attachments -> user comments -> body order.
+def _render_task(task: dict, preamble: str = "") -> str:
     front_matter = yaml_front_matter({
         "number": task["number"],
         "title": task["title"],
@@ -73,7 +85,8 @@ def _render_task(task: dict) -> str:
         "prs": task["prs"],
     })
     body = strip_task_meta(task.get("body") or "").rstrip("\n")
-    rendered = f"{front_matter}\n\n# Task\n\n{body}"
+    lead = f"{preamble}\n\n" if preamble else ""
+    rendered = f"{front_matter}\n\n{lead}# Task\n\n{body}"
     plan = (task.get("planComment") or "").strip()
     if plan:
         rendered += f"\n\n{plan}"
@@ -85,9 +98,11 @@ def render(numbers: list[str]) -> str:
     parent_numbers = {parent_number_for_task(task) for task in tasks}
     if len(parent_numbers) != 1:
         raise PdlcError("delivery tasks must belong to the same Work Item")
-    attachments = attachments_for_item(resolve_item(next(iter(parent_numbers))))
-    task_output = "\n\n".join(_render_task(task) for task in tasks)
-    return f"{attachments_markdown(attachments)}\n\n{task_output}\n"
+    parent = next(iter(parent_numbers))
+    attachments = attachments_for_item(resolve_item(parent))
+    preamble = f"{attachments_markdown(attachments)}\n\n{user_comments_markdown(parent)}"
+    rendered = [_render_task(task, preamble if index == 0 else "") for index, task in enumerate(tasks)]
+    return "\n\n".join(rendered) + "\n"
 
 
 def main() -> int:

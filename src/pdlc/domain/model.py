@@ -312,6 +312,30 @@ def marked_comments(comments: list[dict]) -> list[dict]:
     return tagged
 
 
+# Every comment carrying no `PDLC-*` marker — authored by a human or an
+# outside bot, oldest first. These have no workflow meaning; the timeline
+# (marker-only) hides them, so `pdlc inspect` surfaces them separately.
+def user_comments(comments: list[dict]) -> list[dict]:
+    plain = [comment for comment in comments if not MARKER_PREFIX.match(comment["body"])]
+    plain.sort(key=lambda comment: comment["createdAt"])
+    return plain
+
+
+# A `## User Comments` section for the supplied snapshot, or `None` when there
+# are no unmarked comments.
+def user_comments_markdown(comments: list[dict]) -> str:
+    plain = user_comments(comments)
+    if not plain:
+        return "## User Comments\n\nNone"
+    lines = ["## User Comments"]
+    for comment in plain:
+        author = (comment.get("author") or {}).get("login", "unknown")
+        when = _timeline_formatted_at(comment["createdAt"])
+        body = comment["body"].strip()
+        lines += ["", f"### @{author} — {when}", comment["url"], "", body]
+    return "\n".join(lines)
+
+
 # Localised to the machine's own time zone — the timeline is read
 # interactively, not compared across machines.
 def _timeline_formatted_at(created_at: str) -> str:

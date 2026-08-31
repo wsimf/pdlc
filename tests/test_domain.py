@@ -9,7 +9,7 @@ from pdlc.domain.completion import completion_blockers
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.evidence import parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import due_next
+from pdlc.domain.model import due_next, user_comments, user_comments_markdown
 from pdlc.hosts.github_common import neutralize_refs
 
 GOOD_VERIFICATION = """## Verification Run Results
@@ -85,6 +85,33 @@ class RoutingTableTests(unittest.TestCase):
         self.assertEqual(due["action"], "pdlc-post-ci")
         self.assertTrue(due["autonomous"])
         self.assertEqual(due["next_state"], "Implementation.ApprovalRequired")
+
+
+class UserCommentsTests(unittest.TestCase):
+    _COMMENTS = [
+        {"body": "PDLC-PRODUCT\n\nauthored", "createdAt": "2026-01-03T00:00:00Z",
+         "url": "u3", "author": {"login": "bot"}},
+        {"body": "can we also handle the empty state?", "createdAt": "2026-01-01T00:00:00Z",
+         "url": "u1", "author": {"login": "sudara"}},
+        {"body": "PDLC-UNKNOWNMARKER\n\nfuture", "createdAt": "2026-01-02T00:00:00Z",
+         "url": "u2", "author": {"login": "bot"}},
+        {"body": "agreed, filing a follow-up", "createdAt": "2026-01-04T00:00:00Z",
+         "url": "u4", "author": {"login": "otherbot"}},
+    ]
+
+    def test_keeps_only_unmarked_comments_oldest_first(self):
+        kept = user_comments(self._COMMENTS)
+        self.assertEqual([c["url"] for c in kept], ["u1", "u4"])
+
+    def test_markdown_section(self):
+        out = user_comments_markdown(self._COMMENTS)
+        self.assertTrue(out.startswith("## User Comments"))
+        self.assertIn("### @sudara — ", out)
+        self.assertIn("can we also handle the empty state?", out)
+        self.assertNotIn("PDLC-", out)
+
+    def test_markdown_none_when_all_marked(self):
+        self.assertEqual(user_comments_markdown(self._COMMENTS[:1]), "## User Comments\n\nNone")
 
 
 class NeutralizeRefsTests(unittest.TestCase):

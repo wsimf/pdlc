@@ -5,6 +5,10 @@ and routing decision for the pdlc skill's Orient mode.
 Local Work Item attachments are rendered in an `## Attachments` section with
 their descriptions and resolved paths.
 
+A `## User Comments` section carries every comment on the record that has no
+`PDLC-*` marker — human or outside-bot discussion — oldest first. One comment
+fetch feeds both the full and compact renders.
+
 By default the complete inspection is written to a file under the system temp
 directory and stdout carries a compact index. Use `--full` for the complete
 inspection on stdout, or `--file` to print the complete inspection's path.
@@ -99,7 +103,7 @@ from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, strip_task_meta, task_tree  # type: ignore
+from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, strip_task_meta, task_tree, user_comments_markdown  # type: ignore
 
 # Translates due_next()'s bare action into the script name (or human role) a
 # caller would actually name in a report — the same distinction pdlc/SKILL.md's
@@ -202,12 +206,14 @@ def _compact_render(
     pull_requests: list[dict],
     tasks: list[dict],
     attachments: list[dict],
+    user_comments_section: str,
     full_output: str,
     path: Path,
 ) -> str:
     body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
     sections = [_compact_metadata(item, pull_requests)]
     sections.append(attachments_markdown(attachments))
+    sections.append(user_comments_section)
     sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
 
     if not tasks:
@@ -235,8 +241,12 @@ def render(issue: str) -> tuple[str, str, Path]:
         "pullRequests": pull_requests,
     }
 
+    # One comment fetch feeds the `## User Comments` section in both renders.
+    user_comments_section = user_comments_markdown(issue)
+
     sections = [yaml_front_matter(metadata)]
     sections.append(attachments_markdown(attachments))
+    sections.append(user_comments_section)
 
     # Strip the machine-owned `<!-- pdlc:meta -->` block: its registered PR
     # numbers are already surfaced in the front matter above, and the raw
@@ -255,7 +265,9 @@ def render(issue: str) -> tuple[str, str, Path]:
 
     full_output = "\n\n".join(sections) + "\n"
     path = Path(tempfile.gettempdir()) / f"{ref_label()}-{issue}.md"
-    compact_output = _compact_render(item, pull_requests, tasks, attachments, full_output, path)
+    compact_output = _compact_render(
+        item, pull_requests, tasks, attachments, user_comments_section, full_output, path
+    )
     return full_output, compact_output, path
 
 

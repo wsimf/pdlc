@@ -35,6 +35,8 @@ from pdlc.domain.model import find_marked_comments as _model_find_marked_comment
 from pdlc.domain.model import marked_comments as _model_marked_comments
 from pdlc.domain.model import timeline_compact as _model_timeline_compact
 from pdlc.domain.model import timeline_markdown as _model_timeline_markdown
+from pdlc.domain.model import user_comments as _model_user_comments
+from pdlc.domain.model import user_comments_markdown as _model_user_comments_markdown
 from pdlc.hosts.workitem_host import get_backend
 
 UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verification"}
@@ -150,6 +152,19 @@ def marked_comments(ref: str, *, comments: list[dict] | None = None) -> list[dic
 def timeline_markdown(ref: str, *, comments: list[dict] | None = None) -> str:
     snapshot = comments if comments is not None else comments_for_issue(ref)
     return _model_timeline_markdown(snapshot)
+
+
+def user_comments(ref: str, *, comments: list[dict] | None = None) -> list[dict]:
+    """Comments on the record that carry no `PDLC-*` marker — human or outside-bot
+    discussion the marker-only timeline hides. Pass `comments` to reuse a snapshot
+    already fetched in the same call."""
+    snapshot = comments if comments is not None else comments_for_issue(ref)
+    return _model_user_comments(snapshot)
+
+
+def user_comments_markdown(ref: str, *, comments: list[dict] | None = None) -> str:
+    snapshot = comments if comments is not None else comments_for_issue(ref)
+    return _model_user_comments_markdown(snapshot)
 
 
 def timeline_compact(ref: str, file_path: str, *, comments: list[dict] | None = None) -> str:

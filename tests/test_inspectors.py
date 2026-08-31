@@ -36,6 +36,36 @@ class InspectTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Scope", result.stdout)
 
+    def test_inspect_task_puts_attachments_after_the_front_matter(self):
+        result = self.invoke("inspect_task", 201)
+        out = result.stdout
+        self.assertLess(out.index("number: 201"), out.index("## Attachments"))
+        self.assertLess(out.index("## Attachments"), out.index("# Task"))
+
+    def _seed_comments(self):
+        log = self.records_dir() / "20" / "comments.jsonl"
+        entries = [
+            {"body": "PDLC-PRODUCT\n\nMARKED_BODY_TEXT", "createdAt": "2026-01-01T00:00:00Z",
+             "url": "file://x/20#c1", "author": {"login": "bot"}},
+            {"body": "does this cover the offline case?", "createdAt": "2026-01-02T00:00:00Z",
+             "url": "file://x/20#c2", "author": {"login": "sudara"}},
+        ]
+        log.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+    def test_inspect_surfaces_unmarked_user_comments(self):
+        self._seed_comments()
+        out = self.invoke("inspect", 20, "--full").stdout
+        self.assertIn("## User Comments", out)
+        self.assertIn("does this cover the offline case?", out)
+        self.assertNotIn("MARKED_BODY_TEXT", out)
+
+    def test_inspect_task_surfaces_unmarked_user_comments(self):
+        self._seed_comments()
+        out = self.invoke("inspect_task", 201).stdout
+        self.assertIn("## User Comments", out)
+        self.assertLess(out.index("## User Comments"), out.index("# Task"))
+        self.assertIn("does this cover the offline case?", out)
+
     def test_missing_record_is_a_hard_stop(self):
         result = self.invoke("inspect", 999)
         self.assertEqual(result.code, 1)

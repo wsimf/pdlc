@@ -79,3 +79,34 @@ project_owner = "OWNER"
 ```
 
 Run `pdlc setup` to create this file interactively. It detects the GitHub repository from `remote.origin.url`, lists available GitHub Projects with `gh`, and lets you choose the project owner or enter another owner.
+
+## Project capabilities
+
+PDLC skills never name a project-specific skill or sub-agent. Each seam that could use a specialist reads its routing from `pdlc inspect capability <slot>` and injects the result into the sub-agent brief it builds. Declare routing in the `[agents]` and `[skills]` tables of `.pdlc/config.toml`:
+
+```toml
+[agents]
+core-implementer = "swift-pro"
+ui-implementer   = "swiftui-pro"
+
+[skills]
+build-run         = "trailnest-build-run"
+ux-design         = "trailnest-ux-design"
+cumulative-review = "trailnest-cumulative-review"
+test-authoring    = "create-swift-tests"
+test-framework    = "swift-testing-expert"
+```
+
+Every slot is optional; omit both tables and the workflow still runs with the fallback behaviour below.
+
+| Slot | Kind | Plugged into | Unset behaviour |
+|---|---|---|---|
+| `core-implementer` | agent | `pdlc-implement` dispatch for `[CORE]` tasks | dispatch to `general-purpose` |
+| `ui-implementer` | agent | `pdlc-implement` dispatch for `[UI]` tasks | dispatch to `general-purpose` |
+| `build-run` | skill | `pdlc-tasks` acceptance criteria, `pdlc-verify` UI-journey pass | agent builds and runs the app per `AGENTS.md` |
+| `ux-design` | skill | `pdlc-ui-planner` | agent resolves design from `AGENTS.md` references and platform conventions |
+| `cumulative-review` | skill | `pdlc-verify` cumulative review, `pdlc-implement` task review | agent performs the review inline over the change scope |
+| `test-authoring` | skill | `pdlc-test-writer` | agent follows the existing test suite's conventions |
+| `test-framework` | skill | `pdlc-test-writer` (reference only) | omitted |
+
+Inspect the current wiring with `pdlc inspect capability` (every slot) or `pdlc inspect capability <slot>` (one paste-ready line). Full contract: `agent/skills/pdlc/references/capabilities.md`.
