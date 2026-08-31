@@ -97,7 +97,7 @@ Never set `Approved`, and never advance the record yourself.
 ## Boundaries
 
 - Do not edit source, tests, the parent work item body, delivery tasks, or any artifact under review. Reviewing and fixing are different jobs.
-- Do not build, test, render, launch the simulator, or push.
+- Do not build, test, render, run the app, or push.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not write lifecycle state into any work item body — those fields are script-owned.
 - Preserve unrelated staged, unstaged, and untracked local work.

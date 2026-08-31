@@ -1,6 +1,6 @@
 # Cumulative review dispatch prompt
 
-Fill this in and pass it as the whole prompt for **one** general-purpose sub-agent dispatch per verify pass. The sub-agent runs `trailnest-ultra-review` over the record's cumulative change scope and returns its prioritised findings.
+Fill this in and pass it as the whole prompt for **one** general-purpose sub-agent dispatch per verify pass. The sub-agent runs the project's `cumulative-review` capability over the record's cumulative change scope and returns its prioritised findings. Resolve the first line with `pdlc inspect capability cumulative-review`: a configured project emits "You must invoke the `<skill>` skill before continuing…"; an unconfigured one emits an instruction to perform the review inline.
 
 The review runs in a sub-agent rather than inline because it fans out a batch of parallel reviewers over the whole diff — keeping that traffic out of the verify pass leaves room for the claims audit and finding reconciliation that follow it.
 
@@ -9,8 +9,10 @@ Substitute every `<...>` placeholder. The sub-agent knows nothing about PDLC: gi
 ---
 
 ```text
-Run the `trailnest-ultra-review` skill over the change scope below and report its
-findings verbatim. Review only — do not edit, stage, commit, or apply any fix.
+<the line from `pdlc inspect capability cumulative-review`>
+
+Review the change scope below and report the findings verbatim. Review only —
+do not edit, stage, commit, or apply any fix.
 
 ## Scope
 <one of:
@@ -29,10 +31,10 @@ findings verbatim. Review only — do not edit, stage, commit, or apply any fix.
   C-* identifiers, which mean nothing outside the record>
 
 ## Report back
-1. Every finding exactly as `trailnest-ultra-review` prioritises it
-   (Fix now / Fix soon / Optional follow-up), with its file and line or nearest
-   symbol, category, severity, why it matters, and confidence.
-2. Which reviewers ran and which were skipped as inapplicable.
+1. Every finding, prioritised (Fix now / Fix soon / Optional follow-up), with
+   its file and line or nearest symbol, category, severity, why it matters, and
+   confidence.
+2. Which review passes ran and which were skipped as inapplicable.
 3. Anything the scope could not cover.
 4. "No findings" plainly, if that is the outcome — never soften or summarise a finding away.
 ```

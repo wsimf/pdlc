@@ -7,6 +7,8 @@ reviewer findings — keep it addressable.
 ---
 
 ```md
+<the line from `pdlc inspect capability ux-design`>
+
 Author the `UI` section for this PDLC record and return it as one fragment file.
 
 ## Parent work item

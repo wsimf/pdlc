@@ -49,7 +49,7 @@ This map is the deliverable of the stage as much as the tests are: the contract 
 
 ## Step 4: Dispatch `pdlc-test-writer`
 
-Spawn once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the Step 3 traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim.
+Spawn once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the Step 3 traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
 
 `pdlc-test-writer` commits its coverage on the current branch **and pushes it**, so the top task PR in the stack — which tracks that branch — carries the tests. There is no separate test PR.
 

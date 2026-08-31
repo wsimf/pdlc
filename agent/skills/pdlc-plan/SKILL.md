@@ -85,7 +85,7 @@ After two failed reconciliations, stop and put the decision to the driver. The v
 pdlc post plan --work-item WORK_ITEM \
   --manifest /tmp/pdlc-plan.json --evidence - <<'EOF'
 Scope: planned 6 incomplete tasks (TASK-002..TASK-007) against current source.
-Approach: geometry moves to RouteFileService; no SwiftData schema change.
+Approach: geometry moves to ProfileFileService; no persistence schema change.
 Validation: each task's criteria mapped to a focused test or build check.
 Risk: TASK-005 depends on an unresolved tile-quota decision, recorded as open.
 EOF
@@ -106,7 +106,7 @@ Never set `Approved` or continue into Implementation. Planning that reveals appr
 ## Boundaries
 
 - Do not write production source or tests — planning describes the change, it does not make it.
-- Do not build, test, render, launch the simulator, or push.
+- Do not build, test, render, run the app, or push.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not edit the parent's product, UI, decisions, or open-questions sections.
 - Do not write lifecycle state into any work item body — those fields are script-owned.

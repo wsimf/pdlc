@@ -12,7 +12,7 @@ def _clean_report(sha: str) -> str:
         f"### Claims Audit\n\n- FR-1 confirmed (Verified @ {sha})\n\n"
         f"### User Journeys\n\n- UJ-1 confirmed (Verified @ {sha})\n\n"
         "### UX\n\n- Reviewed — no critical findings\n\n"
-        "### Ultra Review\n\n- Clean — no findings\n"
+        "### Cumulative Review\n\n- Clean — no findings\n"
     )
 
 

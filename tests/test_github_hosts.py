@@ -425,6 +425,9 @@ class CodeHostTest(GitHubHostTest):
         self.assertEqual(linked["branch"], "feat")
         self.assertNotIn("relation", linked)
         self.assertFalse(any(call[0][:2] == ["pr", "edit"] for call in self.gh.calls))
+        # The branch fallback must not pass `--repo`; gh (>=2.98) rejects that combination.
+        view = next(call[0] for call in self.gh.calls if call[0][:2] == ["pr", "view"])
+        self.assertNotIn("--repo", view)
 
 
 if __name__ == "__main__":

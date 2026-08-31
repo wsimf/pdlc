@@ -15,15 +15,15 @@ the context window while remaining one Read away.
 
 The Work Item's local attachments are appended after the timeline.
 
-    # Timeline — 2 evidence comment(s); full bodies in /tmp/TrailNest-iOS-timeline-18.md
+    # Timeline — 2 evidence comment(s); full bodies in /tmp/pdlc-timeline-18.md
 
-    ## PRODUCT — 2026-08-01 21:14 NZST (@sudara)
+    ## PRODUCT — 2026-08-01 21:14 UTC (@sudara)
        Scope: full product specification, 14 requirements over 4 constraints.
-       Read lines 3-48 in /tmp/TrailNest-iOS-timeline-18.md for the full comment.
+       Read lines 3-48 in /tmp/pdlc-timeline-18.md for the full comment.
 
-    ## APPROVED — 2026-08-02 22:00 NZST (@sudara)
+    ## APPROVED — 2026-08-02 22:00 UTC (@sudara)
        Product approved; advancing to UI.
-       Read lines 50-54 in /tmp/TrailNest-iOS-timeline-18.md for the full comment.
+       Read lines 50-54 in /tmp/pdlc-timeline-18.md for the full comment.
 
     2 comment(s) without a PDLC marker were skipped.
 
@@ -31,8 +31,8 @@ The Work Item's local attachments are appended after the timeline.
 
     # Timeline
 
-    ## PRODUCT — 2026-08-01 21:14 NZST (@sudara)
-    https://github.com/wsimf/TrailNest-iOS/issues/18#issuecomment-1
+    ## PRODUCT — 2026-08-01 21:14 UTC (@sudara)
+    https://github.com/acme/example/issues/18#issuecomment-1
 
     <comment body, with its PDLC-<MARKER> stamp stripped>
 

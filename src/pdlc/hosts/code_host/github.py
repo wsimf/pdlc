@@ -64,7 +64,10 @@ class GitHubCodeHost(CodeHost):
         if os.environ.get("PDLC_ITEMS_FILE"):
             raise PdlcError("cannot resolve a live pull request under a work-item fixture")
         try:
-            pull_request = run_gh_json(["pr", "view", *repo_args(), "--json", _PR_FIELDS])
+            # No PR number and no `--repo`: `gh pr view` must resolve the current
+            # branch's PR from the local checkout, and gh (>=2.98) rejects the
+            # branch fallback when `--repo` is also passed.
+            pull_request = run_gh_json(["pr", "view", "--json", _PR_FIELDS])
         except PdlcError as error:
             raise PdlcError("no pull request exists for the current branch") from error
         if not pull_request.get("number"):

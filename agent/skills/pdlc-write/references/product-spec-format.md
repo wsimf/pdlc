@@ -67,11 +67,11 @@ What already exists in the repo that this feature builds on, extends, or must no
 Cite real file paths and type names, not descriptions:
 
 ```md
-- `TrailNestCommon/UI/Components/TrailSheet.swift` — existing detent/sheet
-  container; extend rather than adding a second sheet abstraction.
-- `RouteFileService` (`TrailNest/Services/Routes/`) — already owns geometry
-  file IO keyed off `RouteProfileEntity.id`.
-- Nothing currently models route shape; `RouteShapeType` is new.
+- `src/ui/components/Sheet` — existing detent/sheet container; extend rather
+  than adding a second sheet abstraction.
+- `ProfileFileService` (`src/services/profiles/`) — already owns geometry file
+  IO keyed off `ProfileEntity.id`.
+- Nothing currently models profile shape; `ShapeType` is new.
 ```
 
 State "nothing existing" explicitly where that is the finding — an empty section reads as a section nobody filled in.
@@ -92,7 +92,7 @@ Be explicit and unambiguous. "Works correctly" is bad; "shows a confirmation dia
 
 **Quality attributes are requirements too.** There is no separate non-functional section: a performance budget, an offline guarantee, a memory or power ceiling belongs here, as an `FR-*` with the number in it. Name the bound and the conditions it holds under, so it can be measured rather than argued about:
 
-- "FR-4: A drawn segment of up to 5 km snaps and renders within 200 ms on an iPhone 12."
+- "FR-4: A drawn segment of up to 5 km snaps and renders within 200 ms on a mid-range device."
 - "FR-5: Snapping succeeds in airplane mode from the downloaded region package; no request leaves the device."
 
 "Must be fast", "should be accessible", and "reasonable memory use" are not requirements — they are the absence of one. Give the bound or drop the line. Accessibility and localization behaviour is journey-level and belongs to the `UI` section, not here.
@@ -102,7 +102,7 @@ Binding design decisions that implementation is not free to relitigate. Not test
 
 Number them `C-1`, `C-2`, … so tasks can reference them alongside FRs:
 
-- "C-1: `RouteShapeType` lives in `TrailNestRoutes` and conforms to `Sendable`, `Codable`, `Hashable`."
+- "C-1: `ShapeType` lives in the shared `profiles` package and is immutable and serializable."
 - "C-2: Shape detection runs at profile-build time, never on a rendering path."
 
 A quality attribute lands here when it binds the *mechanism* rather than the observable result — concurrency isolation, where work runs, what a type must conform to:

@@ -34,7 +34,7 @@ from the raw work item body itself.
    Empty when every journey and UX are still valid, telling the agent to
    skip the dispatch entirely rather than deciding that itself.
 5. Reuse: every item in the latest `PDLC-VERIFICATION` comment's Claims
-   Audit, User Journeys, UX, and Ultra Review sections carries a
+   Audit, User Journeys, UX, and Cumulative Review sections carries a
    `(Verified @ <commit>)` marker. Since a delivery task is exactly one
    commit touching only its own files, that commit's own diff *is* the
    item's scope — no manual file list needed. For each item this runs
@@ -88,7 +88,7 @@ from the raw work item body itself.
 
     ## Stale — re-verify
 
-    - UJ-3 — Accepted: offline retry confirmed on simulator (Verified @ a1b2c3d)
+    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
 
     ## Fixed by previous runs
 
@@ -161,7 +161,7 @@ READY_GATES = {
 }
 
 FINDINGS_HEADING = re.compile(r"^#{1,6}\s*Findings\s*$", re.IGNORECASE)
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Ultra Review)\s*$", re.IGNORECASE)
+REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
 HEADING_PATTERN = re.compile(r"^#{1,6}\s")
 BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
@@ -191,7 +191,7 @@ def _bullets_under(body: str, heading_pattern: re.Pattern) -> list[str]:
 
 
 # Like _bullets_under, but keeps each bullet's own section name (Claims
-# Audit / User Journeys / UX / Ultra Review) instead of flattening them —
+# Audit / User Journeys / UX / Cumulative Review) instead of flattening them —
 # the journeys-to-review section needs to know which stale items are
 # journeys and which are UX, not just that something is stale.
 def _bullets_by_section(body: str) -> list[tuple[str, str]]:
@@ -233,7 +233,7 @@ def _deferred_findings_in(body: str) -> list[str]:
 
 
 # Every item in the latest verification comment's Claims Audit / User
-# Journeys / UX / Ultra Review sections, judged valid or stale from its own
+# Journeys / UX / Cumulative Review sections, judged valid or stale from its own
 # `(Verified @ <commit>)` commit's diff against HEAD. Section names are kept
 # per item so callers can filter by kind (e.g. journeys-to-review needs just
 # User Journeys and UX) without re-parsing.

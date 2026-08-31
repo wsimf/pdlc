@@ -37,7 +37,7 @@ TASK_ID_PATTERN = re.compile(r"^WORK-\d+-(TASK-\d{3})")
 TASK_TITLE_PATTERN = re.compile(r"^WORK-(\d+)-(TASK-\d{3})[ \t]*(.*)$")
 
 # The tag stamped in front of a task's human title at creation, and the only
-# thing that says which agent (swiftui-pro vs. swift-pro) a task belongs to.
+# thing that says which agent (UI vs. core) a task belongs to.
 UI_TAG = "[UI]"
 CORE_TAG = "[CORE]"
 

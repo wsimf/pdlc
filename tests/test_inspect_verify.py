@@ -49,7 +49,7 @@ class InspectVerifyTests(FileBackendTest):
             "### Claims Audit\n\n"
             f"- FR-1 holds (Verified @ {sha})\n\n"
             "### User Journeys\n\n- None yet\n\n"
-            "### UX\n\n- Reviewed — clean\n\n### Ultra Review\n\n- Clean\n\n"
+            "### UX\n\n- Reviewed — clean\n\n### Cumulative Review\n\n- Clean\n\n"
             "### Findings\n\n- Fixed the drift calculation\n"
         )
         with (self.records_dir() / "50" / "comments.jsonl").open("a") as handle:

@@ -33,7 +33,7 @@ is resolved here, never by the agent querying the work-item store or `git` itsel
 
     Stale — re-verify before completing:
 
-    - UJ-3 — Accepted: offline retry confirmed on simulator (Verified @ a1b2c3d)
+    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
 
 or, when not ready:
 
@@ -72,7 +72,7 @@ from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ign
 
 import re
 
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Ultra Review)\s*$", re.IGNORECASE)
+REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
 HEADING_PATTERN = re.compile(r"^#{1,6}\s")
 BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")

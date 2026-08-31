@@ -58,8 +58,8 @@ for orientation, and points at the full file with the raw work item body.
 
     # Work Item
 
-    Full body in /tmp/TrailNest-iOS-18.md
-    Read lines 14-48 in /tmp/TrailNest-iOS-18.md for the body.
+    Full body in /tmp/pdlc-work-18.md
+    Read lines 14-48 in /tmp/pdlc-work-18.md for the body.
 
     # Tasks
 

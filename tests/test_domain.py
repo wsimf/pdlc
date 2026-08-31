@@ -26,7 +26,7 @@ GOOD_VERIFICATION = """## Verification Run Results
 
 - Reviewed — clean
 
-### Ultra Review
+### Cumulative Review
 
 - Clean
 
@@ -43,7 +43,7 @@ Tile pinning shipped across 7 tasks, PRs #144-#153, all merged.
 
 ## Verification
 
-clean @ abc123 — claims, journeys, UX reviewed, ultra review clean.
+clean @ abc123 — claims, journeys, UX reviewed, cumulative review clean.
 
 ## Decisions
 

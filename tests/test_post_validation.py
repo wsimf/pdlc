@@ -96,7 +96,7 @@ class PostPlanValidationTests(FileBackendTest):
         (self.records_dir() / "40" / "tasks" / "402" / "comments.jsonl").write_text(
             json.dumps(comment) + "\n"
         )
-        self.plan_body = self.write_file("plan-body.md", "Files: CoreService.swift\n")
+        self.plan_body = self.write_file("plan-body.md", "Files: core_service.py\n")
 
     def _dry_run(self, entries):
         manifest = self.write_file("pm.json", json.dumps(entries))

@@ -47,7 +47,7 @@ Read `# Due Next`. Require `pdlc-tasks` as the owner; anything else stops here �
 
 ## Step 3: Dispatch the owning sub-agent
 
-`Status = UI` dispatches `pdlc-ui-planner`; `Status = Tasks` dispatches `pdlc-task-planner`. Build the prompt from the matching reference — [`references/ui-planner-prompt.md`](references/ui-planner-prompt.md) or [`references/task-planner-prompt.md`](references/task-planner-prompt.md) — filling in the parent body, `Status`/`Gate State`, the `Stale` reason, the driver's follow-up verbatim, and the existing task tree when there is one. This is also the agent you return to in Step 5 for reviewer findings — keep the dispatch reusable.
+`Status = UI` dispatches `pdlc-ui-planner`; `Status = Tasks` dispatches `pdlc-task-planner`. Build the prompt from the matching reference — [`references/ui-planner-prompt.md`](references/ui-planner-prompt.md) or [`references/task-planner-prompt.md`](references/task-planner-prompt.md) — filling in the parent body, `Status`/`Gate State`, the `Stale` reason, the driver's follow-up verbatim, and the existing task tree when there is one. For a UI dispatch, fill the prompt's first line from `pdlc inspect capability ux-design`. This is also the agent you return to in Step 5 for reviewer findings — keep the dispatch reusable.
 
 Only the driver skips the UI stage outright, with `pdlc post skip`; the planner itself always returns an explicit applicability statement.
 
@@ -101,7 +101,7 @@ Say whether any earlier plan or result is now stale — only the driver invalida
 ## Boundaries
 
 - Do not edit source, tests, project files, other documentation, agents, or skills.
-- Do not build, test, render, launch the simulator, or push.
+- Do not build, test, render, run the app, or push.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not write lifecycle state into the work item body — those fields are script-owned.
 - Preserve unrelated staged, unstaged, and untracked local work.

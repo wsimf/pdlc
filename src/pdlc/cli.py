@@ -19,6 +19,7 @@ COMMANDS = {
     ("inspect", "complete"): "pdlc.commands.inspect_complete",
     ("inspect", "test"): "pdlc.commands.inspect_test",
     ("inspect", "implement"): "pdlc.commands.inspect_implement",
+    ("inspect", "capability"): "pdlc.commands.inspect_capability",
     ("inspect", "review"): "pdlc.commands.inspect_review",
     ("next",): "pdlc.commands.next",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -95,7 +96,9 @@ def main() -> int:
         load_config()
         arguments, _ = _options(raw_arguments)
         module_name, command_arguments = _resolve(arguments)
-        if module_name != "pdlc.commands.setup" and not wants_help(command_arguments):
+        # setup runs the wizard; capability routing is local and needs no backend.
+        local_only = {"pdlc.commands.setup", "pdlc.commands.inspect_capability"}
+        if module_name not in local_only and not wants_help(command_arguments):
             Config.from_environment().validate_for_backend()
     except ConfigurationError as error:
         print(f"pdlc: {error}")

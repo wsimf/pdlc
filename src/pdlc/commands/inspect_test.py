@@ -15,12 +15,12 @@ behaviour and real API signatures; this stops short of that judgment.
 
     ## Testable Scope
 
-    ### WORK-142-TASK-003 [CORE] Persist route profile geometry
+    ### WORK-142-TASK-003 [CORE] Persist profile geometry
 
     PR #148 (MERGED, checks: SUCCESS)
     Files touched:
-    - TrailNest/Services/Routes/RouteFileService.swift
-    - TrailNestRoutes/Sources/TrailNestRoutes/RouteProfile.swift
+    - src/services/profile_store.py
+    - src/models/profile.py
 
 or, when not ready:
 

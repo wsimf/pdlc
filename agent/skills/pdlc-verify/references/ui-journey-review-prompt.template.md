@@ -7,12 +7,14 @@ Substitute every `<...>` placeholder. Drop a whole TODO bullet when `pdlc inspec
 ---
 
 ```text
-You are verifying acceptance for a TrailNest feature: <one-sentence description of what shipped>.
-Build and run the current worktree fresh on the simulator, then work through this TODO
+<the line from `pdlc inspect capability build-run`>
+
+You are verifying acceptance for a feature: <one-sentence description of what shipped>.
+Build and run the current worktree fresh, then work through this TODO
 list in order. Do not stop early once the build succeeds — report a result for every item.
 
 ## TODO
-- [ ] Build the current worktree and launch it on the simulator.
+- [ ] Build and launch the current worktree.
 - [ ] Walk each journey below exactly as written. For each, record Accepted /
       Failed / Blocked, the evidence you observed, and any comments.
   - <journey name>: <entry point> -> <ordered user actions> -> <expected visible
@@ -20,9 +22,10 @@ list in order. Do not stop early once the build succeeds — report a result for
   <one entry per journey listed in `pdlc inspect verify`'s `## Journeys to review`, copied verbatim;
   omit this whole bullet group when it lists no journeys>
 - [ ] Independently review rendered UX for every screen the journeys above touch:
-      layout correctness, HIG conformance, TrailNest design-system token usage,
-      accessibility, and polish, using Preview and simulator evidence. Report each
-      finding as Critical or Polish with the exact screen/state and what is wrong.
+      layout correctness, conformance to the platform's interface guidelines,
+      the project's design-system token usage, accessibility, and polish, using
+      the running app as evidence. Report each finding as Critical or Polish with
+      the exact screen/state and what is wrong.
       <omit this bullet when `pdlc inspect verify`'s `## Journeys to review` says UX is still valid>
 - [ ] Record any legitimate coverage boundary (tooling, fixture, permission,
       physical-device, or manual-verification limitation) instead of marking the
@@ -39,6 +42,6 @@ list in order. Do not stop early once the build succeeds — report a result for
 ## Filling it in
 
 - **Journey text comes from `pdlc inspect verify`'s `## Journeys to review`**, copied across, not summarised — it already pulled the text from the parent's approved `UI` section and decided which journeys are new or stale. Keep the `UJ-*` label as the journey name so the returned lines map back to Verification rows, but include the entry point, flow, and criteria inline — the agent cannot look them up.
-- **One dispatch per pass.** Never one call per journey, and never a separate UX call afterwards: a single build-and-run session walks every listed journey and assesses rendered UX together, and splitting it only pays for repeated simulator builds with no added coverage.
+- **One dispatch per pass.** Never one call per journey, and never a separate UX call afterwards: a single build-and-run session walks every listed journey and assesses rendered UX together, and splitting it only pays for repeated app builds with no added coverage.
 - **Skip the dispatch entirely** when `pdlc inspect verify`'s `## Journeys to review` says every journey and UX are still valid.
 - A failed journey, design nonconformance, orphaned journey-to-task mapping, unexplained blocked requirement, or material UX finding is a blocking finding for the driver to resolve. Preserve genuine coverage boundaries rather than converting them into failures.

@@ -149,7 +149,7 @@ artifacts and mark their evidence stale rather than deleting it:
 
 Verification reconciles every task Result and constraint against current
 source, requirement-to-test traceability, user journeys, rendered UX when
-applicable, and cumulative ultra review. Every evidence row links the exact
+applicable, and cumulative review. Every evidence row links the exact
 commit or PR checked. Findings are fixed and re-verified or explicitly deferred
 in Open Questions; a clean report is never written while a finding is open.
 

@@ -6,7 +6,7 @@ argument-hint: "Parent work item number to implement"
 
 # Implement one PDLC task
 
-This skill does not implement anything itself. Per invocation it confirms one PDLC record is due for implementation, resolves the **single** next eligible delivery task, dispatches it to `swift-pro` (CORE) or `swiftui-pro` (UI) — whichever the task's own `[UI]`/`[CORE]` tag names — with a fully self-contained brief, validates the commit, has it independently reviewed at `task` depth, dispatches `pdlc-test-writer` for that task's own unit coverage, and checkpoints the result as a stacked pull request. Then it stops. `pdlc-loop` re-invokes the skill for the next task; a driver runs it again by hand. It never reviews its own work — every task's review is delegated to `pdlc-implementation-reviewer`. Neither `swift-pro` nor `swiftui-pro` knows anything about the PDLC pipeline — give each only what it needs to implement the code.
+This skill does not implement anything itself. Per invocation it confirms one PDLC record is due for implementation, resolves the **single** next eligible delivery task, dispatches it to the project's implementer sub-agent — `pdlc inspect capability ui-implementer` for a `[UI]` task, `pdlc inspect capability core-implementer` otherwise — with a fully self-contained brief, validates the commit, has it independently reviewed at `task` depth, dispatches `pdlc-test-writer` for that task's own unit coverage, and checkpoints the result as a stacked pull request. Then it stops. `pdlc-loop` re-invokes the skill for the next task; a driver runs it again by hand. It never reviews its own work — every task's review is delegated to `pdlc-implementation-reviewer`. The implementer sub-agent knows nothing about the PDLC pipeline — give it only what it needs to implement the code.
 
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill records each task's `task`-depth review outcome in that task's `## Implementation` note, but never sets a PDLC gate to `Approved` — the stage-level review outcome stays with `pdlc-review`.
 
@@ -73,7 +73,7 @@ gh stack checkout <stackEntryPr> && gh stack add <branch>
 
 Re-running the task for `Changes Required` is the same setup — `gh stack checkout <branch>` puts you back on it — followed by amending its single commit.
 
-Spawn exactly one agent — `swiftui-pro` when `isUI` is true, `swift-pro` otherwise. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan` comment, the covered requirement text, and the upstream dependency summaries. The template tells the agent to make exactly one commit on the current branch and not to push, branch, or touch a pull request — the branch and the checkpoint are this skill's job.
+Spawn exactly one agent — resolve which with `pdlc inspect capability ui-implementer` when `isUI` is true, `pdlc inspect capability core-implementer` otherwise (each resolves to `general-purpose` when the project configures no implementer). Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan` comment, the covered requirement text, and the upstream dependency summaries. The template tells the agent to make exactly one commit on the current branch and not to push, branch, or touch a pull request — the branch and the checkpoint are this skill's job.
 
 Wait for it to return before inspecting or changing its files. Never run a second agent against the same task concurrently.
 
@@ -157,7 +157,7 @@ Each run:
 - [ ] Exactly one task selected — the inspector's `## Next Task`, or the driver's `--task`
 - [ ] The task was eligible by plan, dependencies, and HITL approval
 - [ ] Ran the inspector's `stackSetup:` `gh stack` command on a clean tree; no hand-rolled branching
-- [ ] The task went to `swiftui-pro` or `swift-pro` per its own `isUI` tag
+- [ ] The task went to the `ui-implementer` or `core-implementer` capability per its own `isUI` tag
 - [ ] Exactly one implementation commit on the task branch; no PR opened by the sub-agent
 - [ ] Validation actually run before the `task`-depth review
 - [ ] `task`-depth `pdlc-implementation-reviewer` returned `Approval Required` (a `Changes Required` looped back once; a second failure stopped the run)
