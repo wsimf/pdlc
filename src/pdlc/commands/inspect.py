@@ -2,11 +2,12 @@
 """Read-only: renders a work item's metadata, task tree, linked pull requests,
 and routing decision for the pdlc skill's Orient mode.
 
-Local Work Item attachments are rendered in an `## Attachments` section with
-their descriptions and resolved paths.
+Sections are ordered front matter, `# Work Item`, `## Attachments`,
+`## User Comments`, `# Tasks`, `# Due Next`.
 
-A `## User Comments` section carries every comment on the record that has no
-`PDLC-*` marker — human or outside-bot discussion — oldest first. One comment
+`## Attachments` lists local Work Item attachments with their descriptions and
+resolved paths. `## User Comments` carries every comment on the record that has
+no `PDLC-*` marker — human or outside-bot discussion — oldest first; one comment
 fetch feeds both the full and compact renders.
 
 By default the complete inspection is written to a file under the system temp
@@ -64,6 +65,10 @@ for orientation, and points at the full file with the raw work item body.
 
     Full body in /tmp/pdlc-work-18.md
     Read lines 14-48 in /tmp/pdlc-work-18.md for the body.
+
+    ## Attachments
+
+    ## User Comments
 
     # Tasks
 
@@ -194,10 +199,10 @@ def _body_location(full_output: str, body: str, path: Path) -> str:
         return f"Full inspection in {path}; the work item body is empty."
 
     lines = full_output.splitlines()
-    work_item_index = lines.index("# Work Item")
-    tasks_index = lines.index("# Tasks")
-    start = work_item_index + 3
-    end = tasks_index - 1
+    # `# Work Item` heading, blank line, then the body; the section that follows
+    # (Attachments) is not relied on for the span.
+    start = lines.index("# Work Item") + 3
+    end = start + len(body.splitlines()) - 1
     return f"Full inspection in {path}; read lines {start}-{end} for the body."
 
 
@@ -212,9 +217,9 @@ def _compact_render(
 ) -> str:
     body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
     sections = [_compact_metadata(item, pull_requests)]
+    sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
     sections.append(attachments_markdown(attachments))
     sections.append(user_comments_section)
-    sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
 
     if not tasks:
         sections.append("# Tasks\n\nNo Tasks")
@@ -244,15 +249,15 @@ def render(issue: str) -> tuple[str, str, Path]:
     # One comment fetch feeds the `## User Comments` section in both renders.
     user_comments_section = user_comments_markdown(issue)
 
-    sections = [yaml_front_matter(metadata)]
-    sections.append(attachments_markdown(attachments))
-    sections.append(user_comments_section)
-
     # Strip the machine-owned `<!-- pdlc:meta -->` block: its registered PR
     # numbers are already surfaced in the front matter above, and the raw
     # comment is noise in the rendered body (inspect_task strips it too).
     body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
+
+    sections = [yaml_front_matter(metadata)]
     sections.append(f"# Work Item\n\n{body}")
+    sections.append(attachments_markdown(attachments))
+    sections.append(user_comments_section)
 
     tasks = task_tree(issue)
     if not tasks:

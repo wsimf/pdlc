@@ -58,6 +58,10 @@ class InspectTests(FileBackendTest):
         self.assertIn("## User Comments", out)
         self.assertIn("does this cover the offline case?", out)
         self.assertNotIn("MARKED_BODY_TEXT", out)
+        # Section order: Work Item, Attachments, User Comments, Tasks.
+        self.assertLess(out.index("# Work Item"), out.index("## Attachments"))
+        self.assertLess(out.index("## Attachments"), out.index("## User Comments"))
+        self.assertLess(out.index("## User Comments"), out.index("# Tasks"))
 
     def test_inspect_task_surfaces_unmarked_user_comments(self):
         self._seed_comments()
