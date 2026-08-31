@@ -33,7 +33,7 @@ is resolved here, never by the agent querying the work-item store or `git` itsel
 
     Stale — re-verify before completing:
 
-    - UJ-3 — Accepted: offline retry confirmed on simulator (Verified @ a1b2c3d)
+    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
 
 or, when not ready:
 
@@ -54,7 +54,7 @@ import sys
 from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.completion import completion_blockers  # type: ignore
 from pdlc.domain.completion_evidence import live_open_questions  # type: ignore
@@ -72,7 +72,7 @@ from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ign
 
 import re
 
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Ultra Review)\s*$", re.IGNORECASE)
+REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
 HEADING_PATTERN = re.compile(r"^#{1,6}\s")
 BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
@@ -102,7 +102,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> li
     unsettled_prs = [
         f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
-        if pr["relation"] == "closes" and (pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE"))
+        if pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE")
     ]
 
     if not open_tasks and not unsettled_prs:
@@ -176,7 +176,7 @@ def inspect(issue: str) -> str:
     item = resolve_item(issue)
     attachments = attachments_for_item(item)
     tasks = task_tree(issue)
-    pull_requests = get_code_host().pull_requests(issue)
+    pull_requests = record_pull_requests(issue)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
     verification_comments = find_marked_comments(issue, "VERIFICATION", comments=comments)

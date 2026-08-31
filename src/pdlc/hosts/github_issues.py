@@ -27,6 +27,9 @@ from pdlc.domain.model import (
     TASK_TITLE_PATTERN,
     comment_bodies,
     compose_comment,
+    read_task_meta,
+    strip_task_meta,
+    write_task_meta,
 )
 
 # Delivery task sub-issues of a parent Issue: enough to match one to its stable
@@ -159,11 +162,15 @@ def _upsert_task(
     if match:
         number = match["number"]
         title_changed = match["title"] != full_title
-        # Compare against the neutralized form, since that is what a prior run
-        # wrote — otherwise a task carrying a `#123` would re-edit every pass.
-        body_changed = (match.get("body") or "") != neutralize_refs(body_text)
+        # Compare against the neutralized human body only: a prior run wrote the
+        # neutralized form (so a `#123` in the body does not re-edit every pass),
+        # and the machine-owned `pdlc:meta` block is preserved across the rewrite
+        # rather than counted as a change.
+        stored = match.get("body") or ""
+        preserved_meta = read_task_meta(stored)
+        body_changed = strip_task_meta(stored) != neutralize_refs(body_text)
         if title_changed or body_changed:
-            with body_file(body_text) as path:
+            with body_file(write_task_meta(body_text, preserved_meta)) as path:
                 run_gh(["issue", "edit", str(number), *repo_args(), "--title", full_title, "--body-file", path])
             action = "retitled" if title_changed else "updated"
         else:

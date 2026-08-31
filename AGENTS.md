@@ -47,6 +47,8 @@ git diff --check
 
 Use `PDLC_BACKEND=file` with a temporary `PDLC_HOME` for local workflow scenarios. The default work-item backend is GitHub; the file backend persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-host selection follows `PDLC_CODE_HOST`, and attachments follow `PDLC_ATTACHMENT_HOST`.
 
+The skills name no project-specific tool. A consuming repo routes each seam to its own specialist skill or sub-agent through the `[agents]` and `[skills]` tables of `.pdlc/config.toml`, read back by `pdlc inspect capability`; an unset slot falls back to `general-purpose` or an inline seam. The slot contract lives in `agent/skills/pdlc/references/capabilities.md`.
+
 For Python syntax validation in this environment, use `PYTHONPYCACHEPREFIX=/tmp/pdlc-pycache python3 -m compileall -q src`; this proves compilation only, not GitHub, build, simulator, or runtime behavior.
 
 ## Change hygiene

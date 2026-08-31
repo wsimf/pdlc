@@ -4,7 +4,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pdlc.config import Config, ConfigurationError, get_config, load_config
+from pdlc.config import (
+    Config,
+    ConfigurationError,
+    get_capabilities,
+    get_config,
+    load_config,
+)
 from pdlc.commands.setup import _write_config
 
 
@@ -76,6 +82,35 @@ class ConfigTests(unittest.TestCase):
         nested = self.make_repo('[backend]\nunknown = "value"\n')
         with self.assertRaisesRegex(ConfigurationError, "Unknown setting"):
             load_config(nested)
+
+    def test_capability_slots_are_read_from_config(self):
+        nested = self.make_repo(
+            '[agents]\ncore-implementer = "swift-pro"\n'
+            '[skills]\nbuild-run = "trailnest-build-run"\n'
+        )
+        load_config(nested)
+        caps = get_capabilities()
+        self.assertEqual(caps.agent("core-implementer"), "swift-pro")
+        self.assertEqual(caps.agent("ui-implementer"), "general-purpose")
+        self.assertEqual(caps.skill("build-run"), "trailnest-build-run")
+        self.assertIsNone(caps.skill("ux-design"))
+
+    def test_capability_rejects_unknown_slot(self):
+        nested = self.make_repo('[skills]\nbogus = "x"\n')
+        with self.assertRaisesRegex(ConfigurationError, "Unknown capability slot"):
+            load_config(nested)
+
+    def test_capability_rejects_non_string_value(self):
+        nested = self.make_repo('[agents]\ncore-implementer = 3\n')
+        with self.assertRaisesRegex(ConfigurationError, "must be a non-empty string"):
+            load_config(nested)
+
+    def test_capabilities_empty_without_config(self):
+        nested = self.make_repo()
+        load_config(nested)
+        caps = get_capabilities()
+        self.assertEqual(caps.agent("core-implementer"), "general-purpose")
+        self.assertIsNone(caps.skill("build-run"))
 
     def test_setup_writes_grouped_toml(self):
         root = Path(tempfile.mkdtemp())

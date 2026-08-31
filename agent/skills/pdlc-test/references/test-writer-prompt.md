@@ -2,11 +2,16 @@
 
 `pdlc-test` Step 4 fills the placeholders below and spawns `pdlc-test-writer`
 once with the result. The agent knows nothing about the PDLC pipeline — give it
-behaviour and files, not stage jargon.
+behaviour and files, not stage jargon. Resolve the two leading lines from `pdlc
+inspect capability test-authoring` and `pdlc inspect capability test-framework`
+(drop the second when it prints nothing).
 
 ---
 
 ```md
+<the line from `pdlc inspect capability test-authoring`>
+<the line from `pdlc inspect capability test-framework`, when it is non-empty>
+
 Write requirement-to-source-traceable acceptance coverage for the implemented
 scope below, then run the suite and commit it on the current branch.
 

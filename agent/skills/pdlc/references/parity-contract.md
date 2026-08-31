@@ -23,8 +23,8 @@ delivery tasks, pull requests, and evidence comments.
 | UI | Parent `UI` section, including UI applicability and `UJ-*` journeys |
 | Tasks | Stable `WORK-NNN-TASK-NNN` delivery tasks |
 | Technical Plan | A `## Technical Plan` comment on every incomplete delivery task |
-| Implementation | Production PRs and a `## Implementation` comment on each task |
-| Testing | Test coverage commits and requirement-to-source coverage evidence |
+| Implementation | One stacked PR per task (production code + that task's unit coverage) and a `## Implementation` comment on each task |
+| Testing | Whole-feature acceptance coverage commits and requirement-to-source traceability evidence |
 | Verification | Parent `Verification` section and `PDLC-VERIFICATION` report |
 
 UI applicability is always explicit. `UI not required` still receives review
@@ -40,19 +40,45 @@ anything is written, not asserted by the agent that wrote the breakdown.
 - Task creation is idempotent by stable ID. Reruns update the same task.
 - Every incomplete task must have a `## Technical Plan` comment on its
   delivery task before implementation. It carries no PDLC marker; `pdlc-inspect`
-  derives `hasPlan` from it and renders it. The task body is never touched by
-  planning or implementation — a re-planned task gets a fresh comment and the
-  latest one wins.
+  derives `hasPlan` from it and renders it. The human-authored task body is
+  never touched by planning or implementation — a re-planned task gets a fresh
+  comment and the latest one wins. The one exception is a machine-owned
+  `<!-- pdlc:meta -->` block pinned above the body, where commands record the
+  task's registered pull-request numbers; `pdlc-inspect` strips it on render.
 - HITL tasks require recorded human approval before dispatch.
-- A task closes once its commit is on the shared PR, its `task`-depth
+- `pdlc-implement` implements **one** task per invocation and then stops; the
+  autonomous loop (or the driver) re-invokes it for the next while the parent
+  sits at `Implementation / Pending`.
+- Each task owns one branch, `pdlc/<slug>/task-NNN`. The `gh stack` extension
+  owns the stack itself — its order, each branch's base, its rebases, and which
+  members have landed. PDLC contributes two facts and no more: the branch name,
+  derived from the task identity, and the stack entry point, which is the
+  previous implemented task's registered pull request. `pdlc-implement` puts the
+  branch on the stack with `gh stack init` or `gh stack checkout <pr> && gh stack
+  add`, and `pdlc post implement-task` submits it with `gh stack sync --prune`
+  and `gh stack submit`. Nothing infers a base branch, lists remote branches, or
+  asks whether a predecessor's branch still exists; agents never `git push`,
+  `git rebase`, or open PRs by hand.
+- Implementation ships each task's production code **and its unit coverage** on
+  the task branch — `pdlc-implement` dispatches `pdlc-test-writer` scoped to the
+  single task after the task review passes. Whole-feature acceptance coverage is
+  the Testing stage.
+- A task closes once its commit is on its stacked PR, its `task`-depth
   `pdlc-implementation-reviewer` pass returned `Approval Required`, and a
   `## Implementation` comment records the outcome. The comment carries no PDLC
-  marker; the task body is not rewritten; `pdlc-inspect` derives
+  marker; the human-authored task body is not rewritten; `pdlc-inspect` derives
   `hasImplementation` from it.
-- Per-task closure does not gate on CI. The shared PR's required checks are
+- A record's pull requests are the ones registered on it and on its tasks — by
+  `pdlc post implement-task`, `pdlc post attach-pr`, `pdlc post implement`, or
+  `pdlc post test`. Nothing is inferred from a `Closes #N` keyword or a branch
+  name; gates read only the registry.
+- Per-task closure does not gate on CI. The registered PRs' required checks are
   confirmed green in aggregate once every delivery task is closed, before the
   Implementation stage publishes.
 - The parent remains `Implementation / Pending` until every task is complete.
+- Stacked PRs are opt-in via `PDLC_STACKED_PRS` while the flow rolls out; with
+  it unset, every task's commit lands on one shared implementation PR on the
+  current branch and `pdlc-implement` may run the whole scope in one pass.
 
 ## Reviews, approval, and reconciliation
 
@@ -61,11 +87,12 @@ anything is written, not asserted by the agent that wrote the breakdown.
   controller records `Changes Required`, `Decision Required`, or
   `Approval Required`.
 - The Implementation reviewer does not wait for CI — it judges the code while
-  the shared PR's checks are still in flight. A clean verdict lands `CI Pending`,
-  not `Approval Required`; `pdlc post ci` then reconciles that gate against
-  the live check rollup (green, or no checks configured → `Approval Required`;
-  red → `Changes Required` with a `PDLC-IMPLEMENTATION` note). It is mechanical
-  and the autonomous loop resolves it with no human step. Testing is unchanged.
+  the task PR stack's checks are still in flight. A clean verdict lands
+  `CI Pending`, not `Approval Required`; `pdlc post ci` then reconciles that gate
+  against the live check rollup across every PR in the stack (all green, or no
+  checks configured → `Approval Required`; any red → `Changes Required` with a
+  `PDLC-IMPLEMENTATION` note). It is mechanical and the autonomous loop resolves
+  it with no human step. Testing is unchanged.
 - `Decision Required` is for a finding the owning skill cannot mechanically
   reconcile — one turning on a product, architecture, UX, safety, or scope call.
   It is raised by an `Implementation` or `Testing` reviewer, or by the
@@ -80,10 +107,10 @@ anything is written, not asserted by the agent that wrote the breakdown.
   `pdlc-verify`); a decision that invalidates approved upstream intent goes
   through `pdlc post invalidate` instead. Nothing else proceeds meanwhile.
 - `pdlc-implement` additionally runs a `task`-depth `pdlc-implementation-reviewer`
-  pass on every task before its commit is pushed — a shallow acceptance-criteria
-  and code-level check, recorded in the task's `## Implementation` note. This
-  does not move a gate and does not replace the stage-level review at
-  `Review Required`.
+  pass on every task before it is checkpointed onto its stacked PR — a shallow
+  acceptance-criteria and code-level check, recorded in the task's
+  `## Implementation` note. This does not move a gate and does not replace the
+  stage-level review at `Review Required`.
 - Re-run at the same scope after reconciliation. Stop for a human decision when a
   `Changes Required` finding survives two reconciliations, or immediately when a
   reviewer returns `Decision Required`.
@@ -122,7 +149,7 @@ artifacts and mark their evidence stale rather than deleting it:
 
 Verification reconciles every task Result and constraint against current
 source, requirement-to-test traceability, user journeys, rendered UX when
-applicable, and cumulative ultra review. Every evidence row links the exact
+applicable, and cumulative review. Every evidence row links the exact
 commit or PR checked. Findings are fixed and re-verified or explicitly deferred
 in Open Questions; a clean report is never written while a finding is open.
 

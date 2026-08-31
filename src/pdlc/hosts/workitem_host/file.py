@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.model import read_task_meta, strip_task_meta, write_task_meta
 from pdlc.hosts.workitem_host.base import WorkItemBackend
 
 FIELD_NAMES = ("Status", "Gate State", "Lifecycle", "Skipped States", "Slug")
@@ -209,11 +210,15 @@ class FileWorkItemBackend(WorkItemBackend):
             path = record / "tasks" / str(match["number"])
             meta = _read_meta(path)
             title_changed = meta.get("title") != full_title
-            body_changed = ((path / "body.md").read_text() if (path / "body.md").exists() else "") != body_text
+            stored = (path / "body.md").read_text() if (path / "body.md").exists() else ""
+            # The machine-owned `pdlc:meta` block is preserved across a re-plan,
+            # not counted as a body change.
+            preserved_meta = read_task_meta(stored)
+            body_changed = strip_task_meta(stored) != body_text
             if title_changed or body_changed:
                 meta["title"] = full_title
                 _write_meta(path, meta)
-                (path / "body.md").write_text(body_text)
+                (path / "body.md").write_text(write_task_meta(body_text, preserved_meta))
                 action = "retitled" if title_changed else "updated"
             else:
                 action = "unchanged"
@@ -233,6 +238,9 @@ class FileWorkItemBackend(WorkItemBackend):
             action = "created"
 
         return {"action": action, "taskId": task_id, "number": number, "title": full_title, "url": url}
+
+    def write_task_body(self, task_ref: str, body: str) -> None:
+        (self._task_dir(task_ref) / "body.md").write_text(body)
 
     def close_task(self, task_ref: str) -> None:
         path = self._task_dir(task_ref)

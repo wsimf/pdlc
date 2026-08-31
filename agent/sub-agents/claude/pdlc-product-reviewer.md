@@ -1,6 +1,6 @@
 ---
 name: pdlc-product-reviewer
-description: "Independently review a supplied TrailNest Product draft for requirement quality, prior-art accuracy, and internal consistency, then return evidence-backed findings and a verdict. Strictly read-only."
+description: "Independently review a supplied Product draft for requirement quality, prior-art accuracy, and internal consistency, then return evidence-backed findings and a verdict. Strictly read-only."
 model: sonnet
 color: red
 memory: project

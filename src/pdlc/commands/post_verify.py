@@ -19,7 +19,7 @@ both back, and owns parsing these same markers on the way in.
         [--fixed FIXED_FILE|-] [--deferred DEFERRED_FILE|-]
         [--decision DECISION_FILE|-] [--bounce STAGE]
 
-REPORT_FILE holds only the Claims Audit, User Journeys, UX, and Ultra Review
+REPORT_FILE holds only the Claims Audit, User Journeys, UX, and Cumulative Review
 sections — Findings and Recommendation are assembled here. On an
 `Approval Required` run the assembled comment must satisfy the strict
 `evidence.parse_verification_report` schema (all four sections non-empty,
@@ -54,7 +54,7 @@ The gate is only moved when Status is Verification and the current gate is
 Pending, Changes Required, or Stale — a run against an already-approved or
 malformed record is refused.
 
-Given a REPORT_FILE with Claims Audit / User Journeys / UX / Ultra Review
+Given a REPORT_FILE with Claims Audit / User Journeys / UX / Cumulative Review
 sections, `--fixed` with one line
 `Route line snapped to wrong profile on regen | b2c3d4e`, and `--deferred`
 with one line `Elevation gain rounding drifts by 2m, accepted because it's
@@ -69,13 +69,13 @@ within tolerance`, the posted comment body is:
 
     ### User Journeys
 
-    - UJ-3 — Accepted: offline retry confirmed on simulator (Verified @ a1b2c3d)
+    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
 
     ### UX
 
     - Reviewed — no critical findings (Verified @ a1b2c3d)
 
-    ### Ultra Review
+    ### Cumulative Review
 
     - Clean — no findings (Verified @ a1b2c3d)
 
@@ -261,7 +261,7 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Post a PDLC verification report")
     parser.add_argument("work_item")
-    parser.add_argument("report", help="Claims Audit / User Journeys / UX / Ultra Review sections — a file path, or - for stdin")
+    parser.add_argument("report", help="Claims Audit / User Journeys / UX / Cumulative Review sections — a file path, or - for stdin")
     parser.add_argument("--recommendation", required=True, choices=list(RECOMMENDATIONS))
     parser.add_argument("--fixed", help="File of fixed findings, one per line, or - for stdin")
     parser.add_argument("--deferred", help="File of deferred findings, one per line, or - for stdin")

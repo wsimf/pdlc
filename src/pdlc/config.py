@@ -37,7 +37,22 @@ TOML_ENVIRONMENT_KEYS = {
     ("workflow", "autoapprove_churn_cap"): "PDLC_AUTOAPPROVE_CHURN_CAP",
 }
 
+# Capability slots let a project name the specialist skill or sub-agent PDLC
+# should route each seam to. They live in their own `config.toml` tables so a
+# project can point the workflow at its own toolchain without the skills
+# hardcoding any tool name. `agents` slots fall back to `general-purpose`;
+# `skills` slots fall back to the stage doing the work inline (see
+# `agent/skills/pdlc/references/capabilities.md` for the per-slot contract).
+CAPABILITY_SLOTS: dict[str, tuple[str, ...]] = {
+    "agents": ("core-implementer", "ui-implementer"),
+    "skills": (
+        "build-run", "ux-design", "cumulative-review",
+        "test-authoring", "test-framework",
+    ),
+}
+
 _config_loaded = False
+_capabilities: "Capabilities | None" = None
 
 
 class ConfigurationError(PdlcError):
@@ -84,6 +99,45 @@ class Config:
             raise ConfigurationError(configuration_guidance(missing))
 
 
+@dataclass(frozen=True)
+class Capabilities:
+    """Project-declared routing for PDLC seams, read from the ``[agents]`` and
+    ``[skills]`` tables of ``.pdlc/config.toml``. Missing slots resolve to a
+    fallback rather than an error so the workflow runs on an unconfigured repo."""
+
+    agents: dict[str, str]
+    skills: dict[str, str]
+
+    @classmethod
+    def empty(cls) -> "Capabilities":
+        return cls(agents={}, skills={})
+
+    def agent(self, slot: str) -> str:
+        """The sub-agent to dispatch this slot to; ``general-purpose`` if unset."""
+        return self.agents.get(slot) or "general-purpose"
+
+    def skill(self, slot: str) -> str | None:
+        """The skill configured for this slot, or ``None`` to run the seam inline."""
+        return self.skills.get(slot)
+
+
+def _read_capabilities(section: str, table: dict, path: Path) -> dict[str, str]:
+    known = CAPABILITY_SLOTS[section]
+    resolved: dict[str, str] = {}
+    for slot, value in table.items():
+        if slot not in known:
+            raise ConfigurationError(
+                f"Unknown capability slot in {path}: [{section}] {slot}. "
+                f"Known slots: {', '.join(known)}"
+            )
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigurationError(
+                f"Capability [{section}] {slot} in {path} must be a non-empty string"
+            )
+        resolved[slot] = value.strip()
+    return resolved
+
+
 def repository_root(start: Path | None = None) -> Path:
     """Find the Git repository root containing ``start``."""
     current = (start or Path.cwd()).resolve()
@@ -99,14 +153,15 @@ def config_path(start: Path | None = None) -> Path:
     return repository_root(start) / ".pdlc" / "config.toml"
 
 
-def _read_file(path: Path) -> dict[str, str]:
+def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
     if not path.exists():
-        return {}
+        return {}, Capabilities.empty()
     try:
         values = tomllib.loads(path.read_text())
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise ConfigurationError(f"Could not read {path}: {error}") from error
     flattened: dict[str, str] = {}
+    capabilities: dict[str, dict[str, str]] = {"agents": {}, "skills": {}}
 
     def visit(section: tuple[str, ...], section_values: dict) -> None:
         for name, value in section_values.items():
@@ -130,16 +185,30 @@ def _read_file(path: Path) -> dict[str, str]:
     for section, section_values in values.items():
         if not isinstance(section_values, dict):
             raise ConfigurationError(f"[{section}] in {path} must be a TOML table")
+        if section in CAPABILITY_SLOTS:
+            capabilities[section] = _read_capabilities(section, section_values, path)
+            continue
         visit((section,), section_values)
-    return flattened
+    return flattened, Capabilities(
+        agents=capabilities["agents"], skills=capabilities["skills"]
+    )
 
 
 def load_config(start: Path | None = None) -> Config:
     """Apply repository config over the environment and return the result."""
-    global _config_loaded
-    os.environ.update(_read_file(config_path(start)))
+    global _config_loaded, _capabilities
+    flattened, _capabilities = _read_file(config_path(start))
+    os.environ.update(flattened)
     _config_loaded = True
     return Config.from_environment()
+
+
+def get_capabilities() -> Capabilities:
+    """Return the project's capability routing, loading config if needed."""
+    if _capabilities is None:
+        load_config()
+    assert _capabilities is not None
+    return _capabilities
 
 
 def get_config() -> Config:

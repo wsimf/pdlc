@@ -2,13 +2,14 @@
 
 `pdlc-implement` Step 5 fills the placeholders below and spawns
 `pdlc-implementation-reviewer` at `task` depth with the result — once per task,
-after local validation and before the commit is pushed.
+after local validation and before the task is checkpointed onto its stacked PR.
 
 This is a shallow, single-task review: does the change deliver the task's
 acceptance criteria, and is the code sound at a basic level. It is deliberately
-narrower than `trailnest-ultra-review` — no multi-specialist audit, no rendered
-UX or simulator pass, no exhaustive architecture sweep, no review of any task
-but this one. That depth belongs to `pdlc-review` and `pdlc-verify` later.
+narrower than the project's `cumulative-review` capability — no multi-specialist
+audit, no rendered UX or runtime pass, no exhaustive architecture sweep, no
+review of any task but this one. That depth belongs to `pdlc-review` and
+`pdlc-verify` later.
 
 ---
 
@@ -47,21 +48,20 @@ Upstream tasks it builds on: <one-line implementation summary per dependency, or
 3. **Basic code review of the changed lines only:**
    - correctness and obvious edge cases
    - error handling — surfaced, not swallowed
-   - concurrency — `Sendable`, actor isolation, `@MainActor`
-   - `CLAUDE.md` hard constraints and architecture rules — typed units,
-     `RoutePoint` at internal boundaries, no GCD, no secondary
-     `CLLocationManager`, `@Observable` over `ObservableObject`, MapLibre not
-     MapKit 3D, force-unwrap rules
+   - concurrency and thread-safety boundaries
+   - the hard constraints and architecture rules stated in `AGENTS.md` /
+     `CLAUDE.md`
    - an existing test broken by inspection
-4. **Not in scope:** performance profiling, rendered UX, simulator journeys,
+4. **Not in scope:** performance profiling, rendered UX, runtime journeys,
    test authoring, CI state, files outside this diff, other tasks. Note drift
    you happen to see and recommend a wider review — do not chase it here.
 
 ## Evidence
 
 Read the changed files in the working tree to resolve anything the diff leaves
-ambiguous. Use `CLAUDE.md` for the constraint list and Cupertino MCP for
-Apple-API claims. Report what you cannot verify rather than guessing.
+ambiguous. Use `AGENTS.md` / `CLAUDE.md` for the constraint list and official
+documentation for platform-API claims. Report what you cannot verify rather
+than guessing.
 
 ## Report
 

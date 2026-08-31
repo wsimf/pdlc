@@ -1,12 +1,12 @@
-"""File code host: pull requests for a record come from an optional
-`pull_requests.json` in that record's directory under `$PDLC_HOME`, mirroring
-what `code_host.github` returns from GitHub. Absent that file, the record has
-no linked PRs — the same "not tracked" answer the null host gives.
+"""File code host: pull requests come from a `pull_requests.json` under each
+record's directory in `$PDLC_HOME`, mirroring the shape the GitHub host returns.
+Which of them belong to a record is decided by the explicit registry on the
+work item and its tasks (see `internal.pull_requests`), not by this file.
 
     $PDLC_HOME/records/<n>/pull_requests.json
       [ { "number": 148, "title": "...", "url": "...", "state": "OPEN",
           "isDraft": false, "branch": "feat/x", "mergedAt": null,
-          "checks": "PENDING", "relation": "closes" } ]
+          "checks": "PENDING" } ]
 """
 
 from __future__ import annotations
@@ -19,30 +19,40 @@ from pdlc.hosts.code_host.base import CodeHost
 from pdlc.domain.lifecycle import PdlcError
 
 
-def _record_dir(ref: str) -> Path:
-    return Path(os.environ.get("PDLC_HOME", ".pdlc")) / "records" / str(ref)
+def _records_root() -> Path:
+    return Path(os.environ.get("PDLC_HOME", ".pdlc")) / "records"
+
+
+def _all_pull_requests() -> list[dict]:
+    found: list[dict] = []
+    root = _records_root()
+    if not root.is_dir():
+        return found
+    for record in root.glob("*"):
+        path = record / "pull_requests.json"
+        if path.is_file():
+            found.extend(json.loads(path.read_text()))
+    return found
 
 
 class FileCodeHost(CodeHost):
     def ensure_pull_request_linked(self, code_ref: str) -> dict:
-        pull_requests = self.pull_requests(code_ref)
-        linked = next((pr for pr in pull_requests if pr.get("relation") == "closes"), None)
-        if not linked:
-            raise PdlcError(f"no pull request linked to work item #{code_ref}")
-        return linked
+        path = _records_root() / str(code_ref) / "pull_requests.json"
+        entries = json.loads(path.read_text()) if path.is_file() else []
+        if not entries:
+            raise PdlcError(f"no pull request recorded for work item #{code_ref}")
+        return entries[0]
 
-    def pull_requests(self, code_ref: str) -> list[dict]:
-        path = _record_dir(code_ref) / "pull_requests.json"
-        if not path.is_file():
-            return []
-        return json.loads(path.read_text())
+    def pull_requests_by_number(self, numbers: list[int]) -> list[dict]:
+        wanted = [int(n) for n in numbers]
+        by_number = {int(pr["number"]): pr for pr in _all_pull_requests() if pr.get("number") is not None}
+        return [by_number[n] for n in wanted if n in by_number]
 
     def pull_request_files(self, pr_number: str | int) -> list[str]:
-        for record in (Path(os.environ.get("PDLC_HOME", ".pdlc")) / "records").glob("*"):
-            path = record / "pull_requests.json"
-            if not path.is_file():
-                continue
-            for pull_request in json.loads(path.read_text()):
-                if str(pull_request.get("number")) == str(pr_number):
-                    return pull_request.get("files", [])
+        for pull_request in _all_pull_requests():
+            if str(pull_request.get("number")) == str(pr_number):
+                return pull_request.get("files", [])
         return []
+
+    def submit_task_stack(self) -> list[dict]:
+        raise PdlcError("the file code host cannot submit stacked pull requests")

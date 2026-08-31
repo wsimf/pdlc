@@ -68,7 +68,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.invoke("post_approve", issue, evidence)
 
         # --- Technical Plan: lands as a comment on the task, never its body ---
-        plan_body = self.write_file("plan.md", "Touch CoreService.swift.\n")
+        plan_body = self.write_file("plan.md", "Touch core_service.py.\n")
         plan_manifest = self.write_file(
             "plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan_body}])
         )
@@ -105,12 +105,12 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(self.next("--work-item", issue).front_matter("action"), "pdlc-test")
 
         # --- Testing ---
-        trace = self.write_file("trace.md", "FR-1 -> record lands -> CoreService.swift lands()\n")
+        trace = self.write_file("trace.md", "FR-1 -> record lands -> core_service.py lands()\n")
         self.assertEqual(
             self.invoke("post_test", issue, evidence, "--traceability", trace).code, 0
         )
         self.assertIn("## Traceability", self.comments_text(issue))
-        self.assertIn("CoreService.swift lands", self.comments_text(issue))
+        self.assertIn("core_service.py lands", self.comments_text(issue))
         self.invoke("post_review", issue, "approval-required", evidence)
         self.invoke("post_approve", issue, evidence)
 
@@ -119,9 +119,9 @@ class WorkflowEndToEndTests(FileBackendTest):
         report = self.write_file(
             "report.md",
             f"### Claims Audit\n\n- FR-1 confirmed against source (Verified @ {sha})\n\n"
-            f"### User Journeys\n\n- UJ-1 confirmed on the simulator (Verified @ {sha})\n\n"
+            f"### User Journeys\n\n- UJ-1 confirmed in the running app (Verified @ {sha})\n\n"
             "### UX\n\n- Reviewed — no critical findings\n\n"
-            "### Ultra Review\n\n- Clean — no findings\n",
+            "### Cumulative Review\n\n- Clean — no findings\n",
         )
         verified = self.invoke("post_verify", issue, report, "--recommendation", "Approval Required")
         self.assertEqual(verified.code, 0, verified.stderr)
@@ -131,7 +131,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         completion = self.write_file(
             "completion.md",
             "## Shipped\n\nThe record shell shipped; linked PR merged.\n\n"
-            f"## Verification\n\nclean @ {sha} — claims, journeys, UX reviewed, ultra review clean.\n\n"
+            f"## Verification\n\nclean @ {sha} — claims, journeys, UX reviewed, cumulative review clean.\n\n"
             "## Decisions\n\n- None\n\n## Open Questions\n\n- None\n\n"
             "## Limitations\n\n- None\n\n## Skipped Stages\n\n- None\n",
         )

@@ -1,7 +1,7 @@
 """Strict, typed parser for the assembled `PDLC-VERIFICATION` comment body.
 
 `pdlc post verify` composes that body from an agent-supplied report (the
-Claims Audit / User Journeys / UX / Ultra Review sections) plus a
+Claims Audit / User Journeys / UX / Cumulative Review sections) plus a
 script-owned `### Findings` block and a `Recommendation:` line. Every reader
 of that evidence — publication, Verification inspection, and Completion
 inspection — parses it here so none of them accepts a shape the others
@@ -19,10 +19,10 @@ from dataclasses import dataclass
 from pdlc.domain.lifecycle import PdlcError
 
 # The four report sections the verifier always fills in.
-REQUIRED_SECTIONS = ("Claims Audit", "User Journeys", "UX", "Ultra Review")
+REQUIRED_SECTIONS = ("Claims Audit", "User Journeys", "UX", "Cumulative Review")
 
 # Sections whose every bullet is a re-verified claim and so must carry the
-# script-stamped commit anchor. UX / Ultra Review bullets are narrative.
+# script-stamped commit anchor. UX / Cumulative Review bullets are narrative.
 ANCHORED_SECTIONS = ("Claims Audit", "User Journeys")
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")

@@ -31,7 +31,7 @@ Completion also requires an **explicit driver instruction to complete this recor
 pdlc inspect complete WORK_ITEM
 ```
 
-`## Readiness` runs the same `completion_blockers` policy `pdlc post complete` enforces: status and gate, open tasks, closed tasks with no `## Implementation` evidence, closing PRs not merged and green, missing or structurally invalid `PDLC-VERIFICATION` evidence, stale verification rows, and missing stage evidence or settlement markers. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the mechanical detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, ultra review `clean`. A line that passes the policy but doesn't actually say that is still not ready — judging what the words say is yours, not the script's. `## Open Questions` lists the live entries your completion evidence must disposition; the evidence parser, not the readiness check, enforces that.
+`## Readiness` runs the same `completion_blockers` policy `pdlc post complete` enforces: status and gate, open tasks, closed tasks with no `## Implementation` evidence, closing PRs not merged and green, missing or structurally invalid `PDLC-VERIFICATION` evidence, stale verification rows, and missing stage evidence or settlement markers. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the mechanical detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, cumulative review `clean`. A line that passes the policy but doesn't actually say that is still not ready — judging what the words say is yours, not the script's. `## Open Questions` lists the live entries your completion evidence must disposition; the evidence parser, not the readiness check, enforces that.
 
 Each non-skipped stage must carry exactly one settlement marker: `PDLC-APPROVED`, `PDLC-AUTOAPPROVED` (churn-gated auto-approval on Implementation or Testing), or `PDLC-SKIPPED`. The policy checks this; a stage in the item's `Skipped States` was deliberately bypassed — note it in the completion evidence rather than treating it as a gap.
 
@@ -62,7 +62,7 @@ Offline tile pinning across 7 tasks, PRs #144-#153, all merged.
 
 ## Verification
 
-clean @ a1b2c3d — claims, 4 journeys, UX reviewed, ultra review clean.
+clean @ a1b2c3d — claims, 4 journeys, UX reviewed, cumulative review clean.
 
 ## Decisions
 
@@ -100,7 +100,7 @@ Completed records are locked. Only a mechanical, non-semantic fix — a typo, a 
 ## Boundaries
 
 - Do not edit source, tests, project files, other documentation, agents, or skills.
-- Do not build, test, render, launch the simulator, or push.
+- Do not build, test, render, run the app, or push.
 - Do not re-run verification, journeys, UX review, or cumulative review — `pdlc-verify` owns all of it.
 - Do not edit the verified record — Product, UI, requirement, and task wording are frozen. A substantive change bounces to its owning stage and re-verification, or becomes a new parent work item. `pdlc post complete`'s Open Questions blanking is the only permitted parent-body edit.
 - Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post invalidate` — driver-only, like completion itself.

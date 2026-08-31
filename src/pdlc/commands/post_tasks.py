@@ -92,8 +92,8 @@ def declared_identifiers(text: str, pattern: re.Pattern) -> list[str]:
 
 
 # The [UI]/[CORE] tag pdlc-implement later reads back off the title to route
-# a task to swiftui-pro or swift-pro, without any other durable record of
-# which agent a task belongs to. build_plan requires "ui" to be a strict bool
+# a task to the UI or core implementation agent, without any other durable
+# record of which agent a task belongs to. build_plan requires "ui" to be a strict bool
 # before this ever runs, so the tag is never guessed from a falsy default.
 def tagged_title(task: dict) -> str:
     tag = UI_TAG if task["ui"] else CORE_TAG

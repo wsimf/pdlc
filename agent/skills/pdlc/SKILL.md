@@ -1,12 +1,12 @@
 ---
 name: pdlc
-description: "Route TrailNest PDLC intake. Given an exact work item number, read its work item, current state, delivery tasks, PRs, current source, and Git history, then report where it stands and what is due next without changing anything. Given a fresh feature idea with no parent work item, invoke pdlc-write to create the reviewed parent record. Use when asked to start, orient on, resume, or check the status of a PDLC item."
+description: "Route PDLC intake. Given an exact work item number, read its work item, current state, delivery tasks, PRs, current source, and Git history, then report where it stands and what is due next without changing anything. Given a fresh feature idea with no parent work item, invoke pdlc-write to create the reviewed parent record. Use when asked to start, orient on, resume, or check the status of a PDLC item."
 argument-hint: "work item number to orient on, or a fresh feature idea to start"
 ---
 
 # PDLC orchestrator
 
-TrailNest's Product Development Life Cycle runs on a PDLC work item and its lifecycle state. This skill does exactly two things: create a new PDLC Work Item from an idea, or orient on an existing one and report.
+The Product Development Life Cycle runs on a PDLC work item and its lifecycle state. This skill does exactly two things: create a new PDLC Work Item from an idea, or orient on an existing one and report.
 
 ## Modes
 
@@ -94,7 +94,7 @@ Due next: <Status>.<Gate State> → <owning specialist skill, or human>
 To proceed, ask for: <the exact next instruction to give>
 ```
 
-Keep every line grounded in something actually inspected. Do not claim build, test, simulator, UX, or runtime evidence that was not produced in this turn or explicitly recorded on the work item. Stop after the report.
+Keep every line grounded in something actually inspected. Do not claim build, test, runtime, UX, or runtime evidence that was not produced in this turn or explicitly recorded on the work item. Stop after the report.
 
 Continue to drive the work item forward after the driver intends to proceed by invoking the appropriate skill specified in references/stage-ownership.md.
 

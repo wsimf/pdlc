@@ -12,29 +12,71 @@ automatically when the summary does not already start with it; pdlc-inspect
 reads that heading to report the task as implemented.
 
 The implementation is recorded as its own artifact on the task, leaving the
-task body and its Technical Plan as they were. Pass --close to close the task
-once the commit is pushed, the shared PR's checks are green, and the task's
+human-authored task body and its Technical Plan as they were. Pass --close to
+close the task once the commit is pushed, its checks are green, and the task's
 criteria are genuinely met.
 
-    {"commented": true, "task": 47, "closed": true}
+With PDLC_STACKED_PRS set (1/true/yes/on), this first submits the task's stacked
+pull request via `gh stack` and records its number on the task, then writes the
+comment. A stack-submit failure therefore leaves no `## Implementation` comment
+and no closure, so `pdlc inspect implement` still offers the task and a re-run is
+clean rather than a duplicate. The default linear flow shares one implementation
+PR across the record and submits nothing here.
+
+    {"commented": true, "task": 47, "closed": true, "attachments": [],
+     "taskPr": {...}, "prs": [148]}
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 
+from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, require_file, wants_help  # type: ignore
+from pdlc.internal.stack import task_branch_name  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     IMPLEMENTATION_COMMENT_HEADING,
     close_task,
+    item_slug,
     post_comment,
+    register_task_pr,
+    resolve_item,
+    task_tree,
     tasks_by_number,
 )
+
+
+def _stacked_prs_enabled() -> bool:
+    """Phase-1 opt-in: the per-task stacked-PR path runs only when the driver
+    sets ``PDLC_STACKED_PRS``. The linear one-shared-PR flow stays the default."""
+    return os.environ.get("PDLC_STACKED_PRS", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _submit_task_stack(task: dict) -> dict:
+    """Submit the stack this task's branch belongs to and return this task's
+    pull request.
+
+    The stack itself is `gh stack`'s: the skill built it with `gh stack
+    init`/`add`, and the host submits it as-is. All this does is pick out the PR
+    whose head is this task's branch.
+    """
+    slug = item_slug(resolve_item(parent_number_for_task(task)))
+    branch = task_branch_name(slug, task["taskId"])
+    prs = get_code_host().submit_task_stack()
+    match = next((pr for pr in prs if pr["branch"] == branch), None)
+    if match is None:
+        submitted = ", ".join(pr["branch"] for pr in prs) or "none"
+        raise PdlcError(
+            f"the submitted stack has no pull request for {branch} "
+            f"(branches submitted: {submitted}) — check the task branch is part of the stack"
+        )
+    return match
 
 
 def post_implement_task(delivery_task: str, evidence: str, close: bool, attachment_inputs: list[dict]) -> dict:
@@ -55,12 +97,23 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
         summary = f"{IMPLEMENTATION_COMMENT_HEADING}\n\n{summary}"
 
     attachments = save_attachments(parent_number_for_task(task), attachment_inputs)
+
+    result = {"commented": True, "task": int(delivery_task), "closed": close, "attachments": attachments}
+    # Submit and register the task PR before recording the implementation: a
+    # stack-submit failure then leaves the task with no `## Implementation`
+    # comment and no closure, so `pdlc inspect implement` still offers it and a
+    # re-run is clean rather than a duplicate comment.
+    if _stacked_prs_enabled():
+        task_pr = _submit_task_stack(task)
+        result["taskPr"] = task_pr
+        result["prs"] = register_task_pr(task["number"], task_pr["number"])
+
     post_comment(delivery_task, summary)
 
     if close:
         close_task(delivery_task)
 
-    return {"commented": True, "task": int(delivery_task), "closed": close, "attachments": attachments}
+    return result
 
 
 def main() -> int:

@@ -6,7 +6,7 @@ argument-hint: "Parent work item number to test"
 
 # Test a PDLC implementation
 
-This skill does not write or run tests itself. It reads one PDLC record's implemented scope, works out from task Results and touched source exactly which requirements and seams need coverage, dispatches `pdlc-test-writer` once with a self-contained brief, and publishes the stage at `Review Required`. The test writer commits its coverage on the current branch.
+This skill does not write or run tests itself. It reads one PDLC record's **whole** implemented scope and verifies acceptance coverage across the feature as a unit — every in-scope requirement and user journey, end to end. Per-task unit coverage is already committed by `pdlc-implement` on each task's branch as that task lands; this stage is the feature-level acceptance pass on top of the completed task PR stack, not a re-run of per-task testing. It works out from task Results and touched source exactly which requirements and seams still need acceptance coverage, dispatches `pdlc-test-writer` once with a self-contained brief, and publishes the stage at `Review Required`. The test writer commits its coverage on the current branch — the top task branch in the stack — so the top task PR carries the acceptance suite.
 
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
 
@@ -49,9 +49,9 @@ This map is the deliverable of the stage as much as the tests are: the contract 
 
 ## Step 4: Dispatch `pdlc-test-writer`
 
-Spawn once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the Step 3 traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim.
+Spawn once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the Step 3 traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
 
-`pdlc-test-writer` commits its coverage on the current branch **and pushes it**, so the shared implementation PR — which tracks that branch — carries the tests. There is no separate test PR.
+`pdlc-test-writer` commits its coverage on the current branch **and pushes it**, so the top task PR in the stack — which tracks that branch — carries the tests. There is no separate test PR.
 
 Wait for its report. Do not write, edit, or run tests yourself, and do not spawn a second test author for the same scope.
 
@@ -78,7 +78,7 @@ Coverage changes: all in-scope requirements covered except FR-9.
 Exception: FR-9 needs a physical device and remains uncovered.
 ```
 
-`pdlc post test` confirms the shared implementation PR still links the parent, appends the `--traceability` map under a `## Traceability` heading, posts the evidence, and sets `Review Required` — one step. Body only — the script stamps the `PDLC-TESTING` marker and refuses one that already carries it, so strip any marker line the sub-agent returned. No linked PR is `Changes Required` territory: the coverage was never pushed.
+`pdlc post test` resolves the current branch's PR, registers its number on the record, appends the `--traceability` map under a `## Traceability` heading, posts the evidence, and sets `Review Required` — one step. Body only — the script stamps the `PDLC-TESTING` marker and refuses one that already carries it, so strip any marker line the sub-agent returned. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
 
 Do not publish for ad hoc or partial scope (Step 1): report the coverage added and leave the stage exactly as found, since publishing would misrepresent what was verified.
 
@@ -95,7 +95,7 @@ Never claim the record is done from coverage alone, and never set `Approved`.
 - Do not edit production source, the parent work item body, or any delivery task — never their requirements, plans, or Results.
 - Do not edit fixtures, package manifests, project files, agents, or other skills.
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
-- Do not create or switch branches — coverage is committed and pushed on the current branch, onto the shared implementation PR.
+- Do not create or switch branches — coverage is committed and pushed on the current branch, onto the top task PR in the stack.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
 - Do not write lifecycle state into any work item body — those fields are script-owned.
 - Preserve unrelated staged, unstaged, and untracked local work.
@@ -107,7 +107,7 @@ Never claim the record is done from coverage alone, and never set `Approved`.
 - [ ] Scope came from `## Testable Scope`, cross-checked against real source at each seam
 - [ ] The traceability map covers every in-scope FR, criterion, and observable constraint, and was passed through `--traceability` so it persists in the Testing evidence
 - [ ] No coverage was dispatched for unimplemented requirements
-- [ ] Coverage was committed and pushed on the current branch; `pdlc post test` confirmed the shared implementation PR links the parent and its checks were re-read
+- [ ] Coverage was committed and pushed on the current branch; `pdlc post test` registered the current branch's PR on the record and its checks were re-read
 - [ ] Coverage boundaries are recorded rather than passed off as covered
 - [ ] Evidence holds only the durable result, changed coverage, evidence, and exceptions
 - [ ] Published exactly once, landing the stage at `Review Required`

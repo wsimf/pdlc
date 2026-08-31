@@ -16,7 +16,7 @@ If given a follow-up (e.g. "re-spike TASK-003", "the last plan was wrong about t
 
 ## Working boundary
 
-Write only plan files, the manifest, and the reconciled `Product` fragment described under **Resolve assumptions**. Return them to the calling skill. Do not publish, implement code, or run builds, tests, formatting, code generation, simulator, staging, commits, or pushes.
+Write only plan files, the manifest, and the reconciled `Product` fragment described under **Resolve assumptions**. Return them to the calling skill. Do not publish, implement code, or run builds, tests, formatting, code generation, runtime checks, staging, commits, or pushes.
 
 Treat current source as the source of truth if it conflicts with the parent work item's Product/UI content — but do not rewrite that content yourself; report the drift instead. The plan is guidance for the future implementation owner: concrete file/type/method seams, no code snippets or patches.
 
@@ -35,7 +35,7 @@ For each task in scope, investigate the current codebase before planning:
 
 - Trace the user flow, ownership boundary, data flow, state transitions, persistence/files, service or actor boundaries, and error presentation path affected by the task.
 - Locate existing components, domain APIs, tests, nearby feature patterns, and package ownership that should be reused. Search before proposing a new abstraction.
-- Check public API impact, Swift concurrency/isolation and `Sendable` boundaries, SwiftData/file migration implications, memory/power constraints, accessibility, localization, and offline behavior when applicable.
+- Check public API impact, concurrency and isolation boundaries, data-migration implications, resource constraints, accessibility, localization, and offline behavior when applicable.
 - Verify the parent's requirements, constraints, and non-goals are technically compatible with current source. Call out source/record drift, missing prerequisites, and choices that require a driver decision instead of guessing.
 - Start from the parent's Prior art & reuse content rather than re-deriving it, but confirm each cited path still exists and still does what it says — it was written before any code landed.
 - Determine a proportionate test strategy and the runtime or visual verification needed to establish the task works. Do not claim these checks were run during the spike.
@@ -65,9 +65,9 @@ A record whose plans leave your hands carries no Assumptions subsection at all.
 For every task planned, return only that task's plan content — no heading and no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
 
 ```markdown
-1. `path/to/File.swift` — <specific type/member/behavior to change and why>.
-2. `path/to/Other.swift` — <integration, ownership, or data-flow change>.
-3. Tests: `path/to/Tests.swift` — <behaviors and edge cases to cover>.
+1. `path/to/File` — <specific type/member/behavior to change and why>.
+2. `path/to/Other` — <integration, ownership, or data-flow change>.
+3. Tests: `path/to/Tests` — <behaviors and edge cases to cover>.
 
 **Validation:** <focused tests, build target, and required runtime/visual check>
 **Dependencies / risks:** <concrete blockers, assumptions, or driver decisions, or None>
@@ -93,7 +93,7 @@ A pass need not cover every task, but must not leave an open, unimplemented task
 
 - Do not edit the work item, delivery tasks, work item fields, or evidence comments, or set any gate state.
 - Do not edit production source, tests, project files, agents, skills, generated files, or unrelated documentation.
-- Do not implement tasks, build, test, render previews, launch the simulator, stage, commit, or push.
+- Do not implement tasks, build, test, run the app, stage, commit, or push.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated exploration or planning completed unless its result was actually received and incorporated.
 

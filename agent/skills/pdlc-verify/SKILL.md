@@ -60,9 +60,9 @@ A failed journey, design nonconformance, orphaned mapping, unexplained blocked r
 
 ## Step 5: Cumulative review
 
-Run `trailnest-ultra-review` over the whole change scope in **one** general-purpose sub-agent dispatch. If every commit since the last `Verified @` touched only work-item paperwork, carry the prior clean result forward without dispatching.
+Run the project's `cumulative-review` capability over the whole change scope in **one** general-purpose sub-agent dispatch. If every commit since the last `Verified @` touched only work-item paperwork, carry the prior clean result forward without dispatching.
 
-Build the prompt from [ultra-review-prompt.template.md](references/ultra-review-prompt.template.md). Resolve scope yourself — branch diff against base when unmerged, an explicit commit range when landed in pieces. Never let it fall back to an automatic scope that reviews nothing; ask the driver if you can't establish the base ref. Translate constraints into plain requirements — `FR-*`/`C-*` mean nothing to the sub-agent.
+Build the prompt from [cumulative-review-prompt.template.md](references/cumulative-review-prompt.template.md); its first line is filled from `pdlc inspect capability cumulative-review` (the configured skill, or an instruction to review inline). Resolve scope yourself — branch diff against base when unmerged, an explicit commit range when landed in pieces. Never let it fall back to an automatic scope that reviews nothing; ask the driver if you can't establish the base ref. Translate constraints into plain requirements — `FR-*`/`C-*` mean nothing to the sub-agent.
 
 **Any finding of any severity stops the pass.** Report exactly as prioritised, unaltered. Never write clean evidence while a finding is open.
 
@@ -80,20 +80,20 @@ Every finding that turns on a production-source, test, or task-Result change goe
 
 `pdlc post verify` assembles the comment, writes the Findings section, files deferrals into Open Questions, and sets the gate from `--recommendation`. Give it these inputs; make no formatting decisions yourself.
 
-1. A report fragment with only Claims Audit, User Journeys, UX, and Ultra Review sections. Every item carries the `Verified @` commit the check actually ran against — never "now":
+1. A report fragment with only Claims Audit, User Journeys, UX, and Cumulative Review sections. Every item carries the `Verified @` commit the check actually ran against — never "now":
 
    ```md
    ### Claims Audit
    - WORK-142-TASK-007 — Confirmed: `RouteShapeAnimator` matches Result; C-2 holds (Verified @ a1b2c3d)
    ### User Journeys
-   - UJ-3 — Accepted: offline retry confirmed on simulator (Verified @ a1b2c3d)
+   - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
    ### UX
    - Reviewed — no critical findings (Verified @ a1b2c3d)
-   ### Ultra Review
+   ### Cumulative Review
    - Clean — no findings (Verified @ a1b2c3d)
    ```
 
-   One line per task with a Result under Claims Audit, never blank. A journey is `Accepted` or `Deferred` with a matching Open Questions entry. `Not applicable` for User Journeys/UX with no UI. Ultra Review reads `Clean` only once every finding is genuinely resolved.
+   One line per task with a Result under Claims Audit, never blank. A journey is `Accepted` or `Deferred` with a matching Open Questions entry. `Not applicable` for User Journeys/UX with no UI. Cumulative Review reads `Clean` only once every finding is genuinely resolved.
 
 2. A fixed-findings file, one `description | commit` per line, only for findings a prior bounce's rework resolved and this pass has since re-verified against the named commit. Omit or leave empty if nothing was re-verified this pass.
 

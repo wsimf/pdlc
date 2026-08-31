@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Read-only: Step 1 and the mechanical half of Step 3 of pdlc-implement in one
+call. Resolves whether Implementation is due for a record and, if so, the single
+next delivery task to implement.
+
+    pdlc inspect implement WORK_ITEM [--task TASK-NNN | N] [--phase core|ui]
+
+`--task` restricts the scan to one delivery task (`TASK-004` or `4`); `--phase`
+restricts it to the CORE or UI half. The two cannot be combined.
+
+`## Readiness` reports whether the stage is due (Status Implementation, gate
+Pending / Changes Required / Stale, not skipped). `## Next Task` names the first
+eligible task in scope — OPEN, technically planned, not yet implemented — in
+CORE-before-UI then task-number order, with its `## Technical Plan` rendered
+inline, its `branch:`, and the `stackSetup:` commands that put that branch on the
+stack. Those are `gh stack` invocations: the extension owns the stack's order,
+bases, and rebases, so nothing here computes a base branch or checks whether a
+predecessor's branch still exists. The entry point is the previous implemented
+task's registered pull request — `gh stack checkout` discovers the rest of the
+stack from GitHub itself. `## Judgment Required` lists what the skill must still
+confirm from the task body and record comments (dependency closure by Result,
+HITL approval) — this script stops short of that judgment, exactly as
+`pdlc inspect test` does. `## Remaining` summarises the rest.
+
+Not ready, or nothing eligible, is reported plainly rather than raised.
+
+    ## Readiness
+
+    Ready — Gate State: Pending.
+
+    ## Next Task
+
+    ### WORK-142-TASK-004 [UI] Route profile chart
+    number: 51
+    taskId: TASK-004
+    isUI: true
+    branch: pdlc/record-142/task-004
+    stackSetup: gh stack checkout 151 && gh stack add pdlc/record-142/task-004
+    stackEntryPr: 151  (the previous implemented task's registered PR)
+
+    ## Technical Plan
+    ...
+
+    ## Judgment Required
+
+    - every task this one depends on is closed, proven by its Result and current
+      source — not its state alone
+    - if this task is HITL, the driver's approval for it is recorded on the record
+
+    ## Remaining
+
+    - WORK-142-TASK-005 [UI] ... (OPEN): not yet planned
+    3 of 5 delivery tasks closed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
+from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.internal.stack import stack_entry_pr, task_branch_name  # type: ignore
+from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree  # type: ignore
+
+_PHASES = {"core": False, "ui": True}
+
+_JUDGMENT = (
+    "## Judgment Required\n\n"
+    "The skill must still confirm from the task body and the record's comments:\n"
+    "- every task this one depends on is closed, proven by its Result and current "
+    "source — not its state alone\n"
+    "- if this task is HITL, the driver's approval for it is recorded on the record"
+)
+
+
+def _normalise_task_filter(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    value = raw.strip()
+    if value.isdigit():
+        return f"TASK-{int(value):03d}"
+    return value.upper()
+
+
+def _readiness(item: dict) -> tuple[bool, str]:
+    status = item.get("Status")
+    gate = item.get("Gate State")
+    if status != "Implementation":
+        return False, f"Not ready: Status is {status!r}, not Implementation. That stage owns this Work Item now."
+    due = due_next(item)
+    if due["action"] != "pdlc-implement":
+        return False, f"Not ready: Gate State is {gate!r}. {due['reason'].capitalize()}."
+    return True, f"Ready — Gate State: {gate}."
+
+
+def _in_scope(task: dict, task_filter: str | None, phase: bool | None) -> bool:
+    if task_filter is not None:
+        return (task.get("taskId") or "").upper() == task_filter
+    if phase is not None:
+        return task["isUI"] == phase
+    return True
+
+
+def _eligible(task: dict) -> bool:
+    return task["state"] == "OPEN" and task["hasPlan"] and not task["hasImplementation"]
+
+
+def _remaining_status(task: dict) -> str:
+    if task["hasImplementation"]:
+        return "implementation recorded but task still open — report it"
+    if not task["hasPlan"]:
+        return "not yet planned"
+    return "planned, eligible — later in order"
+
+
+def _remaining_section(delivery: list[dict], chosen: dict | None, closed: int) -> str:
+    others = [t for t in delivery if t["state"] == "OPEN" and (chosen is None or t["number"] != chosen["number"])]
+    lines = ["## Remaining", ""]
+    for task in sorted(others, key=lambda t: t["number"]):
+        lines.append(f"- {task['title']} (OPEN): {_remaining_status(task)}")
+    if not others:
+        lines.append("- no other open delivery tasks")
+    lines.append("")
+    lines.append(f"{closed} of {len(delivery)} delivery tasks closed.")
+    return "\n".join(lines)
+
+
+def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None, phase: bool | None) -> tuple[str, dict | None]:
+    scoped = [t for t in delivery if _in_scope(t, task_filter, phase)]
+    eligible = sorted((t for t in scoped if _eligible(t)), key=lambda t: (t["isUI"], t["number"]))
+
+    if not eligible:
+        if task_filter is not None:
+            reason = f"no OPEN, planned, not-yet-implemented task matches {task_filter}"
+        elif phase is not None:
+            reason = f"no eligible {'UI' if phase else 'CORE'} task"
+        elif not scoped:
+            reason = "the record has no delivery tasks"
+        else:
+            reason = "no task is OPEN, planned, and not yet implemented"
+        return f"## Next Task\n\n{reason}.", None
+
+    chosen = eligible[0]
+    slug = item_slug(item)
+    branch = task_branch_name(slug, chosen["taskId"])
+    entry_pr = stack_entry_pr(delivery, chosen)
+    # The exact `gh stack` invocations to run. The extension owns the stack's
+    # order, bases, and rebases, so nothing here computes a base branch or asks
+    # whether a predecessor's branch still exists.
+    if entry_pr is None:
+        setup = [f"stackSetup: gh stack init {branch}  (first task — creates the stack on the default branch)"]
+    else:
+        setup = [
+            f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
+            f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
+        ]
+
+    plan = (chosen.get("planComment") or "").strip()
+    lines = [
+        "## Next Task",
+        "",
+        f"### {chosen['title']}",
+        f"number: {chosen['number']}",
+        f"taskId: {chosen['taskId']}",
+        f"isUI: {'true' if chosen['isUI'] else 'false'}",
+        f"branch: {branch}",
+        *setup,
+        "",
+        plan or "_No ## Technical Plan comment found — treat as not eligible and report it._",
+    ]
+    return "\n".join(lines), chosen
+
+
+def inspect(issue: str, task_filter: str | None, phase: bool | None) -> str:
+    item = resolve_item(issue)
+    ready, message = _readiness(item)
+    attachments = attachments_markdown(attachments_for_item(item))
+    sections = ["## Readiness", "", message]
+    if not ready:
+        return "\n".join(sections + ["", attachments]) + "\n"
+
+    delivery = [t for t in task_tree(issue) if t.get("taskId")]
+    closed = sum(1 for t in delivery if t["state"] == "CLOSED")
+
+    next_section, chosen = _next_task_section(item, delivery, task_filter, phase)
+    sections += ["", attachments, "", next_section]
+    if chosen is not None:
+        sections += ["", _JUDGMENT]
+    sections += ["", _remaining_section(delivery, chosen, closed)]
+    return "\n".join(sections) + "\n"
+
+
+def main() -> int:
+    raw = sys.argv[1:]
+    if wants_help(raw):
+        print_help(__doc__)
+        return 0
+
+    parser = argparse.ArgumentParser(description="Resolve the next PDLC delivery task to implement")
+    parser.add_argument("work_item")
+    parser.add_argument("--task", help="Restrict to one delivery task (TASK-004 or 4)")
+    parser.add_argument("--phase", choices=sorted(_PHASES), help="Restrict to the CORE or UI phase")
+    args = parser.parse_args(raw)
+
+    if args.task and args.phase:
+        print("pdlc: --task and --phase cannot be combined", file=sys.stderr)
+        return 1
+
+    try:
+        output = inspect(args.work_item, _normalise_task_filter(args.task), _PHASES.get(args.phase))
+    except PdlcError as error:
+        print(f"pdlc: {error}", file=sys.stderr)
+        return 1
+
+    sys.stdout.write(output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

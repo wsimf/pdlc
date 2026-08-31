@@ -1,8 +1,10 @@
 # Task implementation dispatch prompt
 
 `pdlc-implement` Step 4 fills the placeholders below and spawns exactly one
-`swiftui-pro` (when the task's tag is `[UI]`) or `swift-pro` (otherwise) with the
-result — one dispatch per task.
+implementer sub-agent with the result — the one named by `pdlc inspect
+capability ui-implementer` when the task's tag is `[UI]`, otherwise `pdlc
+inspect capability core-implementer` (both fall back to `general-purpose`).
+One dispatch per task, after the skill has checked out the task's own branch.
 
 The agent knows nothing about the PDLC pipeline. Give it only what it needs to
 write the code; never tell it to "figure out the PDLC conventions" itself. This
@@ -34,8 +36,8 @@ rendered by `pdlc inspect task` after the body>
 - Upstream tasks it depends on, and what each shipped: `<one summary per
   dependency, or "none">`.
 - For a UI task: the approved `UJ-*` journey text it covers: `<journey text>`.
-  TrailNest design-system constraints are already covered by `AGENTS.md` /
-  `CLAUDE.md`.
+  Project design-system and platform constraints are already covered by
+  `AGENTS.md` / `CLAUDE.md`.
 
 ## Ownership and rules
 
