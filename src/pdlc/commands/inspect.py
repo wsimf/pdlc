@@ -131,7 +131,7 @@ def _due_next_owner(due: dict) -> str:
     if action == "human-approval":
         return "human — pdlc post complete" if due["status"] == "Verification" else "human — pdlc post approve"
     if action == "human-decision":
-        return "human — resolve the blocking review decision (see the PDLC-DECISION comment)"
+        return "human — resolve the blocking review decision (see the last PDLC-DECISION comment)"
     if action == "pdlc-post-ci":
         return "pdlc post ci — record the shared PR's CI outcome"
     if action == "none":

@@ -53,7 +53,7 @@ def _readiness(item: dict) -> tuple[bool, str]:
     gate = item.get("Gate State")
 
     if gate == "Decision Required":
-        return False, "Not ready: Gate State is 'Decision Required' — a prior review raised a blocking finding the driver must resolve (see the PDLC-DECISION comment) before review can resume."
+        return False, "Not ready: Gate State is 'Decision Required' — a prior review raised a blocking finding the driver must resolve (see last the PDLC-DECISION comment) before review can resume."
 
     if gate == "CI Pending":
         return False, "Not ready: Gate State is 'CI Pending' — the implementation review already passed; the record is waiting on the shared PR's CI. pdlc post ci resolves it once checks finish (see references/resolve-ci.md)."
