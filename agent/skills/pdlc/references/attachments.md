@@ -5,6 +5,10 @@ file into `.pdlc/{work-item-number}/attachments` and records it in the local
 `files.json`; nothing is added to the GitHub Issue, Project, or file Work Item
 backend.
 
+This includes local files the driver supplied in the prompt, such as mockups
+or screenshots. `--attachment` takes a filesystem path, so write any pasted
+image to a local path before passing it.
+
 Pass each file with `--attachment`. An optional description must immediately
 follow the attachment it describes:
 

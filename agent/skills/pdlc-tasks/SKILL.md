@@ -10,8 +10,9 @@ This skill does not author the UI section or the task breakdown itself. It reads
 
 The division of labour is deliberate: sub-agents decide *what* the artifact says and whether it is good enough, and one script does everything that follows from it — nothing between those two is a judgement call.
 
-When the UI or task artifact includes local files, pass each one to
-`pdlc post tasks` as `--attachment PATH [--attachment-description TEXT]`.
+When the UI or task artifact includes local files — including any the driver
+supplied in this prompt — pass each one to `pdlc post tasks` as
+`--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 

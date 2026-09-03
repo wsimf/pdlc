@@ -10,8 +10,9 @@ Author product specifications that are clear, actionable, and suitable for imple
 
 Section format, numbering, and writing rules: [references/product-spec-format.md](references/product-spec-format.md). Read it before Step 1.
 
-When the artifact includes local files such as mockups, pass each one to
-`pdlc post write` as `--attachment PATH [--attachment-description TEXT]`.
+When the artifact includes local files such as mockups — including any the
+driver supplied in this prompt — pass each one to `pdlc post write` as
+`--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 
