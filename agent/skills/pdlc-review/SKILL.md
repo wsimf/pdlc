@@ -10,7 +10,8 @@ This skill does not review anything itself. It reads one PDLC record's active st
 
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill records `Changes Required` or `Approval Required`; it never sets `Approved`, which requires an explicit human instruction and belongs to the driver.
 
-When a reviewer produces local files, pass each one to `pdlc post review` as
+When a reviewer produces local files, or the driver supplied local files in
+this prompt, pass each one to `pdlc post review` as
 `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
 for multiple files; a description applies only to the immediately preceding
 file. See [PDLC attachments](../pdlc/references/attachments.md).

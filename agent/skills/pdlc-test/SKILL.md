@@ -10,8 +10,9 @@ This skill does not write or run tests itself. It reads one PDLC record's **whol
 
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
 
-When testing produces local files such as screenshots, pass each one to
-`pdlc post test` as `--attachment PATH [--attachment-description TEXT]`.
+When testing produces local files such as screenshots — including any the
+driver supplied in this prompt — pass each one to `pdlc post test` as
+`--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 

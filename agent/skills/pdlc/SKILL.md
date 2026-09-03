@@ -24,6 +24,7 @@ Never infer an work item number or a feature idea from the branch, recent files,
 ## Start mode
 
 Invoke `pdlc-write` skill with the idea.
+If the driver supplied mockups or other local files with the idea, pass their paths to `pdlc-write` so it can attach them; write any pasted image to a local path first.
 
 Report what `pdlc-write` returns:
 

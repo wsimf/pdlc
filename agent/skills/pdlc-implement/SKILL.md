@@ -10,8 +10,9 @@ This skill does not implement anything itself. Per invocation it confirms one PD
 
 Read `../pdlc/references/parity-contract.md` before dispatching. This skill records each task's `task`-depth review outcome in that task's `## Implementation` note, but never sets a PDLC gate to `Approved` — the stage-level review outcome stays with `pdlc-review`.
 
-When implementation or validation produces local files, pass each one to the
-relevant `pdlc post implement-*` command as
+When implementation or validation produces local files, or the driver
+supplied local files in this prompt, pass each one to the relevant
+`pdlc post implement-*` command as
 `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
 for multiple files; a description applies only to the immediately preceding
 file. See [PDLC attachments](../pdlc/references/attachments.md).

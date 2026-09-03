@@ -12,8 +12,9 @@ This skill may touch production source or tests when resolving an approved findi
 
 Read `../pdlc/references/parity-contract.md` before starting.
 
-When verification produces local files, pass each one to `pdlc post verify`
-as `--attachment PATH [--attachment-description TEXT]`. Repeat
+When verification produces local files, or the driver supplied local files
+in this prompt, pass each one to `pdlc post verify` as
+`--attachment PATH [--attachment-description TEXT]`. Repeat
 `--attachment PATH` for multiple files; a description applies only to the
 immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 

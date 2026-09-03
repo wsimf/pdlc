@@ -10,8 +10,9 @@ Close out one PDLC record: confirm `pdlc-verify` has already proven it is done, 
 
 Completion does not edit the verified record. Product, UI, requirement, and task wording are frozen at Verification — any substantive change to them is a new parent work item, or a bounce to the owning stage and re-verification. The only parent-body edit `pdlc post complete` makes is blanking the now-settled `## Open Questions` section to a pointer; every decision that emerged during delivery and every open-question resolution is recorded in the completion evidence comment instead.
 
-When completion evidence includes local files, pass each one to
-`pdlc post complete` as `--attachment PATH [--attachment-description TEXT]`.
+When completion evidence includes local files — including any the driver
+supplied in this prompt — pass each one to `pdlc post complete` as
+`--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
 the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
 

@@ -10,7 +10,8 @@ This skill confirms one PDLC record is due for planning, dispatches `pdlc-tech-p
 
 Review happens before publication, on the local task bodies — publishing rewrites every planned task in place, so a review afterwards would rewrite them all again on every finding.
 
-When planning produces local files, pass each one to `pdlc post plan` as
+When planning produces local files, or the driver supplied local files in
+this prompt, pass each one to `pdlc post plan` as
 `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
 for multiple files; a description applies only to the immediately preceding
 file. See [PDLC attachments](../pdlc/references/attachments.md).
