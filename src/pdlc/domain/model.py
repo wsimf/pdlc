@@ -13,14 +13,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from pdlc.domain.lifecycle import (
-    MARKERS,
-    action_for,
-    next_status_for,
-    require_marker,
-    state_after_skip,
-    state_notation,
-)
+from pdlc.domain.evidence import ReviewVerdict, parse_review
+from pdlc.domain.lifecycle import MARKERS, PdlcError, require_marker
+from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State
 
 # Work-item field names and the gate vocabulary
 
@@ -78,28 +73,103 @@ def is_stage_skipped(item: dict, stage: str) -> bool:
     return stage in skipped.split(",")
 
 
+def _workflow_state(item: dict, pipeline: Pipeline, status: str, gate: str) -> State:
+    lifecycle = item.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
+    return State.parse(status, gate, lifecycle)
+
+
+def next_state_hint(pipeline: Pipeline, state: State) -> State:
+    """Describe the gate a dispatched action is expected to reach.
+
+    The actual transition may depend on review or CI evidence, so this is only
+    the same informational hint the old router exposed in its front matter.
+    Stage policy supplies every stage-specific value.
+    """
+    stage = pipeline.stage(state.stage)
+    if state.gate in (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE):
+        gate = stage.result_gate or Gate.REVIEW_REQUIRED
+    elif state.gate == Gate.REVIEW_REQUIRED:
+        gate = Gate.CI_PENDING if stage.ci_gated else (stage.review.clean_gate if stage.review else Gate.APPROVAL_REQUIRED)
+    elif state.gate == Gate.CI_PENDING:
+        gate = Gate.APPROVAL_REQUIRED
+    elif state.gate == Gate.APPROVAL_REQUIRED:
+        gate = Gate.APPROVED
+    else:
+        gate = state.gate
+    return State(state.stage, gate, state.lifecycle)
+
+
+def blocked_reason(reason: str) -> str:
+    """Add the required human stop for unsupported work-type routing."""
+    if reason.startswith("unknown work type:") or reason.startswith("workflow unavailable for work type:"):
+        detail = reason[:1].upper() + reason[1:]
+        return f"stop here and let the user know this workflow is not supported. {detail}"
+    return reason
+
+
+def _blocked_due(item: dict, reason: str = "missing or unsupported work item state") -> dict:
+    reason = blocked_reason(reason)
+    status = item_status(item)
+    gate = item_gate(item)
+    notation = f"{status.replace(' ', '')}.{gate.replace(' ', '')}"
+    return {
+        "status": status,
+        "gate": gate,
+        "skipped_through": [],
+        "action": "blocked",
+        "autonomous": False,
+        "reason": reason,
+        "state": notation,
+        "next_state": notation,
+        "owner": f"blocked — {reason}",
+    }
+
+
 # Read-only routing view: looks ahead through consecutive declared-skipped
 # stages the same way the mutating skip cascade does, but never posts a comment
 # or writes state.
 def due_next(item: dict) -> dict:
-    status = item_status(item)
-    gate = item_gate(item)
+    try:
+        pipeline = PIPELINE_REGISTRY.for_record(item)
+        state = _workflow_state(item, pipeline, item_status(item), item_gate(item))
+        pipeline.validate_state(state)
+    except (TypeError, ValueError) as error:
+        return _blocked_due(item, str(error))
+
     skipped_through: list[str] = []
 
-    while status != "Complete" and gate in ("Pending", "Changes Required", "Stale") and is_stage_skipped(item, status):
-        skipped_through.append(status)
-        status, gate = state_after_skip(status)
+    while state.gate in (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE) and is_stage_skipped(item, state.stage):
+        skipped_through.append(state.stage)
+        try:
+            state = pipeline.next_state(state, Event.SKIPPED)
+        except (TypeError, ValueError):
+            return _blocked_due(item)
 
-    action, autonomous, reason = action_for(status, gate)
+    route = pipeline.route(state)
+    next_hint = next_state_hint(pipeline, state)
+    owner = route.action.value
+    if route.action.value == "human-approval":
+        completion = pipeline.completion_policy
+        owner = "human — pdlc post complete" if completion is not None and completion.is_boundary(state) else "human — pdlc post approve"
+    elif route.action.value == "human-decision":
+        owner = "human — resolve the blocking review decision (see the last PDLC-DECISION comment)"
+    elif route.action.value == "pdlc-post-ci":
+        owner = "pdlc post ci — record the shared PR's CI outcome"
+    elif route.action.value == "none":
+        owner = "none — record is Complete"
+    elif route.action.value == "blocked":
+        owner = "blocked — malformed or unsupported work item state"
     return {
-        "status": status,
-        "gate": gate,
+        "status": state.stage,
+        "gate": state.gate.value,
         "skipped_through": skipped_through,
-        "action": action,
-        "autonomous": autonomous,
-        "reason": reason,
-        "state": state_notation(status, gate),
-        "next_state": next_status_for(status, gate),
+        "action": route.action.value,
+        "autonomous": route.autonomous,
+        "reason": route.reason,
+        "state": state.notation,
+        "next_state": next_hint.notation,
+        "owner": owner,
+        "reauthor_in_place": pipeline.stage(state.stage).reauthor_in_place,
     }
 
 
@@ -300,6 +370,17 @@ def find_marked_comments(comments: list[dict], marker: str) -> list[dict]:
     return matches
 
 
+def verification_evidence_comments(comments: list[dict]) -> list[dict]:
+    """Verification review evidence, including legacy PDLC-VERIFICATION comments."""
+    matches = list(find_marked_comments(comments, "VERIFICATION"))
+    for comment in find_marked_comments(comments, "REVIEW"):
+        body = MARKER_LINE.sub("", comment["body"], count=1)
+        if re.search(r"^Stage:[ \t]*Verification[ \t]*$", body, re.MULTILINE):
+            matches.append(comment)
+    matches.sort(key=lambda comment: comment["createdAt"])
+    return matches
+
+
 # Every comment stamped with any marker, each tagged with which one, oldest
 # first — the raw material for a stage-by-stage timeline.
 def marked_comments(comments: list[dict]) -> list[dict]:
@@ -424,16 +505,30 @@ def timeline_compact(comments: list[dict], file_path: str) -> str:
 
 # Rework-loop detection -------------------------------------------------
 
-# Stamped by pdlc post invalidate / pdlc post verify --bounce into the
-# PDLC-INVALIDATED comment body, so the rework loop is reconstructable from
-# comment history with no extra work-item state.
+
+def review_rework_count(comments: list[dict], loop: str) -> int:
+    """Count Verification Changes Required reviews that entered `loop`."""
+    count = 0
+    for comment in find_marked_comments(comments, "REVIEW"):
+        try:
+            review = parse_review(comment["body"])
+        except PdlcError:
+            continue
+        if (
+            review.stage == "Verification"
+            and review.verdict == ReviewVerdict.CHANGES_REQUIRED
+            and review.bounce is not None
+            and review.loop == loop
+        ):
+            count += 1
+    return count
+
+# Stamped by pdlc post invalidate into the PDLC-INVALIDATED comment body.
 _INVALIDATED_STAGE_LINE = re.compile(r"^Invalidated stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 
 
-# How many times each stage was returned to Stale, read from the
-# `Invalidated stage:` line of each PDLC-INVALIDATED comment. A comment without
-# that line (written before the stamp existed) is not counted. The churn gate
-# sums these to decide whether to auto-clear the Implementation/Testing approval.
+# How many explicit driver invalidations targeted each stage. A comment without
+# the script-owned line is ignored. Rework-loop accounting uses PDLC-REVIEW.
 def invalidations_by_stage(comments: list[dict]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for comment in find_marked_comments(comments, "INVALIDATED"):

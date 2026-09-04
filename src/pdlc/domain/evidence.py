@@ -1,6 +1,6 @@
-"""Strict, typed parser for the assembled `PDLC-VERIFICATION` comment body.
+"""Strict, typed parsers for `PDLC-REVIEW` and Verification report evidence.
 
-`pdlc post verify` composes that body from an agent-supplied report (the
+`pdlc post verify` composes the Verification review body from an agent-supplied report (the
 Claims Audit / User Journeys / UX / Cumulative Review sections) plus a
 script-owned `### Findings` block and a `Recommendation:` line. Every reader
 of that evidence — publication, Verification inspection, and Completion
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 
 from pdlc.domain.lifecycle import PdlcError
 
@@ -26,6 +27,78 @@ REQUIRED_SECTIONS = ("Claims Audit", "User Journeys", "UX", "Cumulative Review")
 ANCHORED_SECTIONS = ("Claims Audit", "User Journeys")
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
+
+
+class ReviewVerdict(StrEnum):
+    PASS = "Pass"
+    CHANGES_REQUIRED = "Changes Required"
+    DECISION_REQUIRED = "Decision Required"
+
+
+@dataclass(frozen=True)
+class ReviewEvidence:
+    stage: str
+    verdict: ReviewVerdict
+    bounce: str | None
+    loop: str | None
+
+
+_REVIEW_FIELDS = ("Stage", "Verdict", "Bounce", "Loop")
+
+
+def compose_review(
+    stage: str,
+    verdict: ReviewVerdict,
+    body: str,
+    *,
+    bounce: str | None = None,
+    loop: str | None = None,
+) -> str:
+    """Compose the script-owned metadata at the top of a PDLC-REVIEW body."""
+    if not isinstance(verdict, ReviewVerdict):
+        raise TypeError("review verdict must be a ReviewVerdict")
+    if not stage.strip():
+        raise PdlcError("review stage is empty")
+    if (bounce or loop) and verdict != ReviewVerdict.CHANGES_REQUIRED:
+        raise PdlcError("review bounce metadata requires verdict Changes Required")
+    if bool(bounce) != bool(loop):
+        raise PdlcError("review bounce and loop must be supplied together")
+    metadata = [
+        f"Stage: {stage.strip()}",
+        f"Verdict: {verdict.value}",
+        f"Bounce: {bounce or 'None'}",
+        f"Loop: {loop or 'None'}",
+    ]
+    payload = body.strip()
+    return "\n".join(metadata) + (f"\n\n{payload}\n" if payload else "\n")
+
+
+def parse_review(body: str) -> ReviewEvidence:
+    """Parse the strict metadata prefix of a PDLC-REVIEW comment body."""
+    text = (body or "").strip()
+    if text.startswith("PDLC-REVIEW"):
+        text = text.removeprefix("PDLC-REVIEW").lstrip()
+    lines = text.splitlines()
+    values: dict[str, str] = {}
+    for index, field in enumerate(_REVIEW_FIELDS):
+        if index >= len(lines) or not lines[index].startswith(f"{field}:"):
+            raise PdlcError(f"review evidence is missing '{field}:' metadata")
+        value = lines[index].partition(":")[2].strip()
+        if not value:
+            raise PdlcError(f"review evidence has an empty '{field}:' value")
+        values[field] = value
+    try:
+        verdict = ReviewVerdict(values["Verdict"])
+    except ValueError:
+        valid = ", ".join(item.value for item in ReviewVerdict)
+        raise PdlcError(f"review verdict must be one of {valid}, not {values['Verdict']!r}") from None
+    bounce = None if values["Bounce"] == "None" else values["Bounce"]
+    loop = None if values["Loop"] == "None" else values["Loop"]
+    if (bounce or loop) and verdict != ReviewVerdict.CHANGES_REQUIRED:
+        raise PdlcError("review bounce metadata requires verdict Changes Required")
+    if bool(bounce) != bool(loop):
+        raise PdlcError("review bounce and loop must be supplied together")
+    return ReviewEvidence(values["Stage"], verdict, bounce, loop)
 
 _ALL_SECTIONS = {name.lower(): name for name in (*REQUIRED_SECTIONS, "Findings")}
 

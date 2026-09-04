@@ -59,11 +59,13 @@ from pdlc.internal.workitem import (  # type: ignore
     is_stage_skipped,
     item_gate,
     item_status,
+    pipeline_for_item,
     post_comment,
     read_section,
     resolve_item,
     set_state,
     splice_section,
+    state_for_item,
     subissues_for,
     upsert_tasks,
     write_body,
@@ -79,6 +81,7 @@ from pdlc.domain.lifecycle import (  # type: ignore
     unmarked_evidence_source,
     wants_help,
 )
+from pdlc.domain.workflow import Event, State
 
 TASK_ID_FORMAT = re.compile(r"^TASK-[0-9]{3}$")
 FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
@@ -207,7 +210,7 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
     }
 
 
-def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_path: Path, dry_run: bool, attachment_inputs: list[dict]) -> None:
+def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_path: Path, dry_run: bool, attachment_inputs: list[dict], target: State) -> None:
     lines = body_path.read_text().splitlines()
     if lines and UI_HEADING_PATTERN.match(lines[0]):
         lines = lines[1:]
@@ -232,7 +235,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
     write_body(str(issue), spliced)
 
     post_comment(issue, str(evidence_path), "UI")
-    set_state(item, "UI", "Approval Required", "Planning")
+    set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
     print(json.dumps({
         "published": True,
@@ -240,12 +243,12 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
         "itemId": item,
         "work_item": int(issue),
         "journeys": journeys,
-        "gateState": "Approval Required",
+        "gateState": target.gate.value,
         "attachments": attachments,
     }))
 
 
-def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict]) -> None:
+def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State) -> None:
     manifest = load_json_array("--manifest", manifest_path, allow_empty=False)
 
     for task in manifest:
@@ -311,14 +314,14 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path |
     finally:
         Path(summary_path).unlink(missing_ok=True)
 
-    set_state(item, "Tasks", "Approval Required", "Planning")
+    set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
     print(json.dumps({
         "published": True,
         "stage": "Tasks",
         "itemId": item,
         "work_item": int(issue),
-        "gateState": "Approval Required",
+        "gateState": target.gate.value,
         "created": created,
         "updated": updated,
         "retitled": retitled,
@@ -387,6 +390,7 @@ def main() -> int:
         # over an artifact that is already awaiting review or approval and
         # silently destroying a pending approval.
         record = resolve_item(args.work_item)
+        pipeline = pipeline_for_item(record)
         item = record["id"]
         current_stage = item_status(record)
         gate = item_gate(record)
@@ -398,7 +402,7 @@ def main() -> int:
         elif gate == "Approval Required" and not args.dry_run:
             # The driver asked for a change before approving: reset the stage to
             # Stale ourselves and re-land the reviewed artifact in this call.
-            reauthor_invalidate_stage(record, args.stage)
+            reauthor_invalidate_stage(record, args.stage, pipeline)
         elif gate == "Approval Required":
             raise PdlcError(f"{args.stage} is at {gate}; return it to Stale with pdlc post invalidate before re-authoring it")
         elif gate in ("Review Required", "Changes Required"):
@@ -407,13 +411,18 @@ def main() -> int:
             raise PdlcError(f"cannot land {args.stage} from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, args.stage):
             raise PdlcError(f"{args.stage} is declared in Skipped States; nothing to land")
+        state = state_for_item(record, pipeline)
+        try:
+            target = pipeline.next_state(state, Event.PUBLISHED)
+        except ValueError as error:
+            raise PdlcError(str(error)) from None
 
         parent_body = record.get("issueBody") or ""
 
         if args.stage == "UI":
-            land_ui(args.work_item, item, parent_body, body_path, evidence_path, args.dry_run, attachment_inputs)
+            land_ui(args.work_item, item, parent_body, body_path, evidence_path, args.dry_run, attachment_inputs, target)
         else:
-            land_tasks(args.work_item, item, manifest_path, evidence_path, args.dry_run, parent_body, attachment_inputs)
+            land_tasks(args.work_item, item, manifest_path, evidence_path, args.dry_run, parent_body, attachment_inputs, target)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

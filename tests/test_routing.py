@@ -72,3 +72,26 @@ class RoutingTests(FileBackendTest):
         self.seed_record(30, "Implementation", "Bogus Gate")
         result = self.next("--work-item", 30)
         self.assertEqual(result.front_matter("action"), "blocked")
+
+    def test_unknown_stage_is_blocked(self):
+        self.seed_record(34, "Unknown", "Pending")
+        result = self.next("--work-item", 34)
+        self.assertEqual(result.front_matter("action"), "blocked")
+
+    def test_legacy_record_without_type_routes_as_feature(self):
+        self.seed_record(31, "Implementation", "Pending")
+        result = self.next("--work-item", 31)
+        self.assertEqual(result.front_matter("action"), "pdlc-implement")
+
+    def test_known_unavailable_bug_type_is_blocked(self):
+        self.seed_record(32, "Implementation", "Pending", work_type="bug")
+        result = self.next("--work-item", 32)
+        self.assertEqual(result.front_matter("action"), "blocked")
+        self.assertIn("Workflow unavailable for work type: bug", result.stdout)
+
+    def test_unknown_work_type_is_blocked(self):
+        self.seed_record(33, "Implementation", "Pending", work_type="chore")
+        result = self.next("--work-item", 33)
+        self.assertEqual(result.front_matter("action"), "blocked")
+        self.assertIn("Stop here and let the user know this workflow is not supported", result.stdout)
+        self.assertIn("Unknown work type: chore", result.stdout)

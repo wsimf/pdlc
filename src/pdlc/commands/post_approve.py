@@ -17,7 +17,8 @@ from pathlib import Path
 
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, next_stage, print_help, wants_help  # type: ignore
+from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.domain.workflow import Event
 from pdlc.internal.workitem import (  # type: ignore
     current_actor,
     is_stage_skipped,
@@ -26,26 +27,31 @@ from pdlc.internal.workitem import (  # type: ignore
     item_status,
     post_comment,
     set_state,
+    workflow_for_item,
 )
 
 
 def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     record = item_for_issue(issue)
+    pipeline, state = workflow_for_item(record)
     stage = item_status(record)
-    next_stage_value = next_stage(stage)
 
     if item_gate(record) != "Approval Required":
         raise PdlcError("approval requires Gate State = Approval Required")
-    if stage == "Verification":
-        raise PdlcError("use pdlc post complete after Verification approval")
     if is_stage_skipped(record, stage):
         raise PdlcError(f"{stage} is declared in Skipped States; nothing to approve")
+    try:
+        target = pipeline.next_state(state, Event.APPROVED)
+    except ValueError as error:
+        if pipeline.completion_policy is not None and pipeline.completion_policy.is_boundary(state):
+            raise PdlcError(f"use pdlc post complete after {stage} approval") from None
+        raise PdlcError(str(error)) from None
 
     login = current_actor()
 
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     post_comment(issue, evidence, "APPROVED")
-    set_state(record["id"], next_stage_value, "Pending", "Planning")
+    set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
 
     return {
         "approved": True,
@@ -53,8 +59,8 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
         "work_item": int(issue),
         "actor": login,
         "from": stage,
-        "to": next_stage_value,
-        "gateState": "Pending",
+        "to": target.stage,
+        "gateState": target.gate.value,
         "attachments": attachments,
     }
 

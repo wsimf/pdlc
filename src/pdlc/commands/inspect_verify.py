@@ -33,7 +33,7 @@ from the raw work item body itself.
    journey up from just its id. Plus whether UX itself needs a fresh pass.
    Empty when every journey and UX are still valid, telling the agent to
    skip the dispatch entirely rather than deciding that itself.
-5. Reuse: every item in the latest `PDLC-VERIFICATION` comment's Claims
+5. Reuse: every item in the latest Verification `PDLC-REVIEW` comment's Claims
    Audit, User Journeys, UX, and Cumulative Review sections carries a
    `(Verified @ <commit>)` marker. Since a delivery task is exactly one
    commit touching only its own files, that commit's own diff *is* the
@@ -42,7 +42,7 @@ from the raw work item body itself.
    files, then `git log <commit>..HEAD -- <files>` to see if anything's
    touched them since. The agent never runs or reads git itself.
 6. Fixed: bullets listed under a `### Findings` heading in any past
-   `PDLC-VERIFICATION` comment — every one is fixed, since that section
+   Verification `PDLC-REVIEW` comment — every one is fixed, since that section
    only ever lists fixed items.
 7. Deferred: findings recorded as deferred in the parent work item body's Open
    Questions section (`"Deferred — <finding>, accepted because <reason>"`).
@@ -147,11 +147,11 @@ from pdlc.internal.vcs import files_touched_by as _files_touched_by, is_stale as
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
-    find_marked_comments,
     read_section,
     resolve_item,
     task_tree,
     timeline_markdown,
+    verification_evidence_comments,
 )
 
 READY_GATES = {
@@ -418,7 +418,7 @@ def inspect(issue: str) -> str:
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
     sections += ["", timeline_markdown(issue, comments=comments).rstrip("\n")]
 
-    verification_comments = find_marked_comments(issue, "VERIFICATION", comments=comments)
+    verification_comments = verification_evidence_comments(issue, comments=comments)
     reuse_items = _reuse_items(verification_comments[-1]["body"]) if verification_comments else []
 
     sections += ["", *_journeys_to_review_section(tasks, body, reuse_items)]

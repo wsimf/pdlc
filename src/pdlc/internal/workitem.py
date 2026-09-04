@@ -9,6 +9,7 @@ backend and a swap is one env var.
 from __future__ import annotations
 
 from pdlc.domain.lifecycle import PdlcError, read_body_source as _read_source
+from pdlc.domain.workflow import Lifecycle, PIPELINES, Pipeline, State, WorkType
 from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     CORE_TAG,
     IMPLEMENTATION_COMMENT_HEADING,
@@ -17,7 +18,6 @@ from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     classify_task,
     compose_comment,
     due_next,
-    invalidations_by_stage,
     is_stage_skipped,
     item_gate,
     item_issue,
@@ -37,6 +37,7 @@ from pdlc.domain.model import timeline_compact as _model_timeline_compact
 from pdlc.domain.model import timeline_markdown as _model_timeline_markdown
 from pdlc.domain.model import user_comments as _model_user_comments
 from pdlc.domain.model import user_comments_markdown as _model_user_comments_markdown
+from pdlc.domain.model import verification_evidence_comments as _model_verification_evidence_comments
 from pdlc.hosts.workitem_host import get_backend
 
 UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verification"}
@@ -49,6 +50,34 @@ def resolve_item(ref: str) -> dict:
 
 
 item_for_issue = resolve_item
+
+
+def pipeline_for_item(item: dict) -> Pipeline:
+    """Resolve one record's pipeline, including legacy Feature compatibility."""
+    try:
+        return PIPELINES.for_record(item)
+    except (TypeError, ValueError) as error:
+        raise PdlcError(str(error)) from None
+
+
+def state_for_item(item: dict, pipeline: Pipeline) -> State:
+    """Parse and validate one record's persisted state against its pipeline."""
+    try:
+        status = item_status(item)
+        lifecycle = item.get("Lifecycle") or (
+            Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING
+        )
+        state = State.parse(status, item_gate(item), lifecycle)
+        pipeline.validate_state(state)
+        return state
+    except (TypeError, ValueError) as error:
+        raise PdlcError(str(error)) from None
+
+
+def workflow_for_item(item: dict) -> tuple[Pipeline, State]:
+    """Resolve one record's pipeline and validate its persisted state once."""
+    pipeline = pipeline_for_item(item)
+    return pipeline, state_for_item(item, pipeline)
 
 
 def project_items() -> dict:
@@ -144,6 +173,11 @@ def find_marked_comments(ref: str, marker: str, *, comments: list[dict] | None =
     return _model_find_marked_comments(snapshot, marker)
 
 
+def verification_evidence_comments(ref: str, *, comments: list[dict] | None = None) -> list[dict]:
+    snapshot = comments if comments is not None else comments_for_issue(ref)
+    return _model_verification_evidence_comments(snapshot)
+
+
 def marked_comments(ref: str, *, comments: list[dict] | None = None) -> list[dict]:
     snapshot = comments if comments is not None else comments_for_issue(ref)
     return _model_marked_comments(snapshot)
@@ -237,5 +271,5 @@ def register_record_pr(ref: str, pr_number: int) -> list[int]:
 
 # --- creation ---
 
-def create_work_item(title: str, body: str, slug: str) -> dict:
-    return get_backend().create(title, body, slug)
+def create_work_item(title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+    return get_backend().create(title, body, slug, work_type)

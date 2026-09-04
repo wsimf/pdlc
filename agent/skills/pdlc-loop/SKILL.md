@@ -40,7 +40,7 @@ A controller failure — API error, malformed work item state, ambiguous identit
 | `pdlc-post-ci` | An `Implementation / CI Pending` record whose checks have settled. Run `pdlc post ci <work_item_number>` — it sets `Approval Required` (green) or `Changes Required` (red, with a `PDLC-IMPLEMENTATION` note). Report the outcome, then Step 3. Do not invoke a skill for this action. |
 | `human-approval` | Record is at `Approval Required`. **Stop**, tell the driver which record and stage (`current_status`) awaits them. |
 | `human-decision` | Record is at `Decision Required` — a reviewer or the Verification audit raised a blocking finding only the driver can resolve. **Stop**, point the driver at the `PDLC-DECISION` comment; they resolve it via the `pdlc` skill's decision-resolver workflow. No reconciliation is attempted. |
-| `blocked` | Work item state is malformed/unsupported. **Stop**, report `current_status` exactly. |
+| `blocked` | Work item state, work type, or pipeline is malformed, unsupported, or unavailable. **Stop**, report `current_status` and the controller's reason exactly. |
 | `none` | Nothing actionable; scan exhausted. **Stop**, report the `attempts` count and that the script should be re-invoked later. |
 
 Invoke the named skill with just `work_item_number` — it resolves the record with `pdlc inspect` itself, and reads `pdlc inspect timeline <work-item>` when it needs the evidence trail (reviewer findings, recorded approvals). Never reconstruct context from the title or re-derive the stage yourself. `pdlc post ci` is the exception: it is not a skill — run the command named in the row and report its JSON.

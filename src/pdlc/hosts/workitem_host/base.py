@@ -12,6 +12,7 @@ Dict shapes
 -----------
 work item:  {id, content: {number, title, url}, issueBody,
              "Status", "Gate State", "Lifecycle", "Skipped States", "Slug",
+             "workType",
              comments?}                # comments included only when free to
 comment:    {body, createdAt, url, author: {login}}
 task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
@@ -21,6 +22,8 @@ task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+
+from pdlc.domain.workflow import WorkType
 
 
 class WorkItemBackend(ABC):
@@ -107,8 +110,15 @@ class WorkItemBackend(ABC):
     # --- creation ---
 
     @abstractmethod
-    def create(self, title: str, body: str, slug: str) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
         """Create a new work item and register it. Returns {id, number, url}."""
+
+    @staticmethod
+    def _validated_work_type(work_type: WorkType) -> WorkType:
+        """Reject unparsed values before a backend performs creation I/O."""
+        if not isinstance(work_type, WorkType):
+            raise TypeError("work_type must be a WorkType")
+        return work_type
 
     # --- identity / linking ---
 

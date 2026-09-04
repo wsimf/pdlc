@@ -10,6 +10,7 @@ from __future__ import annotations
 import unittest
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import WorkType
 from pdlc.hosts import github_issues, github_project
 from pdlc.hosts.code_host.github import GitHubCodeHost
 from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
@@ -28,6 +29,7 @@ class ProjectItemResolutionTest(GitHubHostTest):
                         "title": "WORK-3 Ship the thing",
                         "url": "https://github.com/wsimf/pdlc/issues/3",
                         "body": "## Product\n",
+                        "issueType": {"name": "Bug"},
                         "projectItems": {
                             "nodes": [
                                 {
@@ -63,6 +65,7 @@ class ProjectItemResolutionTest(GitHubHostTest):
         self.assertEqual(item["Slug"], "ship-the-thing")
         self.assertEqual(item["Skipped States"], "Testing")
         self.assertEqual(item["content"]["number"], 3)
+        self.assertEqual(item["workType"], "bug")
 
     def test_item_for_issue_rejects_ambiguous_project_membership(self) -> None:
         self.gh.graphql(
@@ -101,6 +104,7 @@ class ProjectItemListTest(GitHubHostTest):
                         "status": "Implementation",
                         "gateState": "Pending",
                         "slug": "ship-it",
+                        "workType": "Feature",
                     }
                 ],
                 "totalCount": 1,
@@ -113,6 +117,7 @@ class ProjectItemListTest(GitHubHostTest):
         self.assertEqual(item["Status"], "Implementation")
         self.assertEqual(item["Gate State"], "Pending")
         self.assertEqual(item["Slug"], "ship-it")
+        self.assertEqual(item["workType"], "feature")
 
 
 class ProjectStateTransitionTest(GitHubHostTest):
@@ -355,11 +360,25 @@ class WorkItemBackendTest(GitHubHostTest):
         record = self.backend.create("WORK-42 Title", "## Product\n", "title")
 
         self.assertEqual(record, {"id": "PVTI_new", "number": 42, "url": "https://github.com/wsimf/pdlc/issues/42"})
+        create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
+        self.assertNotIn("--type", create_call)
 
     def test_create_rejects_unparseable_issue_url(self) -> None:
         self.gh.gh("issue", "create", response="Creating issue\nnot-a-url\n")
         with self.assertRaises(PdlcError):
             self.backend.create("t", "b", "s")
+
+    def test_create_rejects_an_unparsed_work_type_before_host_io(self) -> None:
+        calls_before = len(self.gh.calls)
+        with self.assertRaisesRegex(TypeError, "work_type must be a WorkType"):
+            self.backend.create("t", "b", "s", "feature")  # type: ignore[arg-type]
+        self.assertEqual(len(self.gh.calls), calls_before)
+
+    def test_create_rejects_an_unavailable_work_type_before_host_io(self) -> None:
+        calls_before = len(self.gh.calls)
+        with self.assertRaisesRegex(PdlcError, "GitHub creation is unavailable for work type: bug"):
+            self.backend.create("t", "b", "s", WorkType.BUG)
+        self.assertEqual(len(self.gh.calls), calls_before)
 
     def test_close_task_closes_the_sub_issue(self) -> None:
         self.gh.gh("issue", "close", response="")

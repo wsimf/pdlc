@@ -4,7 +4,7 @@ Item is actually ready to lock right now, then — only if it is — gives the
 mechanical facts a completion pass needs: which delivery tasks are open,
 which linked PRs aren't both merged and green, which live Open Questions the
 completion evidence must disposition, and whether the evidence in
-the latest `PDLC-VERIFICATION` comment still holds against current source
+the latest Verification `PDLC-REVIEW` comment still holds against current source
 (the same staleness check pdlc inspect verify's reuse pass runs, applied
 here at lock time instead of audit time). The agent supplies judgment only
 where the data is genuinely ambiguous — is an open task's deferral durable,
@@ -43,7 +43,7 @@ or, when not ready:
 
 Task Completion reads "All tasks closed; every linked PR merged with passing
 checks." when there's nothing to flag. Verification Evidence reads "No
-PDLC-VERIFICATION comment found — pdlc-verify must run first." when
+Verification review evidence found — pdlc-verify must run first." when
 Verification never posted a report, or "Every verified item still holds
 against current source." when nothing has gone stale since the last pass.
 """
@@ -61,12 +61,13 @@ from pdlc.domain.completion_evidence import live_open_questions  # type: ignore
 from pdlc.internal.vcs import files_touched_by as _files_touched_by, is_stale as _is_stale  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
-    find_marked_comments,
     item_skipped_states,
     marked_comments,
     read_section,
     resolve_item,
     task_tree,
+    workflow_for_item,
+    verification_evidence_comments,
 )
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 
@@ -119,9 +120,9 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> li
 
 
 def _verification_evidence_section(issue: str) -> list[str]:
-    verification_comments = find_marked_comments(issue, "VERIFICATION")
+    verification_comments = verification_evidence_comments(issue)
     if not verification_comments:
-        return ["## Verification Evidence", "", "No PDLC-VERIFICATION comment found — pdlc-verify must run first."]
+        return ["## Verification Evidence", "", "No Verification review evidence found — pdlc-verify must run first."]
 
     items = _bullets_by_section(verification_comments[-1]["body"])
     still_valid = []
@@ -161,7 +162,7 @@ def _open_questions_section(body: str) -> list[str]:
 
 
 def _stale_rows(issue: str) -> list[str]:
-    verification_comments = find_marked_comments(issue, "VERIFICATION")
+    verification_comments = verification_evidence_comments(issue)
     if not verification_comments:
         return []
     rows = []
@@ -174,15 +175,17 @@ def _stale_rows(issue: str) -> list[str]:
 
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
+    pipeline, _ = workflow_for_item(item)
     attachments = attachments_for_item(item)
     tasks = task_tree(issue)
     pull_requests = record_pull_requests(issue)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
-    verification_comments = find_marked_comments(issue, "VERIFICATION", comments=comments)
+    verification_comments = verification_evidence_comments(issue, comments=comments)
     verification_body = verification_comments[-1]["body"] if verification_comments else None
 
     blockers = completion_blockers(
+        pipeline=pipeline,
         status=item.get("Status", ""),
         gate=item.get("Gate State", ""),
         tasks=tasks,
@@ -199,7 +202,8 @@ def inspect(issue: str) -> str:
         sections += [f"- [{blocker.code}] {blocker.message}" for blocker in blockers]
         return "\n".join(sections) + "\n"
 
-    sections = ["## Readiness", "", "Ready — Status: Verification, Gate State: Approval Required."]
+    boundary_stage, boundary_gate = pipeline.completion_boundary
+    sections = ["## Readiness", "", f"Ready — Status: {boundary_stage}, Gate State: {boundary_gate.value}."]
     sections += ["", attachments_markdown(attachments)]
     sections += ["", *_task_completion_section(tasks, pull_requests)]
     sections += ["", *_verification_evidence_section(issue)]

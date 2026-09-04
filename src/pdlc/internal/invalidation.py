@@ -1,32 +1,26 @@
 """Return a stage to Stale.
 
-Shared by pdlc post invalidate (driver-run) and pdlc post verify's --bounce
-(autonomous, on a Verification "Changes Required" run). Both post one
-PDLC-INVALIDATED comment whose body opens with a script-owned
-`Invalidated stage: <STAGE>` line, drop the stage to Stale, and clear it from
-Skipped States so the next routing pass does not bypass it straight back to
-Stale.
+Driver invalidation posts PDLC-INVALIDATED. Verification bounce provenance is
+already captured by PDLC-REVIEW, so it only persists the authorized re-entry.
 """
 
 from __future__ import annotations
 
-from pdlc.domain.lifecycle import STAGES, PdlcError
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
     is_stage_skipped,
     item_skipped_states,
     item_status,
+    pipeline_for_item,
     post_comment,
     set_skipped_states,
     set_state,
+    state_for_item,
 )
 
 
-# The pre-publication stages: reviewed on local files before they land, so they
-# reach Approval Required directly and are reworked by returning to Stale.
-REAUTHOR_STAGES = ("Product", "UI", "Tasks", "Technical Plan")
-
-
-def reauthor_invalidate_stage(record: dict, stage: str) -> None:
+def reauthor_invalidate_stage(record: dict, stage: str, pipeline: Pipeline) -> None:
     """Silently return a pre-publication stage from Approval Required to Stale so
     its owning skill can re-land a reviewed artifact in the same call.
 
@@ -37,36 +31,57 @@ def reauthor_invalidate_stage(record: dict, stage: str) -> None:
     `Approved`, so there is nothing to invalidate — only a gate reset. Nothing
     here feeds the rework/churn count.
     """
-    if stage not in REAUTHOR_STAGES:
-        raise PdlcError(f"stage is not re-authored in place: {stage}")
-
     current = item_status(record)
     if current != stage:
         raise PdlcError(f"cannot re-author {stage}: record is at {current or 'unset'}")
 
-    set_state(record["id"], stage, "Stale", "Planning")
+    state = state_for_item(record, pipeline)
+    try:
+        target = pipeline.next_state(state, Event.REAUTHORED)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
+    set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
+    record["Status"] = target.stage
+    record["Gate State"] = target.gate.value
+    record["Lifecycle"] = target.lifecycle.value
+
+
+def _persist_reentry(record: dict, target: State) -> None:
+    set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
+
+    if is_stage_skipped(record, target.stage):
+        remaining = [
+            state for state in item_skipped_states(record).split(",") if state and state != target.stage
+        ]
+        set_skipped_states(record["id"], ",".join(remaining))
+
+
+def _record_invalidation(issue: str, record: dict, target: State, evidence_body: str) -> None:
+    body = f"Invalidated stage: {target.stage}\n\n{evidence_body.strip()}\n"
+    post_comment(str(issue), body, "INVALIDATED")
+    _persist_reentry(record, target)
+
+
+def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) -> State:
+    """Persist a pipeline-authorized Verification re-entry."""
+    try:
+        target = pipeline.next_state(source, Event.BOUNCED, requested_target=stage)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
+    _persist_reentry(record, target)
+    return target
 
 
 def invalidate_stage(issue: str, record: dict, stage: str, evidence_body: str) -> None:
-    if stage not in STAGES:
-        raise PdlcError(f"unsupported invalidation stage: {stage}")
-
     # A completed record is locked: its evidence shipped, so nothing may reopen
     # it, and no invalidation may target a stage the record has not reached yet.
     current = item_status(record)
-    if current == "Complete":
+    pipeline = pipeline_for_item(record)
+    if current == pipeline.terminal_stage:
         raise PdlcError("record is Complete and locked; it cannot be invalidated")
-    if current not in STAGES:
-        raise PdlcError(f"cannot invalidate from an unset or unknown Status: {current or 'unset'}")
-    if STAGES.index(stage) > STAGES.index(current):
-        raise PdlcError(f"cannot invalidate {stage}: it is downstream of the active stage {current}")
-
-    body = f"Invalidated stage: {stage}\n\n{evidence_body.strip()}\n"
-    post_comment(str(issue), body, "INVALIDATED")
-    set_state(record["id"], stage, "Stale", "Planning")
-
-    if is_stage_skipped(record, stage):
-        remaining = [
-            state for state in item_skipped_states(record).split(",") if state and state != stage
-        ]
-        set_skipped_states(record["id"], ",".join(remaining))
+    source = state_for_item(record, pipeline)
+    try:
+        target = pipeline.next_state(source, Event.INVALIDATED, requested_target=stage)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
+    _record_invalidation(issue, record, target, evidence_body)

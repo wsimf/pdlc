@@ -110,35 +110,9 @@ from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
 from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, strip_task_meta, task_tree, user_comments_markdown  # type: ignore
 
-# Translates due_next()'s bare action into the script name (or human role) a
-# caller would actually name in a report — the same distinction pdlc/SKILL.md's
-# "Next action by state" table draws between an ordinary Approval Required
-# (pdlc post approve) and Verification's (pdlc post complete), which due_next()
-# itself doesn't need to know since it only routes, never names a script.
-_OWNER_FOR_ACTION = {
-    "pdlc-write": "pdlc-write",
-    "pdlc-review": "pdlc-review",
-    "pdlc-tasks": "pdlc-tasks",
-    "pdlc-plan": "pdlc-plan",
-    "pdlc-implement": "pdlc-implement",
-    "pdlc-test": "pdlc-test",
-    "pdlc-verify": "pdlc-verify",
-}
-
 
 def _due_next_owner(due: dict) -> str:
-    action = due["action"]
-    if action == "human-approval":
-        return "human — pdlc post complete" if due["status"] == "Verification" else "human — pdlc post approve"
-    if action == "human-decision":
-        return "human — resolve the blocking review decision (see the last PDLC-DECISION comment)"
-    if action == "pdlc-post-ci":
-        return "pdlc post ci — record the shared PR's CI outcome"
-    if action == "none":
-        return "none — record is Complete"
-    if action == "blocked":
-        return "blocked — malformed work item state"
-    return _OWNER_FOR_ACTION.get(action, action)
+    return due.get("owner", due["action"])
 
 
 def _due_next_section(item: dict) -> str:
@@ -148,7 +122,7 @@ def _due_next_section(item: dict) -> str:
         lines.append(f"Skipped through: {', '.join(due['skipped_through'])} (declared in Skipped States)")
     lines.append(f"Due next: {due['state']} → {_due_next_owner(due)}")
     lines.append(due["reason"].capitalize() + ".")
-    if due["gate"] == "Approval Required" and due["status"] in ("Product", "UI", "Tasks", "Technical Plan"):
+    if due["gate"] == "Approval Required" and due.get("reauthor_in_place"):
         lines.append(
             "A driver request to change this artifact re-enters its owning skill "
             "(pdlc-write / pdlc-tasks / pdlc-plan): the land script returns the "
@@ -189,6 +163,7 @@ def _compact_metadata(item: dict, pull_requests: list[dict]) -> str:
         "Status": item.get("Status"),
         "Gate State": item.get("Gate State"),
         "Lifecycle": item.get("Lifecycle"),
+        "workType": item.get("workType") or "feature",
         "Skipped States": item_skipped_states(item),
         "pullRequests": [_compact_pull_request(pr) for pr in pull_requests],
     })
@@ -242,6 +217,7 @@ def render(issue: str) -> tuple[str, str, Path]:
         "Status": item.get("Status"),
         "Gate State": item.get("Gate State"),
         "Lifecycle": item.get("Lifecycle"),
+        "workType": item.get("workType") or "feature",
         "Skipped States": item_skipped_states(item),
         "pullRequests": pull_requests,
     }

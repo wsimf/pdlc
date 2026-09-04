@@ -29,8 +29,8 @@ def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[di
 
     # The STAGE argv drives the state change; invalidate_stage also stamps an
     # `Invalidated stage: <STAGE>` line into the comment so history — not just
-    # the transient work-item state — records which stage each PDLC-INVALIDATED
-    # comment returned to Stale, which the churn detector reads back.
+    # the transient work-item state — records which stage the driver returned
+    # to Stale. Verification rework loops are tracked separately by PDLC-REVIEW.
     path, is_temporary = evidence_source("evidence", evidence)
     try:
         evidence_body = path.read_text()

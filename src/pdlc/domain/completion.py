@@ -14,24 +14,10 @@ from dataclasses import dataclass
 
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.evidence import parse_verification_report
-from pdlc.domain.lifecycle import PdlcError, STAGES
-
-# Stages that must show a settlement marker before the record can lock.
-# Verification's own settlement is the Approval Required gate plus the
-# driver's explicit completion instruction, checked as status/gate here.
-SETTLED_STAGES = STAGES[:-1]
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import Pipeline
 
 SETTLEMENT_MARKERS = {"APPROVED", "AUTOAPPROVED", "SKIPPED"}
-
-_EVIDENCE_MARKER_FOR_STAGE = {
-    "Product": "PRODUCT",
-    "UI": "UI",
-    "Tasks": "TASKS",
-    "Technical Plan": "PLAN",
-    "Implementation": "IMPLEMENTATION",
-    "Testing": "TESTING",
-}
-
 
 @dataclass(frozen=True)
 class Blocker:
@@ -43,12 +29,9 @@ def _skipped(skipped_states: str | None) -> set[str]:
     return {state for state in (skipped_states or "").split(",") if state}
 
 
-def _settled_stages(skipped: set[str]) -> list[str]:
-    return [stage for stage in SETTLED_STAGES if stage not in skipped]
-
-
 def completion_blockers(
     *,
+    pipeline: Pipeline,
     status: str,
     gate: str,
     tasks: list[dict],
@@ -62,15 +45,18 @@ def completion_blockers(
 ) -> list[Blocker]:
     blockers: list[Blocker] = []
     skipped = _skipped(skipped_states)
+    policy = pipeline.completion_policy
+    if policy is None:
+        return [Blocker("unsupported-work-type", f"No completion policy for work type {pipeline.work_type.value}.")]
 
-    if status == "Complete":
+    if status == pipeline.terminal_stage:
         return [Blocker("already-complete", "The record is already Complete and locked.")]
-    if status != "Verification":
-        blockers.append(Blocker("status", f"Status is {status or 'unset'!r}, not Verification. That stage owns this record now."))
-    if gate != "Approval Required":
-        blockers.append(Blocker("gate", f"Gate State is {gate or 'unset'!r}, not Approval Required. Verification is unfinished."))
+    if status != policy.boundary_stage:
+        blockers.append(Blocker("status", f"Status is {status or 'unset'!r}, not {policy.boundary_stage}. That stage owns this record now."))
+    if gate != policy.boundary_gate.value:
+        blockers.append(Blocker("gate", f"Gate State is {gate or 'unset'!r}, not {policy.boundary_gate.value}. {policy.boundary_stage} is unfinished."))
 
-    open_tasks = [task for task in tasks if task.get("state") != "CLOSED"]
+    open_tasks = [task for task in tasks if policy.require_tasks_closed and task.get("state") != "CLOSED"]
     if open_tasks:
         listed = ", ".join(f"#{task['number']} {task.get('title', '').strip()}".rstrip() for task in open_tasks)
         blockers.append(Blocker(
@@ -80,7 +66,7 @@ def completion_blockers(
 
     closed_no_impl = [
         task for task in tasks
-        if task.get("state") == "CLOSED" and not task.get("hasImplementation")
+        if policy.require_task_implementation and task.get("state") == "CLOSED" and not task.get("hasImplementation")
     ]
     if closed_no_impl:
         listed = ", ".join(f"#{task['number']}" for task in closed_no_impl)
@@ -91,7 +77,8 @@ def completion_blockers(
 
     unsettled_prs = [
         pr for pr in pull_requests
-        if pr.get("state") != "MERGED" or pr.get("checks") not in ("SUCCESS", "NONE")
+        if (policy.require_prs_merged and pr.get("state") != "MERGED")
+        or (policy.require_checks_green and pr.get("checks") not in ("SUCCESS", "NONE"))
     ]
     if unsettled_prs:
         listed = ", ".join(
@@ -104,11 +91,11 @@ def completion_blockers(
         ))
 
     markers = list(timeline_markers)
-    settled_stages = _settled_stages(skipped)
+    settled_stages = policy.settled_stages(pipeline.active_stage_names, skipped)
 
     missing_evidence = [
         stage for stage in settled_stages
-        if _EVIDENCE_MARKER_FOR_STAGE[stage] not in markers
+        if pipeline.marker_for_stage(stage) not in markers
     ]
     if missing_evidence:
         blockers.append(Blocker(
@@ -117,7 +104,7 @@ def completion_blockers(
         ))
 
     settlements = sum(1 for marker in markers if marker in SETTLEMENT_MARKERS)
-    if settlements < len(settled_stages):
+    if policy.require_stage_settlement and settlements < len(settled_stages):
         blockers.append(Blocker(
             "stage-settlement",
             f"Each non-skipped stage needs one settlement marker "
@@ -125,9 +112,11 @@ def completion_blockers(
             f"found {settlements}, expected at least {len(settled_stages)}.",
         ))
 
-    if verification_body is None:
-        blockers.append(Blocker("no-verification", "No PDLC-VERIFICATION comment — pdlc-verify must run first."))
-    else:
+    if policy.verification_parser not in (None, "parse_verification_report"):
+        blockers.append(Blocker("verification-parser", f"Unsupported verification parser: {policy.verification_parser}."))
+    elif policy.verification_parser and verification_body is None:
+        blockers.append(Blocker("no-verification", "No Verification review evidence — pdlc-verify must run first."))
+    elif policy.verification_parser:
         try:
             parse_verification_report(verification_body)
         except PdlcError as error:

@@ -1,6 +1,6 @@
 """PDLC-generic primitives shared across the pdlc scripts: the error type,
-evidence markers, the fixed stage order, and local file/stdin handling. No
-backend I/O here — the `workitem_host` and `code_host` packages own that.
+evidence markers, and local file/stdin handling.
+No backend I/O here — the `workitem_host` and `code_host` packages own that.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-
 
 class PdlcError(RuntimeError):
     """A user-facing pdlc failure. Callers catch this at the CLI boundary,
@@ -37,7 +36,7 @@ def print_help(doc: str | None) -> None:
 # to write one or remember the vocabulary.
 MARKERS = [
     "PRODUCT", "UI", "TASKS", "PLAN", "IMPLEMENTATION",
-    "TESTING", "VERIFICATION", "COMPLETE",
+    "TESTING", "VERIFICATION", "REVIEW", "COMPLETE",
     "APPROVED", "AUTOAPPROVED", "INVALIDATED", "SKIPPED", "DECISION", "RESOLUTION",
 ]
 
@@ -48,115 +47,6 @@ def require_marker(candidate: str | None) -> None:
         raise PdlcError(f"an evidence marker is required; valid markers: {valid}")
     if candidate not in MARKERS:
         raise PdlcError(f"unknown evidence marker: {candidate}; valid markers: {valid}")
-
-
-# The marker a stage's own evidence carries.
-_MARKER_FOR_STAGE = {
-    "Product": "PRODUCT",
-    "UI": "UI",
-    "Tasks": "TASKS",
-    "Technical Plan": "PLAN",
-    "Implementation": "IMPLEMENTATION",
-    "Testing": "TESTING",
-    "Verification": "VERIFICATION",
-}
-
-
-def marker_for_stage(stage: str) -> str:
-    try:
-        return _MARKER_FOR_STAGE[stage]
-    except KeyError:
-        raise PdlcError(f"no evidence marker for stage: {stage}") from None
-
-
-# The one fixed forward path through the lifecycle; used to compute where an
-# approval or a stage's completion should hand off to next.
-_NEXT_STAGE = {
-    "Product": "UI",
-    "UI": "Tasks",
-    "Tasks": "Technical Plan",
-    "Technical Plan": "Implementation",
-    "Implementation": "Testing",
-    "Testing": "Verification",
-    "Verification": "Complete",
-}
-
-STAGES = tuple(_NEXT_STAGE)
-SKIPPABLE_STAGES = STAGES[1:]
-
-
-def next_stage(stage: str) -> str:
-    try:
-        return _NEXT_STAGE[stage]
-    except KeyError:
-        raise PdlcError(f"no next PDLC stage after: {stage}") from None
-
-
-def state_after_skip(stage: str) -> tuple[str, str]:
-    """Returns the state reached after one declared skip.
-
-    Verification remains a human completion boundary even when its work was
-    pre-declared as skipped.
-    """
-    if stage == "Verification":
-        return "Verification", "Approval Required"
-    return next_stage(stage), "Pending"
-
-
-# Routing table
-
-# Maps (Status, Gate State) to (action, autonomous, reason) as pure logic so
-# both the mutating pdlc next and read-only pdlc inspect apply the
-# exact same routing policy.
-# *.Approval Required and *.Decision Required always stop for a human
-# regardless of stage.
-def action_for(status: str, gate: str) -> tuple[str, bool, str]:
-    if gate == "Decision Required":
-        return "human-decision", False, "a reviewer raised a blocking decision that only the driver can resolve"
-    if gate == "CI Pending":
-        return "pdlc-post-ci", True, "the implementation review passed; the shared PR's CI outcome must be recorded"
-    if status == "Product" and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-write", False, "product artifact is due, and only a human may author it"
-    if gate == "Review Required" and status in STAGES:
-        return "pdlc-review", True, "review is due"
-    if status in ("UI", "Tasks") and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-tasks", True, "UI or task artifact is due"
-    if status == "Technical Plan" and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-plan", True, "technical plan is due"
-    if status == "Implementation" and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-implement", True, "next eligible delivery task is due"
-    if status == "Testing" and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-test", True, "acceptance coverage is due"
-    if status == "Verification" and gate in ("Pending", "Changes Required", "Stale"):
-        return "pdlc-verify", True, "verification is due"
-    if gate == "Approval Required":
-        return "human-approval", False, "explicit human approval is required"
-    if status == "Complete":
-        return "none", False, "complete"
-    return "blocked", False, "missing or unsupported work item state"
-
-
-def state_notation(status: str, gate: str) -> str:
-    return f"{status.replace(' ', '')}.{gate.replace(' ', '')}"
-
-
-# What the caller should expect immediately after the dispatched action
-# succeeds — not the eventual next stage. Product is the exception: its
-# review happens in pdlc-write before publication, so it lands at Approval
-# Required.
-def next_status_for(status: str, gate: str) -> str:
-    if status == "Product" and gate in ("Pending", "Changes Required", "Stale"):
-        return state_notation("Product", "Approval Required")
-
-    if gate in ("Pending", "Changes Required", "Stale"):
-        return state_notation(status, "Review Required")
-    if gate == "Review Required":
-        return state_notation(status, "CI Pending" if status == "Implementation" else "Approval Required")
-    if gate == "CI Pending":
-        return state_notation(status, "Approval Required")
-    if gate == "Approval Required":
-        return state_notation(status, "Approved")
-    return state_notation(status, gate)
 
 
 # Local files

@@ -30,6 +30,7 @@ query($owner: String!, $repo: String!, $issue: Int!) {
       title
       url
       body
+      issueType { name }
       projectItems(first: 100) {
         nodes {
           id
@@ -99,6 +100,13 @@ query($itemId: ID!) {
 
 def _normalize_project_item(item: dict) -> dict:
     fields = item.get("fields") or {}
+    content = item.get("content") or {}
+    work_type = (
+        item.get("workType") or item.get("work_type") or item.get("issueType")
+        or content.get("workType") or content.get("work_type") or content.get("issueType")
+    )
+    if isinstance(work_type, dict):
+        work_type = work_type.get("name") or work_type.get("value")
     return {
         **item,
         "Status": item.get("Status") or item.get("status") or fields.get("Status") or "",
@@ -117,7 +125,15 @@ def _normalize_project_item(item: dict) -> dict:
             or ""
         ),
         SLUG_FIELD_NAME: item.get(SLUG_FIELD_NAME) or item.get("slug") or fields.get(SLUG_FIELD_NAME) or "",
+        "workType": _normalize_work_type(work_type),
     }
+
+
+def _normalize_work_type(value: object) -> str:
+    """Return the stable lower-case work type, preserving missing values."""
+    if value is None:
+        return ""
+    return str(value).strip().lower()
 
 
 # PDLC_ITEMS_FILE lets tests/fixtures stand in for a live `gh project` call.
@@ -200,6 +216,7 @@ def item_for_issue(issue: str) -> dict:
             "url": issue_node["url"],
         },
         "issueBody": issue_node["body"],
+        "workType": _normalize_work_type((issue_node.get("issueType") or {}).get("name")),
         "Status": (node.get("status") or {}).get("name"),
         "Gate State": (node.get("gate") or {}).get("name"),
         "Lifecycle": (node.get("lifecycle") or {}).get("name"),

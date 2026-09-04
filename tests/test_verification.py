@@ -71,8 +71,12 @@ class VerificationTests(FileBackendTest):
                              "--bounce", "Implementation", stdin="report\n")
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.state(69), ("Implementation", "Stale"))
-        self.assertIn("Invalidated stage: Implementation", self.comments_text(69))
-        self.assertIn("PDLC-VERIFICATION", self.comments_text(69))
+        self.assertNotIn("PDLC-INVALIDATED", self.comments_text(69))
+        self.assertIn("PDLC-REVIEW", self.comments_text(69))
+        self.assertIn("Stage: Verification", self.comments_text(69))
+        self.assertIn("Verdict: Changes Required", self.comments_text(69))
+        self.assertIn("Bounce: Implementation", self.comments_text(69))
+        self.assertIn("Loop: delivery-rework", self.comments_text(69))
         self.assertEqual(self.next("--work-item", 69).front_matter("action"), "pdlc-implement")
 
     def test_bounce_rejected_unless_changes_required(self):
@@ -81,6 +85,14 @@ class VerificationTests(FileBackendTest):
                              "--bounce", "Implementation", stdin="report\n")
         self.assertEqual(result.code, 1)
         self.assertIn("bounce is only valid", result.stderr)
+
+    def test_bounce_rejects_a_target_outside_pipeline_policy_before_posting(self):
+        self.seed_record(72, "Verification", "Pending")
+        result = self.invoke("post_verify", 72, "-", "--recommendation", "Changes Required",
+                             "--bounce", "Product", stdin="report\n")
+        self.assertEqual(result.code, 1)
+        self.assertIn("expected one of: Implementation, Testing", result.stderr)
+        self.assertEqual(self.comments_text(72), "")
 
     def test_stdin_can_supply_only_one_input(self):
         self.seed_record(22, "Verification", "Pending")

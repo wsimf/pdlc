@@ -101,7 +101,7 @@ Every finding that turns on a production-source, test, or task-Result change goe
 
 4. `--decision` with a file of `## Decision Required` blocks — only when `--recommendation "Decision Required"`, and required then.
 
-5. `--bounce STAGE` — only with `--recommendation "Changes Required"`, when a finding needs an upstream stage to rework (Step 6). Returns that stage to `Stale` with a `PDLC-INVALIDATED` comment, no driver step.
+5. `--bounce STAGE` — only with `--recommendation "Changes Required"`, when a finding needs an upstream stage to rework (Step 6). Records the target and named loop in `PDLC-REVIEW` and returns that stage to `Stale`, no driver step.
 
 ```bash
 pdlc post verify WORK_ITEM /tmp/pdlc-report.md \

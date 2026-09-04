@@ -5,6 +5,7 @@ delivery tasks, pull requests, and evidence comments.
 
 ## Intake and orientation
 
+- Resolve the record's normalized `workType` before interpreting `Status` or `Gate State`. Missing type means legacy Feature compatibility; unknown types and unavailable pipelines stop as blocked.
 - A new item requires an explicit feature idea. `pdlc-write` creates the
   parent work item, but only after its drafted product specification passes
   review, so no PDLC work item exists without one.
@@ -25,7 +26,7 @@ delivery tasks, pull requests, and evidence comments.
 | Technical Plan | A `## Technical Plan` comment on every incomplete delivery task |
 | Implementation | One stacked PR per task (production code + that task's unit coverage) and a `## Implementation` comment on each task |
 | Testing | Whole-feature acceptance coverage commits and requirement-to-source traceability evidence |
-| Verification | Parent `Verification` section and `PDLC-VERIFICATION` report |
+| Verification | Parent `Verification` section and structured Verification `PDLC-REVIEW` report |
 
 UI applicability is always explicit. `UI not required` still receives review
 and human approval. Each task must cover at least one FR/C, every UI task must
@@ -118,17 +119,7 @@ anything is written, not asserted by the agent that wrote the breakdown.
   unchanged reviewed artifact, settled upstream stages, an explicit human
   instruction in this turn (the commands carry no identity check), and a
   durable `PDLC-APPROVED` comment.
-- One exception to the human instruction: on a record that has been reworked one
-  to three times (any stage bounce), the script that would park it at
-  `Implementation` or `Testing` `Approval Required` — the CI gate on green
-  CI, `pdlc post review` on a clean Testing review — advances straight past
-  the gate instead, posting a `PDLC-AUTOAPPROVED` comment and landing the record
-  on the next stage's `Pending`. The reviewed artifact is still clean and
-  upstream still settled; only the human step is dropped while the record
-  iterates. Past three loops, and for `Verification` always, the human
-  instruction is still required. A `Verification` `Changes Required` run may
-  itself bounce an upstream stage back to `Stale` (`pdlc post verify
-  --bounce STAGE`) with no driver step, which is what advances the loop count.
+- One exception to the human instruction: on a record with one to three Verification bounces in the named rework loop, the script that would park it at `Implementation` or `Testing` `Approval Required` — the CI gate on green CI, `pdlc post review` on a clean Testing review — advances straight past the gate instead, posting a `PDLC-AUTOAPPROVED` comment and landing the record on the next stage's `Pending`. The reviewed artifact is still clean and upstream still settled; only the human step is dropped while the record iterates. Past three loops, and for `Verification` always, the human instruction is still required. A `Verification` `Changes Required` run may itself bounce `Implementation` or `Testing` back to `Stale` (`pdlc post verify --bounce STAGE`) with no driver step, which is what advances the loop count.
 - An override must explicitly name the stage and the request to skip review.
   It cannot approve Pending or bypass unapproved upstream work. Record every
   waived finding or stale-artifact risk in parent Open Questions.
