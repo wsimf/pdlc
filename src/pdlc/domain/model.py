@@ -78,27 +78,6 @@ def _workflow_state(item: dict, pipeline: Pipeline, status: str, gate: str) -> S
     return State.parse(status, gate, lifecycle)
 
 
-def next_state_hint(pipeline: Pipeline, state: State) -> State:
-    """Describe the gate a dispatched action is expected to reach.
-
-    The actual transition may depend on review or CI evidence, so this is only
-    the same informational hint the old router exposed in its front matter.
-    Stage policy supplies every stage-specific value.
-    """
-    stage = pipeline.stage(state.stage)
-    if state.gate in (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE):
-        gate = stage.result_gate or Gate.REVIEW_REQUIRED
-    elif state.gate == Gate.REVIEW_REQUIRED:
-        gate = Gate.CI_PENDING if stage.ci_gated else (stage.review.clean_gate if stage.review else Gate.APPROVAL_REQUIRED)
-    elif state.gate == Gate.CI_PENDING:
-        gate = Gate.APPROVAL_REQUIRED
-    elif state.gate == Gate.APPROVAL_REQUIRED:
-        gate = Gate.APPROVED
-    else:
-        gate = state.gate
-    return State(state.stage, gate, state.lifecycle)
-
-
 def blocked_reason(reason: str) -> str:
     """Add the required human stop for unsupported work-type routing."""
     if reason.startswith("unknown work type:") or reason.startswith("workflow unavailable for work type:"):
@@ -120,7 +99,6 @@ def _blocked_due(item: dict, reason: str = "missing or unsupported work item sta
         "autonomous": False,
         "reason": reason,
         "state": notation,
-        "next_state": notation,
         "owner": f"blocked — {reason}",
     }
 
@@ -146,9 +124,10 @@ def due_next(item: dict) -> dict:
             return _blocked_due(item)
 
     route = pipeline.route(state)
-    next_hint = next_state_hint(pipeline, state)
     owner = route.action.value
-    if route.action.value == "human-approval":
+    if route.action.value == "human-input":
+        owner = "human — invoke pdlc-write interactively"
+    elif route.action.value == "human-approval":
         completion = pipeline.completion_policy
         owner = "human — pdlc post complete" if completion is not None and completion.is_boundary(state) else "human — pdlc post approve"
     elif route.action.value == "human-decision":
@@ -167,7 +146,6 @@ def due_next(item: dict) -> dict:
         "autonomous": route.autonomous,
         "reason": route.reason,
         "state": state.notation,
-        "next_state": next_hint.notation,
         "owner": owner,
         "reauthor_in_place": pipeline.stage(state.stage).reauthor_in_place,
     }
@@ -371,11 +349,14 @@ def find_marked_comments(comments: list[dict], marker: str) -> list[dict]:
 
 
 def verification_evidence_comments(comments: list[dict]) -> list[dict]:
-    """Verification review evidence, including legacy PDLC-VERIFICATION comments."""
-    matches = list(find_marked_comments(comments, "VERIFICATION"))
+    """Structured review evidence whose script-owned stage is Verification."""
+    matches = []
     for comment in find_marked_comments(comments, "REVIEW"):
-        body = MARKER_LINE.sub("", comment["body"], count=1)
-        if re.search(r"^Stage:[ \t]*Verification[ \t]*$", body, re.MULTILINE):
+        try:
+            review = parse_review(comment["body"])
+        except PdlcError:
+            continue
+        if review.stage == "Verification":
             matches.append(comment)
     matches.sort(key=lambda comment: comment["createdAt"])
     return matches

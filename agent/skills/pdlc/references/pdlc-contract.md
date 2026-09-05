@@ -96,6 +96,7 @@ record which downstream evidence is invalidated.
 - Product authoring is never autonomous. `pdlc-write` interviews the driver,
   has the draft reviewed locally, and creates or updates the record only once
   that review is clean — landing it at `Product / Approval Required`.
+- Product work routes to `human-input`; the autonomous loop stops and asks the driver to invoke `pdlc-write` interactively.
 - The pre-publication stages (`Product`, `UI`, `Tasks`, `Technical Plan`) reach
   `Approval Required` directly. A driver request to change one of them before it
   is approved is handled by that stage's own land script
@@ -104,7 +105,7 @@ record which downstream evidence is invalidated.
   `PDLC-INVALIDATED` comment — the artifact never settled at `Approved`, the
   re-land's own stage evidence records the change, and nothing feeds the
   rework/churn total. No separate `pdlc post invalidate` step.
-- Every later stage transition requires the current stage to be `Approval Required` and an explicit human approval. The one exception: when a record has already entered its named rework loop between one and three times, counted from Verification `PDLC-REVIEW` comments with `Verdict: Changes Required`, a non-None `Bounce`, and the matching `Loop`, the script that would set the `Implementation` or `Testing` `Approval Required` gate advances straight past it instead. It posts `PDLC-AUTOAPPROVED` and lands the next stage's `Pending`. Past three loops the gate stops for the driver again; `Verification` approval is never auto-cleared; `PDLC_AUTOAPPROVE_CHURN_CAP=0` disables it. A `Verification` `Changes Required` run bounces `Implementation` or `Testing` to `Stale` on its own when invoked with `pdlc post verify --bounce STAGE`.
+- Every later stage transition requires the current stage to be `Approval Required` and an explicit human approval. The one exception: when a record has already entered its named rework loop between one and three times, counted from Verification `PDLC-REVIEW` comments with `verdict: Changes Required`, a non-null `bounce`, and the matching `loop`, the script that would set the `Implementation` or `Testing` `Approval Required` gate advances straight past it instead. It posts `PDLC-AUTOAPPROVED` and lands the next stage's `Pending`. Past the selected pipeline's rework cap (three for Feature), the gate stops for the driver again; `Verification` approval is never auto-cleared. A `Verification` `Changes Required` run bounces `Implementation` or `Testing` to `Stale` on its own when invoked with `pdlc post verify --bounce STAGE`.
 - Agents may set `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, and `Approval Required`.
 - Agents may not set `Approved` or `Complete`. Only the churn auto-approval in
   the CI gate / `pdlc post review` advances a stage without a recorded
@@ -163,7 +164,7 @@ comment body only:
 - `PDLC-PLAN`
 - `PDLC-IMPLEMENTATION`
 - `PDLC-TESTING`
-- `PDLC-REVIEW` — a structured independent-review verdict with script-owned `Stage`, `Verdict`, `Bounce`, and `Loop` fields followed by `## Findings`; Verification reports use the same marker and retain their detailed report sections. `PDLC-VERIFICATION` remains readable legacy evidence but is no longer written.
+- `PDLC-REVIEW` — a structured independent-review verdict with a script-owned, `---`-delimited metadata block containing `stage`, `verdict`, `bounce`, and `loop`, followed by `## Findings`; Verification reports use the same marker and retain their detailed report sections.
 - `PDLC-COMPLETE`
 - `PDLC-APPROVED` — a driver approved a stage (`pdlc post approve`)
 - `PDLC-AUTOAPPROVED` — the `Implementation`/`Testing` approval gate was cleared with no human step on a churning record (the CI gate, `pdlc post review`)

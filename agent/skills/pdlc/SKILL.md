@@ -99,6 +99,8 @@ Keep every line grounded in something actually inspected. Do not claim build, te
 
 Continue to drive the work item forward after the driver intends to proceed by invoking the appropriate skill specified in references/stage-ownership.md.
 
+If `# Due Next` routes to `human-input`, Product authoring or re-authoring needs an interactive driver. Report that `pdlc-write` is required and stop; invoke it only when the driver explicitly asks to proceed.
+
 ## CI pending
 
 If `# Due Next` routes to `pdlc post ci` — `Gate State` is `Implementation / CI Pending`, the stage review passed and the shared PR's CI has not settled — orientation just reports it and the live `pullRequests` check state. Do not run `pdlc post ci` during read-only orientation.

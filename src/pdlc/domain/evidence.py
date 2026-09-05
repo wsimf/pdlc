@@ -43,7 +43,7 @@ class ReviewEvidence:
     loop: str | None
 
 
-_REVIEW_FIELDS = ("Stage", "Verdict", "Bounce", "Loop")
+_REVIEW_FIELDS = ("stage", "verdict", "bounce", "loop")
 
 
 def compose_review(
@@ -64,41 +64,49 @@ def compose_review(
     if bool(bounce) != bool(loop):
         raise PdlcError("review bounce and loop must be supplied together")
     metadata = [
-        f"Stage: {stage.strip()}",
-        f"Verdict: {verdict.value}",
-        f"Bounce: {bounce or 'None'}",
-        f"Loop: {loop or 'None'}",
+        "---",
+        f"stage: {stage.strip()}",
+        f"verdict: {verdict.value}",
+        f"bounce: {bounce or 'null'}",
+        f"loop: {loop or 'null'}",
+        "---",
     ]
     payload = body.strip()
     return "\n".join(metadata) + (f"\n\n{payload}\n" if payload else "\n")
 
 
 def parse_review(body: str) -> ReviewEvidence:
-    """Parse the strict metadata prefix of a PDLC-REVIEW comment body."""
+    """Parse the strict YAML-shaped metadata block of a PDLC-REVIEW comment."""
     text = (body or "").strip()
     if text.startswith("PDLC-REVIEW"):
         text = text.removeprefix("PDLC-REVIEW").lstrip()
     lines = text.splitlines()
+    if not lines or lines[0] != "---":
+        raise PdlcError("review evidence is missing opening '---' metadata delimiter")
     values: dict[str, str] = {}
     for index, field in enumerate(_REVIEW_FIELDS):
-        if index >= len(lines) or not lines[index].startswith(f"{field}:"):
+        line_index = index + 1
+        if line_index >= len(lines) or not lines[line_index].startswith(f"{field}:"):
             raise PdlcError(f"review evidence is missing '{field}:' metadata")
-        value = lines[index].partition(":")[2].strip()
+        value = lines[line_index].partition(":")[2].strip()
         if not value:
             raise PdlcError(f"review evidence has an empty '{field}:' value")
         values[field] = value
+    closing_index = len(_REVIEW_FIELDS) + 1
+    if closing_index >= len(lines) or lines[closing_index] != "---":
+        raise PdlcError("review evidence is missing closing '---' metadata delimiter")
     try:
-        verdict = ReviewVerdict(values["Verdict"])
+        verdict = ReviewVerdict(values["verdict"])
     except ValueError:
         valid = ", ".join(item.value for item in ReviewVerdict)
-        raise PdlcError(f"review verdict must be one of {valid}, not {values['Verdict']!r}") from None
-    bounce = None if values["Bounce"] == "None" else values["Bounce"]
-    loop = None if values["Loop"] == "None" else values["Loop"]
+        raise PdlcError(f"review verdict must be one of {valid}, not {values['verdict']!r}") from None
+    bounce = None if values["bounce"] == "null" else values["bounce"]
+    loop = None if values["loop"] == "null" else values["loop"]
     if (bounce or loop) and verdict != ReviewVerdict.CHANGES_REQUIRED:
         raise PdlcError("review bounce metadata requires verdict Changes Required")
     if bool(bounce) != bool(loop):
         raise PdlcError("review bounce and loop must be supplied together")
-    return ReviewEvidence(values["Stage"], verdict, bounce, loop)
+    return ReviewEvidence(values["stage"], verdict, bounce, loop)
 
 _ALL_SECTIONS = {name.lower(): name for name in (*REQUIRED_SECTIONS, "Findings")}
 

@@ -71,6 +71,12 @@ MERGED_PR = {"relation": "closes", "state": "MERGED", "checks": "SUCCESS", "numb
 
 
 class RoutingTableTests(unittest.TestCase):
+    def test_product_requires_interactive_human_input(self):
+        due = due_next({"Status": "Product", "Gate State": "Pending", "Skipped States": ""})
+        self.assertEqual(due["action"], "human-input")
+        self.assertFalse(due["autonomous"])
+        self.assertEqual(due["owner"], "human — invoke pdlc-write interactively")
+
     def test_missing_work_type_uses_feature_pipeline(self):
         due = due_next({"Status": "Implementation", "Gate State": "Pending", "Skipped States": ""})
         self.assertEqual(due["action"], "pdlc-implement")
@@ -94,7 +100,7 @@ class RoutingTableTests(unittest.TestCase):
         due = due_next({"Status": "Implementation", "Gate State": "CI Pending", "Skipped States": ""})
         self.assertEqual(due["action"], "pdlc-post-ci")
         self.assertTrue(due["autonomous"])
-        self.assertEqual(due["next_state"], "Implementation.ApprovalRequired")
+        self.assertNotIn("next_state", due)
 
 
 class UserCommentsTests(unittest.TestCase):
@@ -144,6 +150,17 @@ class NeutralizeRefsTests(unittest.TestCase):
 
 
 class VerificationReportTests(unittest.TestCase):
+    @staticmethod
+    def review_comment(
+        stage: str,
+        verdict: ReviewVerdict,
+        body: str = "",
+        *,
+        bounce: str | None = None,
+        loop: str | None = None,
+    ) -> str:
+        return f"PDLC-REVIEW\n\n{compose_review(stage, verdict, body, bounce=bounce, loop=loop)}"
+
     def test_review_metadata_round_trips(self):
         body = compose_review(
             "Verification",
@@ -152,6 +169,8 @@ class VerificationReportTests(unittest.TestCase):
             bounce="Implementation",
             loop="delivery-rework",
         )
+        self.assertTrue(body.startswith("---\nstage: Verification\n"))
+        self.assertIn("\n---\n\n## Findings", body)
         review = parse_review(f"PDLC-REVIEW\n\n{body}")
         self.assertEqual(review.stage, "Verification")
         self.assertEqual(review.verdict, ReviewVerdict.CHANGES_REQUIRED)
@@ -164,21 +183,25 @@ class VerificationReportTests(unittest.TestCase):
 
         comments = [
             comment("PDLC-INVALIDATED\n\nInvalidated stage: Implementation", "2026-01-01T00:00:00Z"),
-            comment("PDLC-REVIEW\n\nStage: Testing\nVerdict: Changes Required\nBounce: Implementation\nLoop: delivery-rework", "2026-01-02T00:00:00Z"),
-            comment("PDLC-REVIEW\n\nStage: Verification\nVerdict: Changes Required\nBounce: Implementation\nLoop: another-loop", "2026-01-03T00:00:00Z"),
-            comment("PDLC-REVIEW\n\nStage: Verification\nVerdict: Changes Required\nBounce: Implementation\nLoop: delivery-rework", "2026-01-04T00:00:00Z"),
+            comment(self.review_comment("Testing", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="delivery-rework"), "2026-01-02T00:00:00Z"),
+            comment(self.review_comment("Verification", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="another-loop"), "2026-01-03T00:00:00Z"),
+            comment(self.review_comment("Verification", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="delivery-rework"), "2026-01-04T00:00:00Z"),
         ]
         self.assertEqual(review_rework_count(comments, "delivery-rework"), 1)
 
-    def test_verification_evidence_accepts_new_and_legacy_markers(self):
+    def test_verification_evidence_uses_structured_review_stage(self):
         comments = [
             {"body": "PDLC-VERIFICATION\n\nlegacy", "createdAt": "2026-01-01T00:00:00Z"},
-            {"body": "PDLC-REVIEW\n\nStage: Implementation\nVerdict: Pass", "createdAt": "2026-01-02T00:00:00Z"},
-            {"body": "PDLC-REVIEW\n\nStage: Verification\nVerdict: Pass", "createdAt": "2026-01-03T00:00:00Z"},
+            {"body": self.review_comment("Implementation", ReviewVerdict.PASS), "createdAt": "2026-01-02T00:00:00Z"},
+            {"body": self.review_comment("Verification", ReviewVerdict.PASS), "createdAt": "2026-01-03T00:00:00Z"},
+            {
+                "body": self.review_comment("Testing", ReviewVerdict.PASS, "## Findings\n\nQuoted evidence:\nstage: Verification"),
+                "createdAt": "2026-01-04T00:00:00Z",
+            },
         ]
         self.assertEqual(
             [comment["createdAt"] for comment in verification_evidence_comments(comments)],
-            ["2026-01-01T00:00:00Z", "2026-01-03T00:00:00Z"],
+            ["2026-01-03T00:00:00Z"],
         )
 
     def test_parses_a_clean_report(self):

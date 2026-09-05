@@ -9,6 +9,7 @@ delivery tasks, pull requests, and evidence comments.
 - A new item requires an explicit feature idea. `pdlc-write` creates the
   parent work item, but only after its drafted product specification passes
   review, so no PDLC work item exists without one.
+- Product work routes to `human-input`; an autonomous queue may surface it as a human stop but never dispatches `pdlc-write`.
 - Existing work requires an exact work item number. The `pdlc` skill's Orient mode
   is read-only: inspect the full parent work item, work item fields, delivery tasks,
   linked PRs, current source, relevant Git history, and dirty worktree state,

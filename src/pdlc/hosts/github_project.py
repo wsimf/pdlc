@@ -17,6 +17,7 @@ from pdlc.hosts.github_common import (
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import SKIP_FIELD_NAME, SLUG_FIELD_NAME, VALID_GATES
+from pdlc.hosts.workitem_host.base import QueueItemSummary
 
 # An Issue's Project item: id, Status/Gate State/Lifecycle single-select
 # values, and the Issue's own number/title/url/body. `project { number }` lets
@@ -51,6 +52,43 @@ query($owner: String!, $repo: String!, $issue: Int!) {
             ... on ProjectV2ItemFieldTextValue { text }
           }
         }
+      }
+    }
+  }
+}
+"""
+
+QUEUE_ITEMS_QUERY = """
+query($projectId: ID!, $after: String) {
+  node(id: $projectId) {
+    ... on ProjectV2 {
+      items(first: 100, after: $after) {
+        nodes {
+          id
+          content {
+            __typename
+            ... on Issue {
+              number
+              title
+              url
+              repository { nameWithOwner }
+              issueType { name }
+            }
+          }
+          status: fieldValueByName(name: "Status") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+          gate: fieldValueByName(name: "Gate State") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+          lifecycle: fieldValueByName(name: "Lifecycle") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+          skippedStates: fieldValueByName(name: "Skipped States") {
+            ... on ProjectV2ItemFieldTextValue { text }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -136,19 +174,78 @@ def _normalize_work_type(value: object) -> str:
     return str(value).strip().lower()
 
 
-# PDLC_ITEMS_FILE lets tests/fixtures stand in for a live `gh project` call.
-def project_items() -> dict:
+def _fixture_items() -> dict:
     config = get_config()
-    fixture = config.items_file
-    if fixture:
-        with open(fixture) as handle:
-            result = json.load(handle)
-    else:
-        result = run_gh_json([
-            "project", "item-list", config.project_number,
-            "--owner", config.project_owner, "--format", "json", "--limit", "1000",
-        ])
+    with open(config.items_file) as handle:
+        result = json.load(handle)
     return {**result, "items": [_normalize_project_item(item) for item in result.get("items", [])]}
+
+
+def _field_name(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return value.get("name") or ""
+
+
+def _field_text(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return value.get("text") or ""
+
+
+def _queue_summary(item: dict, repository: str | None) -> QueueItemSummary | None:
+    content = item.get("content") or {}
+    content_type = content.get("__typename") or content.get("type")
+    if (content_type is not None and content_type != "Issue") or not content.get("number"):
+        return None
+    item_repository = (content.get("repository") or {}).get("nameWithOwner")
+    if repository and item_repository and item_repository.casefold() != repository.casefold():
+        return None
+    return {
+        "id": item["id"],
+        "content": {
+            "number": int(content["number"]),
+            "title": content.get("title") or "",
+            "url": content.get("url") or "",
+        },
+        "Status": _field_name(item.get("status")) or item.get("Status") or item.get("status") or "",
+        "Gate State": _field_name(item.get("gate")) or item.get("Gate State") or item.get("gateState") or "",
+        "Lifecycle": _field_name(item.get("lifecycle")) or item.get("Lifecycle") or item.get("lifecycle") or "",
+        SKIP_FIELD_NAME: _field_text(item.get("skippedStates")) or item.get(SKIP_FIELD_NAME) or "",
+        "workType": _normalize_work_type((content.get("issueType") or {}).get("name") or item.get("workType")),
+    }
+
+
+# Returns only Issue summaries from the configured repository; drafts and
+# cross-repository Project cards are not PDLC records for this backend.
+def queue_items() -> list[QueueItemSummary]:
+    config = get_config()
+    if config.items_file:
+        return [
+            summary for item in _fixture_items().get("items", [])
+            if (summary := _queue_summary(item, config.repository)) is not None
+        ]
+
+    summaries: list[QueueItemSummary] = []
+    after: str | None = None
+    while True:
+        variables = {"projectId": _project_id()}
+        if after is not None:
+            variables["after"] = after
+        project = run_graphql(QUEUE_ITEMS_QUERY, **variables)["data"].get("node")
+        if project is None:
+            raise PdlcError(f"Project {config.project_owner}/{config.project_number} was not found")
+        items = project["items"]
+        summaries.extend(
+            summary for item in items.get("nodes", [])
+            if (summary := _queue_summary(item, config.repository)) is not None
+        )
+        page = items["pageInfo"]
+        if not page["hasNextPage"]:
+            return summaries
+        after = page.get("endCursor")
+        if not after:
+            raise PdlcError("Project item pagination did not return an end cursor")
 
 
 @cache
@@ -189,7 +286,7 @@ def item_for_issue(issue: str) -> dict:
     config = get_config()
     if config.items_file:
         matches = [
-            item for item in project_items().get("items", [])
+            item for item in _fixture_items().get("items", [])
             if str(item.get("content", {}).get("number", item.get("number"))) == issue
         ]
         if len(matches) != 1:

@@ -36,7 +36,7 @@ def print_help(doc: str | None) -> None:
 # to write one or remember the vocabulary.
 MARKERS = [
     "PRODUCT", "UI", "TASKS", "PLAN", "IMPLEMENTATION",
-    "TESTING", "VERIFICATION", "REVIEW", "COMPLETE",
+    "TESTING", "REVIEW", "COMPLETE",
     "APPROVED", "AUTOAPPROVED", "INVALIDATED", "SKIPPED", "DECISION", "RESOLUTION",
 ]
 

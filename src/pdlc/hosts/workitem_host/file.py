@@ -30,7 +30,7 @@ from pathlib import Path
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
 from pdlc.domain.model import read_task_meta, strip_task_meta, write_task_meta
-from pdlc.hosts.workitem_host.base import WorkItemBackend
+from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
 
 FIELD_NAMES = ("Status", "Gate State", "Lifecycle", "Skipped States", "Slug")
 
@@ -130,12 +130,31 @@ class FileWorkItemBackend(WorkItemBackend):
     def resolve(self, ref: str) -> dict:
         return self._record_view(self._record_dir(ref))
 
-    def all_items(self) -> dict:
+    def queue_items(self) -> list[QueueItemSummary]:
         records = sorted(
             (_home() / "records").iterdir(),
             key=lambda child: int(child.name) if child.name.isdigit() else 0,
         )
-        return {"items": [self._record_view(child) for child in records if child.is_dir()]}
+        summaries = []
+        for child in records:
+            if not child.is_dir():
+                continue
+            meta = _read_meta(child)
+            fields = meta.get("fields", {})
+            summaries.append({
+                "id": meta["id"],
+                "content": {
+                    "number": meta["number"],
+                    "title": meta.get("title") or "",
+                    "url": meta.get("url") or "",
+                },
+                "Status": fields.get("Status", ""),
+                "Gate State": fields.get("Gate State", ""),
+                "Lifecycle": fields.get("Lifecycle", ""),
+                "Skipped States": fields.get("Skipped States", ""),
+                "workType": meta.get("workType", ""),
+            })
+        return summaries
 
     # --- state fields ---
 

@@ -8,12 +8,12 @@ using the work item's configured workflow policy.
                                             nothing is actionable before giving up
 
 Output is a Markdown document: YAML front matter — id, work_item_number, title,
-current_status, next_status, action — followed by a one-line instruction. The
+current_status, action — followed by a one-line instruction. The
 dispatched skill resolves the record itself with pdlc-inspect; the routing
 decision is all this script hands over.
 
 `action` is a pdlc-* skill name, `pdlc-post-ci` (run the script, then re-poll),
-or `human-approval` / `human-decision` / `blocked` / `none`.
+or `human-input` / `human-approval` / `human-decision` / `blocked` / `none`.
 
 One routing side effect mutates the record before the decision is returned, the
 same way for a single --work-item lookup or a queue scan:
@@ -37,7 +37,7 @@ from pathlib import Path
 
 from pdlc.internal.ci_gate import peek_ci_state  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help  # type: ignore
-from pdlc.domain.model import blocked_reason, next_state_hint  # type: ignore
+from pdlc.domain.model import blocked_reason  # type: ignore
 from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
@@ -46,7 +46,7 @@ from pdlc.internal.workitem import (  # type: ignore
     item_issue,
     item_status,
     post_comment,
-    project_items,
+    queue_items,
     resolve_item,
     set_state,
 )
@@ -55,14 +55,13 @@ from pdlc.internal.workitem import (  # type: ignore
 # The routing decision handed to the orchestrator: which record, where it sits,
 # and what runs next. No body or comments — the dispatched skill inspects the
 # record itself.
-def decision(item: dict, action: str, reason: str, current_status: str, next_status: str) -> dict:
+def decision(item: dict, action: str, reason: str, current_status: str) -> dict:
     content = item.get("content") or {}
     return {
         "id": item.get("id"),
         "work_item_number": content.get("number", item.get("number")),
         "title": content.get("title", item.get("title")),
         "current_status": current_status,
-        "next_status": next_status,
         "action": action,
         "reason": reason,
     }
@@ -119,31 +118,33 @@ def _advance_past_skips(item: dict, pipeline: Pipeline) -> dict:
 # a human (so the caller learns it's waiting rather than getting a bare "none").
 def scan_for_candidate() -> dict | None:
     fallback: dict | None = None
-    for summary in project_items().get("items", []):
-        candidate = resolve_item(item_issue(summary))
+    for summary in queue_items():
+        issue = item_issue(summary)
+        if not issue:
+            continue
         try:
-            pipeline = PIPELINE_REGISTRY.for_record(candidate)
-            status = item_status(candidate)
-            lifecycle = candidate.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
-            state = State.parse(status, item_gate(candidate), lifecycle)
+            pipeline = PIPELINE_REGISTRY.for_record(summary)
+            status = item_status(summary)
+            lifecycle = summary.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
+            state = State.parse(status, item_gate(summary), lifecycle)
             route = pipeline.route(state)
         except (TypeError, ValueError):
             route = None
         if route is None:
             if fallback is None:
-                fallback = candidate
+                fallback = summary
             continue
         # A CI-Pending record is only actionable once its checks have settled;
         # while they run it is a back-off, not a dispatch.
-        if state.gate == Gate.CI_PENDING and peek_ci_state(item_issue(candidate)) == "pending":
+        if state.gate == Gate.CI_PENDING and peek_ci_state(issue) == "pending":
             if fallback is None:
-                fallback = candidate
+                fallback = summary
             continue
         if route.autonomous:
-            return candidate
+            return resolve_item(issue)
         if fallback is None and route.action.value != "none":
-            fallback = candidate
-    return fallback
+            fallback = summary
+    return resolve_item(item_issue(fallback)) if fallback is not None else None
 
 
 # Resolves the one item to act on this call: an explicit work item number, or
@@ -162,7 +163,7 @@ def next_once(selector: str | None) -> dict:
     except (TypeError, ValueError) as error:
         status, gate = item_status(item), item_gate(item)
         notation = f"{status.replace(' ', '')}.{gate.replace(' ', '')}"
-        return decision(item, "blocked", blocked_reason(str(error)), notation, notation)
+        return decision(item, "blocked", blocked_reason(str(error)), notation)
 
     item = _advance_past_skips(item, pipeline)
 
@@ -181,9 +182,8 @@ def next_once(selector: str | None) -> dict:
         route = None
     if route is None:
         notation = f"{status.replace(' ', '')}.{item_gate(item).replace(' ', '')}"
-        return decision(item, "blocked", "missing or unsupported work item state", notation, notation)
-    next_hint = state if route.action.value == "blocked" else next_state_hint(pipeline, state)
-    return decision(item, route.action.value, route.reason, state.notation, next_hint.notation)
+        return decision(item, "blocked", "missing or unsupported work item state", notation)
+    return decision(item, route.action.value, route.reason, state.notation)
 
 
 # Retries next_once with exponential backoff, but only while nothing is
@@ -245,11 +245,15 @@ def render(result: dict, *, attempts: int | None = None) -> str:
         "work_item_number": number,
         "title": result.get("title"),
         "current_status": result["current_status"],
-        "next_status": result["next_status"],
         "action": action,
     })
 
-    if action == "human-approval":
+    if action == "human-input":
+        instruction = (
+            f"Work item {number} is at {result['current_status']} and needs interactive Product input. "
+            f"Stop and tell the driver to invoke `pdlc-write` for this work item."
+        )
+    elif action == "human-approval":
         instruction = (
             f"Work item {number} is at {result['current_status']} and needs explicit human approval. "
             f"Stop and tell the driver which record and stage awaits them."

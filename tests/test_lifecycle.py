@@ -109,7 +109,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
         )
         self.assertEqual(self.pipeline.terminal_stage, "Complete")
         self.assertEqual(self.pipeline.skippable_stage_names, ("UI", "Tasks", "Technical Plan", "Implementation", "Testing", "Verification"))
-        self.assertEqual(self.pipeline.stage("Product").action, Action.WRITE)
+        self.assertEqual(self.pipeline.stage("Product").action, Action.HUMAN_INPUT)
         self.assertFalse(self.pipeline.stage("Product").autonomous)
         self.assertTrue(self.pipeline.stage("Implementation").ci_gated)
         self.assertTrue(self.pipeline.stage("Technical Plan").reauthor_in_place)
@@ -122,7 +122,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
         self.assertEqual(self.pipeline.stage("Implementation").review.target.agent, "pdlc-implementation-reviewer")
         self.assertEqual(self.pipeline.stage("Testing").review.target.agent, "pdlc-testing-reviewer")
         self.assertEqual(self.pipeline.route(self.state("UI", Gate.PENDING)).action, Action.TASKS)
-        self.assertEqual(self.pipeline.route(self.state("Product", Gate.PENDING)).action, Action.WRITE)
+        self.assertEqual(self.pipeline.route(self.state("Product", Gate.PENDING)).action, Action.HUMAN_INPUT)
 
     def test_every_work_stage_publishes_to_its_declared_result_gate(self):
         expected = {

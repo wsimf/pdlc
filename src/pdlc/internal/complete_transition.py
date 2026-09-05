@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from pdlc.internal.attachments import save_attachments, work_item_number  # type: ignore
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.workflow import Event
+from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
     is_stage_skipped,
     item_for_issue,
@@ -17,7 +19,16 @@ from pdlc.internal.workitem import (
 )
 
 
-def complete_transition(issue: str, evidence: str, stage: str, attachment_inputs: list[dict] | None = None) -> dict:
+@dataclass(frozen=True)
+class Publication:
+    issue: str
+    record: dict
+    pipeline: Pipeline
+    target: State
+
+
+def prepare_transition(issue: str, stage: str) -> Publication:
+    """Validate publication before callers perform PR or evidence writes."""
     record = item_for_issue(issue)
     current_stage = item_status(record)
     current_gate = item_gate(record)
@@ -36,6 +47,13 @@ def complete_transition(issue: str, evidence: str, stage: str, attachment_inputs
             raise PdlcError(f"{stage} is at {current_gate}; it must be invalidated before it can be completed") from None
         raise PdlcError(str(error)) from None
 
+    return Publication(issue, record, pipeline, target)
+
+
+def complete_transition(publication: Publication, evidence: str, attachment_inputs: list[dict] | None = None) -> dict:
+    issue, record = publication.issue, publication.record
+    pipeline, target = publication.pipeline, publication.target
+    stage = item_status(record)
     attachments = save_attachments(work_item_number(record), attachment_inputs or [])
     post_comment(issue, evidence, pipeline.marker_for_stage(stage))
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)

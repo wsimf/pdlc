@@ -19,7 +19,7 @@ from pdlc.hosts.github_common import (
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.workitem_host.base import WorkItemBackend
+from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
 
 
 class GitHubWorkItemBackend(WorkItemBackend):
@@ -30,8 +30,8 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def resolve(self, ref: str) -> dict:
         return github_project.item_for_issue(ref)
 
-    def all_items(self) -> dict:
-        return github_project.project_items()
+    def queue_items(self) -> list[QueueItemSummary]:
+        return github_project.queue_items()
 
     # --- state fields ---
 

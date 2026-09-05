@@ -65,11 +65,11 @@ class Outcome(StrEnum):
 class Action(StrEnum):
     NONE = "none"
     BLOCKED = "blocked"
+    HUMAN_INPUT = "human-input"
     HUMAN_APPROVAL = "human-approval"
     HUMAN_DECISION = "human-decision"
     REVIEW = "pdlc-review"
     CI = "pdlc-post-ci"
-    WRITE = "pdlc-write"
     TASKS = "pdlc-tasks"
     PLAN = "pdlc-plan"
     IMPLEMENT = "pdlc-implement"
@@ -662,10 +662,10 @@ def _feature_stages() -> tuple[Stage, ...]:
         Stage(
             name="Product",
             marker="PRODUCT",
-            action=Action.WRITE,
+            action=Action.HUMAN_INPUT,
             autonomous=False,
             result_gate=Gate.APPROVAL_REQUIRED,
-            reason="product artifact is due, and only a human may author it",
+            reason="product artifact is due; the driver must invoke pdlc-write interactively",
             skippable=False,
             reauthor_in_place=True,
         ),
@@ -733,7 +733,7 @@ def _feature_stages() -> tuple[Stage, ...]:
         ),
         Stage(
             name="Verification",
-            marker="VERIFICATION",
+            marker="REVIEW",
             action=Action.VERIFY,
             autonomous=True,
             result_gate=None,

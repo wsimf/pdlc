@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Records an independent reviewer's read-only verdict as PDLC-REVIEW with
-script-owned Stage, Verdict, Bounce, and Loop metadata followed by Findings.
+script-owned YAML-shaped metadata followed by Findings.
 A reviewer may set Changes Required, Approval Required, or Decision Required —
 never Approved.
 

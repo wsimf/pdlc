@@ -86,7 +86,7 @@ class FileBackendTest(unittest.TestCase):
             self._saved_env[key] = os.environ.get(key)
             os.environ[key] = value
         # Drop anything a developer's shell might inject that would steer the run.
-        for key in ("PDLC_AUTOAPPROVE_CHURN_CAP", "PDLC_REF_LABEL"):
+        for key in ("PDLC_REF_LABEL",):
             self._saved_env[key] = os.environ.pop(key, None)
 
         (self.home / "records").mkdir(parents=True)
@@ -250,8 +250,8 @@ class FileBackendTest(unittest.TestCase):
         log = self.records_dir() / str(record) / "comments.jsonl"
         entry = {
             "body": (
-                "PDLC-REVIEW\n\nStage: Verification\nVerdict: Changes Required\n"
-                f"Bounce: {stage}\nLoop: {loop}\n\n## Findings\n\n- detail\n"
+                "PDLC-REVIEW\n\n---\nstage: Verification\nverdict: Changes Required\n"
+                f"bounce: {stage}\nloop: {loop}\n---\n\n## Findings\n\n- detail\n"
             ),
             "createdAt": "2026-04-01T00:00:00Z",
             "url": "",

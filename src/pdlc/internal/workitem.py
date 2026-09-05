@@ -39,6 +39,7 @@ from pdlc.domain.model import user_comments as _model_user_comments
 from pdlc.domain.model import user_comments_markdown as _model_user_comments_markdown
 from pdlc.domain.model import verification_evidence_comments as _model_verification_evidence_comments
 from pdlc.hosts.workitem_host import get_backend
+from pdlc.hosts.workitem_host.base import QueueItemSummary
 
 UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verification"}
 
@@ -80,8 +81,8 @@ def workflow_for_item(item: dict) -> tuple[Pipeline, State]:
     return pipeline, state_for_item(item, pipeline)
 
 
-def project_items() -> dict:
-    return get_backend().all_items()
+def queue_items() -> list[QueueItemSummary]:
+    return get_backend().queue_items()
 
 
 def set_state(item_id: str, status: str, gate: str, lifecycle: str) -> None:

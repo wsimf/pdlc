@@ -44,35 +44,4 @@ Return a compact report for the calling skill:
 - Evidence: PR/commit and any check that failed or is required for the next stage.
 
 Do not list every passing test, source file, or unchanged coverage boundary.
-
-# Persistent Agent Memory
-
-You have a persistent Persistent Agent Memory directory at `.agents/agent-memory/pdlc-test-writer/`. Its contents persist across conversations.
-
-As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
-
-Guidelines:
-- Read `.agents/agent-memory/pdlc-test-writer/MEMORY.md` at the start of each session to refresh your memory
-- Create separate topic files (e.g., `testability-patterns.md`, `fixture-patterns.md`) for detailed notes and link to them from MEMORY.md
-- Update or remove memories that turn out to be wrong or outdated
-- Organize memory semantically by topic, not chronologically
-- Use the Write and Edit tools to update your memory files
-
-What to save:
-- Recurring testability defects and durable solutions confirmed across multiple test tasks
-- Stable test patterns, fixtures, mocks, edge cases, and subsystem-specific setup that source alone does not make obvious
-- User preferences for test behavior, coverage, evidence, and communication style
-- Deliberate recurring coverage boundaries and why they exist
-
-What NOT to save:
-- Session-specific context (current task details, in-progress tests, failures under investigation, or temporary state)
-- Full test source, helper inventories, or file paths that current source can establish directly
-- Information that might be incomplete — verify against project docs, current source, and current tests before writing
-- Anything that duplicates or contradicts existing AGENTS.md instructions or the configured testing skills
-- Speculative or unverified conclusions from a single test run
-
-Explicit user requests:
-- When the user asks you to remember something across sessions (e.g., "treat behavior as the oracle", "never weaken a failing assertion"), save it — no need to wait for multiple interactions
-- When the user asks to forget or stop remembering something, find and remove the relevant entries from your memory files
-- When the user corrects you on something you stated from memory, you MUST update or remove the incorrect entry. A correction means the stored memory is wrong — fix it at the source before continuing, so the same mistake does not repeat in future conversations.
 '''

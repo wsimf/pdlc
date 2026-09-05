@@ -80,8 +80,8 @@ class CiPendingGateTests(FileBackendTest):
         result = self.invoke("post_review", 26, "approval-required", self.evidence_file())
         self.assertEqual(result.json["gateState"], "CI Pending")
         self.assertIn("PDLC-REVIEW", self.comments_text(26))
-        self.assertIn("Stage: Implementation", self.comments_text(26))
-        self.assertIn("Verdict: Pass", self.comments_text(26))
+        self.assertIn("stage: Implementation", self.comments_text(26))
+        self.assertIn("verdict: Pass", self.comments_text(26))
         self.assertEqual(self.next("--work-item", 26).front_matter("action"), "none")
         self.assertIn("CI is still running", self.next("--work-item", 26).stdout)
         self.assertIn("CI Pending", self.invoke("inspect_review", 26).stdout)
@@ -149,13 +149,6 @@ class ChurnGateTests(FileBackendTest):
         for _ in range(4):
             self.add_rework_review(66)
         self.assertEqual(self.invoke("post_ci", 66).json["gateState"], "Approval Required")
-
-    def test_churn_cap_zero_disables_autoapproval(self):
-        self.seed_record(68, "Implementation", "CI Pending")
-        self.green_pr(68)
-        self.add_rework_review(68)
-        self.set_env(PDLC_AUTOAPPROVE_CHURN_CAP="0")
-        self.assertEqual(self.invoke("post_ci", 68).json["gateState"], "Approval Required")
 
     def test_driver_invalidation_does_not_count_as_a_rework_loop(self):
         self.seed_record(73, "Implementation", "CI Pending")

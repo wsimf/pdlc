@@ -73,10 +73,10 @@ class VerificationTests(FileBackendTest):
         self.assertEqual(self.state(69), ("Implementation", "Stale"))
         self.assertNotIn("PDLC-INVALIDATED", self.comments_text(69))
         self.assertIn("PDLC-REVIEW", self.comments_text(69))
-        self.assertIn("Stage: Verification", self.comments_text(69))
-        self.assertIn("Verdict: Changes Required", self.comments_text(69))
-        self.assertIn("Bounce: Implementation", self.comments_text(69))
-        self.assertIn("Loop: delivery-rework", self.comments_text(69))
+        self.assertIn("stage: Verification", self.comments_text(69))
+        self.assertIn("verdict: Changes Required", self.comments_text(69))
+        self.assertIn("bounce: Implementation", self.comments_text(69))
+        self.assertIn("loop: delivery-rework", self.comments_text(69))
         self.assertEqual(self.next("--work-item", 69).front_matter("action"), "pdlc-implement")
 
     def test_bounce_rejected_unless_changes_required(self):

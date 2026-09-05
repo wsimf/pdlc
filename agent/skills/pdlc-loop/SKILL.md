@@ -24,9 +24,9 @@ pdlc next loop
 pdlc next loop WORK_ITEM   # one record
 ```
 
-Returns a Markdown document: YAML front matter — `id`, `work_item_number`, `title`, `current_status`, `next_status`, `action` — then a one-line instruction. `action` is a `pdlc-*` skill name, or `human-approval` / `blocked` / `none`. An exhausted no-work scan carries `action: none` with an `attempts` count instead.
+Returns a Markdown document: YAML front matter — `id`, `work_item_number`, `title`, `current_status`, `action` — then a one-line instruction. `action` is a `pdlc-*` skill name, or `human-input` / `human-approval` / `human-decision` / `blocked` / `none`. An exhausted no-work scan carries `action: none` with an `attempts` count instead.
 
-The scan skips anything not autonomous (`Product` never surfaces — that needs the driver), and auto-advances past any `Skipped States` stage before deciding.
+The scan dispatches the first autonomous action, or surfaces the first human stop when none is available, and auto-advances past any `Skipped States` stage before deciding.
 
 While `loop` waits for work it prints `No work ready, retrying in Ns (attempt X of N)` to stderr between attempts, and a give-up line once the attempts are exhausted.
 
@@ -38,6 +38,7 @@ A controller failure — API error, malformed work item state, ambiguous identit
 |---|---|
 | a `pdlc-*` skill name | Invoke that skill for `work_item_number`. Continue to Step 3. |
 | `pdlc-post-ci` | An `Implementation / CI Pending` record whose checks have settled. Run `pdlc post ci <work_item_number>` — it sets `Approval Required` (green) or `Changes Required` (red, with a `PDLC-IMPLEMENTATION` note). Report the outcome, then Step 3. Do not invoke a skill for this action. |
+| `human-input` | Product authoring or re-authoring needs an interactive driver. **Stop**, tell the driver which record needs `pdlc-write`. |
 | `human-approval` | Record is at `Approval Required`. **Stop**, tell the driver which record and stage (`current_status`) awaits them. |
 | `human-decision` | Record is at `Decision Required` — a reviewer or the Verification audit raised a blocking finding only the driver can resolve. **Stop**, point the driver at the `PDLC-DECISION` comment; they resolve it via the `pdlc` skill's decision-resolver workflow. No reconciliation is attempted. |
 | `blocked` | Work item state, work type, or pipeline is malformed, unsupported, or unavailable. **Stop**, report `current_status` and the controller's reason exactly. |
@@ -77,5 +78,5 @@ Defaults: five attempts, 60s initial delay, 15-minute cap. Override with `PDLC_M
 - [ ] Asked the controller rather than deciding the next action yourself
 - [ ] `action` was a `pdlc-*` skill name (or `pdlc-post-ci`) before dispatching; otherwise stopped
 - [ ] Invoked the named skill with the work item number and let it inspect the record itself, or ran `pdlc post ci` for a `pdlc-post-ci` action
-- [ ] Stopped on `human-approval`, `human-decision`, `blocked`, `none`, or any controller error
+- [ ] Stopped on `human-input`, `human-approval`, `human-decision`, `blocked`, `none`, or any controller error
 - [ ] Ran exactly one instruction and reported the record's resulting state

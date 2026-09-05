@@ -45,7 +45,8 @@ class InspectVerifyTests(FileBackendTest):
         # A prior verification pass — its claims-audit anchor is HEAD, so the
         # reuse pass finds nothing touched it since and keeps it valid.
         prior = (
-            "PDLC-VERIFICATION\n\n## Verification Run Results\n\n"
+            "PDLC-REVIEW\n\n---\nstage: Verification\nverdict: Changes Required\nbounce: null\nloop: null\n---\n\n"
+            "## Verification Run Results\n\n"
             "### Claims Audit\n\n"
             f"- FR-1 holds (Verified @ {sha})\n\n"
             "### User Journeys\n\n- None yet\n\n"

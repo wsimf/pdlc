@@ -61,10 +61,12 @@ within tolerance`, the posted comment body is:
 
     PDLC-REVIEW
 
-    Stage: Verification
-    Verdict: Pass
-    Bounce: None
-    Loop: None
+    ---
+    stage: Verification
+    verdict: Pass
+    bounce: null
+    loop: null
+    ---
 
     ## Verification Run Results
     Run at 2026-08-24 09:14 UTC

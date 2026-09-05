@@ -15,7 +15,7 @@ ENVIRONMENT_KEYS = (
     "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_HOME",
     "PDLC_ACTOR", "PDLC_REF_LABEL", "PDLC_ITEMS_FILE", "PDLC_SUBISSUES_FILE",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
-    "PDLC_NO_SLEEP", "PDLC_AUTOAPPROVE_CHURN_CAP",
+    "PDLC_NO_SLEEP",
 )
 
 TOML_ENVIRONMENT_KEYS = {
@@ -34,7 +34,6 @@ TOML_ENVIRONMENT_KEYS = {
     ("workflow", "initial_delay_seconds"): "PDLC_INITIAL_DELAY_SECONDS",
     ("workflow", "max_delay_seconds"): "PDLC_MAX_DELAY_SECONDS",
     ("workflow", "no_sleep"): "PDLC_NO_SLEEP",
-    ("workflow", "autoapprove_churn_cap"): "PDLC_AUTOAPPROVE_CHURN_CAP",
 }
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
@@ -76,7 +75,6 @@ class Config:
     initial_delay_seconds: str | None = None
     max_delay_seconds: str | None = None
     no_sleep: str | None = None
-    autoapprove_churn_cap: str | None = None
 
     @classmethod
     def from_environment(cls) -> "Config":
