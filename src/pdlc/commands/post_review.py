@@ -13,7 +13,7 @@ posts the evidence through the backend's blocker channel under a PDLC-DECISION
 marker. The evidence body must carry a `## Decision Required` section.
 
 A clean `approval-required` review of the Implementation stage lands `CI Pending`,
-not `Approval Required`: the reviewer judged the code while the shared PR's CI
+not `Approval Required`: the reviewer judged the code while the registered PR stack's CI
 was still in flight. This script then reconciles it immediately against the live
 check state (advancing to `Approval Required` if CI is already green, dropping to
 `Changes Required` with a PDLC-IMPLEMENTATION note if already red) and otherwise

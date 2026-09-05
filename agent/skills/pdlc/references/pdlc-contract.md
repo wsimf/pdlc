@@ -139,15 +139,11 @@ record which downstream evidence is invalidated.
 
 ## Artifact structure
 
-The parent work item body uses stable, named sections for Product, UI, Decisions,
-Open Questions, and Verification, optionally preceded by a machine-owned
-`<!-- pdlc:meta -->` block holding the record's registered pull-request numbers
-(linear flow only; the stacked flow registers PRs on the tasks). A stage owner
-may prepare a replacement only for its owned section and must preserve approved
-upstream sections. Controller scripts re-read the live record before publishing
-it. Completion is not a stage owner of any section: `pdlc post complete` records
-what shipped in its evidence comment and makes exactly one section edit —
-blanking the settled Open Questions section to a pointer.
+The parent work item body uses stable, named sections for Product, UI, Decisions, Open Questions, and Verification, optionally preceded by a machine-owned `<!-- pdlc:meta -->` block holding the record's registered pull-request numbers.
+The stacked flow also registers each task PR on its delivery task.
+A stage owner may prepare a replacement only for its owned section and must preserve approved upstream sections.
+Controller scripts re-read the live record before publishing it.
+Completion is not a stage owner of any section: `pdlc post complete` records what shipped in its evidence comment and makes exactly one section edit — blanking the settled Open Questions section to a pointer.
 
 ## Evidence markers
 

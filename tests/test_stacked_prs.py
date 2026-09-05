@@ -1,9 +1,8 @@
-"""Phase-1 stacked task pull requests: the stack entry point PDLC resolves from
-its own registry, the GitHub host's delegation to `gh stack`, and the
-`pdlc post implement-task` opt-in."""
+"""Stacked task pull requests: the stack entry point PDLC resolves from its own
+registry, the GitHub host's delegation to `gh stack`, and task checkpointing."""
 
-import json
 import unittest
+from unittest.mock import Mock, patch
 
 from _gh_replay import GitHubHostTest
 from _support import FileBackendTest
@@ -136,25 +135,36 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertFalse(any(args[0] == "stack" for args, _ in self.gh.calls))
 
 
-class ImplementTaskOptInTests(FileBackendTest):
-    """`pdlc post implement-task` only reaches for a stack when opted in."""
+class ImplementTaskStackTests(FileBackendTest):
+    """`pdlc post implement-task` always submits and registers the task PR."""
 
     def _seed(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")
         self.seed_task(70, 701, "TASK-001", "OPEN", "WORK-70-TASK-001 [CORE] Core")
 
-    def test_linear_flow_records_no_task_pr(self):
+    def test_submits_and_registers_the_task_pr(self):
         self._seed()
-        result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+        host = Mock()
+        host.submit_task_stack.return_value = [{
+            "number": 148,
+            "branch": "pdlc/record-70/task-001",
+            "title": "Core",
+            "url": "u148",
+        }]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertNotIn("taskPr", json.loads(result.stdout))
+        self.assertEqual(result.json["taskPr"]["number"], 148)
+        self.assertEqual(result.json["prs"], [148])
+        host.submit_task_stack.assert_called_once_with()
 
-    def test_opt_in_on_the_file_backend_reports_no_stack_support(self):
+    def test_file_backend_reports_no_stack_support_without_mutating_the_task(self):
         self._seed()
-        self.set_env(PDLC_STACKED_PRS="1")
         result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
         self.assertEqual(result.code, 1)
         self.assertIn("cannot submit stacked pull requests", result.stderr)
+        self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
+        self.assertEqual(self.task_comments_text(70, 701), "")
 
 
 if __name__ == "__main__":

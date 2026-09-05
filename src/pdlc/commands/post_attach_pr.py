@@ -8,7 +8,7 @@ metadata block — the list later stages read to know a task's pull requests
 explicitly, never inferring them from a `Closes #N` keyword or a branch name.
 Idempotent.
 
-On the stacked-PR path `pdlc post implement-task` registers the task's PR for
+`pdlc post implement-task` registers the task's PR for
 you; reach for this only to attach a PR it did not create or to repair a missing
 link. DELIVERY_TASK must be a work item with WORK-NNN-TASK-NNN identity.
 

@@ -1,7 +1,7 @@
 """The `Implementation / CI Pending` gate.
 
 A clean implementation review lands `CI Pending` rather than `Approval Required`:
-the reviewer judged the code while the shared PR's CI was still in flight, and
+the reviewer judged the code while the registered PR stack's CI was still in flight, and
 the only thing left is the check outcome. This module reads that outcome from
 the code host and reconciles the gate — green (or no checks tracked) advances to
 `Approval Required`, red posts a `PDLC-IMPLEMENTATION` note and drops to

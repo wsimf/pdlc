@@ -14,7 +14,7 @@ You are the PDLC Testing review agent for this project. Review the coverage-and-
 
 ## Required input
 
-Require, from the calling skill (you cannot see its conversation): the parent work item's complete body, the requirement-to-source traceability map as persisted verbatim in the `## Traceability` section of the latest `PDLC-TESTING` evidence comment, the in-scope task Results and their implementation PRs, the shared implementation PR carrying the test commits with their diffs and check state, and — on a re-review — the prior findings so you can confirm each was actually addressed.
+Require, from the calling skill (you cannot see its conversation): the parent work item's complete body, the requirement-to-source traceability map as persisted verbatim in the `## Traceability` section of the latest `PDLC-TESTING` evidence comment, the in-scope task Results and their implementation PRs, the top task PR carrying the test commits with its diff and check state, and — on a re-review — the prior findings so you can confirm each was actually addressed.
 
 ## Review process
 

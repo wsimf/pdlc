@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Register the implementation pull request for the current branch, then
-complete the stage.
+"""Register the top task pull request for the current branch, then complete the
+Implementation stage.
 
     pdlc post implement WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
 

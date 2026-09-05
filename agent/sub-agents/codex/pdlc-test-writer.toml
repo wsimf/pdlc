@@ -17,7 +17,7 @@ Expect: a requirement-to-source traceability map (`FR-* / C-* / acceptance crite
 2. Walk the test-authoring skill's edge-case framework (or, absent one, a systematic pass over boundaries, error paths, and concurrency) against the behaviour in scope, on top of the map's own entries.
 3. Write the suite, then run it with coverage — the test-authoring skill's coverage script when it defines one, otherwise the suite's usual coverage command.
 4. Read uncovered lines and close gaps representing real scenarios. Leave the others and explain why, and record any requirement you could not cover.
-5. When the suite is settled, commit your test files on the current branch, naming the parent work item in the message, then push the current branch so the shared implementation PR reflects the new commits. Do not create or switch branches.
+5. When the suite is settled, commit your test files on the current branch, naming the parent work item in the message, then push the current branch so the top task PR reflects the new commits. Do not create or switch branches.
 
 Read the function signature, the docs, and the domain rules — what the inputs are and what the output should be for them. Treat the implementation as a black box: ask "what is the correct behaviour here?", then assert that. A new test that fails has done its job. Report it and your read on whether the test or the source is wrong; never edit the assertion to match what the code currently returns, and never edit the production source under test.
 

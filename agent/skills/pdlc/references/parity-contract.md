@@ -78,9 +78,7 @@ anything is written, not asserted by the agent that wrote the breakdown.
   confirmed green in aggregate once every delivery task is closed, before the
   Implementation stage publishes.
 - The parent remains `Implementation / Pending` until every task is complete.
-- Stacked PRs are opt-in via `PDLC_STACKED_PRS` while the flow rolls out; with
-  it unset, every task's commit lands on one shared implementation PR on the
-  current branch and `pdlc-implement` may run the whole scope in one pass.
+- Stacked PRs are mandatory: every invocation implements one task and registers its task branch's pull request before closing the task.
 
 ## Reviews, approval, and reconciliation
 

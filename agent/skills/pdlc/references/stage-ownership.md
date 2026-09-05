@@ -11,7 +11,7 @@
 | Verification | `pdlc-verify` | Claims, runtime behaviour, UX journeys, review findings, completion recommendation. Sets the gate from its `--recommendation`: `Approval Required`, `Changes Required`, or `Decision Required` (a finding routed to the driver, cleared by `pdlc post decision`). |
 | `Implementation`, `Testing`, or `Verification` at `Decision Required` | `pdlc post decision` (driver) | Land a manifest of per-decision outcomes — answered or deferred to its own work item — and return to `Changes Required`. |
 | any stage at `Review Required` | `pdlc-review` | Independent read-only findings; records `Changes Required`, `Decision Required`, or `Approval Required`. A clean Implementation review lands `CI Pending`. |
-| `Implementation` at `CI Pending` | `pdlc post ci` (loop or driver) | Reconcile the shared PR's CI: green → `Approval Required`, red → `Changes Required`. Mechanical, no reviewer. |
+| `Implementation` at `CI Pending` | `pdlc post ci` (loop or driver) | Reconcile the registered PR stack's CI: green → `Approval Required`, red → `Changes Required`. Mechanical, no reviewer. |
 
 A stage owner prepares only its own section; the commands re-read the record and update it without overwriting approved upstream work. `UI not required` is still an artifact — it goes through review and human approval like any other.
 

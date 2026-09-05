@@ -4,6 +4,7 @@ Verification recorded, and the record locked at completion. Also covers the
 re-author-in-place behaviour of each pre-publication stage."""
 
 import json
+from unittest.mock import Mock, patch
 
 from _support import FileBackendTest
 from pdlc.hosts.workitem_host.file import FileWorkItemBackend
@@ -96,9 +97,17 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- Implementation ---
         impl = self.write_file("impl.md", "## Implementation\n\nShipped. FR-1 covered.\n")
-        impl_out = self.invoke("post_implement_task", task_number, impl, "--close")
+        stack_host = Mock()
+        stack_host.submit_task_stack.return_value = [{
+            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "state": "OPEN", "isDraft": True, "branch": "pdlc/shell/task-001",
+            "mergedAt": None, "checks": "PENDING",
+        }]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=stack_host):
+            impl_out = self.invoke("post_implement_task", task_number, impl, "--close")
         self.assertEqual(impl_out.code, 0, impl_out.stderr)
         self.assertTrue(impl_out.json["closed"])
+        self.assertEqual(impl_out.json["taskPr"]["number"], 147)
         self.assertEqual(self.task_meta(issue, task_number)["state"], "CLOSED")
 
         self.seed_prs(issue, [{

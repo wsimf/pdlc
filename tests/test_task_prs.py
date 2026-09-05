@@ -1,6 +1,6 @@
 """Explicit task pull-request registration: the machine-owned metadata block on
 a delivery task's body, the `pdlc post attach-pr` command, and the automatic
-registration `pdlc post implement-task` performs on the stacked-PR path."""
+registration `pdlc post implement-task` performs for every task."""
 
 import unittest
 
