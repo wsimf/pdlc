@@ -22,6 +22,8 @@ test-framework    = "swift-testing-expert"
 Every slot is optional. Both tables may be omitted entirely; the workflow
 still runs.
 
+Capability selection does not select workflow policy. The resolved record's `workType` selects its pipeline; `[agents]` and `[skills]` only select who performs an action already returned by that pipeline.
+
 ## Slots
 
 | Slot | Kind | Used by | Unset behaviour |

@@ -10,8 +10,11 @@ called — a backend receives and returns plain strings and dicts only.
 
 Dict shapes
 -----------
+queue item: {id, content: {number, title, url}, "Status", "Gate State",
+             "Lifecycle", "Skipped States", "workType"}
 work item:  {id, content: {number, title, url}, issueBody,
              "Status", "Gate State", "Lifecycle", "Skipped States", "Slug",
+             "workType",
              comments?}                # comments included only when free to
 comment:    {body, createdAt, url, author: {login}}
 task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
@@ -21,11 +24,31 @@ task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TypedDict
+
+from pdlc.domain.workflow import WorkType
+
+
+class QueueItemContent(TypedDict):
+    number: int
+    title: str
+    url: str
+
+
+QueueItemSummary = TypedDict("QueueItemSummary", {
+    "id": str,
+    "content": QueueItemContent,
+    "Status": str,
+    "Gate State": str,
+    "Lifecycle": str,
+    "Skipped States": str,
+    "workType": str,
+})
 
 
 class WorkItemBackend(ABC):
     # Capabilities a stage can check instead of assuming. "subissue_graph" —
-    # real parent/child task links; "queue_scan" — all_items() is meaningful.
+    # real parent/child task links; "queue_scan" — queue_items() is meaningful.
     capabilities: set[str] = set()
 
     # --- resolution ---
@@ -36,8 +59,8 @@ class WorkItemBackend(ABC):
         unknown or ambiguous ref — never guesses."""
 
     @abstractmethod
-    def all_items(self) -> dict:
-        """{"items": [work item, ...]} for the queue scan. May raise
+    def queue_items(self) -> list[QueueItemSummary]:
+        """Minimal, normalized records for routing a queue scan. May raise
         NotImplementedError on a backend without a queue."""
 
     # --- state fields ---
@@ -107,8 +130,15 @@ class WorkItemBackend(ABC):
     # --- creation ---
 
     @abstractmethod
-    def create(self, title: str, body: str, slug: str) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
         """Create a new work item and register it. Returns {id, number, url}."""
+
+    @staticmethod
+    def _validated_work_type(work_type: WorkType) -> WorkType:
+        """Reject unparsed values before a backend performs creation I/O."""
+        if not isinstance(work_type, WorkType):
+            raise TypeError("work_type must be a WorkType")
+        return work_type
 
     # --- identity / linking ---
 

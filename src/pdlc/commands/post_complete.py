@@ -24,10 +24,10 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.domain.completion import completion_blockers  # type: ignore
 from pdlc.domain.evidence import parse_verification_report  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, require_file, wants_help  # type: ignore
+from pdlc.domain.workflow import Event
 from pdlc.internal.vcs import stale_commits  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
-    find_marked_comments,
     item_for_issue,
     item_gate,
     item_skipped_states,
@@ -38,6 +38,8 @@ from pdlc.internal.workitem import (  # type: ignore
     set_state,
     task_tree,
     update_section,
+    verification_evidence_comments,
+    workflow_for_item,
 )
 
 OPEN_QUESTIONS_SETTLED = "_Resolved at completion — see the completion comment._"
@@ -70,13 +72,15 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     evidence_body = _read_evidence(evidence)
 
     record = item_for_issue(issue)
+    pipeline, state = workflow_for_item(record)
     body = record.get("issueBody") or ""
     comments = comments_for_issue(issue)
 
-    verification_comments = find_marked_comments(issue, "VERIFICATION", comments=comments)
+    verification_comments = verification_evidence_comments(issue, comments=comments)
     verification_body = verification_comments[-1]["body"] if verification_comments else None
 
     blockers = completion_blockers(
+        pipeline=pipeline,
         status=item_status(record),
         gate=item_gate(record),
         tasks=task_tree(issue),
@@ -93,10 +97,14 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
             "record is not ready to complete:\n"
             + "\n".join(f"  - [{blocker.code}] {blocker.message}" for blocker in blockers)
         )
+    try:
+        target = pipeline.next_state(state, Event.COMPLETED)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
 
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     post_comment(issue, evidence_body, "COMPLETE")
-    set_state(record["id"], "Complete", "Approved", "Completed")
+    set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
     update_section(issue, "Open Questions", OPEN_QUESTIONS_SETTLED)
 
     return {"completed": True, "itemId": record["id"], "work_item": int(issue), "attachments": attachments}

@@ -42,9 +42,11 @@ from pdlc.internal.workitem import (  # type: ignore
     is_stage_skipped,
     item_gate,
     item_status,
+    pipeline_for_item,
     post_comment,
     resolve_item,
     set_state,
+    state_for_item,
     task_tree,
 )
 from pdlc.domain.lifecycle import (  # type: ignore
@@ -56,6 +58,7 @@ from pdlc.domain.lifecycle import (  # type: ignore
     unmarked_evidence_source,
     wants_help,
 )
+from pdlc.domain.workflow import Event
 
 
 def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
@@ -135,6 +138,7 @@ def main() -> int:
                 scratch.append(evidence_path)
 
         record = resolve_item(args.work_item)
+        pipeline = pipeline_for_item(record)
         item = record["id"]
         stage = item_status(record)
         gate = item_gate(record)
@@ -146,7 +150,7 @@ def main() -> int:
         elif gate == "Approval Required" and not args.dry_run:
             # The driver asked for a change before approving: reset Technical
             # Plan to Stale ourselves and re-land the reviewed plans in this call.
-            reauthor_invalidate_stage(record, "Technical Plan")
+            reauthor_invalidate_stage(record, "Technical Plan", pipeline)
         elif gate == "Approval Required":
             raise PdlcError(f"Technical Plan is at {gate}; return it to Stale with pdlc post invalidate before re-planning it")
         elif gate in ("Review Required", "Changes Required"):
@@ -155,6 +159,11 @@ def main() -> int:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, "Technical Plan"):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
+        state = state_for_item(record, pipeline)
+        try:
+            target = pipeline.next_state(state, Event.PUBLISHED)
+        except ValueError as error:
+            raise PdlcError(str(error)) from None
 
         tree = task_tree(args.work_item)
         if not tree:
@@ -213,14 +222,14 @@ def main() -> int:
         scratch.append(summary_path)
 
         post_comment(args.work_item, str(summary_path), "PLAN")
-        set_state(item, "Technical Plan", "Approval Required", "Planning")
+        set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
         print(json.dumps({
             "published": True,
             "stage": "Technical Plan",
             "itemId": item,
             "work_item": int(args.work_item),
-            "gateState": "Approval Required",
+            "gateState": target.gate.value,
             "planned": [result["taskId"] for result in results],
             "alreadyPlanned": plan["alreadyPlanned"],
             "tasks": results,

@@ -23,19 +23,17 @@ from pathlib import Path
 
 from pdlc.internal.ci_gate import resolve_ci_gate  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.workitem import item_for_issue, item_gate, item_status  # type: ignore
+from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item  # type: ignore
 
 
 def post_ci(issue: str) -> dict:
     record = item_for_issue(issue)
-
+    pipeline, state = workflow_for_item(record)
     if item_gate(record) != "CI Pending":
         raise PdlcError(f"pdlc post ci requires Gate State = CI Pending, not {item_gate(record) or 'unset'}")
-    if item_status(record) != "Implementation":
-        raise PdlcError(f"a CI Pending gate is only reachable at Implementation, not {item_status(record)}")
 
-    result = resolve_ci_gate(issue, record)
-    return {"workItem": int(issue), "itemId": record["id"], "stage": "Implementation", **result}
+    result = resolve_ci_gate(issue, record, pipeline, state)
+    return {"workItem": int(issue), "itemId": record["id"], "stage": state.stage, **result}
 
 
 def main() -> int:

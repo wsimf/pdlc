@@ -10,6 +10,7 @@ from __future__ import annotations
 import unittest
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import WorkType
 from pdlc.hosts import github_issues, github_project
 from pdlc.hosts.code_host.github import GitHubCodeHost
 from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
@@ -28,6 +29,7 @@ class ProjectItemResolutionTest(GitHubHostTest):
                         "title": "WORK-3 Ship the thing",
                         "url": "https://github.com/wsimf/pdlc/issues/3",
                         "body": "## Product\n",
+                        "issueType": {"name": "Bug"},
                         "projectItems": {
                             "nodes": [
                                 {
@@ -63,6 +65,7 @@ class ProjectItemResolutionTest(GitHubHostTest):
         self.assertEqual(item["Slug"], "ship-the-thing")
         self.assertEqual(item["Skipped States"], "Testing")
         self.assertEqual(item["content"]["number"], 3)
+        self.assertEqual(item["workType"], "bug")
 
     def test_item_for_issue_rejects_ambiguous_project_membership(self) -> None:
         self.gh.graphql(
@@ -89,30 +92,77 @@ class ProjectItemResolutionTest(GitHubHostTest):
             github_project.item_for_issue("abc")
 
 
-class ProjectItemListTest(GitHubHostTest):
-    def test_project_items_normalizes_field_names(self) -> None:
-        self.gh.gh(
-            "project", "item-list",
-            response={
-                "items": [
-                    {
-                        "id": "PVTI_1",
-                        "content": {"number": 3, "type": "Issue"},
-                        "status": "Implementation",
-                        "gateState": "Pending",
-                        "slug": "ship-it",
-                    }
-                ],
-                "totalCount": 1,
-            },
+class ProjectQueueItemsTest(GitHubHostTest):
+    def test_queue_items_matches_repository_case_insensitively_and_ignores_other_content(self) -> None:
+        self.gh.gh("project", "view", response={"id": "PVT_project"})
+        self.gh.graphql(
+            "items(first: 100, after: $after)",
+            graphql_data({
+                "node": {"items": {
+                    "nodes": [
+                        {
+                            "id": "PVTI_1",
+                            "content": {
+                                "__typename": "Issue", "number": 3, "title": "Ship it", "url": "u",
+                                "repository": {"nameWithOwner": "WSIMF/PDLC"},
+                                "issueType": {"name": "Feature"},
+                            },
+                            "status": {"name": "Implementation"},
+                            "gate": {"name": "Pending"},
+                            "lifecycle": {"name": "Planning"},
+                            "skippedStates": {"text": "Testing"},
+                        },
+                        {
+                            "id": "PVTI_other_repo",
+                            "content": {
+                                "__typename": "Issue", "number": 4, "title": "Other", "url": "u2",
+                                "repository": {"nameWithOwner": "wsimf/other"},
+                            },
+                        },
+                        {"id": "PVTI_draft", "content": {"__typename": "DraftIssue"}},
+                    ],
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                }},
+            }),
         )
 
-        result = github_project.project_items()
+        result = github_project.queue_items()
 
-        item = result["items"][0]
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertEqual(item["content"], {"number": 3, "title": "Ship it", "url": "u"})
         self.assertEqual(item["Status"], "Implementation")
         self.assertEqual(item["Gate State"], "Pending")
-        self.assertEqual(item["Slug"], "ship-it")
+        self.assertEqual(item["Lifecycle"], "Planning")
+        self.assertEqual(item["Skipped States"], "Testing")
+        self.assertEqual(item["workType"], "feature")
+
+    def test_queue_items_paginates(self) -> None:
+        self.gh.gh("project", "view", response={"id": "PVT_project"})
+
+        def page(number: int, has_next: bool, cursor: str | None) -> dict:
+            return graphql_data({"node": {"items": {
+                "nodes": [{
+                    "id": f"PVTI_{number}",
+                    "content": {
+                        "__typename": "Issue", "number": number, "title": "t", "url": "u",
+                        "repository": {"nameWithOwner": "wsimf/pdlc"}, "issueType": None,
+                    },
+                    "status": {"name": "Product"}, "gate": {"name": "Pending"},
+                    "lifecycle": None, "skippedStates": None,
+                }],
+                "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+            }}})
+
+        pages = iter([page(3, True, "cursor-1"), page(4, False, None)])
+        self.gh.graphql("items(first: 100, after: $after)", response=lambda _args, _input: next(pages))
+
+        result = github_project.queue_items()
+
+        self.assertEqual([item["content"]["number"] for item in result], [3, 4])
+        graphql_calls = [call for call, _ in self.gh.calls if call[:2] == ["api", "graphql"]]
+        self.assertEqual(len(graphql_calls), 2)
+        self.assertTrue(any("after=cursor-1" in argument for argument in graphql_calls[1]))
 
 
 class ProjectStateTransitionTest(GitHubHostTest):
@@ -256,7 +306,7 @@ class SubIssueReadTest(GitHubHostTest):
     def test_post_comment_writes_marker_stamp(self) -> None:
         self.gh.gh("issue", "comment", response="https://github.com/wsimf/pdlc/issues/3#issuecomment-1")
 
-        github_issues.post_comment("3", "verification passed", "VERIFICATION")
+        github_issues.post_comment("3", "verification passed", "REVIEW")
 
         args, _ = next(
             (call for call in self.gh.calls if call[0][:2] == ["issue", "comment"])
@@ -355,11 +405,25 @@ class WorkItemBackendTest(GitHubHostTest):
         record = self.backend.create("WORK-42 Title", "## Product\n", "title")
 
         self.assertEqual(record, {"id": "PVTI_new", "number": 42, "url": "https://github.com/wsimf/pdlc/issues/42"})
+        create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
+        self.assertNotIn("--type", create_call)
 
     def test_create_rejects_unparseable_issue_url(self) -> None:
         self.gh.gh("issue", "create", response="Creating issue\nnot-a-url\n")
         with self.assertRaises(PdlcError):
             self.backend.create("t", "b", "s")
+
+    def test_create_rejects_an_unparsed_work_type_before_host_io(self) -> None:
+        calls_before = len(self.gh.calls)
+        with self.assertRaisesRegex(TypeError, "work_type must be a WorkType"):
+            self.backend.create("t", "b", "s", "feature")  # type: ignore[arg-type]
+        self.assertEqual(len(self.gh.calls), calls_before)
+
+    def test_create_rejects_an_unavailable_work_type_before_host_io(self) -> None:
+        calls_before = len(self.gh.calls)
+        with self.assertRaisesRegex(PdlcError, "GitHub creation is unavailable for work type: bug"):
+            self.backend.create("t", "b", "s", WorkType.BUG)
+        self.assertEqual(len(self.gh.calls), calls_before)
 
     def test_close_task_closes_the_sub_issue(self) -> None:
         self.gh.gh("issue", "close", response="")

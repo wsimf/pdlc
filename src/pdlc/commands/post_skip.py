@@ -23,25 +23,27 @@ from pathlib import Path
 
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, SKIPPABLE_STAGES, print_help, wants_help  # type: ignore
+from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     current_actor,
     item_skipped_states,
     post_comment,
     resolve_item,
     set_skipped_states,
+    workflow_for_item,
 )
 
 
 def skip(issue: str, states_arg: str, justification: str | None, attachment_inputs: list[dict]) -> dict:
+    record = resolve_item(issue)
+    pipeline, _ = workflow_for_item(record)
     requested_states = [state.strip() for state in states_arg.split(",")]
     for state in requested_states:
-        if state not in SKIPPABLE_STAGES:
-            raise PdlcError(f"invalid state: {state} (expected one of: {' '.join(SKIPPABLE_STAGES)})")
+        if state not in pipeline.skippable_stage_names:
+            raise PdlcError(f"invalid state: {state} (expected one of: {' '.join(pipeline.skippable_stage_names)})")
 
     login = current_actor()
 
-    record = resolve_item(issue)
     item_id = record["id"]
 
     existing_states = [state for state in item_skipped_states(record).split(",") if state]

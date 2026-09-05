@@ -79,6 +79,9 @@ class CiPendingGateTests(FileBackendTest):
         self.green_pr(26, number=148, checks="PENDING")
         result = self.invoke("post_review", 26, "approval-required", self.evidence_file())
         self.assertEqual(result.json["gateState"], "CI Pending")
+        self.assertIn("PDLC-REVIEW", self.comments_text(26))
+        self.assertIn("stage: Implementation", self.comments_text(26))
+        self.assertIn("verdict: Pass", self.comments_text(26))
         self.assertEqual(self.next("--work-item", 26).front_matter("action"), "none")
         self.assertIn("CI is still running", self.next("--work-item", 26).stdout)
         self.assertIn("CI Pending", self.invoke("inspect_review", 26).stdout)
@@ -123,7 +126,7 @@ class ChurnGateTests(FileBackendTest):
     def test_one_loopback_green_ci_skips_the_human_step(self):
         self.seed_record(64, "Implementation", "CI Pending")
         self.green_pr(64)
-        self.add_invalidation(64)
+        self.add_rework_review(64)
         result = self.invoke("post_ci", 64)
         self.assertEqual(result.json["gateState"], "Testing / Pending")
         self.assertTrue(result.json["autoApproved"])
@@ -133,8 +136,8 @@ class ChurnGateTests(FileBackendTest):
 
     def test_clean_testing_review_autoapproves_across_stage_bounces(self):
         self.seed_record(65, "Testing", "Review Required")
-        self.add_invalidation(65)
-        self.add_invalidation(65, "Testing")
+        self.add_rework_review(65)
+        self.add_rework_review(65, "Testing")
         result = self.invoke("post_review", 65, "approval-required", self.evidence_file())
         self.assertEqual(result.json["gateState"], "Verification / Pending")
         self.assertTrue(result.json["autoApproved"])
@@ -144,12 +147,11 @@ class ChurnGateTests(FileBackendTest):
         self.seed_record(66, "Implementation", "CI Pending")
         self.green_pr(66)
         for _ in range(4):
-            self.add_invalidation(66)
+            self.add_rework_review(66)
         self.assertEqual(self.invoke("post_ci", 66).json["gateState"], "Approval Required")
 
-    def test_churn_cap_zero_disables_autoapproval(self):
-        self.seed_record(68, "Implementation", "CI Pending")
-        self.green_pr(68)
-        self.add_invalidation(68)
-        self.set_env(PDLC_AUTOAPPROVE_CHURN_CAP="0")
-        self.assertEqual(self.invoke("post_ci", 68).json["gateState"], "Approval Required")
+    def test_driver_invalidation_does_not_count_as_a_rework_loop(self):
+        self.seed_record(73, "Implementation", "CI Pending")
+        self.green_pr(73)
+        self.add_invalidation(73)
+        self.assertEqual(self.invoke("post_ci", 73).json["gateState"], "Approval Required")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Posts a durable "Verification Run Results" comment on a PDLC parent work item,
-stamped with the current UTC time and the VERIFICATION marker, files any
+stamped with the current UTC time and a structured REVIEW marker, files any
 deferred findings into the parent's Open Questions section, and moves the
 Verification gate to match the run's recommendation. Every run adds a new
 comment rather than editing a prior one, so the work item's comment history is
@@ -37,8 +37,7 @@ Omit either file, or leave it empty, when there's nothing to report for it.
   - Changes Required  — a finding the skill can reconcile itself; the loop
                         routes straight back to pdlc-verify. With --bounce STAGE
                         the run instead returns that upstream stage to Stale
-                        (same effect as pdlc post invalidate, stamping the
-                        `Invalidated stage:` line the churn counter reads), so
+                        (recorded by the review's Bounce and Loop fields), so
                         the Implementation -> Testing -> Verification loop keeps
                         moving with no driver step. The verifier chooses the
                         target stage.
@@ -59,6 +58,15 @@ sections, `--fixed` with one line
 `Route line snapped to wrong profile on regen | b2c3d4e`, and `--deferred`
 with one line `Elevation gain rounding drifts by 2m, accepted because it's
 within tolerance`, the posted comment body is:
+
+    PDLC-REVIEW
+
+    ---
+    stage: Verification
+    verdict: Pass
+    bounce: null
+    loop: null
+    ---
 
     ## Verification Run Results
     Run at 2026-08-24 09:14 UTC
@@ -102,20 +110,24 @@ from pathlib import Path
 from pdlc.internal.workitem import (  # type: ignore
     append_to_section,
     item_for_issue,
-    item_gate,
-    item_status,
     post_blocker,
     post_comment,
     set_gate,
+    workflow_for_item,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.internal.invalidation import invalidate_stage  # type: ignore
-from pdlc.domain.evidence import parse_verification_report  # type: ignore
+from pdlc.internal.invalidation import bounce_stage  # type: ignore
+from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
+from pdlc.domain.workflow import Event, Outcome
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
-READY_GATES = ("Pending", "Changes Required", "Stale")
 DECISION_HEADING = "## Decision Required"
+VERIFICATION_OUTCOMES = {
+    "Approval Required": Outcome.CLEAN,
+    "Changes Required": Outcome.FINDINGS,
+    "Decision Required": Outcome.DECISION,
+}
 
 
 def _lines_from(source: str | None) -> list[str]:
@@ -179,12 +191,13 @@ def post_verify(
         raise PdlcError(f"stdin can supply only one input, not: {', '.join(stdin_sources)}")
 
     record = item_for_issue(issue)
-    if item_status(record) != "Verification":
-        raise PdlcError(f"verification requires Status = Verification, not {item_status(record) or 'unset'}")
-    if item_gate(record) not in READY_GATES:
-        raise PdlcError(
-            f"verification requires Gate State to be one of {', '.join(READY_GATES)}, not {item_gate(record) or 'unset'}"
-        )
+    pipeline, state = workflow_for_item(record)
+    try:
+        target = pipeline.next_state(state, Event.VERIFIED, VERIFICATION_OUTCOMES[recommendation])
+        if bounce:
+            pipeline.next_state(target, Event.BOUNCED, requested_target=bounce)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
 
     report_text = _read_source("report", report).strip()
     if not report_text:
@@ -219,32 +232,46 @@ def post_verify(
         except PdlcError as error:
             raise PdlcError(f"clean verification evidence is not valid: {error}") from None
 
+    policy = pipeline.rework_policy
+    if bounce and policy is None:
+        raise PdlcError("this pipeline has no rework loop")
+    verdict = {
+        "Approval Required": ReviewVerdict.PASS,
+        "Changes Required": ReviewVerdict.CHANGES_REQUIRED,
+        "Decision Required": ReviewVerdict.DECISION_REQUIRED,
+    }[recommendation]
+    review_body = compose_review(
+        "Verification",
+        verdict,
+        comment_body,
+        bounce=bounce,
+        loop=policy.name if bounce and policy is not None else None,
+    )
+
     attachments = save_attachments(work_item_number(record), attachment_inputs or [])
-    post_comment(issue, comment_body, "VERIFICATION")
+    post_comment(issue, review_body, "REVIEW")
 
     append_to_section(issue, "Open Questions", [f"Deferred — {line}" for line in deferred_items])
 
     if is_decision:
         post_blocker(issue, decision_body, "DECISION")
 
-    # --bounce routes a Changes Required run straight back to an upstream stage
-    # with no driver step: same effect as pdlc post invalidate, stamping the
-    # `Invalidated stage:` line the churn counter reads. The verifier picks the
-    # target stage; findings live in the PDLC-VERIFICATION comment just posted.
+    # --bounce routes a Changes Required run straight back to an upstream stage.
+    # Its provenance and loop identity live in the PDLC-REVIEW comment above;
+    # PDLC-INVALIDATED remains reserved for explicit driver invalidation.
     if bounce:
-        invalidate_stage(
-            issue,
+        bounced = bounce_stage(
             record,
+            pipeline,
+            target,
             bounce,
-            f"Verification run recommended Changes Required; auto-bounced to {bounce}. "
-            "See the PDLC-VERIFICATION comment on this record for the findings.",
         )
         return {"posted": True, "workItem": int(issue), "itemId": record["id"],
-                "gateState": "Stale", "bouncedTo": bounce, "attachments": attachments}
+                "gateState": bounced.gate.value, "bouncedTo": bounced.stage, "attachments": attachments}
 
-    set_gate(record["id"], recommendation)
+    set_gate(record["id"], target.gate.value)
 
-    return {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": recommendation, "attachments": attachments}
+    return {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": target.gate.value, "attachments": attachments}
 
 
 def main() -> int:

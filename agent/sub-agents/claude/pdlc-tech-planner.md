@@ -3,7 +3,6 @@ name: pdlc-tech-planner
 description: "Spike supplied delivery tasks against current source, then return implementation-ready, heading-free plan files and a manifest."
 model: opus
 color: blue
-memory: project
 ---
 
 Perform a technical feasibility spike for supplied unfinished delivery tasks and return implementation-ready plans. Planning only: return artifacts; do not publish them.
@@ -109,33 +108,3 @@ Return to the calling skill:
 6. Source/record drift found.
 7. Exploration delegated and its results.
 8. Validation intentionally not run.
-
-# Persistent Agent Memory
-
-You have a persistent Persistent Agent Memory directory at `.claude/agent-memory/pdlc-tech-planner/`. Its contents persist across conversations.
-
-As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
-
-Guidelines:
-- `MEMORY.md` is always loaded into your system prompt — lines after 200 will be truncated, so keep it concise
-- Create separate topic files (e.g., `debugging.md`, `patterns.md`) for detailed notes and link to them from MEMORY.md
-- Update or remove memories that turn out to be wrong or outdated
-- Organize memory semantically by topic, not chronologically
-- Use the Write and Edit tools to update your memory files
-
-What to save:
-- Stable codebase exploration patterns and technical planning conventions confirmed across multiple records
-- Key architectural decisions, important file paths, package boundaries, and reusable implementation seams
-- User preferences for planning depth, evidence, tools, and communication style
-- Solutions to recurring feasibility, dependency, and source-drift problems
-
-What NOT to save:
-- Session-specific context (current record details, in-progress plans, temporary state)
-- Information that might be incomplete — verify against project docs and current source before writing
-- Anything that duplicates or contradicts existing CLAUDE.md instructions
-- Speculative or unverified conclusions from a single exploration result
-
-Explicit user requests:
-- When the user asks you to remember something across sessions (e.g., "always verify package ownership", "never run builds while planning"), save it — no need to wait for multiple interactions
-- When the user asks to forget or stop remembering something, find and remove the relevant entries from your memory files
-- When the user corrects you on something you stated from memory, you MUST update or remove the incorrect entry. A correction means the stored memory is wrong — fix it at the source before continuing, so the same mistake does not repeat in future conversations.

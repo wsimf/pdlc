@@ -50,7 +50,7 @@ Before continuing, read `references/pdlc-contract.md` for record identity, lifec
 
 When diagnosing a stage transition, skip, or malformed state, also read `references/pdlc-workflow.md`. When `# Due Next` routes to `pdlc-post-ci` (`Gate State` is `CI Pending`), read `references/resolve-ci.md` before reporting what to do on continue. When evaluating invalidation, override approval, Verification, or completion guarantees, read `references/parity-contract.md`. Consult `references/stage-ownership.md` only to explain the owner and artifact returned by `# Due Next`, never to replace its routing. Consult `references/commands.md` only when a command's mutation authority is unclear.
 
-1. **Resolve and read the record.** `pdlc inspect <work-item>` — compact work-item metadata, classified task tree, linked PR summary, a pointer to the full body in a temp file, and `# Due Next` (routing already applied). Read the pointed-to file when the full body is needed; use `--full` only when inline content is useful. No comments. No item or an ambiguous match is a hard stop — do not fall back to a title search.
+1. **Resolve and read the record.** `pdlc inspect <work-item>` — compact work-item metadata including normalized `workType`, classified task tree, linked PR summary, a pointer to the full body in a temp file, and `# Due Next` (pipeline routing already applied). Read the pointed-to file when the full body is needed; use `--full` only when inline content is useful. No comments. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
 2. **Read the evidence comments.** `pdlc inspect timeline <work-item>` — chronological, marker-stripped, grouped by stage (marker vocabulary: `references/pdlc-contract.md`). Reconcile against work item state; flag disagreement.
 3. **Read the delivery tasks.** Already classified in `pdlc inspect`'s `# Tasks` section. Pull full bodies with `pdlc inspect task DELIVERY_TASK [...]` only where the summary leaves a real question about dependencies, HITL/AFK, or acceptance criteria.
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.
@@ -64,6 +64,7 @@ Then report. Fill every section — write `None` explicitly rather than omitting
 Orientation complete. Worktree is <clean|dirty>.
 
 Work Item: #<number> — <title>
+Work Type: <workType>
 Slug: <slug>   Item ID: <itemId>
 Status: <stage>, Gate State: <state>, Lifecycle: <state>
 Skipped States: <list, or None>
@@ -98,6 +99,8 @@ To proceed, ask for: <the exact next instruction to give>
 Keep every line grounded in something actually inspected. Do not claim build, test, runtime, UX, or runtime evidence that was not produced in this turn or explicitly recorded on the work item. Stop after the report.
 
 Continue to drive the work item forward after the driver intends to proceed by invoking the appropriate skill specified in references/stage-ownership.md.
+
+If `# Due Next` routes to `human-input`, Product authoring or re-authoring needs an interactive driver. Report that `pdlc-write` is required and stop; invoke it only when the driver explicitly asks to proceed.
 
 ## CI pending
 

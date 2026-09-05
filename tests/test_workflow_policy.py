@@ -1,0 +1,60 @@
+import unittest
+
+from pdlc.domain.workflow import (
+    BUG_PIPELINE,
+    FEATURE_PIPELINE,
+    Gate,
+    InvalidationPolicy,
+    PIPELINE_REGISTRY,
+    State,
+    WorkType,
+)
+
+
+class WorkflowPolicyTests(unittest.TestCase):
+    def test_feature_completion_policy_declares_current_boundary_and_requirements(self):
+        policy = FEATURE_PIPELINE.completion_policy
+
+        self.assertIsNotNone(policy)
+        assert policy is not None
+        self.assertEqual(policy.boundary_stage, "Verification")
+        self.assertEqual(policy.boundary_gate, Gate.APPROVAL_REQUIRED)
+        self.assertTrue(policy.is_boundary(State("Verification", Gate.APPROVAL_REQUIRED)))
+        self.assertEqual(
+            policy.required_stage_evidence,
+            ("Product", "UI", "Tasks", "Technical Plan", "Implementation", "Testing"),
+        )
+        self.assertTrue(policy.require_stage_settlement)
+        self.assertTrue(policy.require_tasks_closed)
+        self.assertTrue(policy.require_task_implementation)
+        self.assertTrue(policy.require_prs_merged)
+        self.assertTrue(policy.require_checks_green)
+        self.assertEqual(policy.verification_parser, "parse_verification_report")
+
+    def test_feature_invalidation_policy_separates_dependencies_and_reentry(self):
+        policy = FEATURE_PIPELINE.invalidation_policy
+
+        self.assertIsNotNone(policy)
+        assert policy is not None
+        self.assertEqual(policy.dependencies_for("Implementation"), ("Testing", "Verification"))
+        self.assertTrue(policy.can_reenter("Verification", "Implementation"))
+        self.assertTrue(policy.can_reenter("Verification", "Testing"))
+        self.assertFalse(policy.can_reenter("Verification", "Product"))
+        self.assertTrue(FEATURE_PIPELINE.can_reenter("Testing", "Implementation"))
+        self.assertTrue(FEATURE_PIPELINE.can_invalidate("Verification", "Product"))
+
+    def test_unavailable_bug_pipeline_is_registered_without_guessing_its_stages(self):
+        self.assertFalse(BUG_PIPELINE.available)
+        with self.assertRaisesRegex(ValueError, "workflow unavailable for work type: bug"):
+            PIPELINE_REGISTRY.for_work_type(WorkType.BUG)
+
+    def test_invalidation_policy_normalizes_mappings(self):
+        policy = InvalidationPolicy({"A": ["B"]}, {"A": ["A"]})
+
+        self.assertEqual(policy.dependencies_for("A"), ("B",))
+        with self.assertRaises(TypeError):
+            policy.evidence_dependencies["A"] = ("C",)  # type: ignore[index]
+
+
+if __name__ == "__main__":
+    unittest.main()

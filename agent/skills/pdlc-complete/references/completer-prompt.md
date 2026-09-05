@@ -22,7 +22,7 @@ Verification.
 
 <one block per task>
 
-- Verification evidence: `<the PDLC-VERIFICATION report and any deferrals>`.
+- Verification evidence: `<the Verification PDLC-REVIEW report and any deferrals>`.
 - Linked PRs and their state: `<numbers, merged/open, check state>`.
 - Decisions and Open Questions as they currently stand: `<...>`.
 - Skipped stages, if any: `<... or "none">`.

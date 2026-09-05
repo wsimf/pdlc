@@ -41,24 +41,22 @@ from pathlib import Path
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, load_json_array, print_help, require_file, wants_help  # type: ignore
+from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, Lifecycle, WorkType
 from pdlc.internal.workitem import (  # type: ignore
     append_to_section,
     create_work_item,
     find_marked_comments,
     item_for_issue,
     item_gate,
-    item_status,
     post_comment,
     resolve_item,
     set_gate,
     set_slug,
     set_state,
+    workflow_for_item,
 )
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-DECISION_STAGES = ("Implementation", "Testing", "Verification")
-
-
 def _validate(entries: list[dict]) -> None:
     if not entries:
         raise PdlcError("the manifest is empty — list one entry per open decision")
@@ -96,9 +94,10 @@ def _defer(origin: str, stage: str, defer: dict) -> dict:
     except PdlcError:
         pass
 
-    child = create_work_item(title, Path(defer["body"]).read_text(), slug)
+    child = create_work_item(title, Path(defer["body"]).read_text(), slug, WorkType.FEATURE)
     number = int(child["number"])
-    set_state(child["id"], "Product", "Pending", "Planning")
+    initial_stage = FEATURE_PIPELINE.active_stage_names[0]
+    set_state(child["id"], initial_stage, Gate.PENDING.value, Lifecycle.PLANNING.value)
     set_slug(child["id"], slug)
     post_comment(
         str(number),
@@ -127,14 +126,14 @@ def _resolution_body(entries: list[dict], deferred: dict[int, dict]) -> str:
 
 def post_decision(issue: str, manifest_path: Path, attachment_inputs: list[dict]) -> dict:
     record = item_for_issue(issue)
-
+    pipeline, state = workflow_for_item(record)
     if item_gate(record) != "Decision Required":
-        raise PdlcError(
-            f"post-decision requires Gate State = Decision Required, not {item_gate(record) or 'unset'}"
-        )
-    stage = item_status(record)
-    if stage not in DECISION_STAGES:
-        raise PdlcError(f"a Decision Required gate is only reachable at {' or '.join(DECISION_STAGES)}, not {stage}")
+        raise PdlcError(f"post-decision requires Gate State = Decision Required, not {item_gate(record) or 'unset'}")
+    stage = state.stage
+    try:
+        target = pipeline.next_state(state, Event.DECISION_RESOLVED)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
     if not find_marked_comments(issue, "DECISION"):
         raise PdlcError("no PDLC-DECISION comment on this record — nothing to resolve")
 
@@ -148,14 +147,14 @@ def post_decision(issue: str, manifest_path: Path, attachment_inputs: list[dict]
             deferred[index] = _defer(issue, stage, entry["defer"])
 
     post_comment(issue, _resolution_body(entries, deferred), "RESOLUTION")
-    set_gate(record["id"], "Changes Required")
+    set_gate(record["id"], target.gate.value)
 
     return {
         "resolved": True,
         "itemId": record["id"],
         "work_item": int(issue),
         "stage": stage,
-        "gateState": "Changes Required",
+        "gateState": target.gate.value,
         "answered": [e["decision"].strip() for e in entries if "answer" in e],
         "deferred": [
             {"number": child["number"], "title": child["title"], "reused": child["reused"]}

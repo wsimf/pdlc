@@ -28,16 +28,19 @@ from pdlc.internal.workitem import (  # type: ignore
     create_work_item,
     item_gate,
     item_status,
+    pipeline_for_item,
     post_comment,
     read_section,
     resolve_item,
     set_slug,
     set_state,
+    state_for_item,
     update_sections,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number  # type: ignore
 from pdlc.internal.invalidation import reauthor_invalidate_stage  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, require_file, wants_help  # type: ignore
+from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, State, WorkType
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")
@@ -66,18 +69,24 @@ def level_two_headings(body: str) -> list[str]:
 
 def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path, attachment_inputs: list[dict]) -> dict:
     record = resolve_item(issue)
+    pipeline = pipeline_for_item(record)
     if item_status(record) != "Product":
         raise PdlcError(f"cannot author Product while the record is at {item_status(record) or 'an unset stage'}")
     gate = item_gate(record)
     if gate == "Approval Required":
         # The driver asked for a change before approving: reset Product to Stale
         # ourselves and re-land the reviewed spec in this same call.
-        reauthor_invalidate_stage(record, "Product")
+        reauthor_invalidate_stage(record, "Product", pipeline)
     elif gate not in ("Pending", "Changes Required", "Stale"):
         raise PdlcError(
             f"Product is at {gate or 'an unset Gate State'}; "
             "return it to Stale with pdlc post invalidate before re-authoring"
         )
+    state = state_for_item(record, pipeline)
+    try:
+        target = pipeline.next_state(state, Event.PUBLISHED)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
     headings = level_two_headings(record.get("issueBody") or "")
     duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]
     if duplicates:
@@ -87,13 +96,13 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path,
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     update_sections(issue, fragments)
     post_comment(issue, str(evidence_path), "PRODUCT")
-    set_state(item_id, "Product", "Approval Required", "Planning")
+    set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
     return {
         "created": False,
         "itemId": item_id,
         "work_item_number": int(issue),
         "status": "Product",
-        "gateState": "Approval Required",
+        "gateState": target.gate.value,
         "attachments": attachments,
     }
 
@@ -140,13 +149,14 @@ def main() -> int:
                 print(json.dumps(result))
                 return 0
 
-            new_item = create_work_item(args.title, body_path.read_text(), args.slug)
+            new_item = create_work_item(args.title, body_path.read_text(), args.slug, WorkType.FEATURE)
             work_item_url = new_item["url"]
             work_item_number = str(new_item["number"])
             item_id = new_item["id"]
 
             attachments = save_attachments(work_item_number, attachment_inputs)
-            set_state(item_id, "Product", "Approval Required", "Planning")
+            target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
+            set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
             set_slug(item_id, args.slug)
             post_comment(work_item_number, str(evidence_path), "PRODUCT")
         finally:
@@ -161,8 +171,8 @@ def main() -> int:
         "url": work_item_url,
         "itemId": item_id,
         "work_item_number": int(work_item_number),
-        "status": "Product",
-        "gateState": "Approval Required",
+        "status": target.stage,
+        "gateState": target.gate.value,
         "attachments": attachments,
     }))
     return 0

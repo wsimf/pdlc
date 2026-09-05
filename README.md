@@ -64,7 +64,6 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_INITIAL_DELAY_SECONDS` | `60` | Initial queue-loop retry delay. |
 | `PDLC_MAX_DELAY_SECONDS` | `900` | Queue-loop retry delay ceiling. |
 | `PDLC_NO_SLEEP` | unset | Any non-empty value skips queue-loop retry sleeps. |
-| `PDLC_AUTOAPPROVE_CHURN_CAP` | `3` | Maximum rework count eligible for automatic approval. Set to `0` to disable it. |
 
 For GitHub, create `.pdlc/config.toml` with:
 

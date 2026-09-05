@@ -86,7 +86,7 @@ class FileBackendTest(unittest.TestCase):
             self._saved_env[key] = os.environ.get(key)
             os.environ[key] = value
         # Drop anything a developer's shell might inject that would steer the run.
-        for key in ("PDLC_AUTOAPPROVE_CHURN_CAP", "PDLC_REF_LABEL"):
+        for key in ("PDLC_REF_LABEL",):
             self._saved_env[key] = os.environ.pop(key, None)
 
         (self.home / "records").mkdir(parents=True)
@@ -129,30 +129,28 @@ class FileBackendTest(unittest.TestCase):
         slug: str | None = None,
         skipped: str = "",
         body: str | None = None,
+        work_type: str | None = None,
     ) -> Path:
         directory = self.records_dir() / str(number)
         (directory / "tasks").mkdir(parents=True)
         (directory / "comments.jsonl").write_text("")
         (directory / "body.md").write_text(BODY_DEFAULT if body is None else body)
-        (directory / "meta.json").write_text(
-            json.dumps(
-                {
-                    "id": f"FILE-{number}",
-                    "number": number,
-                    "title": f"Record {number}",
-                    "url": f"file://x/{number}",
-                    "fields": {
-                        "Status": status,
-                        "Gate State": gate,
-                        "Lifecycle": "Planning",
-                        "Skipped States": skipped,
-                        "Slug": slug or f"record-{number}",
-                    },
-                },
-                indent=2,
-            )
-            + "\n"
-        )
+        metadata = {
+            "id": f"FILE-{number}",
+            "number": number,
+            "title": f"Record {number}",
+            "url": f"file://x/{number}",
+            "fields": {
+                "Status": status,
+                "Gate State": gate,
+                "Lifecycle": "Completed" if status == "Complete" else "Planning",
+                "Skipped States": skipped,
+                "Slug": slug or f"record-{number}",
+            },
+        }
+        if work_type is not None:
+            metadata["workType"] = work_type
+        (directory / "meta.json").write_text(json.dumps(metadata, indent=2) + "\n")
         return directory
 
     def seed_task(
@@ -236,10 +234,25 @@ class FileBackendTest(unittest.TestCase):
         )
 
     def add_invalidation(self, record: int, stage: str = "Implementation") -> None:
-        """Append one PDLC-INVALIDATED comment — one recorded rework loop."""
+        """Append one explicit driver invalidation."""
         log = self.records_dir() / str(record) / "comments.jsonl"
         entry = {
             "body": f"PDLC-INVALIDATED\n\nInvalidated stage: {stage}\ndetail",
+            "createdAt": "2026-04-01T00:00:00Z",
+            "url": "",
+            "author": {"login": "t"},
+        }
+        with log.open("a") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    def add_rework_review(self, record: int, stage: str = "Implementation", loop: str = "delivery-rework") -> None:
+        """Append one structured Verification bounce into a named rework loop."""
+        log = self.records_dir() / str(record) / "comments.jsonl"
+        entry = {
+            "body": (
+                "PDLC-REVIEW\n\n---\nstage: Verification\nverdict: Changes Required\n"
+                f"bounce: {stage}\nloop: {loop}\n---\n\n## Findings\n\n- detail\n"
+            ),
             "createdAt": "2026-04-01T00:00:00Z",
             "url": "",
             "author": {"login": "t"},

@@ -6,9 +6,15 @@ re-author-in-place behaviour of each pre-publication stage."""
 import json
 
 from _support import FileBackendTest
+from pdlc.hosts.workitem_host.file import FileWorkItemBackend
 
 
 class WorkflowEndToEndTests(FileBackendTest):
+    def test_file_backend_rejects_an_unparsed_work_type_before_creation(self):
+        with self.assertRaisesRegex(TypeError, "work_type must be a WorkType"):
+            FileWorkItemBackend().create("Title", "## Product\n", "title", "feature")  # type: ignore[arg-type]
+        self.assertEqual(list(self.records_dir().iterdir()), [])
+
     def test_full_lifecycle(self):
         evidence = self.evidence_file()
 
@@ -28,6 +34,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         issue = created.json["work_item_number"]
         self.assertEqual(created.json["gateState"], "Approval Required")
         self.assertEqual(self.state(issue), ("Product", "Approval Required"))
+        self.assertEqual(self.meta(issue)["workType"], "feature")
 
         self.assertEqual(self.invoke("post_approve", issue, evidence).code, 0)
         self.assertEqual(self.state(issue), ("UI", "Pending"))
@@ -156,7 +163,7 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # The evidence log is append-only: one comment per stage, none rewritten.
         timeline = self.invoke("inspect_timeline", issue, "--full").stdout
-        for marker in ("## PRODUCT", "## VERIFICATION", "## APPROVED", "## COMPLETE"):
+        for marker in ("## PRODUCT", "## REVIEW", "## APPROVED", "## COMPLETE"):
             self.assertIn(marker, timeline)
 
     def test_malformed_completion_evidence_is_rejected_before_write(self):

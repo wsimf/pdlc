@@ -18,7 +18,8 @@ from pdlc.hosts.github_common import (
 )
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.hosts.workitem_host.base import WorkItemBackend
+from pdlc.domain.workflow import WorkType
+from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
 
 
 class GitHubWorkItemBackend(WorkItemBackend):
@@ -29,8 +30,8 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def resolve(self, ref: str) -> dict:
         return github_project.item_for_issue(ref)
 
-    def all_items(self) -> dict:
-        return github_project.project_items()
+    def queue_items(self) -> list[QueueItemSummary]:
+        return github_project.queue_items()
 
     # --- state fields ---
 
@@ -86,12 +87,18 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     # --- creation ---
 
-    def create(self, title: str, body: str, slug: str) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+        work_type = self._validated_work_type(work_type)
+        if work_type is not WorkType.FEATURE:
+            raise PdlcError(f"GitHub creation is unavailable for work type: {work_type.value}")
         config = get_config()
         with body_file(body) as body_path:
             # `gh issue create` has no --json: the new Issue's URL is the last
             # line of its output.
-            output = run_gh(["issue", "create", *repo_args(), "--title", title, "--body-file", body_path])
+            output = run_gh([
+                "issue", "create", *repo_args(), "--title", title,
+                "--body-file", body_path,
+            ])
 
         url = output.strip().splitlines()[-1]
         number = url.rsplit("/", 1)[-1]

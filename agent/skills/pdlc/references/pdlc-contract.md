@@ -28,6 +28,8 @@ evidence comments.
 
 ## Identity
 
+A resolved parent record carries a normalized `workType`. Native GitHub Issue Type `Feature` resolves to `feature`; legacy records with no type use the Feature pipeline for compatibility. Unknown types and known unavailable pipelines are blocked. Pipeline selection happens once when the record is resolved; commands use that selected policy for routing, transitions, invalidation, churn, and completion.
+
 A work item registered with PDLC is a parent record; one without is not. `Slug`
 is a stable machine identifier set once by `pdlc post write` at creation and
 never rewritten afterward. The title remains human-readable and free to reword.
@@ -36,7 +38,7 @@ or in-body markers.
 
 ## Stages and gates
 
-The work item's `Status` is the active stage:
+The enabled Feature pipeline stores its active stage in the work item's `Status`:
 
 `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`
 
@@ -94,6 +96,7 @@ record which downstream evidence is invalidated.
 - Product authoring is never autonomous. `pdlc-write` interviews the driver,
   has the draft reviewed locally, and creates or updates the record only once
   that review is clean — landing it at `Product / Approval Required`.
+- Product work routes to `human-input`; the autonomous loop stops and asks the driver to invoke `pdlc-write` interactively.
 - The pre-publication stages (`Product`, `UI`, `Tasks`, `Technical Plan`) reach
   `Approval Required` directly. A driver request to change one of them before it
   is approved is handled by that stage's own land script
@@ -102,19 +105,7 @@ record which downstream evidence is invalidated.
   `PDLC-INVALIDATED` comment — the artifact never settled at `Approved`, the
   re-land's own stage evidence records the change, and nothing feeds the
   rework/churn total. No separate `pdlc post invalidate` step.
-- Every later stage transition requires the current stage to be
-  `Approval Required` and an explicit human approval. The one exception:
-  when a record has already been reworked between one and three times (any
-  stage bounce, counted from the `Invalidated stage: <STAGE>` evidence),
-  the script that would set the `Implementation` or `Testing`
-  `Approval Required` gate — the CI gate on green CI, `pdlc post review`
-  on a clean Testing review — advances straight past it instead, posting a
-  `PDLC-AUTOAPPROVED` comment and landing the next stage's `Pending`. Past three
-  loops the gate stops for the driver again; `Verification` approval is never
-  auto-cleared; `PDLC_AUTOAPPROVE_CHURN_CAP=0` disables it. A `Verification`
-  `Changes Required` run bounces an upstream stage to `Stale` on its own when
-  invoked with `pdlc post verify --bounce STAGE`, replacing the driver's
-  `pdlc post invalidate` call for that loop.
+- Every later stage transition requires the current stage to be `Approval Required` and an explicit human approval. The one exception: when a record has already entered its named rework loop between one and three times, counted from Verification `PDLC-REVIEW` comments with `verdict: Changes Required`, a non-null `bounce`, and the matching `loop`, the script that would set the `Implementation` or `Testing` `Approval Required` gate advances straight past it instead. It posts `PDLC-AUTOAPPROVED` and lands the next stage's `Pending`. Past the selected pipeline's rework cap (three for Feature), the gate stops for the driver again; `Verification` approval is never auto-cleared. A `Verification` `Changes Required` run bounces `Implementation` or `Testing` to `Stale` on its own when invoked with `pdlc post verify --bounce STAGE`.
 - Agents may set `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, and `Approval Required`.
 - Agents may not set `Approved` or `Complete`. Only the churn auto-approval in
   the CI gate / `pdlc post review` advances a stage without a recorded
@@ -125,7 +116,7 @@ record which downstream evidence is invalidated.
   and its tasks (`pdlc post implement-task` / `attach-pr` / `implement` / `test`
   record them), never inferred from a `Closes #N` keyword or a branch name.
 - `Complete` is locked. New scope creates a new parent work item.
-- A malformed or unsupported work item state is `blocked`; never guess.
+- A malformed state, unknown work type, or unavailable pipeline is `blocked`; report the reason and never guess.
 
 ## Phase ownership
 
@@ -173,11 +164,11 @@ comment body only:
 - `PDLC-PLAN`
 - `PDLC-IMPLEMENTATION`
 - `PDLC-TESTING`
-- `PDLC-VERIFICATION`
+- `PDLC-REVIEW` — a structured independent-review verdict with a script-owned, `---`-delimited metadata block containing `stage`, `verdict`, `bounce`, and `loop`, followed by `## Findings`; Verification reports use the same marker and retain their detailed report sections.
 - `PDLC-COMPLETE`
 - `PDLC-APPROVED` — a driver approved a stage (`pdlc post approve`)
 - `PDLC-AUTOAPPROVED` — the `Implementation`/`Testing` approval gate was cleared with no human step on a churning record (the CI gate, `pdlc post review`)
-- `PDLC-INVALIDATED` — a settled stage was returned to `Stale`, by a driver (`pdlc post invalidate`) or an autonomous `Verification` bounce (`pdlc post verify --bounce`); the comment opens with a script-owned `Invalidated stage: <stage>` line and counts toward the rework/churn total. (A pre-publication stage re-authored in place from `Approval Required` posts no such comment — it is a bare gate reset.)
+- `PDLC-INVALIDATED` — a driver returned a settled stage to `Stale` with `pdlc post invalidate`; the comment opens with a script-owned `Invalidated stage: <stage>` line. It does not count as a Verification rework loop. (A pre-publication stage re-authored in place from `Approval Required` posts no such comment — it is a bare gate reset.)
 - `PDLC-SKIPPED` — a stage declared skipped, or auto-advanced past (`pdlc post skip`, `pdlc next`)
 - `PDLC-DECISION`
 - `PDLC-RESOLUTION`

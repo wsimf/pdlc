@@ -21,6 +21,7 @@ from pathlib import Path
 from pdlc.internal.churn_gate import autoapprove_stage
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.workitem import post_comment, set_gate
+from pdlc.domain.workflow import Event, Outcome, Pipeline, State
 
 # statusCheckRollup states that mean the run is settled and failed, still
 # running, or settled and passed. Anything else (notably "NONE" — no checks
@@ -56,14 +57,15 @@ def peek_ci_state(issue: str) -> str:
     return ci_state(issue)[0]
 
 
-def resolve_ci_gate(issue: str, record: dict) -> dict:
+def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State) -> dict:
     """Reconcile an `Implementation / CI Pending` record against live CI.
     Caller has already confirmed the gate; this only reads the outcome and
     moves the gate."""
     state, pull_requests = ci_state(issue)
 
     if state == "pending":
-        return {"state": "pending", "changed": False, "gateState": "CI Pending"}
+        target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PENDING)
+        return {"state": "pending", "changed": False, "gateState": target.gate.value}
 
     if state == "red":
         failed = ", ".join(
@@ -84,14 +86,16 @@ def resolve_ci_gate(issue: str, record: dict) -> dict:
             post_comment(str(issue), name, "IMPLEMENTATION")
         finally:
             Path(name).unlink(missing_ok=True)
-        set_gate(record["id"], "Changes Required")
-        return {"state": "red", "changed": True, "gateState": "Changes Required", "failed": failed}
+        target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_FAILED)
+        set_gate(record["id"], target.gate.value)
+        return {"state": "red", "changed": True, "gateState": target.gate.value, "failed": failed}
 
     # A demonstrably-reworked record clears the Implementation approval gate
     # with no human step, landing straight on the next stage's Pending.
-    landed = autoapprove_stage(issue, record, "Implementation")
+    target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PASSED)
+    landed = autoapprove_stage(issue, record, pipeline, target)
     if landed:
         return {"state": state, "changed": True, "gateState": landed, "autoApproved": True}
 
-    set_gate(record["id"], "Approval Required")
-    return {"state": state, "changed": True, "gateState": "Approval Required"}
+    set_gate(record["id"], target.gate.value)
+    return {"state": state, "changed": True, "gateState": target.gate.value}

@@ -34,26 +34,15 @@ from pathlib import Path
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.internal.workitem import is_stage_skipped, resolve_item  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-
-# Status → (artifact under review, reviewer agent). Product and Verification
-# never reach Review Required — Product is reviewed locally by pdlc-write
-# before publication, and Verification records its own outcome — so they
-# carry no entry here.
-_REVIEW_TARGETS = {
-    "UI": ("The parent's UI section and its UJ-* journeys", "pdlc-tasks-reviewer"),
-    "Tasks": ("The delivery tasks", "pdlc-tasks-reviewer"),
-    "Technical Plan": ("The Technical Plan on each incomplete task", "pdlc-plan-reviewer"),
-    "Implementation": ("Production PRs and each task's implementation", "pdlc-implementation-reviewer"),
-    "Testing": ("Test PRs, coverage, and requirement traceability", "pdlc-testing-reviewer"),
-}
+from pdlc.domain.workflow import PIPELINES, Pipeline
 
 
-def _readiness(item: dict) -> tuple[bool, str]:
+def _readiness(item: dict, pipeline: Pipeline) -> tuple[bool, str]:
     status = item.get("Status")
     gate = item.get("Gate State")
 
     if gate == "Decision Required":
-        return False, "Not ready: Gate State is 'Decision Required' — a prior review raised a blocking finding the driver must resolve (see the PDLC-DECISION comment) before review can resume."
+        return False, "Not ready: Gate State is 'Decision Required' — a prior review raised a blocking finding the driver must resolve (see last the PDLC-DECISION comment) before review can resume."
 
     if gate == "CI Pending":
         return False, "Not ready: Gate State is 'CI Pending' — the implementation review already passed; the record is waiting on the shared PR's CI. pdlc post ci resolves it once checks finish (see references/resolve-ci.md)."
@@ -61,11 +50,12 @@ def _readiness(item: dict) -> tuple[bool, str]:
     if gate != "Review Required":
         return False, f"Not ready: Gate State is {gate!r}, not Review Required."
 
-    if status in ("Product", "Verification"):
-        return False, f"Not ready: {status} never reaches Review Required — something published without going through its owning skill's local review."
-
-    if status not in _REVIEW_TARGETS:
+    try:
+        review = pipeline.stage(status).review
+    except ValueError:
         return False, f"Not ready: no reviewer target for Status {status!r}."
+    if review is None or not review.independent or review.target is None:
+        return False, f"Not ready: {status} never reaches Review Required — something published without going through its owning skill's local review."
 
     if is_stage_skipped(item, status):
         return False, f"Not ready: {status} is in this record's Skipped States — pdlc post review refuses a skipped stage."
@@ -75,13 +65,19 @@ def _readiness(item: dict) -> tuple[bool, str]:
 
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
-    ready, readiness_message = _readiness(item)
+    try:
+        pipeline = PIPELINES.for_record(item)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
+    ready, readiness_message = _readiness(item, pipeline)
     sections = ["## Readiness", "", readiness_message, "", attachments_markdown(attachments_for_item(item))]
     if not ready:
         return "\n".join(sections) + "\n"
 
-    artifact, reviewer = _REVIEW_TARGETS[item["Status"]]
-    sections += ["", "## Reviewer Target", "", f"Artifact: {artifact}", f"Reviewer agent: {reviewer}"]
+    review = pipeline.stage(item["Status"]).review
+    assert review is not None and review.target is not None
+    target = review.target
+    sections += ["", "## Reviewer Target", "", f"Artifact: {target.artifact}", f"Reviewer agent: {target.agent}"]
 
     return "\n".join(sections) + "\n"
 

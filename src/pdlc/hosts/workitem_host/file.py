@@ -28,8 +28,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import WorkType
 from pdlc.domain.model import read_task_meta, strip_task_meta, write_task_meta
-from pdlc.hosts.workitem_host.base import WorkItemBackend
+from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
 
 FIELD_NAMES = ("Status", "Gate State", "Lifecycle", "Skipped States", "Slug")
 
@@ -108,6 +109,7 @@ class FileWorkItemBackend(WorkItemBackend):
             "issueBody": body,
             "comments": _read_comments(path),
             **{name: fields.get(name, "") for name in FIELD_NAMES},
+            "workType": meta.get("workType", ""),
         }
 
     def _task_view(self, path: Path) -> dict:
@@ -128,12 +130,31 @@ class FileWorkItemBackend(WorkItemBackend):
     def resolve(self, ref: str) -> dict:
         return self._record_view(self._record_dir(ref))
 
-    def all_items(self) -> dict:
+    def queue_items(self) -> list[QueueItemSummary]:
         records = sorted(
             (_home() / "records").iterdir(),
             key=lambda child: int(child.name) if child.name.isdigit() else 0,
         )
-        return {"items": [self._record_view(child) for child in records if child.is_dir()]}
+        summaries = []
+        for child in records:
+            if not child.is_dir():
+                continue
+            meta = _read_meta(child)
+            fields = meta.get("fields", {})
+            summaries.append({
+                "id": meta["id"],
+                "content": {
+                    "number": meta["number"],
+                    "title": meta.get("title") or "",
+                    "url": meta.get("url") or "",
+                },
+                "Status": fields.get("Status", ""),
+                "Gate State": fields.get("Gate State", ""),
+                "Lifecycle": fields.get("Lifecycle", ""),
+                "Skipped States": fields.get("Skipped States", ""),
+                "workType": meta.get("workType", ""),
+            })
+        return summaries
 
     # --- state fields ---
 
@@ -250,7 +271,8 @@ class FileWorkItemBackend(WorkItemBackend):
 
     # --- creation ---
 
-    def create(self, title: str, body: str, slug: str) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+        work_type = self._validated_work_type(work_type)
         number = self._next_number()
         path = _home() / "records" / str(number)
         path.mkdir(parents=True)
@@ -260,6 +282,7 @@ class FileWorkItemBackend(WorkItemBackend):
         url = f"file://{path}"
         _write_meta(path, {
             "id": f"FILE-{number}", "number": number, "title": title, "url": url,
+            "workType": work_type.value,
             "fields": {name: "" for name in FIELD_NAMES},
         })
         return {"id": f"FILE-{number}", "number": number, "url": url}

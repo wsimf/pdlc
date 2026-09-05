@@ -6,10 +6,11 @@ import unittest
 
 from pdlc.commands.post_write import product_fragments
 from pdlc.domain.completion import completion_blockers
+from pdlc.domain.workflow import FEATURE_PIPELINE
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
-from pdlc.domain.evidence import parse_verification_report
+from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import due_next, user_comments, user_comments_markdown
+from pdlc.domain.model import due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
 from pdlc.hosts.github_common import neutralize_refs
 
 GOOD_VERIFICATION = """## Verification Run Results
@@ -70,6 +71,21 @@ MERGED_PR = {"relation": "closes", "state": "MERGED", "checks": "SUCCESS", "numb
 
 
 class RoutingTableTests(unittest.TestCase):
+    def test_product_requires_interactive_human_input(self):
+        due = due_next({"Status": "Product", "Gate State": "Pending", "Skipped States": ""})
+        self.assertEqual(due["action"], "human-input")
+        self.assertFalse(due["autonomous"])
+        self.assertEqual(due["owner"], "human — invoke pdlc-write interactively")
+
+    def test_missing_work_type_uses_feature_pipeline(self):
+        due = due_next({"Status": "Implementation", "Gate State": "Pending", "Skipped States": ""})
+        self.assertEqual(due["action"], "pdlc-implement")
+
+    def test_unavailable_work_type_is_blocked(self):
+        due = due_next({"workType": "bug", "Status": "Implementation", "Gate State": "Pending"})
+        self.assertEqual(due["action"], "blocked")
+        self.assertIn("stop here and let the user know this workflow is not supported", due["reason"])
+
     def test_skipped_verification_still_stops_for_a_human(self):
         due = due_next({"Status": "Verification", "Gate State": "Pending", "Skipped States": "Verification"})
         self.assertEqual(due["state"], "Verification.ApprovalRequired")
@@ -84,7 +100,7 @@ class RoutingTableTests(unittest.TestCase):
         due = due_next({"Status": "Implementation", "Gate State": "CI Pending", "Skipped States": ""})
         self.assertEqual(due["action"], "pdlc-post-ci")
         self.assertTrue(due["autonomous"])
-        self.assertEqual(due["next_state"], "Implementation.ApprovalRequired")
+        self.assertNotIn("next_state", due)
 
 
 class UserCommentsTests(unittest.TestCase):
@@ -134,6 +150,60 @@ class NeutralizeRefsTests(unittest.TestCase):
 
 
 class VerificationReportTests(unittest.TestCase):
+    @staticmethod
+    def review_comment(
+        stage: str,
+        verdict: ReviewVerdict,
+        body: str = "",
+        *,
+        bounce: str | None = None,
+        loop: str | None = None,
+    ) -> str:
+        return f"PDLC-REVIEW\n\n{compose_review(stage, verdict, body, bounce=bounce, loop=loop)}"
+
+    def test_review_metadata_round_trips(self):
+        body = compose_review(
+            "Verification",
+            ReviewVerdict.CHANGES_REQUIRED,
+            "## Findings\n\n- retry",
+            bounce="Implementation",
+            loop="delivery-rework",
+        )
+        self.assertTrue(body.startswith("---\nstage: Verification\n"))
+        self.assertIn("\n---\n\n## Findings", body)
+        review = parse_review(f"PDLC-REVIEW\n\n{body}")
+        self.assertEqual(review.stage, "Verification")
+        self.assertEqual(review.verdict, ReviewVerdict.CHANGES_REQUIRED)
+        self.assertEqual(review.bounce, "Implementation")
+        self.assertEqual(review.loop, "delivery-rework")
+
+    def test_rework_count_requires_verification_bounce_and_matching_loop(self):
+        def comment(body: str, created_at: str) -> dict:
+            return {"body": body, "createdAt": created_at}
+
+        comments = [
+            comment("PDLC-INVALIDATED\n\nInvalidated stage: Implementation", "2026-01-01T00:00:00Z"),
+            comment(self.review_comment("Testing", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="delivery-rework"), "2026-01-02T00:00:00Z"),
+            comment(self.review_comment("Verification", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="another-loop"), "2026-01-03T00:00:00Z"),
+            comment(self.review_comment("Verification", ReviewVerdict.CHANGES_REQUIRED, bounce="Implementation", loop="delivery-rework"), "2026-01-04T00:00:00Z"),
+        ]
+        self.assertEqual(review_rework_count(comments, "delivery-rework"), 1)
+
+    def test_verification_evidence_uses_structured_review_stage(self):
+        comments = [
+            {"body": "PDLC-VERIFICATION\n\nlegacy", "createdAt": "2026-01-01T00:00:00Z"},
+            {"body": self.review_comment("Implementation", ReviewVerdict.PASS), "createdAt": "2026-01-02T00:00:00Z"},
+            {"body": self.review_comment("Verification", ReviewVerdict.PASS), "createdAt": "2026-01-03T00:00:00Z"},
+            {
+                "body": self.review_comment("Testing", ReviewVerdict.PASS, "## Findings\n\nQuoted evidence:\nstage: Verification"),
+                "createdAt": "2026-01-04T00:00:00Z",
+            },
+        ]
+        self.assertEqual(
+            [comment["createdAt"] for comment in verification_evidence_comments(comments)],
+            ["2026-01-03T00:00:00Z"],
+        )
+
     def test_parses_a_clean_report(self):
         report = parse_verification_report(GOOD_VERIFICATION)
         self.assertEqual(report.recommendation, "Approval Required")
@@ -190,6 +260,7 @@ class CompletionEvidenceTests(unittest.TestCase):
 class CompletionBlockersTests(unittest.TestCase):
     def test_a_clean_verification_record_has_no_blockers(self):
         blockers = completion_blockers(
+            pipeline=FEATURE_PIPELINE,
             status="Verification", gate="Approval Required", tasks=[CLOSED_TASK],
             pull_requests=[MERGED_PR], timeline_markers=MARKERS, skipped_states="",
             verification_body=GOOD_VERIFICATION, stale_rows=[], open_questions="- none",
@@ -198,6 +269,7 @@ class CompletionBlockersTests(unittest.TestCase):
 
     def test_a_broken_record_surfaces_every_code(self):
         codes = {b.code for b in completion_blockers(
+            pipeline=FEATURE_PIPELINE,
             status="Testing", gate="Pending",
             tasks=[{"state": "OPEN", "hasImplementation": False, "number": 2, "title": "x"}],
             pull_requests=[{"relation": "closes", "state": "OPEN", "checks": "FAILURE", "number": 9}],
@@ -213,6 +285,7 @@ class CompletionBlockersTests(unittest.TestCase):
 
     def test_a_complete_record_short_circuits(self):
         done = completion_blockers(
+            pipeline=FEATURE_PIPELINE,
             status="Complete", gate="Approved", tasks=[], pull_requests=[],
             timeline_markers=[], skipped_states="", verification_body=None,
         )
@@ -220,6 +293,7 @@ class CompletionBlockersTests(unittest.TestCase):
 
     def test_undispositioned_open_questions_block_completion(self):
         codes = {b.code for b in completion_blockers(
+            pipeline=FEATURE_PIPELINE,
             status="Verification", gate="Approval Required", tasks=[CLOSED_TASK],
             pull_requests=[MERGED_PR], timeline_markers=MARKERS, skipped_states="",
             verification_body=GOOD_VERIFICATION, stale_rows=[],
@@ -231,6 +305,7 @@ class CompletionBlockersTests(unittest.TestCase):
         markers = ["PRODUCT", "APPROVED", "UI", "APPROVED", "TASKS", "APPROVED",
                    "PLAN", "APPROVED", "IMPLEMENTATION", "AUTOAPPROVED", "TESTING", "AUTOAPPROVED"]
         blockers = completion_blockers(
+            pipeline=FEATURE_PIPELINE,
             status="Verification", gate="Approval Required", tasks=[CLOSED_TASK],
             pull_requests=[MERGED_PR], timeline_markers=markers, skipped_states="",
             verification_body=GOOD_VERIFICATION, stale_rows=[], open_questions="- none",
