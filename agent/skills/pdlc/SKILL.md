@@ -104,7 +104,7 @@ If `# Due Next` routes to `human-input`, Product authoring or re-authoring needs
 
 ## CI pending
 
-If `# Due Next` routes to `pdlc post ci` — `Gate State` is `Implementation / CI Pending`, the stage review passed and the shared PR's CI has not settled — orientation just reports it and the live `pullRequests` check state. Do not run `pdlc post ci` during read-only orientation.
+If `# Due Next` routes to `pdlc post ci` — `Gate State` is `Implementation / CI Pending`, the stage review passed and the registered PR stack's CI has not settled — orientation just reports it and the live `pullRequests` check state. Do not run `pdlc post ci` during read-only orientation.
 
 Once the driver asks to continue, follow `references/resolve-ci.md`: still-running means wait; green runs `pdlc post ci` to reach `Approval Required`; red runs `pdlc post ci` (posting a `PDLC-IMPLEMENTATION` note, dropping to `Changes Required`) and then `pdlc-implement` picks it up. `pdlc post ci` is mechanical and refuses any gate other than `CI Pending`.
 

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Complete the Testing stage and submit it for review.
 
-Resolves the current branch's PR — the shared implementation PR in the linear
-flow, the top task PR in the stacked flow — since the coverage is committed on
-that same branch and rides that PR, registers it on the record, persists the
+Resolves the current branch's PR — the top task PR in the stack — since the
+coverage is committed on that same branch and rides that PR, registers it on the record, persists the
 requirement-to-source traceability map verbatim into the evidence under a
 `## Traceability` heading so the independent reviewer audits the exact
 artifact the stage produced, and sets `Review Required` — all in one step.

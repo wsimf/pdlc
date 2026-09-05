@@ -458,7 +458,7 @@ class Pipeline:
         if gate == Gate.DECISION_REQUIRED:
             return Route(Action.HUMAN_DECISION, False, "a reviewer raised a blocking decision that only the user can resolve")
         if gate == Gate.CI_PENDING:
-            return Route(Action.CI, True, "the implementation review passed; the shared PR's CI outcome must be recorded")
+            return Route(Action.CI, True, "the implementation review passed; the registered PR stack's CI outcome must be recorded")
         if gate == Gate.APPROVAL_REQUIRED:
             return Route(Action.HUMAN_APPROVAL, False, "explicit human approval is required")
         if gate == Gate.REVIEW_REQUIRED:

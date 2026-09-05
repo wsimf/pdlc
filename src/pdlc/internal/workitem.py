@@ -263,8 +263,7 @@ def register_task_pr(task_ref: str, pr_number: int) -> list[int]:
 
 
 def register_record_pr(ref: str, pr_number: int) -> list[int]:
-    """Record `pr_number` on a record itself — the linear (non-stacked) flow's
-    one shared implementation pull request. Idempotent; returns the full list."""
+    """Record `pr_number` on a parent record. Idempotent; returns the full list."""
     backend = get_backend()
     body = backend.resolve(str(ref)).get("issueBody") or ""
     return _register_pr(body, pr_number, lambda new: backend.write_body(str(ref), new))

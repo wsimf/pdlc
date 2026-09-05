@@ -12,16 +12,13 @@ automatically when the summary does not already start with it; pdlc-inspect
 reads that heading to report the task as implemented.
 
 The implementation is recorded as its own artifact on the task, leaving the
-human-authored task body and its Technical Plan as they were. Pass --close to
-close the task once the commit is pushed, its checks are green, and the task's
-criteria are genuinely met.
+human-authored task body and its Technical Plan as they were. Pass --close once
+the task review passed, its unit coverage landed, and its criteria are met.
 
-With PDLC_STACKED_PRS set (1/true/yes/on), this first submits the task's stacked
-pull request via `gh stack` and records its number on the task, then writes the
-comment. A stack-submit failure therefore leaves no `## Implementation` comment
-and no closure, so `pdlc inspect implement` still offers the task and a re-run is
-clean rather than a duplicate. The default linear flow shares one implementation
-PR across the record and submits nothing here.
+This first submits the task's stacked pull request via `gh stack` and records its
+number on the task, then writes the comment. A stack-submit failure therefore
+leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
+still offers the task and a re-run is clean rather than a duplicate.
 
     {"commented": true, "task": 47, "closed": true, "attachments": [],
      "taskPr": {...}, "prs": [148]}
@@ -31,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -50,12 +46,6 @@ from pdlc.internal.workitem import (  # type: ignore
     task_tree,
     tasks_by_number,
 )
-
-
-def _stacked_prs_enabled() -> bool:
-    """Phase-1 opt-in: the per-task stacked-PR path runs only when the driver
-    sets ``PDLC_STACKED_PRS``. The linear one-shared-PR flow stays the default."""
-    return os.environ.get("PDLC_STACKED_PRS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _submit_task_stack(task: dict) -> dict:
@@ -103,10 +93,9 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     # stack-submit failure then leaves the task with no `## Implementation`
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
-    if _stacked_prs_enabled():
-        task_pr = _submit_task_stack(task)
-        result["taskPr"] = task_pr
-        result["prs"] = register_task_pr(task["number"], task_pr["number"])
+    task_pr = _submit_task_stack(task)
+    result["taskPr"] = task_pr
+    result["prs"] = register_task_pr(task["number"], task_pr["number"])
 
     post_comment(delivery_task, summary)
 

@@ -133,7 +133,7 @@ def due_next(item: dict) -> dict:
     elif route.action.value == "human-decision":
         owner = "human — resolve the blocking review decision (see the last PDLC-DECISION comment)"
     elif route.action.value == "pdlc-post-ci":
-        owner = "pdlc post ci — record the shared PR's CI outcome"
+        owner = "pdlc post ci — record the registered PR stack's CI outcome"
     elif route.action.value == "none":
         owner = "none — record is Complete"
     elif route.action.value == "blocked":

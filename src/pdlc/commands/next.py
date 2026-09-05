@@ -267,7 +267,7 @@ def render(result: dict, *, attempts: int | None = None) -> str:
     elif action == "pdlc-post-ci":
         instruction = (
             f"Work item {number} is at {result['current_status']}: the implementation review passed and "
-            f"the shared PR's CI has finished. Run "
+            f"the registered PR stack's CI has finished. Run "
             f"`pdlc post ci {number}` to record the outcome — it "
             f"advances to Approval Required on green, or back to Changes Required on red — then re-poll."
         )

@@ -1,7 +1,6 @@
 # Resolve a CI-Pending implementation record
 
-Runs when a record sits at `Implementation / CI Pending`: the implementation
-stage review already passed, and the only thing left is the shared PR's CI.
+Runs when a record sits at `Implementation / CI Pending`: the implementation stage review already passed, and the only thing left is the registered PR stack's CI.
 Orientation is read-only — it reports this state and never runs the resolver.
 
 ## When this applies
@@ -37,9 +36,8 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
 
 - **Red** (`FAILURE` / `ERROR` / …) — run the same command. It posts a
   `PDLC-IMPLEMENTATION` note naming the failed checks and sets
-  `Implementation / Changes Required`. On the next "continue", invoke
-  `pdlc-implement` — it reads the note, fixes the checks on the shared PR, and
-  re-publishes for review.
+  `Implementation / Changes Required`.
+  On the next "continue", invoke `pdlc-implement` — it reads the note, fixes the checks on the affected task PR, and re-publishes for review.
 
 `pdlc post ci` is mechanical: it records the CI outcome and makes no
 judgement, so the autonomous loop runs it unattended and a driver may run it
