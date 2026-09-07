@@ -3,6 +3,7 @@ task completion, the evidence timeline, journeys-to-review, and the git-backed
 reuse/staleness pass."""
 
 import json
+from unittest import mock
 
 from _support import FileBackendTest
 
@@ -85,6 +86,40 @@ class InspectVerifyTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Readiness", result.stdout)
         self.assertNotIn("## Task Completion", result.stdout)
+
+    def test_approved_record_with_fresh_evidence_points_at_completion(self):
+        self._seed_verification_record(gate="Approval Required")
+        result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("already verified clean, awaiting the driver", result.stdout)
+        self.assertIn("pdlc-complete is next", result.stdout)
+        # Still not ready — an approved record is not re-audited.
+        self.assertNotIn("## Task Completion", result.stdout)
+
+    def test_approved_record_with_stale_evidence_refuses_to_call_it_clean(self):
+        # The bug this covers: readiness keyed only off the gate, so a record
+        # whose verified commits had been overtaken still read "verified clean,
+        # pdlc-complete is next" — while `pdlc inspect complete` blocked the
+        # same record as `verification-stale`, naming no command to break the tie.
+        self._seed_verification_record(gate="Approval Required")
+        with mock.patch("pdlc.commands.inspect_verify._is_stale", return_value=True):
+            result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("no longer holds against current source", result.stdout)
+        # The offending anchor is named, not just counted.
+        self.assertIn("FR-1 holds", result.stdout)
+        # And the only command that can actually reopen the stage is named.
+        self.assertIn("pdlc post invalidate", result.stdout)
+        self.assertNotIn("pdlc-complete is next", result.stdout)
+
+    def test_stale_evidence_is_not_checked_for_a_record_at_another_stage(self):
+        # The staleness lookup costs a comment read plus a git pair per anchor;
+        # a record that plainly is not at Verification must not pay for it.
+        self.seed_record(53, "Implementation", "Pending")
+        with mock.patch("pdlc.commands.inspect_verify._stale_anchors") as anchors:
+            result = self.invoke("inspect_verify", 53)
+        self.assertEqual(result.code, 0, result.stderr)
+        anchors.assert_not_called()
 
     def test_no_ui_task_marks_journeys_not_applicable(self):
         self.seed_record(52, "Verification", "Pending")
