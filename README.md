@@ -100,6 +100,10 @@ name = "github"
 repository = "OWNER/REPOSITORY"
 ```
 
+Only `organization` and `project` are required by the backend itself. `repository` is required by the *code host*, not the backend — the two are validated independently, so `name = "none"` under `[code_host]` needs neither it nor the `[backend.github]` table.
+
+`record_type` is more than a creation default: it is how PDLC recognizes a work item as a record rather than an ordinary board item, and it is the type the queue scan filters on. If you change it, the [custom fields](#azure-boards-fields) have to exist on that type instead.
+
 Run `pdlc setup` to create this file interactively. It detects the GitHub repository from `remote.origin.url`, lists available GitHub Projects with `gh`, and lets you choose the project owner or enter another owner.
 
 ### GitHub Project fields
@@ -128,7 +132,14 @@ The Azure backend shells out to the Azure CLI — there is no Python SDK depende
 | Project access | Contributor on the Azure DevOps project | The backend creates work items, edits fields, adds parent links, and posts comments. Read-only access fails on the first `pdlc post` command, not at configuration time. |
 | GitHub CLI (`gh`), authenticated | `gh auth login` | Only when the code host is `github`, which is the expected pairing. Pull requests, branches, and CI status come from `gh`; Azure Boards supplies work-item state alone. |
 
-No `az devops configure --defaults` setup is needed: `pdlc` passes `--organization` and `--project` explicitly on every call, so it is unaffected by, and does not disturb, your local `az` defaults.
+On a fresh machine that is the whole client-side setup:
+
+```bash
+az extension add --name azure-devops
+az login
+```
+
+No `az devops configure --defaults` setup is needed: `pdlc` passes `--organization` and `--project` explicitly on every call, so it is unaffected by, and does not disturb, your local `az` defaults. The same machine can therefore drive several organizations without a global mode switch.
 
 Two things are organization-admin work that `pdlc` deliberately never attempts, because both need permissions a workflow run should not hold:
 
