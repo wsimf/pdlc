@@ -40,7 +40,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
       subIssues(first: 100) {
         nodes {
           number title url state body
-          comments(first: 100) { nodes { body } }
+          comments(last: 100) { nodes { body } totalCount pageInfo { hasPreviousPage startCursor } }
         }
       }
     }
@@ -140,6 +140,7 @@ def subissues_for(issue: str) -> list[dict]:
         result.append(pr_registry.view({
             **node,
             "comments": comment_bodies(node.get("comments")),
+            "commentsMeta": _comments_metadata(node.get("comments")),
             "taskId": match.group(1) if match else None,
         }))
     return result
@@ -254,7 +255,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
     owner, repository = owner_repository()
     selections = "\n".join(
         f"issue{index}: issue(number: {int(number)}) {{ number title url state body "
-        f"comments(first: 100) {{ nodes {{ body }} }} }}"
+        f"comments(last: 100) {{ nodes {{ body }} totalCount pageInfo {{ hasPreviousPage startCursor }} }} }}"
         for index, number in enumerate(numbers)
     )
     query = f"""
@@ -275,6 +276,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
         result.append(pr_registry.view({
             **task,
             "comments": comment_bodies(task.get("comments")),
+            "commentsMeta": _comments_metadata(task.get("comments")),
             "taskId": match.group(1) if match else None,
         }))
     return result
@@ -323,3 +325,37 @@ def comments_for_issue(issue: str) -> list[dict]:
         for page in pages
         for comment in page
     ]
+
+
+def comments_page(issue: str, page: int = 1, per_page: int = 100):
+    from pdlc.hosts.workitem_host.base import CommentPage
+    if not issue.isdigit() or page < 1 or per_page != 100:
+        raise PdlcError("comments page must be >= 1 and use 100 comments per page")
+    if os.environ.get("PDLC_ITEMS_FILE"):
+        comments = comments_for_issue(issue)
+        start = (page - 1) * per_page
+        selected = list(reversed(comments))[start:start + per_page]
+        return CommentPage(selected, page, per_page, len(comments), start + len(selected) < len(comments))
+    owner, repository = owner_repository()
+    count_query = "query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){issue(number:$number){comments(last:100){totalCount pageInfo{hasPreviousPage startCursor}}}}}"
+    total = run_graphql(count_query, owner=owner, repo=repository, number=int(issue))["data"]["repository"]["issue"]["comments"]["totalCount"]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    newest_page = total_pages - page + 1
+    if newest_page < 1:
+        return CommentPage([], page, per_page, total, False)
+    oldest_page = max(1, newest_page - 1)
+    raw_pages = []
+    for api_page in range(oldest_page, newest_page + 1):
+        raw_pages.append(run_gh_json(["api", "--method", "GET", f"repos/{owner}/{repository}/issues/{issue}/comments", "-f", f"per_page={per_page}", "-f", f"page={api_page}"]))
+    raw = [comment for batch in raw_pages for comment in batch]
+    comments = [{"body": c["body"], "createdAt": c["created_at"], "url": c["html_url"], "author": {"login": (c.get("user") or {}).get("login")}} for c in reversed(raw)]
+    offset = max(0, len(raw) - (total - (page - 1) * per_page))
+    comments = comments[offset:offset + per_page]
+    return CommentPage(comments, page, per_page, total, total > page * per_page)
+
+
+def _comments_metadata(raw: object) -> dict:
+    if not isinstance(raw, dict):
+        return {"totalCount": len(raw) if isinstance(raw, list) else 0, "pageInfo": {}}
+    nodes = raw.get("nodes") or []
+    return {"totalCount": raw.get("totalCount", len(nodes)), "pageInfo": raw.get("pageInfo") or {}}

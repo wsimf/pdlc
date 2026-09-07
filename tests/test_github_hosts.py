@@ -550,7 +550,7 @@ class CodeHostTest(GitHubHostTest):
         super().setUp()
         self.host = GitHubCodeHost()
 
-    def test_pull_requests_by_number_fetches_each_and_skips_unknown(self) -> None:
+    def test_pull_requests_by_number_fails_closed_on_unknown(self) -> None:
         def view(args, _input):
             number = int(args[2])
             if number == 9:
@@ -558,17 +558,57 @@ class CodeHostTest(GitHubHostTest):
             return {
                 "number": number, "title": "impl", "url": f"u{number}", "state": "OPEN",
                 "isDraft": False, "headRefName": "feat", "mergedAt": None,
-                "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]},
+                "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
             }
 
         self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
 
-        prs = self.host.pull_requests_by_number([5, 9, 4])
+        with self.assertRaisesRegex(PdlcError, "registered pull request #9"):
+            self.host.pull_requests_by_number([5, 9, 4])
 
-        self.assertEqual([pr["number"] for pr in prs], [5, 4])
-        self.assertEqual(prs[0]["checks"], "SUCCESS")
-        self.assertEqual(prs[0]["branch"], "feat")
-        self.assertNotIn("relation", prs[0])
+    def test_checks_state_handles_check_runs_and_status_contexts(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        self.assertEqual(_checks_state({"statusCheckRollup": []}), "NONE")
+        self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "IN_PROGRESS", "conclusion": None}]}), "PENDING")
+        self.assertEqual(_checks_state({"statusCheckRollup": [{"state": "SUCCESS"}]}), "SUCCESS")
+        self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "COMPLETED", "conclusion": "FAILURE"}]}), "FAILURE")
+
+    def test_checks_state_aggregates_failures_independent_of_rollup_order(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        success = {"status": "COMPLETED", "conclusion": "SUCCESS"}
+        failure = {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED"}
+        self.assertEqual(_checks_state({"statusCheckRollup": [success, failure]}), "FAILURE")
+        self.assertEqual(_checks_state({"statusCheckRollup": [failure, success]}), "FAILURE")
+
+    def test_checks_state_reports_mixed_success_and_running_as_pending(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        self.assertEqual(_checks_state({"statusCheckRollup": [
+            {"status": "COMPLETED", "conclusion": "SUCCESS"},
+            {"status": "IN_PROGRESS", "conclusion": None},
+        ]}), "PENDING")
+
+    def test_checks_state_accepts_neutral_and_skipped_conclusions(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        self.assertEqual(_checks_state({"statusCheckRollup": [
+            {"status": "COMPLETED", "conclusion": "NEUTRAL"},
+            {"status": "COMPLETED", "conclusion": "SKIPPED"},
+        ]}), "SUCCESS")
+
+    def test_checks_state_treats_queued_waiting_and_null_conclusions_as_pending(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        for entry in (
+            {"status": "QUEUED", "conclusion": None},
+            {"status": "WAITING", "conclusion": None},
+            {"status": "COMPLETED", "conclusion": None},
+        ):
+            with self.subTest(entry=entry):
+                self.assertEqual(_checks_state({"statusCheckRollup": [entry]}), "PENDING")
+
+    def test_checks_state_fails_closed_for_unknown_or_malformed_nonempty_rollups(self) -> None:
+        from pdlc.hosts.code_host.github import _checks_state
+        for rollup in ([{"state": "MYSTERY"}], [{}], [None], {"state": "SUCCESS"}, "unexpected"):
+            with self.subTest(rollup=rollup):
+                self.assertEqual(_checks_state({"statusCheckRollup": rollup}), "PENDING")
 
     def test_pull_requests_by_number_reraises_transient_failure(self) -> None:
         def view(args, _input):
@@ -593,7 +633,7 @@ class CodeHostTest(GitHubHostTest):
             response={
                 "number": 5, "title": "impl", "url": "u5", "state": "OPEN",
                 "isDraft": False, "headRefName": "feat", "mergedAt": None,
-                "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]},
+                "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
             },
         )
 

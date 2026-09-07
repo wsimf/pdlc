@@ -151,6 +151,9 @@ def write_body(ref: str, body: str) -> None:
 def comments_for_issue(ref: str) -> list[dict]:
     return get_backend().comments(str(ref))
 
+def comments_page(ref: str, page: int = 1):
+    return get_backend().comments_page(str(ref), page, 100)
+
 
 def post_comment(ref: str, text_or_file: str, marker: str | None = None) -> str:
     body = compose_comment(marker, _read_source(text_or_file))
@@ -194,8 +197,17 @@ def user_comments(ref: str, *, comments: list[dict] | None = None) -> list[dict]
 
 
 def user_comments_markdown(ref: str, *, comments: list[dict] | None = None) -> str:
-    snapshot = comments if comments is not None else comments_for_issue(ref)
-    return _model_user_comments_markdown(snapshot)
+    if comments is None:
+        page = comments_page(ref, 1)
+        snapshot = page.comments
+        older = page.total - len(snapshot)
+    else:
+        snapshot = list(reversed(comments[-100:]))
+        older = max(0, len(comments) - len(snapshot))
+    rendered = _model_user_comments_markdown(snapshot)
+    if older:
+        rendered += f"\n\n{older} more comments; use pdlc inspect comments {ref} --page 2"
+    return rendered
 
 
 def timeline_compact(ref: str, file_path: str, *, comments: list[dict] | None = None) -> str:

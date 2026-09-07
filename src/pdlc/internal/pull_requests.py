@@ -10,20 +10,25 @@ number list into full PR dicts via the code host.
 from __future__ import annotations
 
 from pdlc.hosts.code_host import get_code_host
+from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.workitem import resolve_item, task_tree
 
 
-def registered_pr_numbers(ref: str) -> list[int]:
+def registered_pr_numbers(ref: str, *, record: dict | None = None, tasks: list[dict] | None = None) -> list[int]:
     """Every pull-request number registered on the record `ref` or one of its
     delivery tasks, ascending and de-duplicated."""
-    numbers: set[int] = set(resolve_item(ref).get("prs") or [])
-    for task in task_tree(ref):
+    record = record or resolve_item(ref)
+    numbers: set[int] = set(record.get("prs") or [])
+    for task in tasks if tasks is not None else task_tree(ref):
         numbers.update(task.get("prs") or [])
     return sorted(numbers)
 
 
-def record_pull_requests(ref: str) -> list[dict]:
+def record_pull_requests(ref: str, *, record: dict | None = None, tasks: list[dict] | None = None) -> list[dict]:
     """The registered pull requests for `ref` as full dicts (see
     `code_host.pull_requests_by_number`). Empty when none are registered."""
-    numbers = registered_pr_numbers(ref)
-    return get_code_host().pull_requests_by_number(numbers) if numbers else []
+    numbers = registered_pr_numbers(ref, record=record, tasks=tasks)
+    resolved = get_code_host().pull_requests_by_number(numbers) if numbers else []
+    if {pr.get("number") for pr in resolved} != set(numbers):
+        raise PdlcError("code host returned fewer pull requests than the registry; refusing to continue")
+    return resolved

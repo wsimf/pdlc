@@ -107,8 +107,8 @@ from pathlib import Path
 from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
-from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree, user_comments_markdown  # type: ignore
+from pdlc.internal.reporting import older_comments_notice, yaml_front_matter  # type: ignore
+from pdlc.internal.workitem import comments_for_issue, due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree, user_comments_markdown  # type: ignore
 
 
 def _due_next_owner(due: dict) -> str:
@@ -208,7 +208,8 @@ def _compact_render(
 
 def render(issue: str) -> tuple[str, str, Path]:
     item = resolve_item(issue)
-    pull_requests = record_pull_requests(issue)
+    tasks = task_tree(issue)
+    pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     attachments = attachments_for_item(item)
 
     metadata = {
@@ -223,7 +224,11 @@ def render(issue: str) -> tuple[str, str, Path]:
     }
 
     # One comment fetch feeds the `## User Comments` section in both renders.
-    user_comments_section = user_comments_markdown(issue)
+    comments = comments_for_issue(issue)
+    user_comments_section = user_comments_markdown(issue, comments=comments)
+    comments_notice = older_comments_notice(issue, item.get("commentsMeta"), len(comments))
+    if comments_notice:
+        user_comments_section += f"\n\n> Older comments are omitted from this view. {comments_notice}."
 
     body = (item.get("issueBody") or "").rstrip("\n")
 
@@ -232,7 +237,6 @@ def render(issue: str) -> tuple[str, str, Path]:
     sections.append(attachments_markdown(attachments))
     sections.append(user_comments_section)
 
-    tasks = task_tree(issue)
     if not tasks:
         sections.append("# Tasks\n\nNo Tasks")
     else:

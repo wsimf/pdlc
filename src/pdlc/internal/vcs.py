@@ -12,11 +12,12 @@ from __future__ import annotations
 import subprocess
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.evidence import parse_verification_report
 
 
 def files_touched_by(commit: str) -> list[str]:
     result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit],
+        ["git", "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m", commit],
         capture_output=True,
         text=True,
     )
@@ -30,13 +31,19 @@ def is_stale(commit: str, files: list[str]) -> bool:
     when the commit is unknown / touched nothing (nothing to trust)."""
     if not files:
         return True
+    exists = subprocess.run(["git", "cat-file", "-e", commit + "^{commit}"], capture_output=True)
+    if exists.returncode != 0:
+        return True
+    ancestry = subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"], capture_output=True)
+    if ancestry.returncode != 0:
+        return True
     result = subprocess.run(
         ["git", "log", "--oneline", f"{commit}..HEAD", "--", *files],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        raise PdlcError(result.stderr.strip() or f"git log failed for {commit}")
+        return True
     return bool(result.stdout.strip())
 
 
@@ -53,3 +60,10 @@ def stale_commits(commits: list[str]) -> set[str]:
         except PdlcError:
             verdict[commit] = True
     return {commit for commit, stale in verdict.items() if stale}
+
+
+def stale_verification_rows(body: str) -> list[str]:
+    """Parse the canonical verification schema and return rows with stale anchors."""
+    report = parse_verification_report(body)
+    stale = stale_commits(list(report.verified_commits))
+    return [row.text for row in report.rows if row.commit in stale]

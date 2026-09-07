@@ -148,9 +148,9 @@ def main() -> int:
         if gate in ("Pending", "Stale"):
             pass
         elif gate == "Approval Required" and not args.dry_run:
-            # The driver asked for a change before approving: reset Technical
-            # Plan to Stale ourselves and re-land the reviewed plans in this call.
-            reauthor_invalidate_stage(record, "Technical Plan", pipeline)
+            # Defer this mutation until the complete manifest has validated.
+            # Invalid plans must leave the approval gate untouched.
+            pass
         elif gate == "Approval Required":
             raise PdlcError(f"Technical Plan is at {gate}; return it to Stale with pdlc post invalidate before re-planning it")
         elif gate in ("Review Required", "Changes Required"):
@@ -160,6 +160,11 @@ def main() -> int:
         if is_stage_skipped(record, "Technical Plan"):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
         state = state_for_item(record, pipeline)
+        if gate == "Approval Required" and not args.dry_run:
+            try:
+                state = pipeline.next_state(state, Event.REAUTHORED)
+            except ValueError as error:
+                raise PdlcError(str(error)) from None
         try:
             target = pipeline.next_state(state, Event.PUBLISHED)
         except ValueError as error:
@@ -171,9 +176,13 @@ def main() -> int:
         tree_by_id = {task["taskId"]: task for task in tree if task.get("taskId")}
 
         replacements: list[dict] = []
-        for entry in manifest:
+        for index, entry in enumerate(manifest, 1):
             task_id = entry.get("id") or ""
             path = entry.get("plan") or ""
+            if not isinstance(task_id, str):
+                raise PdlcError(f"manifest entry {index} id must be a string")
+            if not isinstance(path, str):
+                raise PdlcError(f"manifest entry {index} plan must be a file path string")
             if not task_id:
                 raise PdlcError('every manifest entry needs an "id"')
             plan_path = require_file(f"plan file for {task_id}", path)
@@ -203,6 +212,9 @@ def main() -> int:
             return 0
 
         assert evidence_path is not None
+
+        if gate == "Approval Required":
+            reauthor_invalidate_stage(record, "Technical Plan", pipeline)
 
         attachments = save_attachments(args.work_item, attachment_inputs)
         results = []

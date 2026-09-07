@@ -157,11 +157,13 @@ import re
 import sys
 from pathlib import Path
 from typing import Callable
+from pdlc.domain.evidence import parse_verification_report
+from pdlc.internal.reporting import older_comments_notice
 
 
 from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.internal.vcs import files_touched_by as _files_touched_by, is_stale as _is_stale  # type: ignore
+from pdlc.internal.vcs import stale_commits  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
@@ -178,10 +180,10 @@ READY_GATES = {
     "Stale": "Something upstream changed under the existing evidence — treat that evidence as unproven.",
 }
 
-FINDINGS_HEADING = re.compile(r"^#{1,6}\s*Findings\s*$", re.IGNORECASE)
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
 HEADING_PATTERN = re.compile(r"^#{1,6}\s")
 BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
+REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
+
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
 DEFERRED_PATTERN = re.compile(r"^-?\s*Deferred\s*[—-]\s*(.+?)\s*$")
 TASK_MENTION = re.compile(r"TASK-\d{3}")
@@ -189,6 +191,7 @@ JOURNEY_HEADING = re.compile(r"^#{1,6}\s*(UJ-\d+)\b")
 JOURNEY_ID_IN_BULLET = re.compile(r"^(UJ-\d+)\b")
 
 
+'''dead parser helpers retained below for compatibility'''
 def _bullets_under(body: str, heading_pattern: re.Pattern) -> list[str]:
     items = []
     in_section = False
@@ -237,7 +240,7 @@ def _bullets_by_section(body: str) -> list[tuple[str, str]]:
 # each line is pdlc post verify's, not the agent's — strip it here
 # rather than exposing it as something the caller must parse itself.
 def _fixed_findings_in(body: str) -> list[str]:
-    return _bullets_under(body, FINDINGS_HEADING)
+    return list(parse_verification_report(body).findings)
 
 
 def _deferred_findings_in(body: str) -> list[str]:
@@ -256,17 +259,13 @@ def _deferred_findings_in(body: str) -> list[str]:
 # per item so callers can filter by kind (e.g. journeys-to-review needs just
 # User Journeys and UX) without re-parsing.
 def _reuse_items(latest_verification_body: str) -> list[dict]:
-    items = []
-    staleness_by_commit: dict[str, bool] = {}
-    for section, text in _bullets_by_section(latest_verification_body):
-        match = VERIFIED_AT.search(text)
-        if not match:
-            continue
-        commit = match.group(1)
-        if commit not in staleness_by_commit:
-            staleness_by_commit[commit] = _is_stale(commit, _files_touched_by(commit))
-        items.append({"section": section, "text": text, "stale": staleness_by_commit[commit]})
-    return items
+    report = parse_verification_report(latest_verification_body)
+    stale = stale_commits(list(report.verified_commits))
+    return [
+        {"section": row.section, "text": row.text, "stale": row.commit in stale}
+        for row in report.rows
+        if row.commit
+    ]
 
 
 def _reuse_sections(items: list[dict]) -> list[str]:
@@ -377,6 +376,8 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
         return ["## Task Completion", "", "All tasks closed with their implementation recorded; every linked PR merged with passing checks."]
 
     sections = ["## Task Completion"]
+    notices = [older_comments_notice(t["number"], t.get("commentsMeta"), len(t.get("comments") or [])) for t in tasks]
+    notices = [notice for notice in notices if notice]
 
     if open_tasks:
         sections += ["", "Open tasks — each needs a durable, on-record deferral reason, or this isn't ready:", ""]
@@ -394,6 +395,8 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
     if unsettled_prs:
         sections += ["", "Linked PRs not both merged and green — confirm each is explicitly dispositioned before treating this as ready:", ""]
         sections += unsettled_prs
+    if notices:
+        sections += ["", "> Older task comments are omitted from this view. " + "; ".join(notices) + "."]
 
     return sections
 
@@ -461,7 +464,7 @@ def inspect(issue: str) -> str:
         return "\n".join(sections) + "\n"
 
     tasks = task_tree(issue)
-    pull_requests = record_pull_requests(issue)
+    pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
 

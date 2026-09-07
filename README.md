@@ -41,6 +41,8 @@ uv build
 
 Run from a local checkout without installing with `uv run pdlc ...`.
 
+Inspect comments without loading the full discussion with `pdlc inspect comments ISSUE --page N`. Pages contain 100 comments, are newest first, and report the exact total plus the next command when more remain.
+
 ## Environment variables
 
 Values in `.pdlc/config.toml` override environment variables. CLI options override both.

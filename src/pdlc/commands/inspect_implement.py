@@ -59,6 +59,7 @@ import argparse
 import sys
 
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
+from pdlc.internal.reporting import older_comments_notice  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 from pdlc.internal.stack import stack_entry_pr, task_branch_name  # type: ignore
 from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree  # type: ignore
@@ -169,6 +170,9 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
         "",
         plan or "_No ## Technical Plan comment found — treat as not eligible and report it._",
     ]
+    notice = older_comments_notice(chosen["number"], chosen.get("commentsMeta"), len(chosen.get("comments") or []))
+    if notice:
+        lines += ["", f"> Older comments are omitted from this view. {notice}."]
     return "\n".join(lines), chosen
 
 

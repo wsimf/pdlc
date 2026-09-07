@@ -50,9 +50,10 @@ class InspectVerifyTests(FileBackendTest):
             "## Verification Run Results\n\n"
             "### Claims Audit\n\n"
             f"- FR-1 holds (Verified @ {sha})\n\n"
-            "### User Journeys\n\n- None yet\n\n"
+            f"### User Journeys\n\n- None yet (Verified @ {sha})\n\n"
             "### UX\n\n- Reviewed — clean\n\n### Cumulative Review\n\n- Clean\n\n"
             "### Findings\n\n- Fixed the drift calculation\n"
+            "### Findings\n\n- Fixed the drift calculation\n\nRecommendation: Changes Required\n"
         )
         with (self.records_dir() / "50" / "comments.jsonl").open("a") as handle:
             handle.write(json.dumps({
@@ -102,7 +103,7 @@ class InspectVerifyTests(FileBackendTest):
         # pdlc-complete is next" — while `pdlc inspect complete` blocked the
         # same record as `verification-stale`, naming no command to break the tie.
         self._seed_verification_record(gate="Approval Required")
-        with mock.patch("pdlc.commands.inspect_verify._is_stale", return_value=True):
+        with mock.patch("pdlc.commands.inspect_verify.stale_commits", side_effect=lambda commits: set(commits)):
             result = self.invoke("inspect_verify", 50)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("no longer holds against current source", result.stdout)

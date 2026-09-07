@@ -29,8 +29,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
-
 
 from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments  # type: ignore
@@ -43,7 +41,10 @@ from pdlc.internal.workitem import (  # type: ignore
     post_comment,
     attach_pr,
     resolve_item,
-    task_tree,
+    workflow_for_item,
+    due_next,
+    item_status,
+    item_gate,
     tasks_by_number,
 )
 
@@ -73,9 +74,23 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     if not delivery_task.isdigit():
         raise PdlcError(f"delivery task number must be numeric: {delivery_task}")
 
-    task = tasks_by_number([delivery_task])[0]
+    try:
+        task = tasks_by_number([delivery_task])[0]
+    except (IndexError, KeyError) as error:
+        raise PdlcError(f"no delivery task found for #{delivery_task}") from error
     if task.get("taskId") is None:
         raise PdlcError(f"work item #{delivery_task} is not a delivery task (no WORK-NNN-TASK-NNN identity)")
+
+    parent = resolve_item(parent_number_for_task(task))
+    pipeline, _ = workflow_for_item(parent)
+    status = item_status(parent)
+    gate = item_gate(parent)
+    if status == pipeline.terminal_stage:
+        raise PdlcError("the parent work item is Complete and locked")
+    if status != "Implementation" or due_next(parent).get("action") != "pdlc-implement":
+        raise PdlcError(f"implementation is not active: parent is at {status} / {gate}")
+    if not task.get("hasPlan"):
+        raise PdlcError(f"{task['taskId']} has no Technical Plan and is not eligible for implementation")
 
     text = sys.stdin.read() if evidence == "-" else require_file("implementation file", evidence).read_text()
     summary = text.strip()
