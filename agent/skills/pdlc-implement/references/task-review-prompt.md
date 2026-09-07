@@ -1,6 +1,6 @@
 # Task-level implementation review prompt
 
-`pdlc-implement` Step 5 fills the placeholders below and spawns
+`pdlc-implement` Step 2 fills the placeholders below and spawns
 `pdlc-implementation-reviewer` at `task` depth with the result — once per task,
 after local validation and before the task is checkpointed onto its stacked PR.
 

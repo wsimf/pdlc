@@ -1,6 +1,6 @@
 # Task implementation summary outline
 
-`pdlc-implement` Step 5 writes one summary of what was done per task and posts it
+`pdlc-implement` Step 4 writes one summary of what was done per task and posts it
 with `pdlc post implement-task`. It is a comment on the delivery task — the task
 body and its `## Technical Plan` are never touched.
 

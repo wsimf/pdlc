@@ -8,15 +8,15 @@ A project declares its routing in `.pdlc/config.toml`:
 
 ```toml
 [agents]
-core-implementer = "swift-pro"
-ui-implementer   = "swiftui-pro"
+core-implementer = "my-core-implementer"
+ui-implementer   = "my-ui-implementer"
 
 [skills]
-build-run         = "trailnest-build-run"
-ux-design         = "trailnest-ux-design"
-cumulative-review = "trailnest-ultra-review"
-test-authoring    = "create-swift-tests"
-test-framework    = "swift-testing-expert"
+build-run         = "my-build-run"
+ux-design         = "my-ux-design"
+cumulative-review = "my-cumulative-review"
+test-authoring    = "my-test-authoring"
+test-framework    = "my-test-framework"
 ```
 
 Every slot is optional. Both tables may be omitted entirely; the workflow
@@ -40,7 +40,9 @@ Capability selection does not select workflow policy. The resolved record's `wor
 
 - **agent slots** resolve to exactly one sub-agent name. `pdlc inspect
   capability core-implementer` prints it (or `general-purpose`). The calling
-  skill dispatches there.
+  skill dispatches there. `pdlc inspect task` resolves each task's implementer
+  slot from its own `isUI` and prints it under `## Agent`, so `pdlc-implement`
+  never asks separately.
 - **skill slots**, when set, resolve to an instruction: *"You must invoke the
   `<name>` skill before continuing. If it is not available, say so and exit."*
   The calling skill pastes that line verbatim into the sub-agent brief.

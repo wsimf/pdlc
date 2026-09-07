@@ -85,14 +85,14 @@ class ConfigTests(unittest.TestCase):
 
     def test_capability_slots_are_read_from_config(self):
         nested = self.make_repo(
-            '[agents]\ncore-implementer = "swift-pro"\n'
-            '[skills]\nbuild-run = "trailnest-build-run"\n'
+            '[agents]\ncore-implementer = "my-core-implementer"\n'
+            '[skills]\nbuild-run = "my-build-run"\n'
         )
         load_config(nested)
         caps = get_capabilities()
-        self.assertEqual(caps.agent("core-implementer"), "swift-pro")
+        self.assertEqual(caps.agent("core-implementer"), "my-core-implementer")
         self.assertEqual(caps.agent("ui-implementer"), "general-purpose")
-        self.assertEqual(caps.skill("build-run"), "trailnest-build-run")
+        self.assertEqual(caps.skill("build-run"), "my-build-run")
         self.assertIsNone(caps.skill("ux-design"))
 
     def test_capability_rejects_unknown_slot(self):

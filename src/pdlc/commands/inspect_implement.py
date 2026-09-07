@@ -12,15 +12,19 @@ restricts it to the CORE or UI half. The two cannot be combined.
 Pending / Changes Required / Stale, not skipped). `## Next Task` names the first
 eligible task in scope — OPEN, technically planned, not yet implemented — in
 CORE-before-UI then task-number order, with its `## Technical Plan` rendered
-inline, its `branch:`, and the `stackSetup:` commands that put that branch on the
-stack. Those are `gh stack` invocations: the extension owns the stack's order,
-bases, and rebases, so nothing here computes a base branch or checks whether a
-predecessor's branch still exists. The entry point is the previous implemented
-task's registered pull request — `gh stack checkout` discovers the rest of the
-stack from GitHub itself. `## Judgment Required` lists what the skill must still
+inline, its `branch:`, and whatever setup lines the configured code host needs to
+put that branch on its stack — for GitHub, `gh stack` invocations entered at the
+previous implemented task's registered pull request. The stack vocabulary is the
+host's own: nothing here computes a base branch or checks whether a
+predecessor's branch still exists. A code host with no stacked-PR mechanism
+contributes no setup line and the branch is the caller's to create.
+`## Judgment Required` lists what the skill must still
 confirm from the task body and record comments (dependency closure by Result,
 HITL approval) — this script stops short of that judgment, exactly as
-`pdlc inspect test` does. `## Remaining` summarises the rest.
+`pdlc inspect test` does. `## Remaining` summarises the rest. Whenever a task was
+chosen, the output ends with the `pdlc inspect task` call that renders it in
+full — its body, acceptance criteria, and the `## Agent` naming the implementer
+sub-agent it routes to.
 
 Not ready, or nothing eligible, is reported plainly rather than raised.
 
@@ -51,6 +55,9 @@ Not ready, or nothing eligible, is reported plainly rather than raised.
 
     - WORK-142-TASK-005 [UI] ... (OPEN): not yet planned
     3 of 5 delivery tasks closed.
+
+    Next: run `pdlc inspect task 51` for this task's full body, acceptance
+    criteria, and the sub-agent to implement it with.
 """
 
 from __future__ import annotations
@@ -61,6 +68,7 @@ import sys
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.internal.reporting import older_comments_notice  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.stack import stack_entry_pr, task_branch_name  # type: ignore
 from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree  # type: ignore
 
@@ -145,17 +153,9 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
     chosen = eligible[0]
     slug = item_slug(item)
     branch = task_branch_name(slug, chosen["taskId"])
-    entry_pr = stack_entry_pr(delivery, chosen)
-    # The exact `gh stack` invocations to run. The extension owns the stack's
-    # order, bases, and rebases, so nothing here computes a base branch or asks
-    # whether a predecessor's branch still exists.
-    if entry_pr is None:
-        setup = [f"stackSetup: gh stack init {branch}  (first task — creates the stack on the default branch)"]
-    else:
-        setup = [
-            f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
-            f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
-        ]
+    # The stack is the code host's mechanism, so the setup lines come from it —
+    # this only supplies the branch and the entry point PDLC itself owns.
+    setup = get_code_host().task_stack_setup(branch, stack_entry_pr(delivery, chosen))
 
     plan = (chosen.get("planComment") or "").strip()
     lines = [
@@ -192,6 +192,14 @@ def inspect(issue: str, task_filter: str | None, phase: bool | None) -> str:
     if chosen is not None:
         sections += ["", _JUDGMENT]
     sections += ["", _remaining_section(delivery, chosen, closed)]
+    if chosen is not None:
+        # The handoff: everything needed to implement the task lives on the task
+        # itself, including which sub-agent it routes to.
+        sections += [
+            "",
+            f"Next: run `pdlc inspect task {chosen['number']}` for this task's full body, "
+            "acceptance criteria, and the sub-agent to implement it with.",
+        ]
     return "\n".join(sections) + "\n"
 
 

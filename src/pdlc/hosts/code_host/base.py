@@ -33,6 +33,18 @@ class CodeHost(ABC):
         """Repository-relative paths the pull request touches."""
 
     @abstractmethod
+    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
+        """The lines telling a caller how to put ``branch`` on this host's stack,
+        entering at ``entry_pr`` (the previous implemented task's pull request)
+        or starting a new stack when it is None.
+
+        Returned as rendered `key: value` lines because the vocabulary is the
+        host mechanism's own — PDLC supplies only the branch and the entry point.
+        A host with no stacked-PR mechanism returns ``[]`` and the caller
+        branches however it likes; it is the read-only counterpart of
+        ``submit_task_stack``, which such a host also refuses."""
+
+    @abstractmethod
     def submit_task_stack(self) -> list[dict]:
         """Submit the stack the current branch belongs to: sync it, push it, and
         create or update one pull request per branch. Returns every PR in the

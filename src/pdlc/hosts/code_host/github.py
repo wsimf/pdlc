@@ -126,6 +126,17 @@ class GitHubCodeHost(CodeHost):
         data = run_gh_json(["pr", "view", str(pr_number), *repo_args(), "--json", "files"])
         return [entry["path"] for entry in data.get("files", [])]
 
+    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
+        # `gh stack` owns the stack's order, bases, and rebases, so nothing here
+        # computes a base branch or asks whether a predecessor's branch still
+        # exists: `gh stack checkout <pr>` fetches the stack from GitHub itself.
+        if entry_pr is None:
+            return [f"stackSetup: gh stack init {branch}  (first task — creates the stack on the default branch)"]
+        return [
+            f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
+            f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
+        ]
+
     def submit_task_stack(self) -> list[dict]:
         """Sync, push, and create/update the current local stack's pull requests.
 

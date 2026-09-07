@@ -19,5 +19,8 @@ class NoneCodeHost(CodeHost):
     def pull_request_files(self, pr_number: str | int) -> list[str]:
         return []
 
+    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
+        return []
+
     def submit_task_stack(self) -> list[dict]:
         raise PdlcError("no code host is configured; cannot submit a stacked pull request")

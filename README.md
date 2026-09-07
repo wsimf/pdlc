@@ -196,15 +196,15 @@ PDLC skills never name a project-specific skill or sub-agent. Each seam that cou
 
 ```toml
 [agents]
-core-implementer = "swift-pro"
-ui-implementer   = "swiftui-pro"
+core-implementer = "my-core-implementer"
+ui-implementer   = "my-ui-implementer"
 
 [skills]
-build-run         = "trailnest-build-run"
-ux-design         = "trailnest-ux-design"
-cumulative-review = "trailnest-cumulative-review"
-test-authoring    = "create-swift-tests"
-test-framework    = "swift-testing-expert"
+build-run         = "my-build-run"
+ux-design         = "my-ux-design"
+cumulative-review = "my-cumulative-review"
+test-authoring    = "my-test-authoring"
+test-framework    = "my-test-framework"
 ```
 
 Every slot is optional; omit both tables and the workflow still runs with the fallback behaviour below.

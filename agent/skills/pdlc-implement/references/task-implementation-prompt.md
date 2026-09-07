@@ -1,21 +1,21 @@
 # Task implementation dispatch prompt
 
-`pdlc-implement` Step 4 fills the placeholders below and spawns exactly one
-implementer sub-agent with the result — the one named by `pdlc inspect
-capability ui-implementer` when the task's tag is `[UI]`, otherwise `pdlc
-inspect capability core-implementer` (both fall back to `general-purpose`).
+`pdlc-implement` Step 1 fills the placeholders below and spawns exactly one
+implementer sub-agent with the result — the one named in the task's `## Agent`
+section from `pdlc inspect task` (`general-purpose` when the project configures
+no implementer).
 One dispatch per task, after the skill has checked out the task's own branch.
 
 The agent knows nothing about the PDLC pipeline. Give it only what it needs to
 write the code; never tell it to "figure out the PDLC conventions" itself. This
-same dispatch is reused to hand back review findings (Step 5), so keep it
+same dispatch is reused to hand back review findings (Step 2), so keep it
 addressable.
 
 ---
 
 ```md
 You are implementing one delivery task's production code. Make exactly one commit
-and report back; do not push, branch, or open a pull request.
+for this dispatch and report back; do not push, branch, or open a pull request.
 
 ## Task
 
@@ -46,7 +46,9 @@ rendered by `pdlc inspect task` after the body>
 - The current branch is already correct — do not create, switch, or rename a
   branch.
 - Make exactly one commit, for this task's changes only, naming
-  `<WORK-NNN-TASK-NNN>` in the message. Do not push; do not open or touch a pull
+  `<WORK-NNN-TASK-NNN>` in the message. When this dispatch hands you review
+  findings, that commit goes on top of your earlier one — never amend, rebase,
+  or squash what is already there. Do not push; do not open or touch a pull
   request.
 - Implement production code only. Do not create, edit, or delegate tests —
   coverage is owned separately.

@@ -16,17 +16,17 @@ class CapabilityCommandTests(unittest.TestCase):
         load_config(root)
 
     def test_agent_slot_prints_configured_name(self):
-        self.load('[agents]\ncore-implementer = "swift-pro"\n')
-        self.assertEqual(inspect_capability._one("core-implementer"), "swift-pro")
+        self.load('[agents]\ncore-implementer = "my-core-implementer"\n')
+        self.assertEqual(inspect_capability._one("core-implementer"), "my-core-implementer")
 
     def test_agent_slot_falls_back_to_general_purpose(self):
         self.load()
         self.assertEqual(inspect_capability._one("ui-implementer"), "general-purpose")
 
     def test_configured_skill_slot_emits_invoke_instruction(self):
-        self.load('[skills]\nbuild-run = "trailnest-build-run"\n')
+        self.load('[skills]\nbuild-run = "my-build-run"\n')
         line = inspect_capability._one("build-run")
-        self.assertIn("invoke the `trailnest-build-run` skill", line)
+        self.assertIn("invoke the `my-build-run` skill", line)
         self.assertIn("say so and exit", line)
 
     def test_unset_skill_slot_emits_fallback(self):

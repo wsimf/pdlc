@@ -2,8 +2,12 @@
 task`, `pdlc inspect timeline`, and the per-stage readiness reports."""
 
 import json
+import shutil
+import tempfile
+from pathlib import Path
 
 from _support import FileBackendTest
+from pdlc.config import load_config
 
 
 class InspectTests(FileBackendTest):
@@ -137,6 +141,47 @@ class ReadinessReportTests(FileBackendTest):
         self.assertIn("Not ready", result.stdout)
 
 
+class InspectTaskAgentTests(FileBackendTest):
+    """`pdlc inspect task`: the per-task implementer routing section."""
+
+    def _capabilities(self, config: str | None = None) -> None:
+        """Point capability resolution at a throwaway repo root for this test."""
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / ".git").mkdir()
+        if config is not None:
+            (root / ".pdlc").mkdir()
+            (root / ".pdlc" / "config.toml").write_text(config)
+        load_config(root)
+        self.addCleanup(load_config)
+
+    def test_agent_section_names_the_configured_implementer_for_the_phase(self):
+        self._capabilities('[agents]\ncore-implementer = "my-core-implementer"\nui-implementer = "my-ui-implementer"\n')
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "OPEN", "WORK-70-TASK-001 [UI] UI work")
+
+        result = self.invoke("inspect_task", 701)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Agent", result.stdout)
+        self.assertIn("my-ui-implementer — the project's implementer for a [UI] task.", result.stdout)
+
+    def test_core_task_routes_to_the_core_slot(self):
+        self._capabilities('[agents]\ncore-implementer = "my-core-implementer"\n')
+        self.seed_record(71, "Implementation", "Pending", slug="record-71")
+        self.seed_task(71, 711, "TASK-001", "OPEN", "WORK-71-TASK-001 [CORE] Core work")
+
+        result = self.invoke("inspect_task", 711)
+        self.assertIn("my-core-implementer — the project's implementer for a [CORE] task.", result.stdout)
+
+    def test_agent_section_falls_back_to_general_purpose(self):
+        self._capabilities()
+        self.seed_record(72, "Implementation", "Pending", slug="record-72")
+        self.seed_task(72, 721, "TASK-001", "OPEN", "WORK-72-TASK-001 [CORE] Core work")
+
+        result = self.invoke("inspect_task", 721)
+        self.assertIn("general-purpose — the project's implementer", result.stdout)
+
+
 class InspectImplementTests(FileBackendTest):
     """`pdlc inspect implement`: readiness + the single next eligible task."""
 
@@ -152,7 +197,14 @@ class InspectImplementTests(FileBackendTest):
     def _seed(self, record: int = 60, slug: str = "record-60", **kw) -> None:
         self.seed_record(record, "Implementation", "Pending", slug=slug, **kw)
 
+    def _github_code_host(self) -> None:
+        """Stack setup lines come from the code host, and only GitHub has a
+        stacked-PR mechanism; the suite's default file host has none."""
+        self.set_env(PDLC_CODE_HOST="github")
+        self._reset_hosts()
+
     def test_reports_the_next_eligible_core_task_before_ui(self):
+        self._github_code_host()
         self._seed()
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
         self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] UI work")
@@ -170,6 +222,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("Judgment Required", result.stdout)
 
     def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):
+        self._github_code_host()
         self._seed()
         self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
         self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
@@ -187,6 +240,7 @@ class InspectImplementTests(FileBackendTest):
         # `gh stack checkout` needs a PR to discover the stack from. An
         # implemented task that never registered one cannot serve as one, so the
         # inspector says so by falling back to `init` rather than guessing.
+        self._github_code_host()
         self._seed()
         self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
         self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
@@ -226,6 +280,32 @@ class InspectImplementTests(FileBackendTest):
 
         result = self.invoke("inspect_implement", 60, "--phase", "ui")
         self.assertIn("### WORK-60-TASK-002 [UI] Interface", result.stdout)
+
+    def test_a_code_host_without_a_stack_contributes_no_setup_line(self):
+        # The suite's default file code host cannot submit stacked PRs, so it
+        # offers no setup vocabulary either — the branch is still named.
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._plan(60, 601)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
+        self.assertNotIn("stackSetup", result.stdout)
+
+    def test_output_ends_by_handing_off_to_inspect_task(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._plan(60, 601)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("Next: run `pdlc inspect task 601`", result.stdout.strip().splitlines()[-1])
+
+    def test_no_handoff_line_when_nothing_is_eligible(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] No plan yet")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertNotIn("pdlc inspect task", result.stdout)
 
     def test_not_ready_when_stage_is_not_implementation(self):
         self.seed_record(61, "Testing", "Pending", slug="record-61")

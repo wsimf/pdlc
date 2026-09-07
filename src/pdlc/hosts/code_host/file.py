@@ -54,5 +54,8 @@ class FileCodeHost(CodeHost):
                 return pull_request.get("files", [])
         return []
 
+    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
+        return []
+
     def submit_task_stack(self) -> list[dict]:
         raise PdlcError("the file code host cannot submit stacked pull requests")
