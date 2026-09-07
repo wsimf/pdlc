@@ -23,7 +23,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_ID_PATTERN
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.azure_common import run_az
-from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
+from pdlc.hosts.workitem_host.base import CommentPage, QueueItemSummary, WorkItemBackend
 
 DEFAULT_RECORD_TYPE = "User Story"
 DEFAULT_CLOSED_STATE = "Closed"
@@ -177,6 +177,20 @@ class AzureWorkItemBackend(WorkItemBackend):
             }
             for comment in azure.comments(azure.numeric(ref))
         ]
+
+    def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
+        result = azure.comments_page(azure.numeric(ref), page, per_page)
+        comments = [
+            {
+                "body": comment.get("text") or "",
+                "createdAt": comment.get("createdDate") or "",
+                "url": comment.get("url") or "",
+                "author": {"login": (comment.get("createdBy") or {}).get("uniqueName") or ""},
+            }
+            for comment in result.get("comments") or []
+        ]
+        total = int(result.get("totalCount") or 0)
+        return CommentPage(comments, page, per_page, total, bool(result.get("continuationToken")))
 
     def post_comment(self, ref: str, body: str) -> str:
         return azure.post_comment(azure.numeric(ref), body)

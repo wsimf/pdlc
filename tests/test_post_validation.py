@@ -55,6 +55,27 @@ class PostTasksValidationTests(FileBackendTest):
                 self.assertEqual(result.code, 1)
                 self.assertIn(needle, result.stderr)
 
+    def test_manifest_field_types_are_rejected_without_traceback(self):
+        result = self._dry_run([{"id": 1, "title": "Bad", "body": self.body_file,
+                                 "ui": False, "covers": ["FR-1"]}])
+        self.assertEqual(result.code, 1)
+        self.assertIn("id must be a string", result.stderr)
+
+        result = self._dry_run([{"id": "TASK-001", "title": "Bad", "body": self.body_file,
+                                 "ui": False, "covers": "FR-1"}])
+        self.assertEqual(result.code, 1)
+        self.assertIn("covers must be an array of strings", result.stderr)
+
+        result = self._dry_run([{"id": "TASK-nope", "title": "Bad", "body": self.body_file,
+                                 "ui": False, "covers": ["FR-1"]}])
+        self.assertEqual(result.code, 1)
+        self.assertIn("malformed task id", result.stderr)
+
+        result = self._dry_run([{"id": "TASK-001", "title": "Bad", "body": self.body_file,
+                                 "ui": False, "covers": ["FR-1"], "depends": [1]}])
+        self.assertEqual(result.code, 1)
+        self.assertIn("depends must be an array of strings", result.stderr)
+
     def test_approval_required_record_must_return_to_stale_before_dry_run(self):
         self.seed_record(31, "Tasks", "Approval Required")
         manifest = self.write_file("m2.json", json.dumps([

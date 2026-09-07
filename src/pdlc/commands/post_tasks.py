@@ -50,6 +50,7 @@ import json
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -81,13 +82,19 @@ from pdlc.domain.lifecycle import (  # type: ignore
     unmarked_evidence_source,
     wants_help,
 )
-from pdlc.domain.workflow import Event, State
+from pdlc.domain.workflow import Event, Pipeline, State
 
 TASK_ID_FORMAT = re.compile(r"^TASK-[0-9]{3}$")
 FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
 UJ_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
 UI_HEADING_PATTERN = re.compile(r"^##[ \t]+UI[ \t]*$")
 NO_UI_PATTERN = re.compile(r"no UI is required|UI is not required|UI not required", re.IGNORECASE)
+
+@dataclass(frozen=True)
+class PublicationContext:
+    record: dict
+    pipeline: Pipeline
+    reauthor: bool = False
 
 
 def declared_identifiers(text: str, pattern: re.Pattern) -> list[str]:
@@ -104,6 +111,9 @@ def tagged_title(task: dict) -> str:
 
 
 def resolve_task_ids(tasks: list[dict], existing_ids: list[str]) -> list[dict]:
+    malformed = [task["id"] for task in tasks if task.get("id") and not TASK_ID_FORMAT.fullmatch(task["id"])]
+    if malformed:
+        raise PdlcError("malformed task id: " + ", ".join(malformed))
     all_ids = [task["id"] for task in tasks if task.get("id")] + existing_ids
     highest = max((int(task_id.removeprefix("TASK-")) for task_id in all_ids), default=0)
     resolved = []
@@ -118,6 +128,21 @@ def resolve_task_ids(tasks: list[dict], existing_ids: list[str]) -> list[dict]:
 
 
 def build_plan(resolved: list[dict], existing: list[dict], requirements: list[str], journeys: list[str]) -> dict:
+    errors: list[str] = []
+    # Validate manifest boundary types before applying set/regex operations;
+    # malformed JSON should become a stable user error, never a traceback.
+    for index, task in enumerate(resolved, 1):
+        if "id" in task and not isinstance(task["id"], str):
+            errors.append(f"manifest entry {index} id must be a string")
+        if "title" in task and not isinstance(task["title"], str):
+            errors.append(f"manifest entry {index} title must be a string")
+        if not isinstance(task.get("covers", []), list) or not all(isinstance(v, str) for v in task.get("covers", [])):
+            errors.append(f"manifest entry {index} covers must be an array of strings")
+        if not isinstance(task.get("depends", []), list) or not all(isinstance(v, str) for v in task.get("depends", [])):
+            errors.append(f"manifest entry {index} depends must be an array of strings")
+    if errors:
+        return {"tasks": resolved, "order": [], "cycle": [], "orphans": [], "errors": errors}
+
     ids = [task["id"] for task in resolved]
     id_set = set(ids)
     existing_ids = [task["taskId"] for task in existing if task.get("taskId")]
@@ -128,8 +153,6 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
     for task in resolved:
         if task.get("ui") is True:
             ui_covered.update(task.get("covers") or [])
-
-    errors: list[str] = []
 
     malformed_ids = [task_id for task_id in ids if not TASK_ID_FORMAT.match(task_id)]
     for task_id in malformed_ids:
@@ -210,7 +233,7 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
     }
 
 
-def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_path: Path, dry_run: bool, attachment_inputs: list[dict], target: State) -> None:
+def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_path: Path, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     lines = body_path.read_text().splitlines()
     if lines and UI_HEADING_PATTERN.match(lines[0]):
         lines = lines[1:]
@@ -230,6 +253,9 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
         print(json.dumps({"dryRun": True, "stage": "UI", "journeys": journeys, "attachmentCount": len(attachment_inputs)}))
         return
 
+    if context.reauthor:
+        reauthor_invalidate_stage(context.record, "UI", context.pipeline)
+
     attachments = save_attachments(issue, attachment_inputs)
     spliced = splice_section(parent_body, "UI", fragment)
     write_body(str(issue), spliced)
@@ -248,10 +274,17 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
     }))
 
 
-def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State) -> None:
+def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     manifest = load_json_array("--manifest", manifest_path, allow_empty=False)
+    for index, task in enumerate(manifest, 1):
+        if "id" in task and task.get("id") is not None and not isinstance(task.get("id"), str):
+            raise PdlcError(f"manifest entry {index} id must be a string")
 
-    for task in manifest:
+    for index, task in enumerate(manifest, 1):
+        if "body" in task and task.get("body") is not None and not isinstance(task.get("body"), str):
+            raise PdlcError(f"manifest entry {index} body must be a file path string")
+        if not isinstance(task.get("title", ""), str):
+            raise PdlcError(f"manifest entry {index} title must be a string")
         require_file("task body file", task.get("body"))
 
     existing = subissues_for(issue)
@@ -288,6 +321,9 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path |
             "attachmentCount": len(attachment_inputs),
         }))
         return
+
+    if context.reauthor:
+        reauthor_invalidate_stage(context.record, "Tasks", context.pipeline)
 
     attachments = save_attachments(issue, attachment_inputs)
     results = upsert_tasks(issue, [
@@ -400,9 +436,9 @@ def main() -> int:
         if gate in ("Pending", "Stale"):
             pass
         elif gate == "Approval Required" and not args.dry_run:
-            # The driver asked for a change before approving: reset the stage to
-            # Stale ourselves and re-land the reviewed artifact in this call.
-            reauthor_invalidate_stage(record, args.stage, pipeline)
+            # Defer this mutation until the complete artifact has validated.
+            # Invalid manifests must leave the approval gate untouched.
+            pass
         elif gate == "Approval Required":
             raise PdlcError(f"{args.stage} is at {gate}; return it to Stale with pdlc post invalidate before re-authoring it")
         elif gate in ("Review Required", "Changes Required"):
@@ -412,6 +448,10 @@ def main() -> int:
         if is_stage_skipped(record, args.stage):
             raise PdlcError(f"{args.stage} is declared in Skipped States; nothing to land")
         state = state_for_item(record, pipeline)
+        # Reauthoring is validated against the existing record first, but its
+        # publication transition is the same as publishing from Stale.
+        if gate == "Approval Required" and not args.dry_run:
+            state = pipeline.next_state(state, Event.REAUTHORED)
         try:
             target = pipeline.next_state(state, Event.PUBLISHED)
         except ValueError as error:
@@ -420,9 +460,11 @@ def main() -> int:
         parent_body = record.get("issueBody") or ""
 
         if args.stage == "UI":
-            land_ui(args.work_item, item, parent_body, body_path, evidence_path, args.dry_run, attachment_inputs, target)
+            context = PublicationContext(record, pipeline, gate == "Approval Required")
+            land_ui(args.work_item, item, parent_body, body_path, evidence_path, args.dry_run, attachment_inputs, target, context)
         else:
-            land_tasks(args.work_item, item, manifest_path, evidence_path, args.dry_run, parent_body, attachment_inputs, target)
+            context = PublicationContext(record, pipeline, gate == "Approval Required")
+            land_tasks(args.work_item, item, manifest_path, evidence_path, args.dry_run, parent_body, attachment_inputs, target, context)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

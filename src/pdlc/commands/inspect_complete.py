@@ -52,13 +52,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from pdlc.domain.evidence import parse_verification_report
 
 
 from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.completion import completion_blockers  # type: ignore
 from pdlc.domain.completion_evidence import live_open_questions  # type: ignore
-from pdlc.internal.vcs import files_touched_by as _files_touched_by, is_stale as _is_stale  # type: ignore
+from pdlc.internal.vcs import stale_commits, stale_verification_rows  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
     item_skipped_states,
@@ -73,29 +74,14 @@ from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ign
 
 import re
 
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
-HEADING_PATTERN = re.compile(r"^#{1,6}\s")
-BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
+
+def _row_is_stale(commit: str) -> bool:
+    return commit in stale_commits([commit])
 
 
 def _bullets_by_section(body: str) -> list[str]:
-    items = []
-    section = None
-    for raw_line in body.splitlines():
-        line = raw_line.strip()
-        if REPORT_HEADING.match(line):
-            section = True
-            continue
-        if section and HEADING_PATTERN.match(line):
-            section = None
-            continue
-        if not section:
-            continue
-        match = BULLET_PATTERN.match(line)
-        if match:
-            items.append(match.group(1))
-    return items
+    return [row.text for row in parse_verification_report(body).rows]
 
 
 def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
@@ -132,7 +118,7 @@ def _verification_evidence_section(issue: str) -> list[str]:
         if not match:
             continue
         commit = match.group(1)
-        (stale if _is_stale(commit, _files_touched_by(commit)) else still_valid).append(text)
+        (stale if _row_is_stale(commit) else still_valid).append(text)
 
     sections = ["## Verification Evidence"]
     if not stale:
@@ -165,12 +151,10 @@ def _stale_rows(issue: str) -> list[str]:
     verification_comments = verification_evidence_comments(issue)
     if not verification_comments:
         return []
-    rows = []
-    for text in _bullets_by_section(verification_comments[-1]["body"]):
-        match = VERIFIED_AT.search(text)
-        if match and _is_stale(match.group(1), _files_touched_by(match.group(1))):
-            rows.append(text)
-    return rows
+    try:
+        return stale_verification_rows(verification_comments[-1]["body"])
+    except PdlcError:
+        return []
 
 
 def inspect(issue: str) -> str:
@@ -178,7 +162,7 @@ def inspect(issue: str) -> str:
     pipeline, _ = workflow_for_item(item)
     attachments = attachments_for_item(item)
     tasks = task_tree(issue)
-    pull_requests = record_pull_requests(issue)
+    pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
     verification_comments = verification_evidence_comments(issue, comments=comments)

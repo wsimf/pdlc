@@ -24,8 +24,9 @@ class CodeHost(ABC):
     @abstractmethod
     def pull_requests_by_number(self, numbers: list[int]) -> list[dict]:
         """The given pull requests as dicts, in `numbers` order. Each entry:
-        {number, title, url, state, isDraft, branch, mergedAt, checks}. Unknown
-        numbers are skipped; an empty list returns []."""
+        {number, title, url, state, isDraft, branch, mergedAt, checks}. A
+        registered number that cannot be resolved must raise; silently dropping
+        it would make completion and CI gates unsound. An empty list returns []."""
 
     @abstractmethod
     def pull_request_files(self, pr_number: str | int) -> list[str]:

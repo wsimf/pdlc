@@ -49,3 +49,12 @@ def yaml_lines(value: Any, indent: int = 0) -> list[str]:
 
 def yaml_front_matter(data: dict) -> str:
     return "---\n" + "\n".join(yaml_lines(data)) + "\n---"
+
+
+def older_comments_notice(target: str | int, metadata: dict | None, loaded: int) -> str:
+    """Render guidance when the backend returned only its bounded comment window."""
+    total = int((metadata or {}).get("totalCount", loaded))
+    older = total - loaded
+    if older <= 0:
+        return ""
+    return f"{older} more comments; use pdlc inspect comments {target} --page 2"

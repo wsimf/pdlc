@@ -22,10 +22,9 @@ from pathlib import Path
 from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
 from pdlc.domain.completion import completion_blockers  # type: ignore
-from pdlc.domain.evidence import parse_verification_report  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, require_file, wants_help  # type: ignore
 from pdlc.domain.workflow import Event
-from pdlc.internal.vcs import stale_commits  # type: ignore
+from pdlc.internal.vcs import stale_verification_rows  # type: ignore
 from pdlc.internal.workitem import (  # type: ignore
     comments_for_issue,
     item_for_issue,
@@ -61,11 +60,9 @@ def _stale_rows(verification_body: str) -> list[str]:
     holds against HEAD. Empty when the body does not parse — the malformed
     blocker covers that case."""
     try:
-        report = parse_verification_report(verification_body)
+        return stale_verification_rows(verification_body)
     except PdlcError:
         return []
-    stale = stale_commits(list(report.verified_commits))
-    return [row.text for row in report.rows if row.commit in stale]
 
 
 def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
@@ -79,12 +76,13 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     verification_comments = verification_evidence_comments(issue, comments=comments)
     verification_body = verification_comments[-1]["body"] if verification_comments else None
 
+    tasks = task_tree(issue)
     blockers = completion_blockers(
         pipeline=pipeline,
         status=item_status(record),
         gate=item_gate(record),
-        tasks=task_tree(issue),
-        pull_requests=record_pull_requests(issue),
+        tasks=tasks,
+        pull_requests=record_pull_requests(issue, record=record, tasks=tasks),
         timeline_markers=[comment["marker"] for comment in marked_comments(issue, comments=comments)],
         skipped_states=item_skipped_states(record),
         verification_body=verification_body,

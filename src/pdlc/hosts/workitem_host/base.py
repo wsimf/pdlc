@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TypedDict
+from dataclasses import dataclass
 
 from pdlc.domain.workflow import WorkType
 
@@ -49,6 +50,14 @@ QueueItemSummary = TypedDict("QueueItemSummary", {
     "Skipped States": str,
     "workType": str,
 })
+
+@dataclass(frozen=True)
+class CommentPage:
+    comments: list[dict]
+    page: int
+    per_page: int
+    total: int
+    has_next: bool
 
 
 class WorkItemBackend(ABC):
@@ -95,6 +104,10 @@ class WorkItemBackend(ABC):
     @abstractmethod
     def comments(self, ref: str) -> list[dict]:
         """Every evidence/discussion comment, oldest first."""
+
+    @abstractmethod
+    def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
+        """One bounded comments page, newest first."""
 
     @abstractmethod
     def post_comment(self, ref: str, body: str) -> str:

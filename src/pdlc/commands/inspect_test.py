@@ -58,12 +58,19 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
         return ["## Testable Scope", "", "No task has closed with its implementation recorded yet — nothing is implemented."]
 
     pr_by_number = {pr["number"]: pr for pr in pull_requests}
+    files_by_number: dict[int, list[str]] = {}
 
     sections = ["## Testable Scope"]
     for task in in_scope:
         sections += ["", f"### {task['title']}"]
-        for pr in pr_by_number.values():
-            files = _files_for_pull_request(pr)
+        # A task's scope is its explicitly registered PRs. The record-level
+        # registry may include PRs for sibling tasks and must not leak them
+        # into every testing prompt.
+        task_prs = [pr_by_number[number] for number in task.get("prs", []) if number in pr_by_number]
+        for pr in task_prs:
+            if pr["number"] not in files_by_number:
+                files_by_number[pr["number"]] = _files_for_pull_request(pr)
+            files = files_by_number[pr["number"]]
             sections += [
                 "",
                 f"PR #{pr['number']} ({pr['state']}, checks: {pr['checks']})",
@@ -96,7 +103,7 @@ def inspect(issue: str) -> str:
         return "\n".join(sections) + "\n"
 
     tasks = task_tree(issue)
-    pull_requests = record_pull_requests(issue)
+    pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
 
     sections += ["", *_testable_scope_section(tasks, pull_requests)]
 

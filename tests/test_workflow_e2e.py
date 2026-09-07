@@ -111,6 +111,10 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(self.task_meta(issue, task_number)["state"], "CLOSED")
 
         self.seed_prs(issue, [{
+            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "state": "OPEN", "isDraft": False, "branch": "feature/task",
+            "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
+        }, {
             "number": 148, "title": "Implement", "url": "https://x/148",
             "state": "OPEN", "isDraft": False, "branch": "feature/x",
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
@@ -160,7 +164,8 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         prs_path = self.records_dir() / str(issue) / "pull_requests.json"
         prs = json.loads(prs_path.read_text())
-        prs[0].update(state="MERGED", mergedAt="2026-01-01T00:00:00Z")
+        for pr in prs:
+            pr.update(state="MERGED", mergedAt="2026-01-01T00:00:00Z")
         prs_path.write_text(json.dumps(prs))
 
         self.assertIn("Ready — Status: Verification", self.invoke("inspect_complete", issue).stdout)

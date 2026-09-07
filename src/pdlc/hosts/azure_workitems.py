@@ -207,6 +207,34 @@ def comments(item_id: int | str) -> list[dict]:
     return sorted(collected, key=lambda comment: comment.get("id") or 0)
 
 
+def comments_page(item_id: int | str, page: int = 1, per_page: int = 100) -> dict:
+    """Return one newest-first comments page using Azure continuation tokens.
+
+    Azure's comments endpoint supplies the exact ``totalCount`` alongside each
+    bounded response. Replaying the token chain is necessary for page numbers
+    beyond the first, but each request remains capped at the caller's page
+    size and no full history is materialized.
+    """
+    if page < 1 or per_page != 100:
+        raise PdlcError("comments page must be >= 1 and use 100 comments per page")
+    _, project = azure_config()
+    token: str | None = None
+    result: dict = {}
+    for index in range(page):
+        parameters = {"$top": str(per_page), "order": "desc"}
+        if token:
+            parameters["continuationToken"] = token
+        result = az_invoke(
+            "wit", "comments",
+            route_parameters={"project": project, "workItemId": str(item_id)},
+            query_parameters=parameters,
+        ) or {}
+        token = result.get("continuationToken")
+        if index < page - 1 and not token:
+            return {"comments": [], "totalCount": result.get("totalCount", 0)}
+    return result
+
+
 def post_comment(item_id: int | str, body: str) -> str:
     """Append one comment verbatim, as Markdown, and return a reference to it.
 

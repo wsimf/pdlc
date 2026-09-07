@@ -14,6 +14,7 @@ COMMANDS = {
     ("setup",): "pdlc.commands.setup",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
+    ("inspect", "comments"): "pdlc.commands.inspect_comments",
     ("inspect", "timeline"): "pdlc.commands.inspect_timeline",
     ("inspect", "verify"): "pdlc.commands.inspect_verify",
     ("inspect", "complete"): "pdlc.commands.inspect_complete",
@@ -50,6 +51,7 @@ def _usage() -> str:
         "\ninspect (read-only)\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
         "  inspect task WI [TASK...]   full text and flags for specific delivery tasks\n"
+        "  inspect comments WI --page N  read one page of comments (100 per page)\n"
         "  inspect timeline WI         all evidence comments as a stage-by-stage timeline\n"
         "  inspect implement WI        whether Implementation is due and the next task to implement\n"
         "  inspect review WI           whether review is due; which artifact and reviewer agent\n"

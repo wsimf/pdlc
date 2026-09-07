@@ -25,7 +25,7 @@ _STACK_MISSING = (
     "install it with `gh extension install github/gh-stack`"
 )
 
-_PR_FIELDS = "number,title,url,state,isDraft,headRefName,mergedAt,commits"
+_PR_FIELDS = "number,title,url,state,isDraft,headRefName,mergedAt,statusCheckRollup"
 
 # gh/GraphQL phrasings that mean "this PR number or branch has no pull request",
 # as opposed to auth expiry, rate limiting, or a network failure — which must
@@ -39,11 +39,45 @@ def _is_pr_not_found(error: PdlcError) -> bool:
 
 
 def _checks_state(pull_request: dict) -> str:
-    nodes = (pull_request.get("commits") or {}).get("nodes") or []
-    if not nodes:
+    # `gh pr view --json statusCheckRollup` exposes a union list directly on
+    # the pull request: CheckRun entries use `conclusion`, StatusContext
+    # entries use `state`.
+    rollup = pull_request.get("statusCheckRollup")
+    if rollup is None:
         return "NONE"
-    rollup = (nodes[0].get("commit") or {}).get("statusCheckRollup") or {}
-    return rollup.get("state") or "NONE"
+    if isinstance(rollup, dict):
+        return "PENDING"
+    if isinstance(rollup, list):
+        if not rollup:
+            return "NONE"
+        states = []
+        malformed = False
+        for entry in rollup:
+            if not isinstance(entry, dict):
+                malformed = True
+                continue
+            if "status" in entry:
+                if entry.get("status") != "COMPLETED" or not entry.get("conclusion"):
+                    states.append("PENDING")
+                    continue
+                state = entry.get("conclusion")
+            elif "state" in entry:
+                state = entry.get("state")
+            else:
+                malformed = True
+                continue
+            if state:
+                states.append(state)
+            else:
+                malformed = True
+        if malformed:
+            return "PENDING"
+        if any(state in ("FAILURE", "ERROR", "FAIL", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED") for state in states):
+            return "FAILURE"
+        if any(state in ("PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING") for state in states):
+            return "PENDING"
+        return "SUCCESS" if all(state in ("SUCCESS", "NEUTRAL", "SKIPPED") for state in states) else "PENDING"
+    return "PENDING"
 
 
 def _pr_dict(pr: dict) -> dict:
@@ -83,7 +117,7 @@ class GitHubCodeHost(CodeHost):
                 pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
             except PdlcError as error:
                 if _is_pr_not_found(error):
-                    continue
+                    raise PdlcError(f"registered pull request #{number} could not be found") from error
                 raise PdlcError(f"could not resolve pull request #{number}: {error}") from error
             resolved.append(_pr_dict(pr))
         return resolved

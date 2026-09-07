@@ -392,6 +392,39 @@ class CommentTest(AzureHostTest):
             ["first", "second"],
         )
 
+    def test_comments_page_reads_newest_first_with_exact_total_and_continuation(self):
+        self.az.invoke("wit", "comments", response={
+            "comments": [{"id": 3, "text": "newest"}, {"id": 2, "text": "middle"}],
+            "continuationToken": "older",
+            "totalCount": 3,
+        })
+        page = AzureWorkItemBackend().comments_page("7")
+        self.assertEqual([comment["body"] for comment in page.comments], ["newest", "middle"])
+        self.assertEqual((page.page, page.per_page, page.total, page.has_next), (1, 100, 3, True))
+        args = self.az.calls[0]
+        query = args[args.index("--query-parameters") + 1:]
+        self.assertIn("$top=100", query)
+        self.assertIn("order=desc", query)
+
+    def test_comments_page_replays_only_continuation_metadata_for_older_page(self):
+        pages = [
+            {"comments": [{"id": 3, "text": "newest"}], "continuationToken": "older", "totalCount": 3},
+            {"comments": [{"id": 2, "text": "middle"}], "continuationToken": "oldest", "totalCount": 3},
+        ]
+        self.az.invoke("wit", "comments", response=lambda _args: pages.pop(0))
+        page = AzureWorkItemBackend().comments_page("7", 2)
+        self.assertEqual([comment["body"] for comment in page.comments], ["middle"])
+        self.assertEqual((page.total, page.has_next), (3, True))
+        calls = self.az.calls_matching("devops", "invoke")
+        self.assertEqual(len(calls), 2)
+        self.assertIn("continuationToken=older", calls[1])
+
+    def test_comments_page_rejects_unbounded_or_invalid_requests(self):
+        with self.assertRaises(PdlcError):
+            AzureWorkItemBackend().comments_page("7", 0)
+        with self.assertRaises(PdlcError):
+            AzureWorkItemBackend().comments_page("7", 1, 50)
+
     def test_the_comment_api_version_carries_no_numeric_suffix(self):
         # `az devops invoke` parses the version as a float after stripping
         # `-preview`, so `7.1-preview.4` fails outright.

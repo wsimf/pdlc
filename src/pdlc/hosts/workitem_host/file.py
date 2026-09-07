@@ -29,7 +29,7 @@ from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
+from pdlc.hosts.workitem_host.base import CommentPage, QueueItemSummary, WorkItemBackend
 
 FIELD_NAMES = ("Status", "Gate State", "Lifecycle", "Skipped States", "Slug")
 
@@ -187,6 +187,15 @@ class FileWorkItemBackend(WorkItemBackend):
 
     def comments(self, ref: str) -> list[dict]:
         return _read_comments(self._entity_dir(ref))
+
+    def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
+        if page < 1 or per_page != 100:
+            raise PdlcError("comments page must be >= 1 and use 100 comments per page")
+        comments = self.comments(ref)
+        start = (page - 1) * per_page
+        newest = list(reversed(comments))
+        selected = newest[start:start + per_page]
+        return CommentPage(selected, page, per_page, len(comments), start + len(selected) < len(comments))
 
     def post_comment(self, ref: str, body: str) -> str:
         return _append_comment(self._entity_dir(ref), body, self.current_actor())

@@ -20,7 +20,7 @@ from pdlc.hosts.github_common import (
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
+from pdlc.hosts.workitem_host.base import CommentPage, QueueItemSummary, WorkItemBackend
 
 
 class GitHubWorkItemBackend(WorkItemBackend):
@@ -67,6 +67,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     def comments(self, ref: str) -> list[dict]:
         return github_issues.comments_for_issue(ref)
+
+    def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
+        return github_issues.comments_page(ref, page, per_page)
 
     def post_comment(self, ref: str, body: str) -> str:
         return github_issues.post_comment(str(ref), body, None)
