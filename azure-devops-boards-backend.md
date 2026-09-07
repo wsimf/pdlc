@@ -1,218 +1,259 @@
-# Research: Azure DevOps Boards as a work-item backend
+# Azure DevOps Boards as a work-item backend
 
-Goal: add Azure DevOps Boards + Repos as an alternative to the GitHub Issues/Projects backend, selected by `PDLC_BACKEND=azure` (plus `PDLC_CODE_HOST=azure`). GitHub stays the default. This is a feasibility + mapping study, not an implementation.
+Goal: add Azure DevOps Boards as an alternative to the GitHub Issues/Projects work-item backend, selected by `PDLC_BACKEND=azure`. GitHub stays the default.
+
+Scope decided with the driver: **work-item backend only**. The code host stays GitHub (`PDLC_CODE_HOST=github`) — Azure Boards paired with GitHub repos is the target setup, and `AzureCodeHost` is not being built. The code-host notes at the end are kept for whenever that changes.
+
+**Implemented.** The backend ships as `PDLC_BACKEND=azure`; this document is now the design record behind it rather than a proposal. See `src/pdlc/hosts/azure_common.py`, `src/pdlc/hosts/azure_workitems.py`, `src/pdlc/hosts/workitem_host/azure.py`, and `tests/test_azure_hosts.py`.
+
+**Validated against a live org.** Everything below marked ✓ was run against `https://dev.azure.com/madushan92`, project `pdlc-scratch`, on an inherited process named `Kanban` (parent: Agile) with the six PDLC fields installed. Probe work items were created, exercised, and destroyed. Claims not marked ✓ are still inference.
 
 ## Verdict
 
-Feasible. Every port method has an `az` command or a thin `az devops invoke` / `az rest` REST call behind it. Two real friction points:
+Feasible, and simpler than the first draft assumed. Two friction points remain.
 
-1. **PDLC's five state fields have no native home.** GitHub Projects gave us arbitrary single-selects (`Status`, `Gate State`, `Lifecycle`, `Skipped States`, `Slug`). Azure Boards has no project-level field layer — fields live on the work item and must be added through a customized (inherited) process. There is no `az` command to create fields; it is a one-time web-UI or Process REST step per org. Everything after that is normal `az boards work-item update -f`.
-2. **No stacked-PR mechanism.** There is no `gh stack` equivalent. `submit_task_stack()` raises `PdlcError` on this host, same as the `file`/`none` hosts, and the stacked-implementation flow degrades to one shared PR (the linear path is still supported, through `attach_pr` on the record).
+1. **The state fields need a one-time org-admin step.** Azure Boards has no project-level field layer; fields live on the work-item type and are added through a customized (inherited) process. This is out of PDLC's scope by decision — `pdlc setup` does not check, create, or explain the fields, and the backend treats them as a precondition. Admin instructions live in `README.md` under "Azure Boards fields". ✓
+2. **No stacked-PR mechanism.** Irrelevant while the code host is GitHub — `gh stack` keeps working exactly as today. It only becomes a problem if an Azure Repos code host is ever built.
 
-Everything else (hierarchy links, comments, body, queue scan, PR state, CI/policy rollup, actor) maps cleanly.
+Everything else — hierarchy links, comments, bodies, queue scan, actor identity, PR attachment — maps cleanly and was confirmed live.
 
-An earlier draft of this study assumed PDLC would carry its pull-request registry in `System.Description`, inheriting the machine-owned HTML-comment block the GitHub host uses — a real hazard, since Azure's rich-text handling can sanitize or reshape a comment and the failure would be silent. That is no longer how the port works. `WorkItemBackend.attach_pr` / `attached_prs` make PR storage each backend's own choice, so Azure uses native work-item↔PR links and never round-trips machine state through a rich-text field.
+Two earlier concerns are now closed. An early draft assumed PDLC would carry its pull-request registry in `System.Description`, inheriting the machine-owned HTML-comment block the GitHub host uses; that was a real hazard, and it no longer applies because `WorkItemBackend.attach_pr` / `attached_prs` make PR storage each backend's own choice. The related fear that Azure's rich-text handling would mangle body content also did not reproduce — see "Description format" below.
+
+## Decisions
+
+| Question | Decision |
+|---|---|
+| State storage | Custom fields on an inherited process. Not tags, not a description block. |
+| Who creates the fields | An org admin, once, out of band. PDLC never attempts it and never verifies it. |
+| Code host pairing | GitHub repos + Azure Boards. `AzureCodeHost` is out of scope. |
+| PR attachment storage | `Custom.PdlcPrs`, a space-separated number list. **Not** `ArtifactLink` — that relation type addresses Azure Repos PRs only and cannot reference a GitHub PR. |
+| Transport | `az` CLI shell-out, mirroring the `gh` precedent, with `az devops invoke` for the one gap (reading comments). |
+| Record work-item type | `User Story` (Agile-derived process), configurable. Delivery tasks are `Task`. |
 
 ## Construct mapping
 
 | PDLC concept | GitHub today | Azure DevOps | `az` surface |
 |---|---|---|---|
-| PDLC record | Issue | Work item, type **Product Backlog Item** (Scrum) / **User Story** (Agile) / **Issue** (Basic) — configurable via `PDLC_AZURE_RECORD_TYPE` | `az boards work-item create --type` |
-| Record body | Issue body (Markdown) | `System.Description` field | `az boards work-item update -f "System.Description=@file"` * |
-| Delivery task | Sub-issue | Child work item, type **Task**, linked parent→child | `az boards work-item create` + `az boards work-item relation add --relation-type parent` |
-| Task identity | `WORK-<n>-TASK-NNN` title prefix + sub-issue link | Same title prefix + `System.LinkTypes.Hierarchy-Forward` link | title convention only; link via relation add |
-| Task `pdlc:meta` block | HTML comment atop task body | Same, in child `System.Description` | field update |
-| Evidence comment | Issue comment, `PDLC-<MARKER>` prefix | Work-item discussion comment, same prefix | write: `az boards work-item update --discussion`; read: `az devops invoke --area wit --resource comments` |
-| `Status` (lifecycle stage) | Project single-select | Custom field `Custom.PdlcStatus` (picklist) | `az boards work-item update -f` |
-| `Gate State` | Project single-select | Custom field `Custom.PdlcGateState` (picklist) | `az boards work-item update -f` |
-| `Lifecycle` | Project single-select | Custom field `Custom.PdlcLifecycle` | `az boards work-item update -f` |
-| `Skipped States` | Project text | Custom field `Custom.PdlcSkippedStates` (string) | `az boards work-item update -f` |
-| `Slug` | Project text | Custom field `Custom.PdlcSlug` (string) | `az boards work-item update -f` |
-| Blocker surface (`post_blocker`) | plain comment (no dedicated surface) | comment **+** tag `pdlc-blocked` via `System.Tags`, optionally `Microsoft.VSTS.CMMI.Blocked` | `--discussion` + `-f "System.Tags=pdlc-blocked; ..."` |
-| Queue scan (`all_items`) | `gh project item-list` | WIQL flat query filtered to `Custom.PdlcSlug <> ''` | `az boards query --wiql` |
-| Record resolution by number | GraphQL issue lookup | `az boards work-item show --id` | direct |
-| Record resolution by slug | Project item scan | WIQL `WHERE [Custom.PdlcSlug] = '<slug>'` | `az boards query --wiql` |
-| `current_actor` | `gh api user` → login | signed-in account UPN | `az account show --query user.name -o tsv` (or `az devops user show --user <upn>`) |
+| PDLC record | Issue | Work item, type `User Story` (Agile) — configurable via `PDLC_AZURE_RECORD_TYPE` | `az boards work-item create --type` ✓ |
+| Record body | Issue body (Markdown) | `System.Description`, format `Markdown` set at creation | create: `az devops invoke` + `multilineFieldsFormat` op; update: `az boards work-item update -f` ✓ |
+| Delivery task | Sub-issue | Child work item, type `Task`, linked parent→child | `az boards work-item create` + `az boards work-item relation add --relation-type parent` ✓ |
+| Task identity | `WORK-<n>-TASK-NNN` title prefix + sub-issue link | Same title prefix + `System.LinkTypes.Hierarchy-Forward` | title convention only; link via relation add ✓ |
+| Evidence comment | Issue comment, `PDLC-<MARKER>` prefix | Work-item discussion comment, same prefix, `format=markdown` | read **and** write: `az devops invoke --area wit --resource comments` ✓ |
+| `Status` (lifecycle stage) | Project single-select | `Custom.PdlcStatus` (picklist) | `az boards work-item update -f` ✓ |
+| `Gate State` | Project single-select | `Custom.PdlcGateState` (picklist) | `az boards work-item update -f` ✓ |
+| `Lifecycle` | Project single-select | `Custom.PdlcLifecycle` (picklist) | `az boards work-item update -f` ✓ |
+| `Skipped States` | Project text | `Custom.PdlcSkippedStates` (string) | `az boards work-item update -f` ✓ |
+| `Slug` | Project text | `Custom.PdlcSlug` (string) | `az boards work-item update -f` ✓ |
+| Attached PRs | machine-owned block in the Issue body | `Custom.PdlcPrs` (string), space-separated; on both `User Story` and `Task` | `az boards work-item update -f` ✓ |
+| Blocker surface (`post_blocker`) | plain comment (no dedicated surface) | plain comment, same as GitHub | `--discussion` ✓ |
+| Queue scan (`queue_items`) | `gh project item-list` | one flat WIQL selecting every needed field | `az boards query --wiql` ✓ |
+| Record resolution by number | GraphQL issue lookup | `az boards work-item show --id` ✓ | direct |
+| Record resolution by slug | Project item scan | WIQL `WHERE [Custom.PdlcSlug] = '<slug>'` ✓ | `az boards query --wiql` |
+| `current_actor` | `gh api user` → login | signed-in account UPN | `az account show --query user.name -o tsv` ✓ |
 | `ref_label` | repo name | Azure project name | from config |
-| Pull request | `gh pr` | `az repos pr` | see code-host section |
-| PR ↔ record link | machine-owned block in the Issue body | native `ArtifactLink` work-item relation | `az repos pr create --work-items <id>`, or `az boards work-item relation add --relation-type "ArtifactLink"` |
-| CI / checks rollup | `statusCheckRollup` on head commit | PR **policy evaluations** (build policies included) | `az repos pr policy list --id` |
-| Stacked PRs | `gh stack` extension | none — `submit_task_stack` raises | n/a |
-| Attachments | file attachment host / issue | no `az` attachment cmd; `az devops invoke --area wit --resource attachments` or keep `PDLC_ATTACHMENT_HOST=file` | REST only |
+| Pull request / CI | `gh pr` | unchanged — GitHub code host | n/a for this backend |
 
-\* `System.Description` is HTML on legacy orgs and migrated fields; Markdown is supported on work items created after the 2024–25 Markdown rollout and when the field is Markdown-enabled in the process. The comments API returns `text` (Markdown) plus `renderedText` (HTML) — read `text`. If an org is HTML-only, the backend must convert on write/read or document the limitation. **Confirm the target org's field format during `pdlc setup`.**
+### Description format
 
-This is a rendering-fidelity concern, not a correctness one. Bodies crossing the port are human-authored content only, so a lossy HTML round trip degrades how a body reads — it cannot silently destroy machine state. That was not true before `attach_pr` moved PR storage behind the port.
+Content is stored byte-exact in both directions — no sanitization, no `<div>` wrapping, no newline conversion, in the create response and on an independent re-read: ✓
 
-### Work-item-type note
+```
+wrote: "## Product\n\nShip **retries**.\n"
+read : "## Product\n\nShip **retries**.\n"
+```
 
-The record type depends on the project's process (Basic / Agile / Scrum / CMMI). Make it configurable (`PDLC_AZURE_RECORD_TYPE`, default resolved from the process) rather than hardcoding "Product Backlog Item". Delivery tasks are always type `Task` with a parent link, matching the "sub-issue" semantics.
+Rendering is a separate matter. Large text fields written through the API default to **HTML**, so the Azure UI shows `##` and `-` as literal punctuation and collapses blank lines. Markdown for large text fields went GA in July 2025 and is selected per work item, per field, by an extra JSON Patch operation: ✓
 
-## Port-by-port feasibility
+```json
+{"op": "add", "path": "/multilineFieldsFormat/System.Description", "value": "Markdown"}
+```
+
+Two properties make this cheap, both confirmed live: the choice is **sticky** (a later `az boards work-item update -f "System.Description=…"` preserves it) and **per work item**, so it is made once at creation and never thought about again. It is also one-way, which costs nothing here — PDLC only ever reads and writes work items it created itself.
+
+`az boards work-item create` cannot set it: the CLI extension contains no reference to `multilineFieldsFormat` at all, and the feature request is open and unassigned. Creation therefore goes through `az devops invoke`, which reaches the create route natively. Everything else — `write_body`, every field update — stays on `az boards work-item update`, because the format sticks.
+
+Comments carry their own format, per comment, and are **not** sticky. `az boards work-item update --discussion` posts `format=html`; the comments POST with `format=markdown` posts Markdown and returns a populated `renderedText`. So every evidence comment takes the invoke path too. ✓
+
+This replaces what would otherwise have been a Markdown→HTML conversion layer at the port boundary — which would have been lossy on the read side and put `splice_section` at risk of corrupting approved upstream sections.
+
+## Port-by-port
 
 ### `WorkItemBackend` (`src/pdlc/hosts/workitem_host/base.py`)
 
 | Method | Azure implementation |
 |---|---|
-| `resolve(ref)` | numeric → `az boards work-item show --id <ref> --expand all`; slug → WIQL then show. Map `System.Description`→`issueBody`, custom fields→`Status`/`Gate State`/`Lifecycle`/`Skipped States`/`Slug`, build `content{number,title,url}`, and read `relations[]` `ArtifactLink` entries into `prs`. |
-| `queue_items()` | `az boards query --wiql "SELECT [System.Id] FROM workitems WHERE [Custom.PdlcSlug] <> '' AND [System.TeamProject] = @project"` → then batch `az boards work-item show` (or `az devops invoke --area wit --resource workitemsbatch`). Must return the `QueueItemSummary` shape, not raw work items. |
-| `set_state(id, status, gate, lifecycle)` | one `az boards work-item update --id <id> -f "Custom.PdlcStatus=<status>" "Custom.PdlcGateState=<gate>" "Custom.PdlcLifecycle=<lifecycle>"` — atomic in a single PATCH, better than GitHub's 3-mutation dance. |
-| `set_gate` / `set_slug` / `set_skipped_states` | single-field `--fields` update. |
-| `write_body(ref, body)` | `az boards work-item update --id <id> -f "System.Description=<body>"` (pass via file/`@`), or `az devops invoke ... --http-method PATCH --in-file` with a JSON-Patch doc for large bodies. |
-| `comments(ref)` | `az devops invoke --area wit --resource comments --route-parameters project=<p> workItemId=<id> --api-version 7.1-preview.4 --query-parameters '$top=200' order=asc`. Paginate on `continuationToken`. Map `{text→body, createdBy.uniqueName→author.login, createdDate→createdAt, url}`. |
-| `post_comment(ref, body)` | `az boards work-item update --id <id> --discussion "<body>"`. Returns the work item; synthesize a comment ref from the response or re-read the latest comment. |
-| `post_blocker(ref, body)` | `post_comment` + add `pdlc-blocked` to `System.Tags` (read-modify-write the semicolon list). The `Decision Required` gate remains the machine signal, matching the GitHub host's comment. |
-| `tasks(ref)` | children: WIQL `WHERE [System.Parent] = <id>` (or parse `relations[].rel == "System.LinkTypes.Hierarchy-Forward"` from `--expand relations`), then batch-show. Map `state`: Azure `System.State` → `OPEN`/`CLOSED` (Closed/Done/Removed → `CLOSED`). Parse `taskId` from title, and fill `prs` from each child's `ArtifactLink` relations so a queue scan does not need a call per task. |
-| `tasks_by_number(numbers)` | batch `az boards work-item show` preserving order. |
-| `upsert_tasks(parent, tasks, existing)` | match by `taskId` parsed from existing child titles. Create missing: `az boards work-item create --type Task --title "WORK-<p>-TASK-NNN <title>"` then `az boards work-item relation add --id <child> --relation-type parent --target-id <parent>`. Update changed: `--title` / `-f System.Description`. Return `{action, taskId, number, title, url}` — identical shape. Idempotent by title identity, same as GitHub. |
-| `close_task(ref)` | `az boards work-item update --id <ref> --state "Closed"` (or "Done" — process-dependent; resolve the closed-state name from the process, or make it config). |
-| `attach_pr(ref, n)` | `az repos pr update` cannot add links, so PATCH an `ArtifactLink` relation: `az devops invoke --area wit --resource workitems --http-method PATCH` with `{"op":"add","path":"/relations/-","value":{"rel":"ArtifactLink","url":"vstfs:///Git/PullRequestId/<project>%2F<repoId>%2F<n>","attributes":{"name":"Pull Request"}}}`. Idempotent: read relations first and skip when present. At creation time `az repos pr create --work-items <id>` does the same thing in one step. |
-| `attached_prs(ref)` | `az boards work-item show --id <ref> --expand relations` → parse `PullRequestId/<project>/<repo>/<n>` out of each `ArtifactLink` url. Native, queryable, visible in the work item's Development section, and legible to people who have never heard of PDLC. |
-| `create(title, body, slug, work_type)` | `az boards work-item create --type <record type for work_type> --title <title> -f "System.Description=<body>" "Custom.PdlcSlug=<slug>"`. Returns `{id: "AZURE-<id>", number: <id>, url}`. No separate "add to project" step — a work item is already on its board. Unlike GitHub, `WorkType.BUG` maps natively to the process's `Bug` type instead of raising. |
-| `current_actor()` | `az account show --query user.name -o tsv`. |
+| `resolve(ref)` | numeric → `az boards work-item show --id <ref>`; slug → WIQL then show. Map `System.Description`→`issueBody`, custom fields→`Status`/`Gate State`/`Lifecycle`/`Skipped States`/`Slug`, `Custom.PdlcPrs`→`prs`, build `content{number,title,url}`. ✓ |
+| `queue_items()` | **One** WIQL call. `az boards query` returns exactly the fields named in `SELECT`, so no follow-up batch show is needed — the first draft's query-then-batch-show was wrong. ✓ |
+| `set_state(id, status, gate, lifecycle)` | one `az boards work-item update -f "Custom.PdlcStatus=…" "Custom.PdlcGateState=…" "Custom.PdlcLifecycle=…"` — atomic in a single PATCH, better than GitHub's 3-mutation dance. ✓ |
+| `set_gate` / `set_slug` / `set_skipped_states` | single-field `-f` update. ✓ |
+| `write_body(ref, body)` | `az boards work-item update -f "System.Description=<body>"`. No registry to preserve — bodies are human content only. ✓ |
+| `comments(ref)` | `az devops invoke --area wit --resource comments --route-parameters project=<p> workItemId=<id> --api-version 7.1-preview`. Map `{text→body, createdBy.uniqueName→author.login, createdDate→createdAt}`. Paginate on `continuationToken`. ✓ |
+| `post_comment(ref, body)` | comments POST via `az devops invoke` with `format=markdown` — `--discussion` would post HTML. Returns the created comment, so the reference is a `?discussionId=<id>` deep link. ✓ |
+| `post_blocker(ref, body)` | `post_comment`, matching GitHub — the `Decision Required` gate is the machine signal and the `PDLC-DECISION` marker the human one. ✓ |
+| `tasks(ref)` | WIQL `WHERE [System.Parent] = <id>`, selecting title/state/description/`Custom.PdlcPrs` in the same call, plus one comment read per task, issued concurrently. Map `System.State` → `OPEN`/`CLOSED` (`Closed`/`Removed` → `CLOSED`). Parse `taskId` from the title. ✓ |
+| `tasks_by_number(numbers)` | `az boards work-item show` per id, preserving order. |
+| `upsert_tasks(parent, tasks, existing)` | match by `taskId` parsed from existing child titles. Create missing with `az boards work-item create --type Task --title "WORK-<p>-TASK-NNN <title>"`, then `relation add --relation-type parent`. Idempotent by title identity, same as GitHub. ✓ |
+| `close_task(ref)` | `az boards work-item update --id <ref> --state "Closed"`. `Task` states on an Agile-derived process are `New`/`Active`/`Closed`/`Removed`. ✓ |
+| `attach_pr(ref, n)` | read `Custom.PdlcPrs`, union, sort, write back as a space-joined list. One field update; records and tasks both carry the field, so one implementation serves each. ✓ |
+| `attached_prs(ref)` | read and split `Custom.PdlcPrs`. ✓ |
+| `create(title, body, slug, work_type)` | `az devops invoke` POST to the create route with a JSON Patch document carrying the title, every field, and the `multilineFieldsFormat` op. All fields settable in the create call. No separate "add to project" step — a work item is already on its board. Unlike GitHub, `WorkType.BUG` could map natively to `Bug` instead of raising, once that pipeline is enabled. ✓ |
+| `current_actor()` | `az account show --query user.name -o tsv`. Comments report the same identity as `createdBy.uniqueName`. ✓ |
 | `ref_label()` | Azure project name from config. |
 
-`capabilities`: `{"subissue_graph", "queue_scan"}` — the same pair GitHub and the file backend declare. Parent/child hierarchy links are real, first-class, and queryable (`System.Parent`), so the graph capability holds exactly as GitHub sub-issues do.
+`capabilities`: `{"subissue_graph", "queue_scan"}` — the same pair GitHub and the file backend declare. Parent/child hierarchy links are real, first-class, and queryable via `System.Parent`. ✓
 
-### `CodeHost` (`src/pdlc/hosts/code_host/base.py`)
+### Transport constraints
 
-| Method | Azure implementation |
-|---|---|
-| `ensure_pull_request_linked(code_ref)` | `az repos pr list --source-branch <current branch> --status active -o json` → first result. If none, the caller already treats that as "no PR". `code_ref` = the Azure repo name (or unused). |
-| `pull_requests_by_number(numbers)` | `az repos pr show --id <n>` each. Map `{pullRequestId→number, title, url (build from repo web url + /pullrequest/<n>), status→state (active/completed/abandoned → OPEN/MERGED/CLOSED), isDraft, sourceRefName→branch (strip refs/heads/), closedDate/completionQueueTime→mergedAt, checks←policy rollup}`. |
-| `pull_request_files(pr)` | no `az` command. Use `az repos pr show` to get `lastMergeSourceCommit` + `lastMergeTargetCommit`, then local `git diff --name-only <target>...<source>`. Fallback: `az devops invoke --area git --resource pullRequestIterationChanges`. |
-| `submit_task_stack()` | `raise PdlcError("Azure DevOps has no stacked-PR mechanism; use the linear implementation flow")`. |
+Four behaviours the implementation has to absorb, all confirmed live: ✓
 
-**CI mapping detail:** `az repos pr policy list --id <n> -o json` returns one entry per policy with `status` ∈ `queued|running|approved|rejected|notApplicable` and `configuration.type.displayName` (e.g. "Build"). Roll up to the existing `checks` vocabulary: any `rejected`→`FAILURE`, any `running|queued`→`PENDING`, all `approved`/`notApplicable` with ≥1 build→`SUCCESS`, none→`NONE`. This is a closer fit than GitHub's commit-status rollup and covers required-build gating.
+- **Empty WIQL results return zero bytes, not `[]`.** `az boards query` with no matches exits 0 and prints nothing, so a naive `json.loads` raises. `run_az_json` must treat empty stdout as an empty result. This would otherwise fail on the first empty queue scan.
+- **`az devops invoke` rejects numeric preview suffixes.** `--api-version 7.1-preview.4` fails with `could not convert string to float: '7.1.4'`; bare `7.1-preview` works, and plain `7.1` is refused because the resource is preview-only. The first draft prescribed `7.1-preview.4`, which cannot work.
+- **Picklist values are validated server-side**, with a clear message: `The field 'PdlcGateState' contains the value 'Bogus Gate' that is not in the list of supported values`. Surface it as a `PdlcError` unchanged — it names the field and the value, matching GitHub's `no option 'X' on Project field 'Y'`.
+- **`az devops invoke` cannot update a work item by id.** Two `wit`/`workItems` routes share a resource name at identical `maxVersion 7.2` (`{project}/_apis/wit/workitems/${type}` and `.../{id}`), and the extension picks the highest version with the first entry winning ties — always the create route, failing with `KeyError: 'type'`. Creation is reachable; update by id is not. That shapes where the format op goes, and nothing else — every other write already had a first-class `az boards` verb.
+- **`az devops invoke` is slow.** It re-fetches the organization's resource areas and resource locations on every call (`force=True`, and each call is its own process, so nothing caches), costing ~1.3s before the real request — measured 1.78s against 0.48s for an equivalent `az boards` verb. Reads that fan out over tasks are issued concurrently for this reason; single calls just pay it.
+- **Raw REST needs a PAT.** A bearer token from `az account get-access-token` gets a 302 redirect to sign-in on org-scoped endpoints, including ones the CLI calls happily. The `az` CLI authenticates by a different path. This is why the transport is CLI shell-out rather than REST.
 
-### Attachment host
+- **WIQL will select `System.Description`.** It is a long-text field, which WIQL rejects in some filters, but it comes back fine in a `SELECT`. This matters: without it, `tasks()` reports every task body as empty and `upsert_tasks` rewrites every task on every pass instead of reporting `unchanged`. Found by an idempotency check against the live board.
 
-Keep `PDLC_ATTACHMENT_HOST=file` as the documented default for Azure users. Native work-item attachments need `az devops invoke --area wit --resource attachments` (upload → returns a URL → PATCH `AttachedFiles` relation) — a nice-to-have, not blocking.
+Also: `az devops configure --defaults` is deliberately not used. Every call passes `--organization` and `--project` explicitly so nothing depends on ambient machine state.
 
-## `az` CLI command reference (verified against current docs)
+## Required one-time org customization
 
-Setup / auth:
+No `az` command exists for this, and `az devops invoke` cannot reach the relevant areas — `processes`, `processAdmin`, and `processDefinitions` all appear in its own resource listing but return `--area is not present in current organization`. ✓ Portal or PAT-authenticated REST only.
+
+By decision, this is entirely an admin's job and PDLC has no part in it. The field list, types, exact option values, and verification commands live in `README.md` under "Azure Boards fields" — that is the single source of truth; do not duplicate it here.
+
+Summary for orientation only: six fields on the record type (`PdlcStatus`, `PdlcGateState`, `PdlcLifecycle`, `PdlcSkippedStates`, `PdlcSlug`, `PdlcPrs`) and one on `Task` (`PdlcPrs`). Azure derives the `Custom.` prefix from the display name automatically. ✓
+
+## `az` command reference (verified live)
 
 ```bash
+# auth / prerequisites
 az extension add --name azure-devops
-az devops configure --defaults organization=https://dev.azure.com/<org> project=<project>
-# auth: az login  OR  az devops login (PAT on stdin)
-```
+az login                       # or: az devops login   (PAT on stdin)
 
-Work items:
+# create record — via invoke, so the description renders as Markdown.
+# `az boards work-item create` cannot set multilineFieldsFormat, and the
+# choice is one-way, so a work item created that way renders literally forever.
+az devops invoke --organization <org> --area wit --resource workitems \
+  --route-parameters project=<proj> type="User Story" \
+  --http-method POST --media-type application/json-patch+json \
+  --in-file patch.json --api-version 7.1 -o json
+# patch.json:
+# [ {"op":"add","path":"/fields/System.Title","value":"<title>"},
+#   {"op":"add","path":"/fields/System.Description","value":"<body>"},
+#   {"op":"add","path":"/fields/Custom.PdlcSlug","value":"<slug>"},
+#   {"op":"add","path":"/multilineFieldsFormat/System.Description","value":"Markdown"} ]
 
-```bash
-# create record
-az boards work-item create --type "Product Backlog Item" --title "<title>" \
-  -f "System.Description=<body>" "Custom.PdlcSlug=<slug>" -o json
-
-# show (all fields + relations + links)
-az boards work-item show --id <id> --expand all -o json
+# show (fields + relations)
+az boards work-item show --organization <org> --id <id> -o json
 
 # update state fields atomically
-az boards work-item update --id <id> \
-  -f "Custom.PdlcStatus=Implementation" "Custom.PdlcGateState=Review Required" "Custom.PdlcLifecycle=<x>"
+az boards work-item update --organization <org> --id <id> \
+  -f "Custom.PdlcStatus=Implementation" "Custom.PdlcGateState=Review Required" \
+     "Custom.PdlcLifecycle=Planning"
 
-# add evidence comment
-az boards work-item update --id <id> --discussion "PDLC-IMPLEMENTATION\n\n<body>"
+# attach a pull request
+az boards work-item update --organization <org> --id <id> -f "Custom.PdlcPrs=148 152"
+
+# evidence comment (write) — format=markdown; --discussion would post HTML
+az devops invoke --organization <org> --area wit --resource comments \
+  --route-parameters project=<proj> workItemId=<id> \
+  --query-parameters format=markdown \
+  --http-method POST --in-file comment.json --api-version 7.1-preview -o json
+# comment.json: {"text": "PDLC-IMPLEMENTATION\n\n<body>"}
+
+# evidence comments (read) — no native az verb
+az devops invoke --organization <org> --area wit --resource comments \
+  --route-parameters project=<proj> workItemId=<id> \
+  --api-version 7.1-preview -o json
+# → { comments: [ { id, text, renderedText, createdBy{uniqueName,displayName}, createdDate } ] }
 
 # close a delivery task
-az boards work-item update --id <child> --state "Closed"
+az boards work-item update --organization <org> --id <child> --state "Closed"
 
 # parent/child link
-az boards work-item relation add --id <child> --relation-type parent --target-id <parent>
-az boards work-item relation list-type -o table   # discover exact relation names
+az boards work-item relation add --organization <org> \
+  --id <child> --relation-type parent --target-id <parent>
 
-# queue scan / slug lookup (flat WIQL only)
-az boards query --wiql "SELECT [System.Id] FROM workitems WHERE [Custom.PdlcSlug] <> ''" -o json
-az boards query --wiql "SELECT [System.Id] FROM workitems WHERE [System.Parent] = <id>" -o json
-```
+# queue scan — one call, returns exactly the selected fields
+az boards query --organization <org> --project <proj> --wiql \
+  "SELECT [System.Id],[System.Title],[Custom.PdlcStatus],[Custom.PdlcGateState],\
+          [Custom.PdlcLifecycle],[Custom.PdlcSkippedStates],[Custom.PdlcSlug] \
+   FROM workitems WHERE [Custom.PdlcSlug] <> '' AND [System.TeamProject] = '<proj>'" -o json
 
-Comments (read — no native `az boards` verb, issue Azure/azure-devops-cli-extension#1296):
+# children of a record
+az boards query --organization <org> --project <proj> --wiql \
+  "SELECT [System.Id] FROM workitems WHERE [System.Parent] = <id>" -o json
 
-```bash
-az devops invoke --area wit --resource comments \
-  --route-parameters project=<project> workItemId=<id> \
-  --api-version 7.1-preview.4 --query-parameters '$top=200' order=asc -o json
-# → { comments: [ { text, createdBy{uniqueName,displayName}, createdDate, url, commentId } ], continuationToken }
-```
-
-Pull requests:
-
-```bash
-az repos pr list --source-branch <branch> --status active -o json
-az repos pr show --id <n> -o json
-az repos pr create --repository <repo> --source-branch <b> --target-branch main \
-  --title "<t>" --description "<d>" --work-items <recordId>
-az repos pr policy list --id <n> -o json       # CI / build / approval policy evaluations
-az repos pr set-vote --id <n> --vote approve   # reviewer verdict, if we ever drive it
-```
-
-Identity:
-
-```bash
+# identity
 az account show --query user.name -o tsv
+
+# confirm field bindings per work-item type
+az devops invoke --organization <org> --area wit --resource workitemtypes \
+  --route-parameters project=<proj> --api-version 7.1 -o json
 ```
-
-## Required one-time org customization (no `az` command)
-
-Create an **inherited process** and add these fields to the PDLC record type and the Task type as needed:
-
-| Field | Type | Allowed values |
-|---|---|---|
-| `Custom.PdlcStatus` | picklist | Product, UI, Tasks, Technical Plan, Implementation, Testing, Verification, Complete |
-| `Custom.PdlcGateState` | picklist | Pending, Review Required, Changes Required, Decision Required, CI Pending, Approval Required, Approved, Stale |
-| `Custom.PdlcLifecycle` | picklist | (existing Lifecycle vocabulary) |
-| `Custom.PdlcSkippedStates` | text (single line) | free |
-| `Custom.PdlcSlug` | text (single line) | free |
-
-Done via Organization settings → Process, or the Process REST API (`_apis/work/processes/...`). `pdlc setup` should:
-- detect `az` + `azure-devops` extension,
-- ask for org URL / project / repo / record work-item type / description format (markdown|html),
-- verify the five custom fields exist (`az boards work-item show` a probe, or `az devops invoke --area wit --resource fields`), and print the exact process-customization steps if not,
-- write `[backend.azure]` to `.pdlc/config.toml`.
 
 ## Config surface
-
-New `.pdlc/config.toml` block, mirroring `[backend.github]`:
 
 ```toml
 [backend]
 name = "azure"
 
 [backend.azure]
-organization = "https://dev.azure.com/acme"
-project = "Platform"
-repository = "platform-api"          # for the code host
-record_type = "Product Backlog Item" # optional; resolved from process otherwise
-description_format = "markdown"       # markdown | html
-closed_state = "Closed"              # optional; process-dependent
+organization = "https://dev.azure.com/madushan92"
+project      = "pdlc-scratch"
+record_type  = "User Story"   # optional; default for an Agile-derived process
+closed_state = "Closed"       # optional; process-dependent
 
 [code_host]
-name = "azure"
+name = "github"               # Azure Boards + GitHub repos
+
+[backend.github]
+repository = "OWNER/REPOSITORY"   # still required by the GitHub code host
 
 [attachment_host]
 name = "file"
 ```
 
-`config.py` additions: `PDLC_AZURE_ORG`, `PDLC_AZURE_PROJECT`, `PDLC_AZURE_REPOSITORY`, `PDLC_AZURE_RECORD_TYPE`, `PDLC_AZURE_DESCRIPTION_FORMAT`, `PDLC_AZURE_CLOSED_STATE`; extend `TOML_ENVIRONMENT_KEYS`, `validate_for_backend()` (require org+project when `backend == "azure"`), and the `get_backend()` / code-host selector dispatch.
+`config.py` additions: `PDLC_AZURE_ORG`, `PDLC_AZURE_PROJECT`, `PDLC_AZURE_RECORD_TYPE`, `PDLC_AZURE_CLOSED_STATE`; extend `TOML_ENVIRONMENT_KEYS`, extend `validate_for_backend()` to require org + project when `backend == "azure"` while still requiring `repository` for the GitHub code host, and extend the `get_backend()` dispatch.
 
-## Implementation shape (when we do it)
+No `description_format` key: the round-trip is faithful either way, so there is nothing to configure.
 
-New files, no changes to domain or command layers:
+## Implementation shape
 
-- `src/pdlc/hosts/azure_common.py` — `run_az`, `run_az_json`, `az_invoke` (REST), org/project args, JSON-Patch helper.
-- `src/pdlc/hosts/azure_workitems.py` — WIQL, batch show, relation upsert (hierarchy and `ArtifactLink`), comment read/write (parallels `github_issues.py` + `github_project.py`).
+- `src/pdlc/hosts/azure_common.py` — `run_az`, `run_az_json` (empty-stdout tolerant), `az_invoke`, org/project args.
+- `src/pdlc/hosts/azure_workitems.py` — WIQL, work-item show/update, relation add, comment read/write (parallels `github_issues.py` + `github_project.py`).
 - `src/pdlc/hosts/workitem_host/azure.py` — `AzureWorkItemBackend(WorkItemBackend)`.
-- `src/pdlc/hosts/code_host/azure.py` — `AzureCodeHost(CodeHost)`.
-- Wire `azure` into `workitem_host/__init__.py` and `code_host/__init__.py`.
-- `tests/` — fixture-driven tests using recorded `az ... -o json` payloads, same pattern as the GitHub fixtures (`PDLC_ITEMS_FILE`-style hooks).
+- Wire `azure` into `workitem_host/__init__.py`.
+- `commands/setup.py` — an `azure` branch. The wizard used to assume the backend and code host shared a vendor; the code-host prompt is now its own step (`_code_host`) that every backend runs, and `_write_config` emits a repository-only `[backend.github]` table when an Azure board is paired with GitHub repos.
+- `tests/_az_replay.py` + tests — a FakeAz router mirroring `tests/_gh_replay.py`, so the suite stays fully offline. Live-org runs confirm real behaviour; they are not part of CI.
 
-Estimated size: comparable to the existing GitHub host set (~3 host modules + tests). The domain, lifecycle, evidence, and command layers need **zero** changes — the port boundary already isolates all of this. `config.py`, `commands/setup.py`, and the capabilities/parity reference docs do change; count them in the estimate.
+The domain, lifecycle, evidence, and command layers needed **zero** changes — the port boundary already isolated all of this, and it held. `config.py`, `commands/setup.py`, `README.md`, and the capabilities/parity reference docs do change; count them in the estimate.
 
-## Open questions for the driver
+## Deferred: Azure Repos code host
 
-1. Which processes must we support day one — just Agile/Scrum, or Basic too? (Affects record-type and closed-state defaults.)
-2. Are custom fields acceptable, or do we want a zero-customization mode that overloads `System.Tags` + `System.State` + `System.Description` front-matter? (Tags-only is uglier and loses single-value guarantees, but needs no org admin.)
-3. Do we ever want PDLC to drive Azure PR votes / completion (`az repos pr set-vote`, `--auto-complete`), or stay read-only on the code host as today?
-4. Half this surface (comments, attachments, PR file changes) falls through to `az devops invoke` anyway. Go REST-only for one error and JSON shape, or keep the mixed `az boards` / `az repos` / `invoke` transport for readability?
+Not being built. Kept for reference if the pairing ever changes.
+
+| Method | Azure implementation |
+|---|---|
+| `ensure_pull_request_linked(code_ref)` | `az repos pr list --source-branch <branch> --status active -o json` → first result. |
+| `pull_requests_by_number(numbers)` | `az repos pr show --id <n>`. Map `{pullRequestId→number, status→state (active/completed/abandoned → OPEN/MERGED/CLOSED), isDraft, sourceRefName→branch, closedDate→mergedAt, checks←policy rollup}`. |
+| `pull_request_files(pr)` | no `az` command. `az devops invoke --area git --resource pullRequestIterationChanges`, or `az repos pr show` for the merge commits then a local `git diff --name-only` (needs both commits fetched). |
+| `submit_task_stack()` | raise — no `gh stack` equivalent. |
+
+CI rollup: `az repos pr policy list --id <n>` returns one entry per policy with `status` ∈ `queued|running|approved|rejected|notApplicable`. Map any `rejected`→`FAILURE`, any `running|queued`→`PENDING`, all `approved`/`notApplicable` with ≥1 build→`SUCCESS`, none→`NONE`.
+
+If that host is ever built, `attach_pr` should keep using `Custom.PdlcPrs` rather than switching to `ArtifactLink`, so one backend does not store the same fact two ways depending on the code host.
+
+## Open questions
+
+Settled during implementation:
+
+- **Body rendering.** Descriptions and comments are marked `Markdown` at creation, so the Azure UI renders them properly and no conversion layer is needed. See "Description format".
+- **Blocker surface.** `post_blocker` posts a plain comment, exactly as GitHub does. The `Decision Required` gate is the machine signal and the `PDLC-DECISION` marker the human one, so a `pdlc-blocked` tag would be a second place to keep in sync with no reader that needs it. Revisit if someone wants a board filter for parked records.
+
+Still open:
+
+1. Attachments: keep `PDLC_ATTACHMENT_HOST=file`, or implement native work-item attachments (`az devops invoke --area wit --resource attachments`) later?
+2. `tasks()` still costs one comment read per delivery task, where GitHub gets them in a single GraphQL query — Azure has no batch comments API. The reads now run concurrently (bounded at 8), so wall time is flat rather than linear up to that width, but a record with many dozens of tasks would start queueing behind the bound.

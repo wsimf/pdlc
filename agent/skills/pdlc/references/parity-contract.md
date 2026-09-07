@@ -45,9 +45,7 @@ anything is written, not asserted by the agent that wrote the breakdown.
   derives `hasPlan` from it and renders it. The human-authored task body is
   never touched by planning or implementation — a re-planned task gets a fresh
   comment and the latest one wins. A task's attached pull requests are not kept
-  in its body: the backend stores them however it can (GitHub in a machine-owned
-  block it strips before any caller sees the body, the file backend in a `prs`
-  property) and reports them back as `prs`.
+  in its body: the backend stores them however it can (GitHub in a machine-owned block it strips before any caller sees the body, Azure Boards in a `Custom.PdlcPrs` field on the work item, the file backend in a `prs` property) and reports them back as `prs`.
 - HITL tasks require recorded human approval before dispatch.
 - `pdlc-implement` implements **one** task per invocation and then stops; the
   autonomous loop (or the driver) re-invokes it for the next while the parent
