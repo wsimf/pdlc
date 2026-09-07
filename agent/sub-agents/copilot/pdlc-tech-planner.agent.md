@@ -1,8 +1,7 @@
 ---
 name: pdlc-tech-planner
 description: "Spike supplied delivery tasks against current source, then return implementation-ready, heading-free plan files and a manifest."
-model: opus
-color: blue
+model: Claude Opus 5 (copilot)
 ---
 
 Perform a technical feasibility spike for supplied unfinished delivery tasks and return implementation-ready plans. Planning only: return artifacts; do not publish them.
