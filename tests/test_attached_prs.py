@@ -1,37 +1,15 @@
-"""Explicit task pull-request registration: the machine-owned metadata block on
-a delivery task's body, the `pdlc post attach-pr` command, and the automatic
-registration `pdlc post implement-task` performs for every task."""
+"""Attaching pull requests to a record or delivery task, through the file
+backend: the `pdlc post attach-pr` command, the automatic attachment
+`pdlc post implement-task` performs, and the guarantee that bodies stay
+human-authored content. The GitHub backend's own storage format is covered in
+test_github_hosts.py."""
 
+import json
 import unittest
 
 from _support import FileBackendTest
 
-from pdlc.domain.model import read_task_meta, strip_task_meta, task_prs, write_task_meta
-
 BODY = "## Scope\nDo the thing.\n\n## Acceptance criteria\n- ok\n"
-
-
-class TaskMetaBlockTests(unittest.TestCase):
-    def test_round_trips_pr_numbers_without_touching_the_body(self):
-        stamped = write_task_meta(BODY, {"prs": ["148", "152"]})
-        self.assertTrue(stamped.startswith("<!-- pdlc:meta\n"))
-        self.assertEqual(task_prs(stamped), [148, 152])
-        self.assertEqual(strip_task_meta(stamped), BODY)
-
-    def test_plain_body_has_no_metadata(self):
-        self.assertEqual(read_task_meta(BODY), {})
-        self.assertEqual(task_prs(BODY), [])
-        self.assertEqual(strip_task_meta(BODY), BODY)
-
-    def test_rewrite_replaces_the_block_and_dedupes(self):
-        once = write_task_meta(BODY, {"prs": ["148"]})
-        twice = write_task_meta(once, {"prs": ["148", "160"]})
-        self.assertEqual(task_prs(twice), [148, 160])
-        self.assertEqual(strip_task_meta(twice), BODY)
-
-    def test_empty_meta_removes_the_block(self):
-        stamped = write_task_meta(BODY, {"prs": ["148"]})
-        self.assertEqual(write_task_meta(stamped, {"prs": []}), BODY)
 
 
 class AttachPrCommandTests(FileBackendTest):
@@ -52,7 +30,8 @@ class AttachPrCommandTests(FileBackendTest):
 
         second = self.invoke("post_attach_pr", 701, 160)
         self.assertEqual(second.json, {"task": 701, "prs": [148, 160]})
-        self.assertEqual(strip_task_meta(self._body()), BODY)
+        # The body is never a storage surface on this backend.
+        self.assertEqual(self._body(), BODY)
 
     def test_rejects_a_non_delivery_work_item(self):
         result = self.invoke("post_attach_pr", 70, 148)
@@ -62,7 +41,12 @@ class AttachPrCommandTests(FileBackendTest):
         result = self.invoke("post_attach_pr", 701, "feature")
         self.assertEqual(result.code, 1)
 
-    def test_inspect_task_reports_prs_and_hides_the_block(self):
+    def test_stores_the_numbers_in_the_task_meta_json(self):
+        self.invoke("post_attach_pr", 701, 148)
+        meta = json.loads((self.records_dir() / "70" / "tasks" / "701" / "meta.json").read_text())
+        self.assertEqual(meta["prs"], [148])
+
+    def test_inspect_task_reports_prs_and_leaves_the_body_clean(self):
         self.invoke("post_attach_pr", 701, 148)
         rendered = self.invoke("inspect_task", 701).stdout
         self.assertIn("prs:", rendered)
@@ -70,7 +54,7 @@ class AttachPrCommandTests(FileBackendTest):
         self.assertNotIn("pdlc:meta", rendered)
 
 
-class MetaSurvivesRePlanTests(FileBackendTest):
+class AttachmentSurvivesRePlanTests(FileBackendTest):
     def setUp(self):
         super().setUp()
         self.seed_record(70, "Implementation", "Pending", slug="record-70")
@@ -90,9 +74,33 @@ class MetaSurvivesRePlanTests(FileBackendTest):
         self.assertEqual(results[0]["action"], "unchanged")
         self.assertEqual(task_tree("70")[0]["prs"], [148])
         self.assertEqual(
-            strip_task_meta((self.records_dir() / "70" / "tasks" / "701" / "body.md").read_text()),
+            (self.records_dir() / "70" / "tasks" / "701" / "body.md").read_text(),
             BODY,
         )
+
+
+class RecordAttachmentTests(FileBackendTest):
+    """A record carries its own attachments, separately from its tasks'."""
+
+    def setUp(self):
+        super().setUp()
+        self.seed_record(80, "Implementation", "Pending")
+
+    def test_attaches_to_a_record_and_reports_it_back(self):
+        from pdlc.internal.workitem import attach_pr, attached_prs, resolve_item
+
+        self.assertEqual(attach_pr("80", 300), [300])
+        self.assertEqual(attach_pr("80", 300), [300])
+        self.assertEqual(attach_pr("80", 210), [210, 300])
+        self.assertEqual(attached_prs("80"), [210, 300])
+        self.assertEqual(resolve_item("80")["prs"], [210, 300])
+
+    def test_record_body_is_untouched(self):
+        from pdlc.internal.workitem import attach_pr
+
+        before = (self.records_dir() / "80" / "body.md").read_text()
+        attach_pr("80", 300)
+        self.assertEqual((self.records_dir() / "80" / "body.md").read_text(), before)
 
 
 class RecordPullRequestsTests(FileBackendTest):

@@ -14,11 +14,16 @@ queue item: {id, content: {number, title, url}, "Status", "Gate State",
              "Lifecycle", "Skipped States", "workType"}
 work item:  {id, content: {number, title, url}, issueBody,
              "Status", "Gate State", "Lifecycle", "Skipped States", "Slug",
-             "workType",
+             "workType", prs: [int],
              comments?}                # comments included only when free to
 comment:    {body, createdAt, url, author: {login}}
 task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
-             taskId}                   # taskId is the WORK-N-TASK-NNN id or None
+             taskId, prs: [int]}       # taskId is the WORK-N-TASK-NNN id or None
+
+Bodies crossing this port are human-authored content only. Whatever a backend
+stores alongside them to track attached pull requests is its own business and
+never appears in `issueBody` or a task's `body`; `prs` is how that storage is
+reported back.
 """
 
 from __future__ import annotations
@@ -122,10 +127,25 @@ class WorkItemBackend(ABC):
     @abstractmethod
     def close_task(self, task_ref: str) -> None: ...
 
+    # --- attached pull requests ---
+
     @abstractmethod
-    def write_task_body(self, task_ref: str, body: str) -> None:
-        """Replace a delivery task's whole body — used to persist its
-        machine-owned metadata block (the facade composes the block)."""
+    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+        """Attach a pull request to a record or one of its delivery tasks, both
+        addressed by their shared ref. Idempotent; returns every number now
+        attached, ascending.
+
+        How the link is stored is entirely the backend's choice — a block in the
+        body, a column, a native work-item↔PR relation. Callers only ever ask
+        for it back through `attached_prs` or the `prs` key on a work item or
+        task dict."""
+
+    @abstractmethod
+    def attached_prs(self, ref: str) -> list[int]:
+        """Every pull request attached to `ref`, ascending. Empty when none are.
+
+        Prefer the `prs` key already present on a resolved work item or task
+        when you have one; this exists for a ref you have not resolved."""
 
     # --- creation ---
 

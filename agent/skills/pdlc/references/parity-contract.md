@@ -44,9 +44,10 @@ anything is written, not asserted by the agent that wrote the breakdown.
   delivery task before implementation. It carries no PDLC marker; `pdlc-inspect`
   derives `hasPlan` from it and renders it. The human-authored task body is
   never touched by planning or implementation — a re-planned task gets a fresh
-  comment and the latest one wins. The one exception is a machine-owned
-  `<!-- pdlc:meta -->` block pinned above the body, where commands record the
-  task's registered pull-request numbers; `pdlc-inspect` strips it on render.
+  comment and the latest one wins. A task's attached pull requests are not kept
+  in its body: the backend stores them however it can (GitHub in a machine-owned
+  block it strips before any caller sees the body, the file backend in a `prs`
+  property) and reports them back as `prs`.
 - HITL tasks require recorded human approval before dispatch.
 - `pdlc-implement` implements **one** task per invocation and then stops; the
   autonomous loop (or the driver) re-invokes it for the next while the parent

@@ -9,6 +9,7 @@ raw body write and record creation.
 from __future__ import annotations
 
 import pdlc.hosts.github_issues as github_issues
+import pdlc.hosts.github_pr_registry as pr_registry
 import pdlc.hosts.github_project as github_project
 from pdlc.hosts.github_common import (
     body_file,
@@ -28,7 +29,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
     # --- resolution ---
 
     def resolve(self, ref: str) -> dict:
-        return github_project.item_for_issue(ref)
+        item = github_project.item_for_issue(ref)
+        body = item.get("issueBody") or ""
+        return {**item, "issueBody": pr_registry.strip(body), "prs": pr_registry.prs(body)}
 
     def queue_items(self) -> list[QueueItemSummary]:
         return github_project.queue_items()
@@ -49,8 +52,15 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     # --- body ---
 
+    def _raw_body(self, ref: str) -> str:
+        """The Issue body as GitHub stores it, registry block included."""
+        return run_gh_json(["issue", "view", str(ref), *repo_args(), "--json", "body"]).get("body") or ""
+
     def write_body(self, ref: str, body: str) -> None:
-        with body_file(body) as path:
+        # `body` is human content: callers never see the registry block, so it
+        # is re-read and re-attached here rather than trusted to survive a
+        # caller's round trip.
+        with body_file(pr_registry.restore(self._raw_body(ref), body)) as path:
             run_gh(["issue", "edit", str(ref), *repo_args(), "--body-file", path])
 
     # --- comments ---
@@ -78,12 +88,24 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def upsert_tasks(self, parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
         return github_issues.upsert_tasks(parent, tasks, existing)
 
-    def write_task_body(self, task_ref: str, body: str) -> None:
-        with body_file(body) as path:
-            run_gh(["issue", "edit", str(task_ref), *repo_args(), "--body-file", path])
-
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
+
+    # --- attached pull requests ---
+
+    # Records and delivery tasks are both Issues, so one implementation serves
+    # each: the registry lives in the Issue body either way.
+
+    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+        stored = self._raw_body(ref)
+        updated, numbers = pr_registry.with_pr(stored, int(pr_number))
+        if updated != stored:
+            with body_file(updated) as path:
+                run_gh(["issue", "edit", str(ref), *repo_args(), "--body-file", path])
+        return numbers
+
+    def attached_prs(self, ref: str) -> list[int]:
+        return pr_registry.prs(self._raw_body(ref))
 
     # --- creation ---
 

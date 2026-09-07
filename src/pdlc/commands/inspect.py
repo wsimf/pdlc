@@ -108,7 +108,7 @@ from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, strip_task_meta, task_tree, user_comments_markdown  # type: ignore
+from pdlc.internal.workitem import due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree, user_comments_markdown  # type: ignore
 
 
 def _due_next_owner(due: dict) -> str:
@@ -190,7 +190,7 @@ def _compact_render(
     full_output: str,
     path: Path,
 ) -> str:
-    body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
+    body = (item.get("issueBody") or "").rstrip("\n")
     sections = [_compact_metadata(item, pull_requests)]
     sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
     sections.append(attachments_markdown(attachments))
@@ -225,10 +225,7 @@ def render(issue: str) -> tuple[str, str, Path]:
     # One comment fetch feeds the `## User Comments` section in both renders.
     user_comments_section = user_comments_markdown(issue)
 
-    # Strip the machine-owned `<!-- pdlc:meta -->` block: its registered PR
-    # numbers are already surfaced in the front matter above, and the raw
-    # comment is noise in the rendered body (inspect_task strips it too).
-    body = strip_task_meta(item.get("issueBody") or "").rstrip("\n")
+    body = (item.get("issueBody") or "").rstrip("\n")
 
     sections = [yaml_front_matter(metadata)]
     sections.append(f"# Work Item\n\n{body}")

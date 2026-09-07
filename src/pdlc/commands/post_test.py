@@ -21,7 +21,7 @@ from pathlib import Path
 from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.complete_transition import complete_transition, prepare_transition  # type: ignore
 from pdlc.internal.attachments import parse_attachment_arguments  # type: ignore
-from pdlc.internal.workitem import register_record_pr  # type: ignore
+from pdlc.internal.workitem import attach_pr  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
 
 
@@ -44,7 +44,7 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
         f"## Traceability\n\n{_read('--traceability', traceability).strip()}\n"
     )
     pull_request = get_code_host().ensure_pull_request_linked(issue)
-    register_record_pr(issue, pull_request["number"])
+    attach_pr(issue, pull_request["number"])
     result = complete_transition(publication, body, attachment_inputs)
     result["pullRequest"] = pull_request
     return result

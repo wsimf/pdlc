@@ -20,6 +20,7 @@ from pdlc.hosts.github_common import (
     run_gh_json,
     run_graphql,
 )
+import pdlc.hosts.github_pr_registry as pr_registry
 from pdlc.hosts.github_project import item_for_issue
 from pdlc.domain.lifecycle import PdlcError, read_body_source
 from pdlc.domain.model import (
@@ -27,9 +28,6 @@ from pdlc.domain.model import (
     TASK_TITLE_PATTERN,
     comment_bodies,
     compose_comment,
-    read_task_meta,
-    strip_task_meta,
-    write_task_meta,
 )
 
 # Delivery task sub-issues of a parent Issue: enough to match one to its stable
@@ -113,10 +111,11 @@ def link_subissues(parent: int | str, children: list[int | str]) -> None:
 
 
 # Delivery task sub-issues of a parent, as a list of
-# {number, title, url, state, body, comments, taskId}. taskId is the stable
+# {number, title, url, state, body, comments, taskId, prs}. taskId is the stable
 # WORK-NNN-TASK-NNN prefix parsed off the title, or None for a sub-issue
 # that has none; comments is the list of comment body strings, from which the
-# task's plan and implementation progress are derived.
+# task's plan and implementation progress are derived. `body` is the human
+# content only — the registry block is split out into `prs`.
 def subissues_for(issue: str) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
@@ -127,7 +126,10 @@ def subissues_for(issue: str) -> list[dict]:
     if fixture:
         with open(fixture) as handle:
             nodes = json.load(handle)
-        return [{**node, "comments": comment_bodies(node.get("comments"))} for node in nodes]
+        return [
+            pr_registry.view({**node, "comments": comment_bodies(node.get("comments"))})
+            for node in nodes
+        ]
 
     data = run_graphql(SUBISSUES_QUERY, owner=owner, repo=repository, number=int(issue))
     nodes = data["data"]["repository"]["issue"]["subIssues"]["nodes"]
@@ -135,11 +137,11 @@ def subissues_for(issue: str) -> list[dict]:
     result = []
     for node in nodes:
         match = TASK_ID_PATTERN.match(node["title"])
-        result.append({
+        result.append(pr_registry.view({
             **node,
             "comments": comment_bodies(node.get("comments")),
             "taskId": match.group(1) if match else None,
-        })
+        }))
     return result
 
 
@@ -163,14 +165,13 @@ def _upsert_task(
         number = match["number"]
         title_changed = match["title"] != full_title
         # Compare against the neutralized human body only: a prior run wrote the
-        # neutralized form (so a `#123` in the body does not re-edit every pass),
-        # and the machine-owned `pdlc:meta` block is preserved across the rewrite
-        # rather than counted as a change.
+        # neutralized form, so a `#123` in the body does not re-edit every pass.
+        # `match` already has its registry block split out, so the attached pull
+        # requests are re-attached to the rewrite rather than counted as a change.
         stored = match.get("body") or ""
-        preserved_meta = read_task_meta(stored)
-        body_changed = strip_task_meta(stored) != neutralize_refs(body_text)
+        body_changed = stored != neutralize_refs(body_text)
         if title_changed or body_changed:
-            with body_file(write_task_meta(body_text, preserved_meta)) as path:
+            with body_file(pr_registry.attach(body_text, match.get("prs"))) as path:
                 run_gh(["issue", "edit", str(number), *repo_args(), "--title", full_title, "--body-file", path])
             action = "retitled" if title_changed else "updated"
         else:
@@ -212,7 +213,9 @@ def _recover_unlinked_tasks(parent: str, task_ids: list[str], existing: list[dic
         task_id = match.group(2)
         if task_id in recovered:
             raise PdlcError(f"multiple unlinked Issues carry stable identity WORK-{parent}-{task_id}")
-        recovered[task_id] = {**candidate, "taskId": task_id}
+        # Recovered candidates carry raw Issue bodies; normalize them to the
+        # same shape as `existing` so the upsert compare sees one form.
+        recovered[task_id] = pr_registry.view({**candidate, "taskId": task_id})
     return list(recovered.values())
 
 
@@ -269,11 +272,11 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
     result = []
     for task in tasks:
         match = TASK_ID_PATTERN.match(task["title"])
-        result.append({
+        result.append(pr_registry.view({
             **task,
             "comments": comment_bodies(task.get("comments")),
             "taskId": match.group(1) if match else None,
-        })
+        }))
     return result
 
 

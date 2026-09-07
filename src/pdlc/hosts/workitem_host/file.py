@@ -6,11 +6,11 @@ child directories under `tasks/`.
     $PDLC_HOME/
       seq                        shared monotonic counter (records + tasks)
       records/<n>/
-        meta.json                {id, number, title, url, fields:{...}}
+        meta.json                {id, number, title, url, fields:{...}, prs:[…]}
         body.md
         comments.jsonl
         tasks/<m>/
-          meta.json              {number, title, url, state, taskId}
+          meta.json              {number, title, url, state, taskId, prs:[…]}
           body.md
           comments.jsonl
 
@@ -29,7 +29,6 @@ from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.domain.model import read_task_meta, strip_task_meta, write_task_meta
 from pdlc.hosts.workitem_host.base import QueueItemSummary, WorkItemBackend
 
 FIELD_NAMES = ("Status", "Gate State", "Lifecycle", "Skipped States", "Slug")
@@ -107,6 +106,7 @@ class FileWorkItemBackend(WorkItemBackend):
             "number": meta["number"],
             "content": {"number": meta["number"], "title": meta.get("title"), "url": meta.get("url")},
             "issueBody": body,
+            "prs": list(meta.get("prs", [])),
             "comments": _read_comments(path),
             **{name: fields.get(name, "") for name in FIELD_NAMES},
             "workType": meta.get("workType", ""),
@@ -123,6 +123,7 @@ class FileWorkItemBackend(WorkItemBackend):
             "body": body,
             "comments": [comment["body"] for comment in _read_comments(path)],
             "taskId": meta.get("taskId"),
+            "prs": list(meta.get("prs", [])),
         }
 
     # --- resolution ---
@@ -232,14 +233,11 @@ class FileWorkItemBackend(WorkItemBackend):
             meta = _read_meta(path)
             title_changed = meta.get("title") != full_title
             stored = (path / "body.md").read_text() if (path / "body.md").exists() else ""
-            # The machine-owned `pdlc:meta` block is preserved across a re-plan,
-            # not counted as a body change.
-            preserved_meta = read_task_meta(stored)
-            body_changed = strip_task_meta(stored) != body_text
+            body_changed = stored != body_text
             if title_changed or body_changed:
                 meta["title"] = full_title
                 _write_meta(path, meta)
-                (path / "body.md").write_text(write_task_meta(body_text, preserved_meta))
+                (path / "body.md").write_text(body_text)
                 action = "retitled" if title_changed else "updated"
             else:
                 action = "unchanged"
@@ -260,14 +258,29 @@ class FileWorkItemBackend(WorkItemBackend):
 
         return {"action": action, "taskId": task_id, "number": number, "title": full_title, "url": url}
 
-    def write_task_body(self, task_ref: str, body: str) -> None:
-        (self._task_dir(task_ref) / "body.md").write_text(body)
-
     def close_task(self, task_ref: str) -> None:
         path = self._task_dir(task_ref)
         meta = _read_meta(path)
         meta["state"] = "CLOSED"
         _write_meta(path, meta)
+
+    # --- attached pull requests ---
+
+    # A `prs` array in the entity's own meta.json. Records and delivery tasks
+    # both resolve through _entity_dir, so one implementation serves each, and
+    # `body.md` stays plain human-authored Markdown.
+
+    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+        path = self._entity_dir(ref)
+        meta = _read_meta(path)
+        numbers = sorted({*meta.get("prs", []), int(pr_number)})
+        if numbers != meta.get("prs"):
+            meta["prs"] = numbers
+            _write_meta(path, meta)
+        return numbers
+
+    def attached_prs(self, ref: str) -> list[int]:
+        return sorted(_read_meta(self._entity_dir(ref)).get("prs", []))
 
     # --- creation ---
 

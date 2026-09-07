@@ -65,7 +65,7 @@ from pathlib import Path
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task  # type: ignore
 from pdlc.domain.lifecycle import PdlcError  # type: ignore
 from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import ref_label, resolve_item, strip_task_meta, tasks_by_number, user_comments_markdown  # type: ignore
+from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number, user_comments_markdown  # type: ignore
 
 
 # `preamble` is the parent Work Item's attachment and user-comment sections: they
@@ -84,7 +84,7 @@ def _render_task(task: dict, preamble: str = "") -> str:
         "needsPlan": task["needsPlan"],
         "prs": task["prs"],
     })
-    body = strip_task_meta(task.get("body") or "").rstrip("\n")
+    body = (task.get("body") or "").rstrip("\n")
     lead = f"{preamble}\n\n" if preamble else ""
     rendered = f"{front_matter}\n\n{lead}# Task\n\n{body}"
     plan = (task.get("planComment") or "").strip()

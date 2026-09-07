@@ -22,7 +22,7 @@ import json
 import sys
 
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.workitem import register_task_pr, tasks_by_number  # type: ignore
+from pdlc.internal.workitem import attach_pr, tasks_by_number  # type: ignore
 
 
 def post_attach_pr(delivery_task: str, pr_number: str) -> dict:
@@ -36,7 +36,7 @@ def post_attach_pr(delivery_task: str, pr_number: str) -> dict:
     if task.get("taskId") is None:
         raise PdlcError(f"work item #{delivery_task} is not a delivery task (no WORK-NNN-TASK-NNN identity)")
 
-    prs = register_task_pr(delivery_task, int(number))
+    prs = attach_pr(delivery_task, int(number))
     return {"task": int(delivery_task), "prs": prs}
 
 
