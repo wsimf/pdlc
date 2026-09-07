@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import os
 
+from pdlc.config import default_code_host
 from pdlc.hosts.code_host.base import CodeHost
 
 _instance: CodeHost | None = None
 
 
 def _default_name() -> str:
-    backend = os.environ.get("PDLC_BACKEND", "github")
-    return backend if backend in ("github", "file") else "none"
+    return default_code_host(os.environ.get("PDLC_BACKEND", "github"))
 
 
 def get_code_host() -> CodeHost:

@@ -12,6 +12,8 @@ from pdlc.domain.lifecycle import PdlcError
 
 ENVIRONMENT_KEYS = (
     "PDLC_REPOSITORY", "PDLC_PROJECT_NUMBER", "PDLC_PROJECT_OWNER",
+    "PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT", "PDLC_AZURE_RECORD_TYPE",
+    "PDLC_AZURE_CLOSED_STATE",
     "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_HOME",
     "PDLC_ACTOR", "PDLC_REF_LABEL", "PDLC_ITEMS_FILE", "PDLC_SUBISSUES_FILE",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
@@ -25,6 +27,10 @@ TOML_ENVIRONMENT_KEYS = {
     ("backend.github", "project_owner"): "PDLC_PROJECT_OWNER",
     ("backend.github", "items_file"): "PDLC_ITEMS_FILE",
     ("backend.github", "subissues_file"): "PDLC_SUBISSUES_FILE",
+    ("backend.azure", "organization"): "PDLC_AZURE_ORG",
+    ("backend.azure", "project"): "PDLC_AZURE_PROJECT",
+    ("backend.azure", "record_type"): "PDLC_AZURE_RECORD_TYPE",
+    ("backend.azure", "closed_state"): "PDLC_AZURE_CLOSED_STATE",
     ("code_host", "name"): "PDLC_CODE_HOST",
     ("attachment_host", "name"): "PDLC_ATTACHMENT_HOST",
     ("runtime", "home"): "PDLC_HOME",
@@ -58,6 +64,17 @@ class ConfigurationError(PdlcError):
     """A configuration problem that should be shown directly to the user."""
 
 
+def default_code_host(backend: str) -> str:
+    """The code host implied by a backend when ``PDLC_CODE_HOST`` is unset.
+
+    Azure Boards owns work items only, so it implies no code host at all; the
+    GitHub and file backends each host code themselves. Shared with
+    ``pdlc.hosts.code_host`` so validation and selection cannot disagree about
+    which host a given backend actually runs with.
+    """
+    return backend if backend in ("github", "file") else "none"
+
+
 @dataclass(frozen=True)
 class Config:
     repository: str | None = None
@@ -69,6 +86,10 @@ class Config:
     home: str | None = None
     actor: str | None = None
     ref_label: str | None = None
+    azure_org: str | None = None
+    azure_project: str | None = None
+    azure_record_type: str | None = None
+    azure_closed_state: str | None = None
     items_file: str | None = None
     subissues_file: str | None = None
     max_attempts: str | None = None
@@ -84,8 +105,27 @@ class Config:
         })
 
     def validate_for_backend(self) -> None:
-        """Require GitHub project coordinates when GitHub is in use."""
-        if (self.backend or "github") == "file":
+        """Require each selected host's own coordinates.
+
+        The work-item backend and the code host are independent: Azure Boards
+        is expected to pair with GitHub repos, so an azure backend still needs
+        `PDLC_REPOSITORY` whenever the code host is GitHub.
+        """
+        backend = self.backend or "github"
+        if backend == "file":
+            return
+        code_host = self.code_host or default_code_host(backend)
+        required: dict[str, str | None] = {}
+        if backend == "azure":
+            required |= {
+                "PDLC_AZURE_ORG": self.azure_org,
+                "PDLC_AZURE_PROJECT": self.azure_project,
+            }
+            if code_host == "github":
+                required["PDLC_REPOSITORY"] = self.repository
+            missing = [name for name, value in required.items() if not value]
+            if missing:
+                raise ConfigurationError(configuration_guidance(missing))
             return
         required = {
             "PDLC_REPOSITORY": self.repository,

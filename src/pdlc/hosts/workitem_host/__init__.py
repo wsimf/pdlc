@@ -17,6 +17,10 @@ def get_backend() -> WorkItemBackend:
             from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
 
             _instance = GitHubWorkItemBackend()
+        elif name == "azure":
+            from pdlc.hosts.workitem_host.azure import AzureWorkItemBackend
+
+            _instance = AzureWorkItemBackend()
         elif name == "file":
             from pdlc.hosts.workitem_host.file import FileWorkItemBackend
 

@@ -72,8 +72,19 @@ def _write_config(
     repository: str | None,
     project_number: str | None,
     project_owner: str | None,
+    azure: dict[str, str] | None = None,
 ) -> None:
     lines = ["[backend]", f'name = "{backend}"', "", "[code_host]", f'name = "{code_host}"', "", "[attachment_host]", 'name = "file"']
+    if backend == "azure" and azure:
+        lines += [
+            "",
+            "[backend.azure]",
+            f'organization = "{azure["organization"]}"',
+            f'project = "{azure["project"]}"',
+        ]
+    # The GitHub table carries the repository for the code host as well as the
+    # Project coordinates for the backend, so an Azure board paired with GitHub
+    # repos still writes it — with the repository alone.
     if backend == "github":
         lines += [
             "",
@@ -82,8 +93,17 @@ def _write_config(
             f"project_number = {project_number}",
             f'project_owner = "{project_owner}"',
         ]
+    elif code_host == "github" and repository:
+        lines += ["", "[backend.github]", f'repository = "{repository}"']
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n")
+
+
+def _code_host(detected: bool, input_fn: Input) -> str:
+    """Ask which host owns code and pull requests. Independent of the
+    work-item backend: Azure Boards is expected to pair with GitHub repos."""
+    options = ["github (detected from remote.origin.url)", "file", "none"] if detected else ["github", "file", "none"]
+    return ["github", "file", "none"][_choose("Code host", options, input_fn)]
 
 
 def main(input_fn: Input = input) -> int:
@@ -97,22 +117,20 @@ def main(input_fn: Input = input) -> int:
     print("pdlc setup")
     print("Configure this repository for the PDLC workflow.\n")
 
-    backend_options = ["github", "file"]
+    backend_options = ["github", "azure", "file"]
     backend = backend_options[_choose("Backend", backend_options, input_fn)]
-    if backend == "github" and not current_repository:
-        print("No GitHub repository was detected from remote.origin.url.")
-        current_repository = _ask("Repository (OWNER/REPOSITORY)", config.repository, input_fn)
-    elif backend == "github":
-        print(f"Detected repository: {current_owner}/{current_repository}")
+    repository = f"{current_owner}/{current_repository}" if current_owner and current_repository else None
+    azure: dict[str, str] | None = None
+    project_owner = project_number = None
 
     if backend == "github":
-        code_options = (
-            ["github (detected from remote.origin.url)", "file", "none"]
-            if current_repository
-            else ["github", "file", "none"]
-        )
-        code_choice = _choose("Code host", code_options, input_fn)
-        code_host = ["github", "file", "none"][code_choice]
+        if not current_repository:
+            print("No GitHub repository was detected from remote.origin.url.")
+            repository = _ask("Repository (OWNER/REPOSITORY)", config.repository, input_fn)
+        else:
+            print(f"Detected repository: {current_owner}/{current_repository}")
+
+        code_host = _code_host(bool(current_repository), input_fn)
         owner_options = [current_owner] if current_owner else []
         owner_options.append("other")
         owner_choice = _choose("Project owner", owner_options, input_fn)
@@ -135,9 +153,28 @@ def main(input_fn: Input = input) -> int:
             project_number = str(projects[project_choice]["number"])
         else:
             project_number = _ask_number("GitHub project number", config.project_number, input_fn)
+    elif backend == "azure":
+        azure = {
+            # No placeholder default: pressing enter must not write a
+            # syntactically valid but nonexistent organization.
+            "organization": _ask(
+                "Azure DevOps organization URL (https://dev.azure.com/<org>)",
+                config.azure_org, input_fn,
+            ),
+            "project": _ask("Azure DevOps project", config.azure_project, input_fn),
+        }
+        print(
+            "\nThe PDLC custom fields are an organization-admin prerequisite; "
+            "see \"Azure Boards fields\" in README.md."
+        )
+        code_host = _code_host(bool(current_repository), input_fn)
+        if code_host == "github" and not current_repository:
+            repository = _ask("Repository (OWNER/REPOSITORY)", config.repository, input_fn)
+        elif code_host != "github":
+            repository = None
     else:
         code_host = "file"
-        project_owner = project_number = None
+        repository = None
         print("Code host: file")
         print("Attachment host: file")
 
@@ -146,13 +183,10 @@ def main(input_fn: Input = input) -> int:
         path,
         backend=backend,
         code_host=code_host,
-        repository=(
-            f"{current_owner}/{current_repository}"
-            if backend == "github" and current_owner and current_repository
-            else current_repository
-        ),
+        repository=repository,
         project_number=project_number,
         project_owner=project_owner,
+        azure=azure,
     )
     print(f"\nWrote {path}")
     return 0

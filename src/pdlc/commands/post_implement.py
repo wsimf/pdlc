@@ -18,7 +18,7 @@ from pathlib import Path
 from pdlc.hosts.code_host import get_code_host  # type: ignore
 from pdlc.internal.complete_transition import complete_transition, prepare_transition  # type: ignore
 from pdlc.internal.attachments import parse_attachment_arguments  # type: ignore
-from pdlc.internal.workitem import register_record_pr  # type: ignore
+from pdlc.internal.workitem import attach_pr  # type: ignore
 from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
 
 
@@ -40,7 +40,7 @@ def main() -> int:
     try:
         publication = prepare_transition(issue, "Implementation")
         pull_request = get_code_host().ensure_pull_request_linked(issue)
-        register_record_pr(issue, pull_request["number"])
+        attach_pr(issue, pull_request["number"])
         result = complete_transition(publication, evidence, attachment_inputs)
         result["pullRequest"] = pull_request
     except PdlcError as error:

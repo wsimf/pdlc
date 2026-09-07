@@ -10,17 +10,13 @@ number list into full PR dicts via the code host.
 from __future__ import annotations
 
 from pdlc.hosts.code_host import get_code_host
-from pdlc.internal.workitem import read_task_meta, resolve_item, task_tree
+from pdlc.internal.workitem import resolve_item, task_tree
 
 
 def registered_pr_numbers(ref: str) -> list[int]:
     """Every pull-request number registered on the record `ref` or one of its
     delivery tasks, ascending and de-duplicated."""
-    numbers: set[int] = set()
-    record = resolve_item(ref)
-    for value in read_task_meta(record.get("issueBody") or "").get("prs", []):
-        if value.isdigit():
-            numbers.add(int(value))
+    numbers: set[int] = set(resolve_item(ref).get("prs") or [])
     for task in task_tree(ref):
         numbers.update(task.get("prs") or [])
     return sorted(numbers)

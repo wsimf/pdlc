@@ -1,5 +1,5 @@
 """The `pdlc setup` wizard: prompt helpers and the config it writes for the
-file and GitHub backends, driven by a scripted input function."""
+file, GitHub, and Azure backends, driven by a scripted input function."""
 
 import io
 import tempfile
@@ -85,13 +85,13 @@ class MainTests(_QuietStdout):
 
     def test_bare_invocation_runs_the_wizard(self):
         # Regression: an empty argv must not be mistaken for a help request.
-        code, target = self._run(["2"])
+        code, target = self._run(["3"])
         self.assertEqual(code, 0)
         self.assertTrue(target.exists())
 
     def test_file_backend_end_to_end(self):
-        # Backend prompt -> choice 2 (file); nothing else is asked.
-        code, target = self._run(["2"])
+        # Backend prompt -> choice 3 (file); nothing else is asked.
+        code, target = self._run(["3"])
         self.assertEqual(code, 0)
         data = tomllib.loads(target.read_text())
         self.assertEqual(data["backend"]["name"], "file")
@@ -108,3 +108,38 @@ class MainTests(_QuietStdout):
         self.assertEqual(data["backend"]["github"]["repository"], "acme/widgets")
         self.assertEqual(data["backend"]["github"]["project_number"], 4)
         self.assertEqual(data["backend"]["github"]["project_owner"], "acme")
+
+
+class AzureBackendTests(_QuietStdout):
+    """Azure Boards is the one pairing where the work-item backend and the code
+    host belong to different vendors, so the wizard asks for both halves."""
+
+    def _run(self, answers, *, origin=(None, None)):
+        target = Path(tempfile.mkdtemp()) / ".pdlc" / "config.toml"
+        with patch.object(setup, "config_path", return_value=target), \
+             patch.object(setup, "_origin", return_value=origin), \
+             patch.object(setup.sys, "argv", ["pdlc setup"]):
+            code = setup.main(scripted(answers))
+        return code, tomllib.loads(target.read_text())
+
+    def test_azure_board_with_a_detected_github_repository(self):
+        # backend=azure(2), org, project, code host=github(1)
+        code, data = self._run(
+            ["2", "https://dev.azure.com/acme", "delivery", "1"],
+            origin=("acme", "widgets"),
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(data["backend"]["name"], "azure")
+        self.assertEqual(data["backend"]["azure"]["organization"], "https://dev.azure.com/acme")
+        self.assertEqual(data["backend"]["azure"]["project"], "delivery")
+        self.assertEqual(data["code_host"]["name"], "github")
+        # The GitHub table carries the repository for the code host, and none
+        # of the Project coordinates the GitHub work-item backend would need.
+        self.assertEqual(data["backend"]["github"], {"repository": "acme/widgets"})
+
+    def test_azure_board_without_a_github_code_host_writes_no_repository(self):
+        # backend=azure(2), org, project, code host=none(3)
+        code, data = self._run(["2", "https://dev.azure.com/acme", "delivery", "3"])
+        self.assertEqual(code, 0)
+        self.assertEqual(data["code_host"]["name"], "none")
+        self.assertNotIn("github", data["backend"])

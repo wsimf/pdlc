@@ -41,7 +41,7 @@ from pdlc.internal.workitem import (  # type: ignore
     close_task,
     item_slug,
     post_comment,
-    register_task_pr,
+    attach_pr,
     resolve_item,
     task_tree,
     tasks_by_number,
@@ -95,7 +95,7 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
     result["taskPr"] = task_pr
-    result["prs"] = register_task_pr(task["number"], task_pr["number"])
+    result["prs"] = attach_pr(task["number"], task_pr["number"])
 
     post_comment(delivery_task, summary)
 

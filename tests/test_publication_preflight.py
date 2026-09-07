@@ -23,7 +23,7 @@ class PublicationPreflightTests(FileBackendTest):
                     if command == "post_test":
                         args += ["--traceability", traceability]
                     module = f"pdlc.commands.{command}"
-                    with patch(f"{module}.get_code_host") as host, patch(f"{module}.register_record_pr") as register:
+                    with patch(f"{module}.get_code_host") as host, patch(f"{module}.attach_pr") as register:
                         result = self.invoke(command, *args)
                     self.assertEqual(result.code, 1, result.stdout)
                     self.assertIn(error, result.stderr)

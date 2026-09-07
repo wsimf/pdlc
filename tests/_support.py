@@ -188,25 +188,22 @@ class FileBackendTest(unittest.TestCase):
             self.register_prs(record, [pr["number"] for pr in pull_requests])
 
     def register_prs(self, ref: int, numbers: list[int]) -> None:
-        """Record PR numbers on a record (or task) body the way `pdlc post
-        attach-pr` / `pdlc post implement` do — the registry the gates read."""
-        from pdlc.domain.model import read_task_meta, write_task_meta
-
+        """Attach PR numbers to a record (or task) the way `pdlc post attach-pr`
+        / `pdlc post implement` do — the registry the gates read. The file
+        backend keeps them in the entity's own meta.json."""
         candidates = [self.records_dir() / str(ref)]
         task_path = self._task_path(ref)
         if task_path is not None:
             candidates.append(task_path)
         for base in candidates:
-            body_path = base / "body.md"
-            if body_path.exists():
+            meta_path = base / "meta.json"
+            if meta_path.exists():
                 break
         else:
             raise AssertionError(f"no record or task #{ref}")
-        body = body_path.read_text()
-        meta = read_task_meta(body)
-        have = {int(n) for n in meta.get("prs", [])}
-        meta["prs"] = [str(n) for n in sorted(have | set(numbers))]
-        body_path.write_text(write_task_meta(body, meta))
+        meta = json.loads(meta_path.read_text())
+        meta["prs"] = sorted({*meta.get("prs", []), *numbers})
+        meta_path.write_text(json.dumps(meta) + "\n")
 
     def _task_path(self, number: int):
         for record in self.records_dir().glob("*"):

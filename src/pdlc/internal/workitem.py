@@ -25,11 +25,7 @@ from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     item_slug,
     item_status,
     read_section,
-    read_task_meta,
     splice_section,
-    strip_task_meta,
-    task_prs,
-    write_task_meta,
 )
 from pdlc.domain.model import find_marked_comments as _model_find_marked_comments
 from pdlc.domain.model import marked_comments as _model_marked_comments
@@ -234,39 +230,19 @@ def close_task(task_ref: str) -> None:
     get_backend().close_task(str(task_ref))
 
 
-def _register_pr(body: str, pr_number: int, write) -> list[int]:
-    """Upsert `pr_number` into a body's machine-owned metadata block, persisting
-    through `write` only when it changes. Returns the full list.
+def attach_pr(ref: str, pr_number: int) -> list[int]:
+    """Attach `pr_number` to a record or one of its delivery tasks, so later
+    stages read its pull requests explicitly rather than inferring them from a
+    PR body or a branch name. Idempotent; returns the full list.
 
-    This is a read-modify-write over the whole body: a concurrent body edit
-    between the caller's read and `write` would be lost. Acceptable while these
-    calls are serialized by one agent per record; revisit if the body becomes
-    genuinely concurrently written.
-    """
-    current = task_prs(body)
-    if pr_number in current:
-        return current
-    updated = sorted({*current, pr_number})
-    meta = read_task_meta(body)
-    meta["prs"] = [str(n) for n in updated]
-    write(write_task_meta(body, meta))
-    return updated
+    Where the backend keeps the link is its own concern — see
+    `WorkItemBackend.attach_pr`."""
+    return get_backend().attach_pr(str(ref), int(pr_number))
 
 
-def register_task_pr(task_ref: str, pr_number: int) -> list[int]:
-    """Record `pr_number` on a delivery task so later stages read the task's
-    pull requests explicitly rather than inferring them from a PR body or a
-    branch name. Idempotent; returns the full list."""
-    backend = get_backend()
-    body = backend.tasks_by_number([str(task_ref)])[0].get("body") or ""
-    return _register_pr(body, pr_number, lambda new: backend.write_task_body(str(task_ref), new))
-
-
-def register_record_pr(ref: str, pr_number: int) -> list[int]:
-    """Record `pr_number` on a parent record. Idempotent; returns the full list."""
-    backend = get_backend()
-    body = backend.resolve(str(ref)).get("issueBody") or ""
-    return _register_pr(body, pr_number, lambda new: backend.write_body(str(ref), new))
+def attached_prs(ref: str) -> list[int]:
+    """Every pull request attached to `ref`, ascending."""
+    return get_backend().attached_prs(str(ref))
 
 
 # --- creation ---

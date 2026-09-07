@@ -16,6 +16,13 @@ from the raw work item body itself.
    same table pdlc-verify's Step 1 used to apply by hand. Not `Status: Verification`, or a `Gate State` other than `Pending`
    / `Changes Required` / `Stale`, stops right here with why — nothing below
    is computed, since none of it matters if this pass shouldn't be running.
+   The one exception is `Approval Required`: that gate means a clean pass is
+   awaiting the driver, but source can move under the evidence afterwards, so
+   the reuse check in 5 runs against the last report's anchors first. Stale
+   anchors are named in the readiness verdict along with the driver-only
+   command that reopens the stage, because `pdlc inspect complete` refuses the
+   same record for the same reason and neither command may call it clean while
+   the other calls it unproven.
 2. Task completion: every delivery task's own state — mechanical facts
    only (closed, implementation recorded, linked PR merged and green).
    Nothing here is fixed for the agent: an open task, a closed task with no
@@ -107,6 +114,16 @@ or, when not ready:
 
     Not ready: Status is 'Testing', not Verification. That stage owns this Work Item now.
 
+or, when a clean pass has gone stale underneath the driver:
+
+    ## Readiness
+
+    Not ready: verified clean, but that evidence no longer holds against current source — something has touched these since they were verified:
+
+    - FR-1 holds (Verified @ 0a1a3cb)
+
+    Do not run pdlc-complete; it blocks on this same evidence. Re-verification is a driver call: `pdlc post invalidate WORK_ITEM Verification EVIDENCE_FILE` returns the gate to Stale, after which pdlc-verify runs against the changed source.
+
 Task Completion reads
 
     ## Task Completion
@@ -139,6 +156,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from typing import Callable
 
 
 from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
@@ -380,7 +398,13 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
     return sections
 
 
-def _readiness(item: dict) -> tuple[bool, str]:
+def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool, str]:
+    """The readiness verdict, and the one sentence explaining it.
+
+    `stale_anchors` is a callable rather than a value because only the
+    Approval Required branch needs it, and resolving it costs a comment read
+    plus one `git` pair per verified commit.
+    """
     status = item.get("Status")
     gate = item.get("Gate State")
 
@@ -391,6 +415,22 @@ def _readiness(item: dict) -> tuple[bool, str]:
         return True, f"Ready — Gate State: {gate}. {READY_GATES[gate]}"
 
     if gate == "Approval Required":
+        # The evidence that earned this gate can go stale after the fact, and
+        # `pdlc inspect complete` blocks on exactly that. Checking it here too
+        # is what stops the two commands answering the same question
+        # differently — this one calling the record clean while completion
+        # refuses it as unproven, with no command named that can break the tie.
+        stale = stale_anchors()
+        if stale:
+            return False, (
+                "Not ready: verified clean, but that evidence no longer holds against "
+                "current source — something has touched these since they were verified:\n\n"
+                + "\n".join(f"- {row}" for row in stale)
+                + "\n\nDo not run pdlc-complete; it blocks on this same evidence. "
+                "Re-verification is a driver call: `pdlc post invalidate WORK_ITEM "
+                "Verification EVIDENCE_FILE` returns the gate to Stale, after which "
+                "pdlc-verify runs against the changed source."
+            )
         return False, "Not ready: already verified clean, awaiting the driver. pdlc-complete is next."
 
     if gate == "Decision Required":
@@ -403,9 +443,19 @@ def _readiness(item: dict) -> tuple[bool, str]:
     return False, f"Not ready: malformed Gate State {gate!r}."
 
 
+# Only the Approval Required branch of `_readiness` calls this, so a record
+# that is plainly not at Verification never pays for the comment read or the
+# git work.
+def _stale_anchors(issue: str) -> list[str]:
+    comments = verification_evidence_comments(issue)
+    if not comments:
+        return []
+    return [item["text"] for item in _reuse_items(comments[-1]["body"]) if item["stale"]]
+
+
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
-    ready, readiness_message = _readiness(item)
+    ready, readiness_message = _readiness(item, lambda: _stale_anchors(issue))
     sections = ["## Readiness", "", readiness_message, "", attachments_markdown(attachments_for_item(item))]
     if not ready:
         return "\n".join(sections) + "\n"

@@ -7,11 +7,13 @@ transport, JSON shaping, and reconciliation logic are all checked offline.
 
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts import github_issues, github_project
+from pdlc.hosts import github_issues, github_project, github_pr_registry
 from pdlc.hosts.code_host.github import GitHubCodeHost
 from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
 
@@ -379,6 +381,50 @@ class SubIssueUpsertTest(GitHubHostTest):
         self.assertTrue(self.gh.graphql_variables("addSubIssue"))
 
 
+class PrRegistryFormatTest(unittest.TestCase):
+    """The GitHub backend's own storage format for attached pull requests."""
+
+    BODY = "## Scope\nDo the thing.\n\n## Acceptance criteria\n- ok\n"
+
+    def test_round_trips_pr_numbers_without_touching_the_body(self) -> None:
+        stamped = github_pr_registry.attach(self.BODY, [148, 152])
+        self.assertTrue(stamped.startswith("<!-- pdlc:meta\n"))
+        self.assertEqual(github_pr_registry.prs(stamped), [148, 152])
+        self.assertEqual(github_pr_registry.strip(stamped), self.BODY)
+
+    def test_plain_body_has_no_registry(self) -> None:
+        self.assertEqual(github_pr_registry.prs(self.BODY), [])
+        self.assertEqual(github_pr_registry.strip(self.BODY), self.BODY)
+
+    def test_with_pr_dedupes_and_sorts(self) -> None:
+        once, numbers = github_pr_registry.with_pr(self.BODY, 160)
+        self.assertEqual(numbers, [160])
+        twice, numbers = github_pr_registry.with_pr(once, 148)
+        self.assertEqual(numbers, [148, 160])
+        self.assertEqual(github_pr_registry.strip(twice), self.BODY)
+
+    def test_with_pr_returns_the_body_unchanged_when_already_attached(self) -> None:
+        once, _ = github_pr_registry.with_pr(self.BODY, 148)
+        again, numbers = github_pr_registry.with_pr(once, 148)
+        self.assertIs(again, once)
+        self.assertEqual(numbers, [148])
+
+    def test_attaching_nothing_removes_the_block(self) -> None:
+        stamped = github_pr_registry.attach(self.BODY, [148])
+        self.assertEqual(github_pr_registry.attach(stamped, []), self.BODY)
+
+    def test_restore_carries_the_block_onto_a_new_body(self) -> None:
+        stored = github_pr_registry.attach("## Scope\nold\n", [148])
+        restored = github_pr_registry.restore(stored, self.BODY)
+        self.assertEqual(github_pr_registry.prs(restored), [148])
+        self.assertEqual(github_pr_registry.strip(restored), self.BODY)
+
+    def test_view_splits_a_raw_node(self) -> None:
+        node = github_pr_registry.view({"number": 7, "body": github_pr_registry.attach(self.BODY, [148])})
+        self.assertEqual(node["prs"], [148])
+        self.assertEqual(node["body"], self.BODY)
+
+
 class WorkItemBackendTest(GitHubHostTest):
     def setUp(self) -> None:
         super().setUp()
@@ -388,12 +434,80 @@ class WorkItemBackendTest(GitHubHostTest):
         self.gh.api("user", {"login": "wsimf"})
         self.assertEqual(self.backend.current_actor(), "wsimf")
 
+    def _stored_body(self, body: str) -> None:
+        self.gh.gh("issue", "view", response=json.dumps({"body": body}))
+
+    def _capture_edited_body(self) -> list[str]:
+        """Read each `issue edit --body-file` payload while its temp file lives."""
+        captured: list[str] = []
+
+        def respond(args: list[str], _input: str | None) -> str:
+            captured.append(Path(args[args.index("--body-file") + 1]).read_text())
+            return ""
+
+        self.gh.gh("issue", "edit", response=respond)
+        return captured
+
     def test_write_body_edits_the_issue_from_a_body_file(self) -> None:
+        self._stored_body("## Product\nold\n")
         self.gh.gh("issue", "edit", response="")
         self.backend.write_body("3", "## Product\nnew body\n")
         args, _ = next(call for call in self.gh.calls if call[0][:2] == ["issue", "edit"])
         self.assertIn("--body-file", args)
         self.assertIn("--repo", args)
+
+    def test_resolve_splits_the_registry_out_of_the_body(self) -> None:
+        self.gh.graphql(
+            "issue(number: $issue)",
+            graphql_data({
+                "repository": {
+                    "issue": {
+                        "number": 3,
+                        "title": "Record",
+                        "url": "https://example.test/3",
+                        "body": "<!-- pdlc:meta\nprs: 148 152\n-->\n\n## Product\nkeep\n",
+                        "issueType": {"name": "Feature"},
+                        "projectItems": {"nodes": [{
+                            "id": "PVTI_1",
+                            "project": {"number": 7},
+                            "status": {"name": "Implementation"},
+                            "gate": {"name": "Pending"},
+                            "lifecycle": {"name": "Active"},
+                            "skippedStates": {"text": ""},
+                            "slug": {"text": "record"},
+                        }]},
+                    }
+                }
+            }),
+        )
+        item = self.backend.resolve("3")
+        self.assertEqual(item["prs"], [148, 152])
+        self.assertEqual(item["issueBody"], "## Product\nkeep\n")
+        self.assertNotIn("pdlc:meta", item["issueBody"])
+
+    def test_write_body_preserves_attached_pull_requests(self) -> None:
+        # The caller only ever holds human content, so a body round trip must
+        # not be able to drop the registry.
+        self._stored_body("<!-- pdlc:meta\nprs: 148 152\n-->\n\n## Product\nold\n")
+        written = self._capture_edited_body()
+        self.backend.write_body("3", "## Product\nnew body\n")
+        self.assertEqual(github_pr_registry.prs(written[0]), [148, 152])
+        self.assertIn("new body", written[0])
+
+    def test_attach_pr_adds_a_number_and_reports_the_full_list(self) -> None:
+        self._stored_body("<!-- pdlc:meta\nprs: 148\n-->\n\n## Scope\n")
+        written = self._capture_edited_body()
+        self.assertEqual(self.backend.attach_pr("3", 152), [148, 152])
+        self.assertEqual(github_pr_registry.prs(written[0]), [148, 152])
+
+    def test_attach_pr_is_idempotent_and_skips_the_write(self) -> None:
+        self._stored_body("<!-- pdlc:meta\nprs: 148\n-->\n\n## Scope\n")
+        self.assertEqual(self.backend.attach_pr("3", 148), [148])
+        self.assertFalse([call for call in self.gh.calls if call[0][:2] == ["issue", "edit"]])
+
+    def test_attached_prs_reads_the_registry(self) -> None:
+        self._stored_body("<!-- pdlc:meta\nprs: 152 148\n-->\n\n## Scope\n")
+        self.assertEqual(self.backend.attached_prs("3"), [148, 152])
 
     def test_create_parses_issue_number_and_adds_project_item(self) -> None:
         self.gh.gh(
