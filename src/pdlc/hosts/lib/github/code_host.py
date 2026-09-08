@@ -157,16 +157,16 @@ class GitHubCodeHost(CodeHost):
         """The pull-request numbers in the current local stack, bottom-to-top,
         as `gh stack view --json` reports them.
 
-        Only `branches[].number` is read from that payload; every other PR field
-        comes from `pull_requests_by_number`, so one canonical dict shape serves
-        every caller and this stays insensitive to the rest of the extension's
-        JSON.
+        Only `branches[].pr.number` is read from that payload — `pr` is absent
+        for a branch with no pull request yet. Every other PR field comes from
+        `pull_requests_by_number`, so one canonical dict shape serves every
+        caller and this stays insensitive to the rest of the extension's JSON.
         """
         data = run_gh_json(["stack", "view", "--json"])
         return [
-            int(entry["number"])
-            for entry in (data.get("branches") or [])
-            if entry.get("number") is not None
+            int(branch["pr"]["number"])
+            for branch in (data.get("branches") or [])
+            if isinstance(branch.get("pr"), dict) and branch["pr"].get("number") is not None
         ]
 
     @staticmethod
