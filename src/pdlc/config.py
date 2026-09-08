@@ -166,8 +166,9 @@ class Config:
 @dataclass(frozen=True)
 class Capabilities:
     """Project-declared routing for PDLC seams, read from the ``[agents]`` and
-    ``[skills]`` tables of ``.pdlc/config.toml``. Missing slots resolve to a
-    fallback rather than an error so the workflow runs on an unconfigured repo."""
+    ``[skills]`` tables of ``.pdlc/config.toml`` layered over ``~/.pdlc/config.toml``.
+    Missing slots resolve to a fallback rather than an error so the workflow
+    runs on an unconfigured repo."""
 
     agents: dict[str, str]
     skills: dict[str, str]
@@ -217,6 +218,11 @@ def config_path(start: Path | None = None) -> Path:
     return repository_root(start) / ".pdlc" / "config.toml"
 
 
+def home_config_path() -> Path:
+    """Machine-wide config, layered under the repository file (see ``load_config``)."""
+    return Path.home() / ".pdlc" / "config.toml"
+
+
 def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
     if not path.exists():
         return {}, Capabilities.empty()
@@ -259,10 +265,30 @@ def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
 
 
 def load_config(start: Path | None = None) -> Config:
-    """Apply repository config over the environment and return the result."""
+    """Merge config and return the result, in ascending priority:
+    process environment, then ``~/.pdlc/config.toml``, then the repository's
+    ``.pdlc/config.toml``. Capability slots merge the same way, per slot.
+
+    The repository file is optional when a home file exists, so ``pdlc`` runs
+    outside a Git repository on machine-wide config alone.
+    """
     global _config_loaded, _capabilities
-    flattened, _capabilities = _read_file(config_path(start))
-    os.environ.update(flattened)
+    home_path = home_config_path()
+    home_flat, home_caps = _read_file(home_path)
+    try:
+        repo_path: Path | None = config_path(start)
+    except ConfigurationError:
+        if not home_path.exists():
+            raise
+        repo_path = None
+    repo_flat, repo_caps = (
+        _read_file(repo_path) if repo_path is not None else ({}, Capabilities.empty())
+    )
+    os.environ.update({**home_flat, **repo_flat})
+    _capabilities = Capabilities(
+        agents={**home_caps.agents, **repo_caps.agents},
+        skills={**home_caps.skills, **repo_caps.skills},
+    )
     _config_loaded = True
     return Config.from_environment()
 
@@ -299,7 +325,8 @@ def configuration_guidance(missing: list[str]) -> str:
         f"{details}"
         "Create .pdlc/config.toml with the required values, for example:\n\n"
         f"{example}\n\n"
-        "You can also set the corresponding PDLC_* environment variables."
+        "You can also put the same values in ~/.pdlc/config.toml for machine-wide "
+        "defaults, or set the corresponding PDLC_* environment variables."
     )
 
 

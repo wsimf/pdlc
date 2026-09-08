@@ -26,6 +26,11 @@ directory and render the attachment description and path. Attachment metadata
 and file contents are never written to the work item, Project, issue, or
 evidence comments.
 
+## Referring to requirements
+
+`FR-*`, `C-*`, and `UJ-*` identifiers exist for machine coverage checks, not for communicating with a person.
+Any human-read output — driver reports, questions, review summaries, evidence-comment bodies — that cites one quotes or paraphrases the requirement alongside the tag, so the reader never has to look the identifier up.
+
 ## Identity
 
 A resolved parent record carries a normalized `workType`. Native GitHub Issue Type `Feature` resolves to `feature`; legacy records with no type use the Feature pipeline for compatibility. Unknown types and known unavailable pipelines are blocked. Pipeline selection happens once when the record is resolved; commands use that selected policy for routing, transitions, invalidation, churn, and completion.

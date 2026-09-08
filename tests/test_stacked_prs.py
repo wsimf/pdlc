@@ -76,7 +76,10 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.gh.gh("stack", "submit", response="")
         self.gh.gh("stack", "view", response={
             "trunk": "main",
-            "branches": [{"branch": f"pdlc/record-9/task-{n:03d}", "number": n} for n in numbers],
+            "branches": [
+                {"name": f"pdlc/record-9/task-{n:03d}", "pr": {"number": n, "state": "OPEN"}}
+                for n in numbers
+            ],
         })
 
         def view(args, _input):
@@ -119,14 +122,14 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.host.submit_task_stack()
         self.assertFalse(any(args[:2] == ["repo", "view"] for args, _ in self.gh.calls))
 
-    def test_stack_pr_numbers_reads_only_branch_numbers(self):
+    def test_stack_pr_numbers_reads_only_branch_pr_numbers(self):
         self.gh.gh("stack", "view", response={
             "trunk": "main",
             "currentBranch": "pdlc/record-9/task-002",
             "branches": [
-                {"branch": "pdlc/record-9/task-001", "number": 40, "isMerged": True},
-                {"branch": "pdlc/record-9/task-002", "number": 41},
-                {"branch": "pdlc/record-9/task-003"},
+                {"name": "pdlc/record-9/task-001", "isMerged": True, "pr": {"number": 40, "state": "MERGED"}},
+                {"name": "pdlc/record-9/task-002", "pr": {"number": 41, "state": "OPEN"}},
+                {"name": "pdlc/record-9/task-003"},
             ],
         })
         # A branch with no PR yet is simply absent from the numbers.
