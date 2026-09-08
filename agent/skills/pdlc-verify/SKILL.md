@@ -34,10 +34,12 @@ Its `## Readiness` line already resolves `Status`/`Gate State` and the outcome. 
 
 ## Step 2: Judge what the mechanical checks can't
 
-`## Task Completion` already resolved which tasks are open, which closed tasks are missing a `## Implementation` comment, and which PRs aren't merged/green. For every open task it flags, judge whether its Open Questions deferral is genuine and durable, or the task is on-record as descoped — never invent a reason.
+`## Task Completion` already resolved which tasks are open and which closed tasks are missing a `## Implementation` comment. For every open task it flags, judge whether its Open Questions deferral is genuine and durable, or the task is on-record as descoped — never invent a reason.
 
 - One or two edge-case tasks incomplete **with** a recorded reason — note and continue.
-- Any meaningful work incomplete **without** one, or any leftover-Plan/unsettled-PR flag — stop, list what's unfinished, ask the driver.
+- Any meaningful work incomplete **without** one, or a leftover-Plan flag — stop, list what's unfinished, ask the driver.
+
+Unmerged or CI-pending PRs are **not** a blocker here: the stack is audited before it lands, and a clean pass is what unblocks the merge. Completion, not Verification, requires every linked PR merged and green. Use the listed PR state only to pick the Step 5 diff base.
 
 Call `pdlc inspect WORK_ITEM` only if you need the body or task bodies beyond `## Task Completion`.
 
@@ -133,7 +135,7 @@ Report the readiness check, what reuse found still valid vs. stale, the claims a
 ## Checklist
 
 - [ ] `Status` is `Verification`, gate was `Pending`, `Changes Required`, or `Stale`
-- [ ] Every task closed or explicitly deferred on record; PRs merged, checks settled
+- [ ] Every task closed or explicitly deferred on record (PR merge and CI state are completion's bar, not checked here)
 - [ ] Prior evidence reused only where `git log` proved its scope untouched
 - [ ] `pdlc inspect verify` checked so no already-fixed/deferred finding was raised again
 - [ ] Every stale claim checked against current source, constraints included

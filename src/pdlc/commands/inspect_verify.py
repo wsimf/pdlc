@@ -24,14 +24,17 @@ from the raw work item body itself.
    same record for the same reason and neither command may call it clean while
    the other calls it unproven.
 2. Task completion: every delivery task's own state — mechanical facts
-   only (closed, implementation recorded, linked PR merged and green).
-   Nothing here is fixed for the agent: an open task, a closed task with no
-   implementation recorded, an unmerged or failing PR, and any
-   Open Questions line that mentions an open task are all surfaced as-is,
-   with an instruction for what to go confirm — never silently passed or
-   silently blocked.
-3. Timeline: every PDLC evidence comment, chronological (see
-   pdlc inspect timeline, which this shares its rendering with).
+   only (closed, implementation recorded). An open task, a closed task with
+   no implementation recorded, and any Open Questions line that mentions an
+   open task are surfaced as-is with what to go confirm — never silently
+   passed or silently blocked. Linked PRs that are not yet merged and green
+   are listed too, but only as diff-base context: merge is a completion bar,
+   not a verification one, so an unmerged or CI-pending stack does not block
+   this pass.
+3. Timeline: every PDLC evidence comment, rendered exactly as
+   `pdlc inspect timeline` does by default — full bodies written to a temp
+   file, a compact per-comment index inline so a long history stays out of
+   context.
 4. Journeys to review: not applicable when no task is tagged `isUI`. Else,
    every `UJ-*` journey block from the parent's own `UI` section that is
    either new since the last verification pass or was marked stale by the
@@ -70,12 +73,16 @@ from the raw work item body itself.
 
     - Deferred — TASK-004 postponed to a follow-up work item, accepted because it's out of scope for this release
 
-    Linked PRs not both merged and green — confirm each is explicitly dispositioned before treating this as ready:
+    Linked PRs not yet merged and green — expected at Verification; the stack
+    merges after a clean pass. Use them to pick the Step 5 diff base, not as a blocker:
 
     - #148 OPEN checks: PENDING
 
-    # Timeline
+    # Timeline — 3 evidence comment(s); full bodies in /tmp/pdlc-timeline-50.md
 
+    ## PRODUCT — 2026-08-01 21:14 UTC (@sudara)
+       Scope: full product specification.
+       Read lines 3-48 in /tmp/pdlc-timeline-50.md for the full comment.
     ...
 
     ## Journeys to review
@@ -128,9 +135,10 @@ Task Completion reads
 
     ## Task Completion
 
-    All tasks closed with their implementation recorded; every linked PR merged with passing checks.
+    All tasks closed with their implementation recorded.
 
-when there's nothing to flag. Journeys to review reads
+when there's no task to flag (an unmerged-PR list may still follow as diff-base
+context). Journeys to review reads
 
     ## Journeys to review
 
@@ -155,6 +163,8 @@ from __future__ import annotations
 
 import re
 import sys
+import tempfile
+from pathlib import Path
 from typing import Callable
 from pdlc.domain.evidence import parse_verification_report
 from pdlc.internal.reporting import older_comments_notice
@@ -168,11 +178,15 @@ from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
+    ref_label,
     resolve_item,
     task_tree,
+    timeline_compact,
     timeline_markdown,
     verification_evidence_comments,
 )
+
+NO_EVIDENCE = "No PDLC evidence comments found\n"
 
 READY_GATES = {
     "Pending": "First verification pass.",
@@ -319,14 +333,29 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
         if line.strip() and open_task_ids & set(TASK_MENTION.findall(line))
     ]
 
-    unsettled_prs = [
+    # PR merge and CI state are not a Verification gate: the stack is audited
+    # before it lands and a clean pass is what unblocks the merge, so requiring
+    # merge here would deadlock against that. They are surfaced only as context
+    # for choosing the Step 5 diff base. Completion owns the merged-and-green bar.
+    pending_prs = [
         f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
         if pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE")
     ]
+    pr_note = (
+        [
+            "",
+            "Linked PRs not yet merged and green — expected at Verification; the stack "
+            "merges after a clean pass. Use them to pick the Step 5 diff base, not as a blocker:",
+            "",
+            *pending_prs,
+        ]
+        if pending_prs
+        else []
+    )
 
-    if not (open_tasks or closed_without_implementation or unsettled_prs):
-        return ["## Task Completion", "", "All tasks closed with their implementation recorded; every linked PR merged with passing checks."]
+    if not (open_tasks or closed_without_implementation):
+        return ["## Task Completion", "", "All tasks closed with their implementation recorded.", *pr_note]
 
     sections = ["## Task Completion"]
     notices = [older_comments_notice(t["number"], t.get("commentsMeta"), len(t.get("comments") or [])) for t in tasks]
@@ -345,9 +374,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
         sections += ["", "Closed tasks with no implementation recorded — treat as unfinished regardless of closed state:", ""]
         sections += [f"- #{t['number']} {t['title']}" for t in closed_without_implementation]
 
-    if unsettled_prs:
-        sections += ["", "Linked PRs not both merged and green — confirm each is explicitly dispositioned before treating this as ready:", ""]
-        sections += unsettled_prs
+    sections += pr_note
     if notices:
         sections += ["", "> Older task comments are omitted from this view. " + "; ".join(notices) + "."]
 
@@ -409,6 +436,19 @@ def _stale_anchors(issue: str) -> list[str]:
     return [item["text"] for item in _reuse_items(comments[-1]["body"]) if item["stale"]]
 
 
+# The evidence timeline as `pdlc inspect timeline` renders it by default: full
+# text to a temp file, a compact per-comment index inline. A long verification
+# history — every review, bounce, and re-verify — then stays out of the caller's
+# context while remaining one Read away.
+def _timeline_block(issue: str, comments: list[dict]) -> str:
+    text = timeline_markdown(issue, comments=comments)
+    if text == NO_EVIDENCE:
+        return text.rstrip("\n")
+    path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
+    path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
+    return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
+
+
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
     ready, readiness_message = _readiness(item, lambda: _stale_anchors(issue))
@@ -422,7 +462,7 @@ def inspect(issue: str) -> str:
     comments = comments_for_issue(issue)
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
-    sections += ["", timeline_markdown(issue, comments=comments).rstrip("\n")]
+    sections += ["", _timeline_block(issue, comments)]
 
     verification_comments = verification_evidence_comments(issue, comments=comments)
     reuse_items = _reuse_items(verification_comments[-1]["body"]) if verification_comments else []
