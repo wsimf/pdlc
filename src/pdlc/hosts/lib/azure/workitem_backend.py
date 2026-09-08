@@ -51,6 +51,11 @@ def _closed_state() -> str:
     return get_config().azure_closed_state or DEFAULT_CLOSED_STATE
 
 
+def _assigned_to() -> str | None:
+    """The optional `[backend.azure] assigned_to` queue-scan filter."""
+    return get_config().azure_assigned_to
+
+
 def _gather(read: Callable[[T], R], items: Iterable[T]) -> list[R]:
     """Run one read per item concurrently, preserving order. The first failure
     is re-raised, so a partial result never reaches a caller."""
@@ -129,7 +134,7 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     def queue_items(self) -> list[QueueItemSummary]:
         summaries: list[QueueItemSummary] = []
-        for item in azure.records(_record_type()):
+        for item in azure.records(_record_type(), _assigned_to()):
             fields = item.get("fields") or {}
             number = int(item["id"])
             summaries.append({

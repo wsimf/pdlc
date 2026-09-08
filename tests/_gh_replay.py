@@ -133,6 +133,7 @@ class GitHubHostTest(unittest.TestCase):
             "PDLC_REPOSITORY": self.REPOSITORY,
             "PDLC_PROJECT_OWNER": self.PROJECT_OWNER,
             "PDLC_PROJECT_NUMBER": self.PROJECT_NUMBER,
+            "PDLC_GITHUB_ASSIGNED_TO": None,
             "PDLC_ITEMS_FILE": None,
             "PDLC_SUBISSUES_FILE": None,
         }.items():

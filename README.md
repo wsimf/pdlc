@@ -83,10 +83,12 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. |
 | `PDLC_PROJECT_NUMBER` | unset; required for GitHub | GitHub Projects number. |
 | `PDLC_PROJECT_OWNER` | unset; required for GitHub | GitHub Projects owner. |
+| `PDLC_GITHUB_ASSIGNED_TO` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
 | `PDLC_AZURE_ORG` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
 | `PDLC_AZURE_PROJECT` | unset; required for Azure | Azure DevOps project name. |
 | `PDLC_AZURE_RECORD_TYPE` | `User Story` | Work-item type used for a PDLC record. |
 | `PDLC_AZURE_CLOSED_STATE` | `Closed` | Work-item state a delivery task is closed into. |
+| `PDLC_AZURE_ASSIGNED_TO` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
 | `PDLC_BACKEND` | `github` | Work-item backend: `github`, `azure`, or `file`. |
 | `PDLC_CODE_HOST` | Follows `PDLC_BACKEND`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `PDLC_ATTACHMENT_HOST` | `file` | Attachment host: `file` or `none`. |
@@ -108,6 +110,7 @@ name = "github"
 repository = "OWNER/REPOSITORY"
 project_number = 123
 project_owner = "OWNER"
+assigned_to = "@me"          # optional; scope the queue scan to your Issues
 ```
 
 For Azure Boards, the work-item backend and the code host are separate choices — Azure Boards paired with GitHub repositories is the expected setup, so the GitHub table is still needed for the repository alone:
@@ -121,6 +124,7 @@ organization = "https://dev.azure.com/OWNER"
 project = "PROJECT"
 record_type = "User Story"   # optional
 closed_state = "Closed"      # optional
+assigned_to = "@me"          # optional; scope the queue scan to your work items
 
 [code_host]
 name = "github"
@@ -128,6 +132,8 @@ name = "github"
 [backend.github]
 repository = "OWNER/REPOSITORY"
 ```
+
+`assigned_to` is optional and inactive unless set: with it, `pdlc next` and the queue scan only surface records assigned to that identity (`@me` is Azure's `@Me` macro). The GitHub backend has the same optional `assigned_to` filter under `[backend.github]`.
 
 Only `organization` and `project` are required by the backend itself. `repository` is required by the *code host*, not the backend — the two are validated independently, so `name = "none"` under `[code_host]` needs neither it nor the `[backend.github]` table.
 

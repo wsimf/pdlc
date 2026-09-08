@@ -71,6 +71,7 @@ query($projectId: ID!, $after: String) {
               url
               repository { nameWithOwner }
               issueType { name }
+              assignees(first: 10) { nodes { login } }
             }
           }
           status: fieldValueByName(name: "Status") {
@@ -153,7 +154,9 @@ def _field_text(value: object) -> str:
     return value.get("text") or ""
 
 
-def _queue_summary(item: dict, repository: str | None) -> QueueItemSummary | None:
+def _queue_summary(
+    item: dict, repository: str | None, assignee: str | None = None
+) -> QueueItemSummary | None:
     content = item.get("content") or {}
     content_type = content.get("__typename") or content.get("type")
     if (content_type is not None and content_type != "Issue") or not content.get("number"):
@@ -161,6 +164,13 @@ def _queue_summary(item: dict, repository: str | None) -> QueueItemSummary | Non
     item_repository = (content.get("repository") or {}).get("nameWithOwner")
     if repository and item_repository and item_repository.casefold() != repository.casefold():
         return None
+    if assignee:
+        logins = {
+            (node or {}).get("login", "").casefold()
+            for node in (content.get("assignees") or {}).get("nodes") or []
+        }
+        if assignee.casefold() not in logins:
+            return None
     return {
         "id": item["id"],
         "content": {
@@ -176,10 +186,24 @@ def _queue_summary(item: dict, repository: str | None) -> QueueItemSummary | Non
     }
 
 
+def _resolved_assignee() -> str | None:
+    """The configured `[backend.github] assigned_to` queue-scan filter as a
+    login, or None when unset. `@me` (any case) resolves to the authenticated
+    GitHub user so config need not hardcode a login."""
+    value = (get_config().github_assigned_to or "").strip()
+    if not value:
+        return None
+    if value.casefold() == "@me":
+        return run_gh_json(["api", "user"])["login"]
+    return value
+
+
 # Returns only Issue summaries from the configured repository; drafts and
-# cross-repository Project cards are not PDLC records for this backend.
+# cross-repository Project cards are not PDLC records for this backend. When
+# `[backend.github] assigned_to` is set, only Issues assigned to that login.
 def queue_items() -> list[QueueItemSummary]:
     config = get_config()
+    assignee = _resolved_assignee()
     summaries: list[QueueItemSummary] = []
     after: str | None = None
     while True:
@@ -192,7 +216,7 @@ def queue_items() -> list[QueueItemSummary]:
         items = project["items"]
         summaries.extend(
             summary for item in items.get("nodes", [])
-            if (summary := _queue_summary(item, config.repository)) is not None
+            if (summary := _queue_summary(item, config.repository, assignee)) is not None
         )
         page = items["pageInfo"]
         if not page["hasNextPage"]:

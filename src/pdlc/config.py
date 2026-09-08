@@ -13,7 +13,8 @@ from pdlc.domain.lifecycle import PdlcError
 ENVIRONMENT_KEYS = (
     "PDLC_REPOSITORY", "PDLC_PROJECT_NUMBER", "PDLC_PROJECT_OWNER",
     "PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT", "PDLC_AZURE_RECORD_TYPE",
-    "PDLC_AZURE_CLOSED_STATE",
+    "PDLC_AZURE_CLOSED_STATE", "PDLC_AZURE_ASSIGNED_TO",
+    "PDLC_GITHUB_ASSIGNED_TO",
     "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_HOME",
     "PDLC_ACTOR", "PDLC_REF_LABEL",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
@@ -25,10 +26,12 @@ TOML_ENVIRONMENT_KEYS = {
     ("backend.github", "repository"): "PDLC_REPOSITORY",
     ("backend.github", "project_number"): "PDLC_PROJECT_NUMBER",
     ("backend.github", "project_owner"): "PDLC_PROJECT_OWNER",
+    ("backend.github", "assigned_to"): "PDLC_GITHUB_ASSIGNED_TO",
     ("backend.azure", "organization"): "PDLC_AZURE_ORG",
     ("backend.azure", "project"): "PDLC_AZURE_PROJECT",
     ("backend.azure", "record_type"): "PDLC_AZURE_RECORD_TYPE",
     ("backend.azure", "closed_state"): "PDLC_AZURE_CLOSED_STATE",
+    ("backend.azure", "assigned_to"): "PDLC_AZURE_ASSIGNED_TO",
     ("code_host", "name"): "PDLC_CODE_HOST",
     ("attachment_host", "name"): "PDLC_ATTACHMENT_HOST",
     ("runtime", "home"): "PDLC_HOME",
@@ -78,6 +81,7 @@ class Config:
     repository: str | None = None
     project_number: str | None = None
     project_owner: str | None = None
+    github_assigned_to: str | None = None
     backend: str | None = None
     code_host: str | None = None
     attachment_host: str | None = None
@@ -88,6 +92,7 @@ class Config:
     azure_project: str | None = None
     azure_record_type: str | None = None
     azure_closed_state: str | None = None
+    azure_assigned_to: str | None = None
     max_attempts: int = 5
     initial_delay_seconds: int = 60
     max_delay_seconds: int = 900

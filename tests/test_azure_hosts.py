@@ -5,6 +5,7 @@ organization; the routes replay those payloads offline.
 
 from __future__ import annotations
 
+import os
 import unittest
 
 from _az_replay import ORGANIZATION, PROJECT, AzureHostTest, work_item
@@ -153,6 +154,24 @@ class QueueScanTest(AzureHostTest):
         # Regression: `az boards query` prints nothing at all when nothing
         # matches, which a naive json.loads would reject.
         self.az.wiql("FROM workitems", response="")
+        self.assertEqual(AzureWorkItemBackend().queue_items(), [])
+
+    def test_queue_scan_is_unfiltered_when_no_assignee_is_configured(self):
+        self.az.wiql("FROM workitems", response="")
+        AzureWorkItemBackend().queue_items()
+        wiql = " ".join(self.az.calls_matching("boards", "query")[0])
+        self.assertNotIn("System.AssignedTo", wiql)
+
+    def test_a_configured_assignee_narrows_the_queue_wiql(self):
+        os.environ["PDLC_AZURE_ASSIGNED_TO"] = "Ada Lovelace"
+        self.addCleanup(lambda: os.environ.pop("PDLC_AZURE_ASSIGNED_TO", None))
+        self.az.wiql("System.AssignedTo] = 'Ada Lovelace'", response="")
+        self.assertEqual(AzureWorkItemBackend().queue_items(), [])
+
+    def test_the_at_me_shorthand_becomes_the_wiql_macro(self):
+        os.environ["PDLC_AZURE_ASSIGNED_TO"] = "@me"
+        self.addCleanup(lambda: os.environ.pop("PDLC_AZURE_ASSIGNED_TO", None))
+        self.az.wiql("System.AssignedTo] = @Me", response="")
         self.assertEqual(AzureWorkItemBackend().queue_items(), [])
 
 

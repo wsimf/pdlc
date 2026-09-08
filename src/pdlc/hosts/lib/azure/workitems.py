@@ -45,6 +45,7 @@ PRS_FIELD = "Custom.PdlcPrs"
 TITLE_FIELD = "System.Title"
 DESCRIPTION_FIELD = "System.Description"
 STATE_FIELD = "System.State"
+ASSIGNED_TO_FIELD = "System.AssignedTo"
 TYPE_FIELD = "System.WorkItemType"
 PARENT_FIELD = "System.Parent"
 
@@ -108,11 +109,25 @@ def _select(fields: tuple[str, ...], where: str) -> str:
     )
 
 
-def records(record_type: str) -> list[dict]:
-    """Every registered PDLC record — one carrying a Slug — on the board."""
+def assignee_clause(assigned_to: str | None) -> str:
+    """An optional ` AND [System.AssignedTo] = …` WIQL fragment. `@me` (any
+    case) becomes Azure's `@Me` macro; any other value is matched literally
+    against the assignee's display name or unique name. Empty when unset, so
+    the queue scan is unfiltered by default."""
+    value = (assigned_to or "").strip()
+    if not value:
+        return ""
+    operand = "@Me" if value.casefold() == "@me" else wiql_literal(value)
+    return f" AND [{ASSIGNED_TO_FIELD}] = {operand}"
+
+
+def records(record_type: str, assigned_to: str | None = None) -> list[dict]:
+    """Every registered PDLC record — one carrying a Slug — on the board,
+    optionally narrowed to those assigned to `assigned_to`."""
     return query(_select(
         QUEUE_FIELDS,
-        f"[{TYPE_FIELD}] = {wiql_literal(record_type)} AND [{SLUG_FIELD}] <> ''",
+        f"[{TYPE_FIELD}] = {wiql_literal(record_type)} AND [{SLUG_FIELD}] <> ''"
+        + assignee_clause(assigned_to),
     ))
 
 

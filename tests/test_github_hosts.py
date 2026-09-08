@@ -8,6 +8,7 @@ transport, JSON shaping, and reconciliation logic are all checked offline.
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from pathlib import Path
 
@@ -138,6 +139,51 @@ class ProjectQueueItemsTest(GitHubHostTest):
         self.assertEqual(item["Lifecycle"], "Planning")
         self.assertEqual(item["Skipped States"], "Testing")
         self.assertEqual(item["workType"], "feature")
+
+    def _single_page(self, *nodes: dict) -> dict:
+        return graphql_data({"node": {"items": {
+            "nodes": list(nodes),
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+        }}})
+
+    def _issue_node(self, number: int, *assignees: str) -> dict:
+        return {
+            "id": f"PVTI_{number}",
+            "content": {
+                "__typename": "Issue", "number": number, "title": "t", "url": "u",
+                "repository": {"nameWithOwner": "wsimf/pdlc"},
+                "assignees": {"nodes": [{"login": login} for login in assignees]},
+            },
+            "status": {"name": "Product"}, "gate": {"name": "Pending"},
+            "lifecycle": None, "skippedStates": None,
+        }
+
+    def test_a_configured_assignee_filters_the_queue_by_login(self) -> None:
+        os.environ["PDLC_GITHUB_ASSIGNED_TO"] = "ada"
+        self.addCleanup(lambda: os.environ.pop("PDLC_GITHUB_ASSIGNED_TO", None))
+        self.gh.gh("project", "view", response={"id": "PVT_project"})
+        self.gh.graphql(
+            "items(first: 100, after: $after)",
+            self._single_page(self._issue_node(3, "ada"), self._issue_node(4, "grace")),
+        )
+
+        result = github_project.queue_items()
+
+        self.assertEqual([item["content"]["number"] for item in result], [3])
+
+    def test_the_at_me_shorthand_resolves_to_the_authenticated_user(self) -> None:
+        os.environ["PDLC_GITHUB_ASSIGNED_TO"] = "@me"
+        self.addCleanup(lambda: os.environ.pop("PDLC_GITHUB_ASSIGNED_TO", None))
+        self.gh.api("user", response={"login": "grace"})
+        self.gh.gh("project", "view", response={"id": "PVT_project"})
+        self.gh.graphql(
+            "items(first: 100, after: $after)",
+            self._single_page(self._issue_node(3, "ada"), self._issue_node(4, "grace")),
+        )
+
+        result = github_project.queue_items()
+
+        self.assertEqual([item["content"]["number"] for item in result], [4])
 
     def test_queue_items_paginates(self) -> None:
         self.gh.gh("project", "view", response={"id": "PVT_project"})
