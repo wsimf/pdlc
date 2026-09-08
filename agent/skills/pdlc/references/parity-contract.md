@@ -56,8 +56,8 @@ anything is written, not asserted by the agent that wrote the breakdown.
   derived from the task identity, and the stack entry point, which is the
   previous implemented task's registered pull request. `pdlc-implement` puts the
   branch on the stack with `gh stack init` or `gh stack checkout <pr> && gh stack
-  add`, and `pdlc post implement-task` submits it with `gh stack sync --prune`
-  and `gh stack submit`. Nothing infers a base branch, lists remote branches, or
+  add`, and `pdlc post implement-task` submits the stack, leaving one pull
+  request per branch. Nothing infers a base branch, lists remote branches, or
   asks whether a predecessor's branch still exists; agents never `git push`,
   `git rebase`, or open PRs by hand.
 - Implementation ships each task's production code **and its unit coverage** on
