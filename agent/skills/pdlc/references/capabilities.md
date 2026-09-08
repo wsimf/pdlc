@@ -22,6 +22,9 @@ test-framework    = "my-test-framework"
 Every slot is optional. Both tables may be omitted entirely; the workflow
 still runs.
 
+The same tables in `~/.pdlc/config.toml` set machine-wide routing; the
+repository file overrides it per slot.
+
 Capability selection does not select workflow policy. The resolved record's `workType` selects its pipeline; `[agents]` and `[skills]` only select who performs an action already returned by that pipeline.
 
 ## Slots

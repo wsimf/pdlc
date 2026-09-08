@@ -15,6 +15,17 @@ from pdlc.commands.setup import _write_config
 
 
 class ConfigTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Redirect the machine-wide config lookup so a real ~/.pdlc/config.toml
+        # on the developer's machine cannot leak into these tests.
+        self._home = Path(tempfile.mkdtemp())
+        patcher = patch(
+            "pdlc.config.home_config_path",
+            lambda: self._home / ".pdlc" / "config.toml",
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def make_repo(self, config: str | None = None) -> Path:
         root = Path(tempfile.mkdtemp())
         (root / ".git").mkdir()
@@ -23,6 +34,15 @@ class ConfigTests(unittest.TestCase):
             config_dir.mkdir()
             (config_dir / "config.toml").write_text(config)
         return root / "nested"
+
+    def write_home_config(self, config: str) -> None:
+        path = self._home / ".pdlc" / "config.toml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(config)
+
+    def non_repo_dir(self) -> Path:
+        # A temp dir with no ``.git`` ancestor stands in for "run outside a repo".
+        return Path(tempfile.mkdtemp()) / "nested"
 
     def test_config_file_overrides_environment(self):
         nested = self.make_repo(
@@ -126,6 +146,49 @@ class ConfigTests(unittest.TestCase):
         caps = get_capabilities()
         self.assertEqual(caps.agent("core-implementer"), "general-purpose")
         self.assertIsNone(caps.skill("build-run"))
+
+    def test_repository_config_overrides_home(self):
+        self.write_home_config('[backend.github]\nrepository = "home/repository"\n')
+        nested = self.make_repo('[backend.github]\nrepository = "repo/repository"\n')
+        self.assertEqual(load_config(nested).repository, "repo/repository")
+
+    def test_home_config_overrides_environment(self):
+        self.write_home_config('[backend.github]\nproject_owner = "home-owner"\n')
+        nested = self.make_repo()
+        with patch.dict(
+            os.environ, {"PDLC_PROJECT_OWNER": "environment-owner"}, clear=False
+        ):
+            config = load_config(nested)
+        self.assertEqual(config.project_owner, "home-owner")
+
+    def test_home_config_applies_without_repository(self):
+        self.write_home_config(
+            '[backend.github]\n'
+            'repository = "home/repository"\n'
+            'project_number = "9"\n'
+            'project_owner = "home-owner"\n'
+        )
+        config = load_config(self.non_repo_dir())
+        self.assertEqual(config.repository, "home/repository")
+        config.validate_for_backend()
+
+    def test_missing_repository_still_errors_without_home(self):
+        with self.assertRaisesRegex(ConfigurationError, "not configured for this repository"):
+            load_config(self.non_repo_dir())
+
+    def test_capability_slots_merge_per_slot(self):
+        self.write_home_config(
+            '[agents]\n'
+            'core-implementer = "home-core"\n'
+            'ui-implementer = "home-ui"\n'
+            '[skills]\nbuild-run = "home-build-run"\n'
+        )
+        nested = self.make_repo('[agents]\ncore-implementer = "repo-core"\n')
+        load_config(nested)
+        caps = get_capabilities()
+        self.assertEqual(caps.agent("core-implementer"), "repo-core")
+        self.assertEqual(caps.agent("ui-implementer"), "home-ui")
+        self.assertEqual(caps.skill("build-run"), "home-build-run")
 
     def test_setup_writes_grouped_toml(self):
         root = Path(tempfile.mkdtemp())
