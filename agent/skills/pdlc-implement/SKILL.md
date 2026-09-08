@@ -79,9 +79,9 @@ pdlc post implement-task DELIVERY_TASK - --close <<'EOF'
 EOF
 ```
 
-This first runs `gh stack sync --prune` and `gh stack submit --auto` — the extension rebases the stack, drops members whose PR has landed, and creates or updates one pull request per branch — then registers this task's PR number on the task; only then does it post the `## Implementation` comment and close the task. A stack-submit failure therefore leaves no comment and no closure — `pdlc inspect implement` still offers the task and a re-run is clean. This task's PR comes back in `taskPr` and its registered numbers in `prs`. It does **not** gate on that PR's checks; CI is reconciled after the stage review, at the `CI Pending` gate.
+This submits the task's branch as a pull request — one per task, stacked on the previous task's — titled with this task's title and described by the summary above, registers its number on the task, posts the `## Implementation` comment, and closes the task. On success `taskPr` is this task's PR and `prs` holds its registered numbers; a partial failure posts no comment and leaves the task open, so `pdlc inspect implement` still offers it for a clean re-run. It does **not** gate on the PR's checks — CI is reconciled after the stage review, at the `CI Pending` gate.
 
-If the stack submit opened or updated the PR but the run failed before `prs` came back — or you had to open the PR by hand — register it explicitly so later stages see it: `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent). Then re-run `pdlc post implement-task` to land the comment and closure.
+If the PR was opened or updated but the run failed before `prs` came back — or you had to open the PR by hand — register it explicitly so later stages see it: `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent). Then re-run `pdlc post implement-task` to land the comment and closure.
 
 **Publish only when every delivery task on the record is closed.** The parent stays at `Implementation / Pending` while any task is open — that is what stops testing and verification from starting before the whole task graph is done. Any task still open → stop and report what landed and what remains; the loop or the driver dispatches the next.
 

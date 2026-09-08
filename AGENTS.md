@@ -25,6 +25,8 @@ Done means every modified behavior has a caller, a regression check or an explic
 
 When changing a lifecycle command or its evidence contract, inspect the matching package command under `src/pdlc/commands/` and the skills that call it, then update their tests/docs together when both surfaces are affected.
 
+Skill and sub-agent instructions describe the CLI as a contract, never as an implementation. State the command's expected outcome — the state it leaves behind, the fields it returns, what a failure does or does not touch — so the agent can verify it. Do not narrate the steps the script runs internally to get there; those are free to change without touching a single skill.
+
 ## PDLC workflow
 
 The fixed lifecycle is `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`. Gate state controls whether work is pending, under review, awaiting approval, blocked on CI, stale, or complete.

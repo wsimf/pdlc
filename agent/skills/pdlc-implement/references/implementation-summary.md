@@ -2,7 +2,9 @@
 
 `pdlc-implement` Step 4 writes one summary of what was done per task and posts it
 with `pdlc post implement-task`. It is a comment on the delivery task — the task
-body and its `## Technical Plan` are never touched.
+body and its `## Technical Plan` are never touched. The same text also becomes
+the task PR's description, and the task's own title becomes the PR title, so
+write the summary to read on the pull request too.
 
 Keep it to a few plain lines. Include only:
 

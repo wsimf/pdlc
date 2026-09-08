@@ -15,8 +15,9 @@ The implementation is recorded as its own artifact on the task, leaving the
 human-authored task body and its Technical Plan as they were. Pass --close once
 the task review passed, its unit coverage landed, and its criteria are met.
 
-This first submits the task's stacked pull request via `gh stack` and records its
-number on the task, then writes the comment. A stack-submit failure therefore
+This first submits the task's stacked pull request via `gh stack`, sets that PR's
+title to the delivery task's own title and its body to this evidence, and records
+its number on the task, then writes the comment. A failure in that sequence
 leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
 still offers the task and a re-run is clean rather than a duplicate.
 
@@ -42,6 +43,7 @@ from pdlc.internal.workitem import (
     post_comment,
     attach_pr,
     resolve_item,
+    task_title,
     workflow_for_item,
     due_next,
     item_status,
@@ -110,6 +112,13 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
+    # Give the freshly submitted PR the task's own title and this evidence as its
+    # description, replacing `gh stack`'s auto-generated summary. Runs before the
+    # comment and closure so a failure here leaves the task re-runnable, exactly
+    # like a stack-submit failure.
+    get_code_host().set_pull_request_content(
+        task_pr["number"], task_title(task) or task["taskId"], summary
+    )
     result["taskPr"] = task_pr
     result["prs"] = attach_pr(task["number"], task_pr["number"])
 

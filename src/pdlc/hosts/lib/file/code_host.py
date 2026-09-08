@@ -64,3 +64,6 @@ class FileCodeHost(CodeHost):
 
     def submit_task_stack(self) -> list[PullRequest]:
         raise PdlcError("the file code host cannot submit stacked pull requests")
+
+    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+        raise PdlcError("the file code host cannot edit pull requests")

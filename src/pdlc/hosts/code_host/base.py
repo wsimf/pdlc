@@ -55,3 +55,13 @@ class CodeHost(ABC):
         The stack's order, bases, and landed members are the host mechanism's own
         state — callers pass no branch list and PDLC keeps no parallel copy.
         Hosts without a stacked-PR mechanism raise PdlcError."""
+
+    @abstractmethod
+    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+        """Overwrite one pull request's title and description outright.
+
+        Called at task checkpoint, right after ``submit_task_stack``, so the
+        task PR carries the delivery task's own title and its implementation
+        evidence rather than the stack mechanism's auto-generated summary. A
+        host with no stacked-PR mechanism raises PdlcError, matching
+        ``submit_task_stack``; the checkpoint path never reaches it there."""
