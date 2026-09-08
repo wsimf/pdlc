@@ -81,16 +81,34 @@ class FailureContractTests(unittest.TestCase):
 
     def test_transports_translate_timeout_and_missing_binary(self):
         for error in (FileNotFoundError("missing executable"), subprocess.TimeoutExpired("az", 2)):
-            with self.subTest(error=type(error).__name__), patch("pdlc.hosts.lib.process.subprocess.run", side_effect=error):
+            with self.subTest(error=type(error).__name__), patch("pdlc.hosts.lib.process.shutil.which", return_value="/tools/az"), patch("pdlc.hosts.lib.process.subprocess.run", side_effect=error):
                 with self.assertRaises(PdlcError):
                     run_process(["az", "version"], timeout=2)
 
     def test_transport_bounds_execution_and_decodes_utf8(self):
         result = subprocess.CompletedProcess(["gh"], 0, stdout="Māori", stderr="")
-        with patch("pdlc.hosts.lib.process.subprocess.run", return_value=result) as run:
+        with patch("pdlc.hosts.lib.process.shutil.which", return_value="/tools/gh"), patch("pdlc.hosts.lib.process.subprocess.run", return_value=result) as run:
             self.assertEqual(run_process(["gh", "version"]), "Māori")
         self.assertEqual(run.call_args.kwargs["timeout"], 120)
         self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+
+    def test_azure_launches_resolved_windows_cmd_path(self):
+        from pdlc.hosts.lib.azure.transport import run_az
+
+        executable = r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+        arguments = ["boards", "query", "--project", "My Project"]
+        result = subprocess.CompletedProcess([executable], 0, stdout="[]", stderr="")
+        with patch("pdlc.hosts.lib.process.shutil.which", return_value=executable) as which, patch("pdlc.hosts.lib.process.subprocess.run", return_value=result) as run:
+            self.assertEqual(run_az(arguments), "[]")
+        which.assert_called_once_with("az")
+        self.assertEqual(run.call_args.args[0], [executable, *arguments])
+        self.assertFalse(run.call_args.kwargs.get("shell", False))
+
+    def test_missing_executable_fails_before_launch(self):
+        with patch("pdlc.hosts.lib.process.shutil.which", return_value=None), patch("pdlc.hosts.lib.process.subprocess.run") as run:
+            with self.assertRaisesRegex(PdlcError, "required command not found: az"):
+                run_process(["az", "version"])
+        run.assert_not_called()
 
     def test_malformed_json_is_a_contextual_error(self):
         with self.assertRaisesRegex(PdlcError, "az returned invalid JSON"):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from collections.abc import Sequence
 from typing import Any
@@ -11,9 +12,13 @@ from pdlc.domain.lifecycle import PdlcError
 
 
 def run_process(args: Sequence[str], *, input: str | None = None, timeout: float = 120) -> str:
+    # Resolve PATHEXT launchers such as az.cmd instead of passing a bare name.
+    executable = shutil.which(args[0])
+    if executable is None:
+        raise PdlcError(f"required command not found: {args[0]}")
     try:
         result = subprocess.run(
-            list(args), input=input, capture_output=True, text=True,
+            [executable, *args[1:]], input=input, capture_output=True, text=True,
             encoding="utf-8", timeout=timeout, check=False,
         )
     except subprocess.TimeoutExpired as error:
