@@ -81,6 +81,24 @@ class InspectVerifyTests(FileBackendTest):
         self.assertIn("FR-1 holds", result.stdout.split("## Still valid", 1)[1])
         self.assertIn("Fixed the drift calculation", result.stdout)
 
+    def test_unmerged_ci_pending_prs_do_not_block_the_pass(self):
+        # Merge is a completion bar, not a verification one: a stack is audited
+        # before it lands, so an OPEN / PENDING PR must not stop this pass — it
+        # is only listed as diff-base context.
+        self._seed_verification_record()
+        self.seed_prs(50, [{
+            "number": 148, "title": "impl", "url": "u", "state": "OPEN", "isDraft": False,
+            "branch": "b", "mergedAt": None, "checks": "PENDING", "relation": "closes",
+        }])
+        result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Ready — Gate State: Changes Required", result.stdout)
+        self.assertIn("# Timeline", result.stdout)
+        task_completion = result.stdout.split("## Task Completion", 1)[1].split("# Timeline", 1)[0]
+        self.assertIn("#148 OPEN checks: PENDING", task_completion)
+        self.assertIn("not as a blocker", task_completion)
+        self.assertNotIn("dispositioned", task_completion)
+
     def test_not_a_verification_stage_stops_at_readiness(self):
         self.seed_record(51, "Implementation", "Pending")
         result = self.invoke("inspect_verify", 51)
