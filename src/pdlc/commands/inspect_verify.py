@@ -31,8 +31,10 @@ from the raw work item body itself.
    are listed too, but only as diff-base context: merge is a completion bar,
    not a verification one, so an unmerged or CI-pending stack does not block
    this pass.
-3. Timeline: every PDLC evidence comment, chronological (see
-   pdlc inspect timeline, which this shares its rendering with).
+3. Timeline: every PDLC evidence comment, rendered exactly as
+   `pdlc inspect timeline` does by default — full bodies written to a temp
+   file, a compact per-comment index inline so a long history stays out of
+   context.
 4. Journeys to review: not applicable when no task is tagged `isUI`. Else,
    every `UJ-*` journey block from the parent's own `UI` section that is
    either new since the last verification pass or was marked stale by the
@@ -76,8 +78,11 @@ from the raw work item body itself.
 
     - #148 OPEN checks: PENDING
 
-    # Timeline
+    # Timeline — 3 evidence comment(s); full bodies in /tmp/pdlc-timeline-50.md
 
+    ## PRODUCT — 2026-08-01 21:14 UTC (@sudara)
+       Scope: full product specification.
+       Read lines 3-48 in /tmp/pdlc-timeline-50.md for the full comment.
     ...
 
     ## Journeys to review
@@ -158,6 +163,8 @@ from __future__ import annotations
 
 import re
 import sys
+import tempfile
+from pathlib import Path
 from typing import Callable
 from pdlc.domain.evidence import parse_verification_report
 from pdlc.internal.reporting import older_comments_notice
@@ -171,11 +178,15 @@ from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
+    ref_label,
     resolve_item,
     task_tree,
+    timeline_compact,
     timeline_markdown,
     verification_evidence_comments,
 )
+
+NO_EVIDENCE = "No PDLC evidence comments found\n"
 
 READY_GATES = {
     "Pending": "First verification pass.",
@@ -425,6 +436,19 @@ def _stale_anchors(issue: str) -> list[str]:
     return [item["text"] for item in _reuse_items(comments[-1]["body"]) if item["stale"]]
 
 
+# The evidence timeline as `pdlc inspect timeline` renders it by default: full
+# text to a temp file, a compact per-comment index inline. A long verification
+# history — every review, bounce, and re-verify — then stays out of the caller's
+# context while remaining one Read away.
+def _timeline_block(issue: str, comments: list[dict]) -> str:
+    text = timeline_markdown(issue, comments=comments)
+    if text == NO_EVIDENCE:
+        return text.rstrip("\n")
+    path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
+    path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
+    return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
+
+
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
     ready, readiness_message = _readiness(item, lambda: _stale_anchors(issue))
@@ -438,7 +462,7 @@ def inspect(issue: str) -> str:
     comments = comments_for_issue(issue)
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
-    sections += ["", timeline_markdown(issue, comments=comments).rstrip("\n")]
+    sections += ["", _timeline_block(issue, comments)]
 
     verification_comments = verification_evidence_comments(issue, comments=comments)
     reuse_items = _reuse_items(verification_comments[-1]["body"]) if verification_comments else []

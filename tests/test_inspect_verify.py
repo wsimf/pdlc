@@ -99,6 +99,17 @@ class InspectVerifyTests(FileBackendTest):
         self.assertIn("not as a blocker", task_completion)
         self.assertNotIn("dispositioned", task_completion)
 
+    def test_timeline_is_the_compact_index_not_the_full_bodies(self):
+        # Same rendering as `pdlc inspect timeline` default: full bodies to a
+        # temp file, only a per-comment index inline.
+        self._seed_verification_record()
+        result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("# Timeline — 1 evidence comment(s); full bodies in", result.stdout)
+        self.assertIn("Read lines ", result.stdout)
+        # The prior review's body lives in the file, not stdout.
+        self.assertNotIn("## Verification Run Results", result.stdout)
+
     def test_not_a_verification_stage_stops_at_readiness(self):
         self.seed_record(51, "Implementation", "Pending")
         result = self.invoke("inspect_verify", 51)
