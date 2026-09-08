@@ -205,6 +205,7 @@ organization = "https://dev.azure.com/madushan92"
 project      = "pdlc-scratch"
 record_type  = "User Story"   # optional; default for an Agile-derived process
 closed_state = "Closed"       # optional; process-dependent
+assigned_to  = "@me"          # optional; queue scan returns only your records
 
 [code_host]
 name = "github"               # Azure Boards + GitHub repos
@@ -216,7 +217,9 @@ repository = "OWNER/REPOSITORY"   # still required by the GitHub code host
 name = "file"
 ```
 
-`config.py` additions: `PDLC_AZURE_ORG`, `PDLC_AZURE_PROJECT`, `PDLC_AZURE_RECORD_TYPE`, `PDLC_AZURE_CLOSED_STATE`; extend `TOML_ENVIRONMENT_KEYS`, extend `validate_for_backend()` to require org + project when `backend == "azure"` while still requiring `repository` for the GitHub code host, and extend the `get_backend()` dispatch.
+`assigned_to` (`PDLC_AZURE_ASSIGNED_TO`) is optional and inactive unless set. When set, `records()` appends `AND [System.AssignedTo] = <value>` to the queue-scan WIQL — `@me` becomes the `@Me` macro, any other value is matched literally against the assignee display name or unique name. A single `--work-item` lookup is unaffected.
+
+`config.py` additions: `PDLC_AZURE_ORG`, `PDLC_AZURE_PROJECT`, `PDLC_AZURE_RECORD_TYPE`, `PDLC_AZURE_CLOSED_STATE`, `PDLC_AZURE_ASSIGNED_TO`; extend `TOML_ENVIRONMENT_KEYS`, extend `validate_for_backend()` to require org + project when `backend == "azure"` while still requiring `repository` for the GitHub code host, and extend the `get_backend()` dispatch.
 
 No `description_format` key: the round-trip is faithful either way, so there is nothing to configure.
 

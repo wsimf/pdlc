@@ -169,6 +169,7 @@ class AzureHostTest(unittest.TestCase):
             "PDLC_AZURE_PROJECT": PROJECT,
             "PDLC_AZURE_RECORD_TYPE": None,
             "PDLC_AZURE_CLOSED_STATE": None,
+            "PDLC_AZURE_ASSIGNED_TO": None,
         }.items():
             self._saved_env[key] = os.environ.get(key)
             if value is None:
