@@ -4,7 +4,7 @@ Goal: add Azure DevOps Boards as an alternative to the GitHub Issues/Projects wo
 
 Scope decided with the driver: **work-item backend only**. The code host stays GitHub (`PDLC_CODE_HOST=github`) — Azure Boards paired with GitHub repos is the target setup, and `AzureCodeHost` is not being built. The code-host notes at the end are kept for whenever that changes.
 
-**Implemented.** The backend ships as `PDLC_BACKEND=azure`; this document is now the design record behind it rather than a proposal. See `src/pdlc/hosts/azure_common.py`, `src/pdlc/hosts/azure_workitems.py`, `src/pdlc/hosts/workitem_host/azure.py`, and `tests/test_azure_hosts.py`.
+**Implemented.** The backend ships as `PDLC_BACKEND=azure`; this document is now the design record behind it rather than a proposal. See `src/pdlc/hosts/lib/azure/transport.py`, `src/pdlc/hosts/lib/azure/workitems.py`, `src/pdlc/hosts/lib/azure/workitem_backend.py`, and `tests/test_azure_hosts.py`.
 
 **Validated against a live org.** Everything below marked ✓ was run against `https://dev.azure.com/madushan92`, project `pdlc-scratch`, on an inherited process named `Kanban` (parent: Agile) with the six PDLC fields installed. Probe work items were created, exercised, and destroyed. Claims not marked ✓ are still inference.
 
@@ -222,9 +222,9 @@ No `description_format` key: the round-trip is faithful either way, so there is 
 
 ## Implementation shape
 
-- `src/pdlc/hosts/azure_common.py` — `run_az`, `run_az_json` (empty-stdout tolerant), `az_invoke`, org/project args.
-- `src/pdlc/hosts/azure_workitems.py` — WIQL, work-item show/update, relation add, comment read/write (parallels `github_issues.py` + `github_project.py`).
-- `src/pdlc/hosts/workitem_host/azure.py` — `AzureWorkItemBackend(WorkItemBackend)`.
+- `src/pdlc/hosts/lib/azure/transport.py` — `run_az`, `run_az_json` (empty-stdout tolerant), `az_invoke`, org/project args.
+- `src/pdlc/hosts/lib/azure/workitems.py` — WIQL, work-item show/update, relation add, comment read/write (parallels `github_issues.py` + `github_project.py`).
+- `src/pdlc/hosts/lib/azure/workitem_backend.py` — `AzureWorkItemBackend(WorkItemBackend)`.
 - Wire `azure` into `workitem_host/__init__.py`.
 - `commands/setup.py` — an `azure` branch. The wizard used to assume the backend and code host shared a vendor; the code-host prompt is now its own step (`_code_host`) that every backend runs, and `_write_config` emits a repository-only `[backend.github]` table when an Azure board is paired with GitHub repos.
 - `tests/_az_replay.py` + tests — a FakeAz router mirroring `tests/_gh_replay.py`, so the suite stays fully offline. Live-org runs confirm real behaviour; they are not part of CI.

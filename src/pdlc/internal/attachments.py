@@ -6,7 +6,8 @@ import re
 from pathlib import Path
 
 from pdlc.hosts.attachment_host import get_host
-from pdlc.domain.lifecycle import PdlcError, require_file
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import require_file
 
 _TASK_PARENT_PATTERN = re.compile(r"^WORK-(\d+)-TASK-\d{3}")
 

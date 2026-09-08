@@ -28,12 +28,12 @@ or, when not ready:
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.internal.workitem import is_stage_skipped, resolve_item  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.internal.workitem import is_stage_skipped, resolve_item
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
 from pdlc.domain.workflow import PIPELINES, Pipeline
 
 
@@ -82,8 +82,9 @@ def inspect(issue: str) -> str:
     return "\n".join(sections) + "\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if wants_help(args):
         print_help(__doc__)
         return 0

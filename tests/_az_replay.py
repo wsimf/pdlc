@@ -19,8 +19,8 @@ import unittest
 import unittest.mock
 from typing import Any, Callable
 
-import pdlc.hosts.azure_common as azure_common
-import pdlc.hosts.workitem_host.azure as workitem_azure
+import pdlc.hosts.lib.azure.transport as azure_common
+import pdlc.hosts.lib.azure.workitem_backend as workitem_azure
 
 # `workitem_host.azure` bound `run_az` into its own namespace at import time, so
 # the patch has to land there as well as on azure_common.

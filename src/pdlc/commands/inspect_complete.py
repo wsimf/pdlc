@@ -51,16 +51,15 @@ against current source." when nothing has gone stale since the last pass.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-from pdlc.domain.evidence import parse_verification_report
+from pdlc.domain.evidence import VerificationReport, parse_verification_report
 
 
-from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.domain.completion import completion_blockers  # type: ignore
-from pdlc.domain.completion_evidence import live_open_questions  # type: ignore
-from pdlc.internal.vcs import stale_commits, stale_verification_rows  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.domain.completion import completion_blockers
+from pdlc.domain.completion_evidence import live_open_questions
+from pdlc.internal.vcs import stale_commits
+from pdlc.internal.workitem import (
     comments_for_issue,
     item_skipped_states,
     marked_comments,
@@ -70,19 +69,8 @@ from pdlc.internal.workitem import (  # type: ignore
     workflow_for_item,
     verification_evidence_comments,
 )
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-
-import re
-
-VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
-
-def _row_is_stale(commit: str) -> bool:
-    return commit in stale_commits([commit])
-
-
-def _bullets_by_section(body: str) -> list[str]:
-    return [row.text for row in parse_verification_report(body).rows]
-
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
 
 def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
     open_tasks = [t for t in tasks if t["state"] != "CLOSED"]
@@ -105,20 +93,10 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> li
     return sections
 
 
-def _verification_evidence_section(issue: str) -> list[str]:
-    verification_comments = verification_evidence_comments(issue)
-    if not verification_comments:
+def _verification_evidence_section(report: VerificationReport | None, stale: list[str]) -> list[str]:
+    if report is None:
         return ["## Verification Evidence", "", "No Verification review evidence found — pdlc-verify must run first."]
-
-    items = _bullets_by_section(verification_comments[-1]["body"])
-    still_valid = []
-    stale = []
-    for text in items:
-        match = VERIFIED_AT.search(text)
-        if not match:
-            continue
-        commit = match.group(1)
-        (stale if _row_is_stale(commit) else still_valid).append(text)
+    still_valid = [row.text for row in report.rows if row.commit and row.text not in stale]
 
     sections = ["## Verification Evidence"]
     if not stale:
@@ -147,16 +125,6 @@ def _open_questions_section(body: str) -> list[str]:
     return sections
 
 
-def _stale_rows(issue: str) -> list[str]:
-    verification_comments = verification_evidence_comments(issue)
-    if not verification_comments:
-        return []
-    try:
-        return stale_verification_rows(verification_comments[-1]["body"])
-    except PdlcError:
-        return []
-
-
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
     pipeline, _ = workflow_for_item(item)
@@ -167,6 +135,16 @@ def inspect(issue: str) -> str:
     comments = comments_for_issue(issue)
     verification_comments = verification_evidence_comments(issue, comments=comments)
     verification_body = verification_comments[-1]["body"] if verification_comments else None
+    report = None
+    stale_rows: list[str] = []
+    if verification_body:
+        try:
+            report = parse_verification_report(verification_body)
+        except PdlcError:
+            pass  # completion_blockers reports malformed evidence below.
+        if report is not None:
+            stale = stale_commits(list(report.verified_commits))
+            stale_rows = [row.text for row in report.rows if row.commit in stale]
 
     blockers = completion_blockers(
         pipeline=pipeline,
@@ -177,7 +155,7 @@ def inspect(issue: str) -> str:
         timeline_markers=[c["marker"] for c in marked_comments(issue, comments=comments)],
         skipped_states=item_skipped_states(item),
         verification_body=verification_body,
-        stale_rows=_stale_rows(issue) if verification_body else None,
+        stale_rows=stale_rows,
         open_questions=read_section(body, "Open Questions"),
     )
 
@@ -190,14 +168,15 @@ def inspect(issue: str) -> str:
     sections = ["## Readiness", "", f"Ready — Status: {boundary_stage}, Gate State: {boundary_gate.value}."]
     sections += ["", attachments_markdown(attachments)]
     sections += ["", *_task_completion_section(tasks, pull_requests)]
-    sections += ["", *_verification_evidence_section(issue)]
+    sections += ["", *_verification_evidence_section(report, stale_rows)]
     sections += ["", *_open_questions_section(body)]
 
     return "\n".join(sections) + "\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if wants_help(args):
         print_help(__doc__)
         return 0

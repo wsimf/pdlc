@@ -155,17 +155,17 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 from typing import Callable
 from pdlc.domain.evidence import parse_verification_report
 from pdlc.internal.reporting import older_comments_notice
 
 
-from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.internal.vcs import stale_commits  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.internal.vcs import stale_commits
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
     resolve_item,
@@ -180,59 +180,12 @@ READY_GATES = {
     "Stale": "Something upstream changed under the existing evidence — treat that evidence as unproven.",
 }
 
-HEADING_PATTERN = re.compile(r"^#{1,6}\s")
-BULLET_PATTERN = re.compile(r"^-\s+(.+?)\s*$")
-REPORT_HEADING = re.compile(r"^#{1,6}\s*(Claims Audit|User Journeys|UX|Cumulative Review)\s*$", re.IGNORECASE)
 
 VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
 DEFERRED_PATTERN = re.compile(r"^-?\s*Deferred\s*[—-]\s*(.+?)\s*$")
 TASK_MENTION = re.compile(r"TASK-\d{3}")
 JOURNEY_HEADING = re.compile(r"^#{1,6}\s*(UJ-\d+)\b")
 JOURNEY_ID_IN_BULLET = re.compile(r"^(UJ-\d+)\b")
-
-
-'''dead parser helpers retained below for compatibility'''
-def _bullets_under(body: str, heading_pattern: re.Pattern) -> list[str]:
-    items = []
-    in_section = False
-    for raw_line in body.splitlines():
-        line = raw_line.strip()
-        if heading_pattern.match(line):
-            in_section = True
-            continue
-        if in_section and HEADING_PATTERN.match(line):
-            in_section = False
-            continue
-        if not in_section:
-            continue
-        bullet_match = BULLET_PATTERN.match(line)
-        if bullet_match:
-            items.append(bullet_match.group(1))
-    return items
-
-
-# Like _bullets_under, but keeps each bullet's own section name (Claims
-# Audit / User Journeys / UX / Cumulative Review) instead of flattening them —
-# the journeys-to-review section needs to know which stale items are
-# journeys and which are UX, not just that something is stale.
-def _bullets_by_section(body: str) -> list[tuple[str, str]]:
-    items = []
-    section = None
-    for raw_line in body.splitlines():
-        line = raw_line.strip()
-        heading_match = REPORT_HEADING.match(line)
-        if heading_match:
-            section = heading_match.group(1)
-            continue
-        if section and HEADING_PATTERN.match(line):
-            section = None
-            continue
-        if not section:
-            continue
-        bullet_match = BULLET_PATTERN.match(line)
-        if bullet_match:
-            items.append((section, bullet_match.group(1)))
-    return items
 
 
 # Every bullet here is fixed by construction, since Findings only ever
@@ -502,8 +455,9 @@ def inspect(issue: str) -> str:
     return "\n".join(sections) + "\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if wants_help(args):
         print_help(__doc__)
         return 0

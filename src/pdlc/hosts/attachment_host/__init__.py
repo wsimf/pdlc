@@ -15,11 +15,11 @@ def get_host() -> AttachmentHost:
     if _instance is None:
         name = os.environ.get("PDLC_ATTACHMENT_HOST", "file")
         if name == "file":
-            from pdlc.hosts.attachment_host.file import FileAttachmentHost
+            from pdlc.hosts.file_provider import FileAttachmentHost
 
             _instance = FileAttachmentHost()
         elif name == "none":
-            from pdlc.hosts.attachment_host.none import NoneAttachmentHost
+            from pdlc.hosts.none_provider import NoneAttachmentHost
 
             _instance = NoneAttachmentHost()
         else:

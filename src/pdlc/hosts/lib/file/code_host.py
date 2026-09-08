@@ -11,6 +11,8 @@ work item and its tasks (see `internal.pull_requests`), not by this file.
 
 from __future__ import annotations
 
+from pdlc.domain.records import PullRequest
+
 import json
 import os
 from pathlib import Path
@@ -31,22 +33,25 @@ def _all_pull_requests() -> list[dict]:
     for record in root.glob("*"):
         path = record / "pull_requests.json"
         if path.is_file():
-            found.extend(json.loads(path.read_text()))
+            found.extend(json.loads(path.read_text(encoding="utf-8")))
     return found
 
 
 class FileCodeHost(CodeHost):
-    def ensure_pull_request_linked(self, code_ref: str) -> dict:
+    def ensure_pull_request_linked(self, code_ref: str) -> PullRequest:
         path = _records_root() / str(code_ref) / "pull_requests.json"
-        entries = json.loads(path.read_text()) if path.is_file() else []
+        entries = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
         if not entries:
             raise PdlcError(f"no pull request recorded for work item #{code_ref}")
         return entries[0]
 
-    def pull_requests_by_number(self, numbers: list[int]) -> list[dict]:
+    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
         wanted = [int(n) for n in numbers]
         by_number = {int(pr["number"]): pr for pr in _all_pull_requests() if pr.get("number") is not None}
-        return [by_number[n] for n in wanted if n in by_number]
+        missing = [n for n in wanted if n not in by_number]
+        if missing:
+            raise PdlcError(f"registered pull requests not found: {missing}")
+        return [by_number[n] for n in wanted]
 
     def pull_request_files(self, pr_number: str | int) -> list[str]:
         for pull_request in _all_pull_requests():
@@ -57,5 +62,5 @@ class FileCodeHost(CodeHost):
     def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
         return []
 
-    def submit_task_stack(self) -> list[dict]:
+    def submit_task_stack(self) -> list[PullRequest]:
         raise PdlcError("the file code host cannot submit stacked pull requests")

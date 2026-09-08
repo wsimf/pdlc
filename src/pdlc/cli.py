@@ -7,7 +7,7 @@ import os
 import sys
 
 from pdlc.config import ConfigurationError, Config, load_config
-from pdlc.domain.lifecycle import wants_help
+from pdlc.internal.inputs import wants_help
 
 
 COMMANDS = {
@@ -121,8 +121,7 @@ def _resolve(arguments: list[str]) -> tuple[str, list[str]]:
     raise ValueError("unknown command\n\n" + _usage())
 
 
-def main() -> int:
-    raw_arguments = sys.argv[1:]
+def _dispatch(raw_arguments: list[str]) -> int:
     if not raw_arguments or raw_arguments in (["--help"], ["-h"]):
         print(_usage())
         return 0
@@ -135,16 +134,41 @@ def main() -> int:
         if module_name not in local_only and not wants_help(command_arguments):
             Config.from_environment().validate_for_backend()
     except ConfigurationError as error:
-        print(f"pdlc: {error}")
+        print(f"pdlc: {error}", file=sys.stderr)
         return 1
     except ValueError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
 
     module = importlib.import_module(module_name)
-    original_argv = sys.argv
+    return int(module.main(argv=command_arguments))
+
+
+def _reset_runtime() -> None:
+    from pdlc.config import reset_config
+    from pdlc.hosts.workitem_host import reset_backend
+    from pdlc.hosts.code_host import reset_code_host
+    from pdlc.hosts.attachment_host import reset_host
+
+    reset_config()
+    reset_backend()
+    reset_code_host()
+    reset_host()
+    project = sys.modules.get("pdlc.hosts.lib.github.project")
+    if project is not None:
+        project.project_fields.cache_clear()
+        project._project_id.cache_clear()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run one CLI invocation without leaking options or cached hosts to the next."""
+    original = {key: value for key, value in os.environ.items() if key.startswith("PDLC_")}
+    _reset_runtime()
     try:
-        sys.argv = [f"pdlc {module_name.rsplit('.', 1)[-1]}", *command_arguments]
-        return int(module.main())
+        return _dispatch(list(sys.argv[1:] if argv is None else argv))
     finally:
-        sys.argv = original_argv
+        for key in list(os.environ):
+            if key.startswith("PDLC_") and key not in original:
+                del os.environ[key]
+        os.environ.update(original)
+        _reset_runtime()

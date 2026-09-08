@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 
-from pdlc.internal.ci_gate import resolve_ci_gate  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item  # type: ignore
+from pdlc.internal.ci_gate import resolve_ci_gate
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item
 
 
 def post_ci(issue: str) -> dict:
@@ -36,8 +36,9 @@ def post_ci(issue: str) -> dict:
     return {"workItem": int(issue), "itemId": record["id"], "stage": state.stage, **result}
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if wants_help(args):
         print_help(__doc__)
         return 0

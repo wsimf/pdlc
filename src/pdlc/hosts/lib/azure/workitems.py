@@ -18,8 +18,8 @@ value in its error, which is surfaced unchanged.
 
 from __future__ import annotations
 
-from pdlc.domain.lifecycle import PdlcError
-from pdlc.hosts.azure_common import (
+from pdlc.domain.lifecycle import NotFound, PdlcError
+from pdlc.hosts.lib.azure.transport import (
     PATCH_MEDIA_TYPE,
     WIT_API_VERSION,
     az_invoke,
@@ -82,7 +82,7 @@ def numeric(ref: str, label: str = "work item id") -> int:
 def show(item_id: int | str) -> dict:
     item = run_az_json(["boards", "work-item", "show", *org_args(), "--id", str(item_id)])
     if not item:
-        raise PdlcError(f"no Azure work item #{item_id}")
+        raise NotFound(f"no Azure work item #{item_id}")
     return item
 
 
@@ -91,12 +91,20 @@ def query(wiql: str) -> list[dict]:
     return run_az_json(["boards", "query", *project_args(), "--wiql", wiql]) or []
 
 
+def wiql_literal(value: str) -> str:
+    """Quote a WIQL string without allowing it to change query structure."""
+    for quote in ("'", '"'):
+        if quote not in value:
+            return quote + value + quote
+    raise PdlcError("WIQL values must not contain both single and double quotes")
+
+
 def _select(fields: tuple[str, ...], where: str) -> str:
     _, project = azure_config()
     columns = ",".join(f"[{field}]" for field in fields)
     return (
         f"SELECT {columns} FROM workitems "
-        f"WHERE [System.TeamProject] = '{project}' AND {where}"
+        f"WHERE [System.TeamProject] = {wiql_literal(project)} AND {where}"
     )
 
 
@@ -104,28 +112,34 @@ def records(record_type: str) -> list[dict]:
     """Every registered PDLC record — one carrying a Slug — on the board."""
     return query(_select(
         QUEUE_FIELDS,
-        f"[{TYPE_FIELD}] = '{record_type}' AND [{SLUG_FIELD}] <> ''",
+        f"[{TYPE_FIELD}] = {wiql_literal(record_type)} AND [{SLUG_FIELD}] <> ''",
     ))
 
 
 def by_slug(slug: str, record_type: str) -> dict:
     """The single record carrying `slug`. Never guesses between duplicates."""
-    if "'" in slug:
-        raise PdlcError(f"slug must not contain a quote: {slug}")
     matches = query(_select(
         ("System.Id",),
-        f"[{TYPE_FIELD}] = '{record_type}' AND [{SLUG_FIELD}] = '{slug}'",
+        f"[{TYPE_FIELD}] = {wiql_literal(record_type)} AND [{SLUG_FIELD}] = {wiql_literal(slug)}",
     ))
     if not matches:
-        raise PdlcError(f"no PDLC record with slug: {slug}")
+        raise NotFound(f"no PDLC record with slug: {slug}")
     if len(matches) > 1:
         raise PdlcError(f"slug is ambiguous: {slug}")
     return show(matches[0]["id"])
 
 
-def children(parent_id: int | str) -> list[dict]:
+def children(parent_id: int | str, fields: tuple[str, ...] = TASK_FIELDS) -> list[dict]:
     """The record's child work items, in board order."""
-    return query(_select(TASK_FIELDS, f"[{PARENT_FIELD}] = {numeric(parent_id)}"))
+    return query(_select(fields, f"[{PARENT_FIELD}] = {numeric(parent_id)}"))
+
+
+def tasks_with_identity(parent_id: int, task_id: str) -> list[dict]:
+    prefix = f"WORK-{parent_id}-{task_id}"
+    return query(_select(
+        (*TASK_FIELDS, PARENT_FIELD),
+        f"[{TYPE_FIELD}] = {wiql_literal(TASK_TYPE)} AND [{TITLE_FIELD}] CONTAINS {wiql_literal(prefix)}",
+    ))
 
 
 # --- writes ---

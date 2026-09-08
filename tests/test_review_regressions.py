@@ -76,12 +76,13 @@ Recommendation: Approval Required
 
     def test_registry_snapshot_avoids_record_and_task_fetches(self):
         record = {"prs": [1]}
-        with patch.object(pull_requests, "resolve_item") as resolve, patch.object(pull_requests, "task_tree") as tree:
+        pr = {"number": 1, "title": "PR", "url": "", "state": "OPEN", "isDraft": False, "branch": "task", "mergedAt": None, "checks": "NONE"}
+        with patch.object(pull_requests, "resolve_item") as resolve, patch.object(pull_requests, "get_backend") as backend:
             with patch.object(pull_requests, "get_code_host") as host:
-                host.return_value.pull_requests_by_number.return_value = [{"number": 1}]
-                self.assertEqual(pull_requests.record_pull_requests("7", record=record, tasks=[]), [{"number": 1}])
+                host.return_value.pull_requests_by_number.return_value = [pr]
+                self.assertEqual(pull_requests.record_pull_requests("7", record=record, tasks=[]), [pr])
         resolve.assert_not_called()
-        tree.assert_not_called()
+        backend.assert_not_called()
 
     def test_equal_length_wrong_pr_identity_is_rejected(self):
         record = {"prs": [1]}

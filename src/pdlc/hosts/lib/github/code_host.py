@@ -10,10 +10,11 @@ here re-derives that from remote branch listings or branch names.
 
 from __future__ import annotations
 
-import os
+from pdlc.domain.records import PullRequest
+
 
 from pdlc.hosts.code_host.base import CodeHost
-from pdlc.hosts.github_common import (
+from pdlc.hosts.lib.github.transport import (
     repo_args,
     run_gh,
     run_gh_json,
@@ -94,23 +95,21 @@ def _pr_dict(pr: dict) -> dict:
 
 
 class GitHubCodeHost(CodeHost):
-    def ensure_pull_request_linked(self, code_ref: str) -> dict:
-        if os.environ.get("PDLC_ITEMS_FILE"):
-            raise PdlcError("cannot resolve a live pull request under a work-item fixture")
+    def ensure_pull_request_linked(self, code_ref: str) -> PullRequest:
         try:
             # No PR number and no `--repo`: `gh pr view` must resolve the current
             # branch's PR from the local checkout, and gh (>=2.98) rejects the
             # branch fallback when `--repo` is also passed.
             pull_request = run_gh_json(["pr", "view", "--json", _PR_FIELDS])
         except PdlcError as error:
-            raise PdlcError("no pull request exists for the current branch") from error
+            if _is_pr_not_found(error):
+                raise PdlcError("no pull request exists for the current branch") from error
+            raise
         if not pull_request.get("number"):
             raise PdlcError("current branch pull request has no number")
         return _pr_dict(pull_request)
 
-    def pull_requests_by_number(self, numbers: list[int]) -> list[dict]:
-        if os.environ.get("PDLC_ITEMS_FILE"):
-            return []
+    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
         resolved = []
         for number in numbers:
             try:
@@ -137,7 +136,7 @@ class GitHubCodeHost(CodeHost):
             f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
         ]
 
-    def submit_task_stack(self) -> list[dict]:
+    def submit_task_stack(self) -> list[PullRequest]:
         """Sync, push, and create/update the current local stack's pull requests.
 
         `gh stack sync --prune` is the extension's own answer to "a task below
@@ -147,8 +146,6 @@ class GitHubCodeHost(CodeHost):
         submit --auto` then creates or updates one PR per branch with the bases
         already chained.
         """
-        if os.environ.get("PDLC_ITEMS_FILE"):
-            raise PdlcError("cannot submit a stacked pull request under a work-item fixture")
 
         self._require_stack_extension()
         run_gh(["stack", "sync", "--prune"])
@@ -174,9 +171,6 @@ class GitHubCodeHost(CodeHost):
 
     @staticmethod
     def _require_stack_extension() -> None:
-        try:
-            installed = run_gh(["extension", "list"])
-        except PdlcError as error:
-            raise PdlcError(_STACK_MISSING) from error
+        installed = run_gh(["extension", "list"])
         if "github/gh-stack" not in installed:
             raise PdlcError(_STACK_MISSING)

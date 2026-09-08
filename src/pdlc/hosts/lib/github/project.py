@@ -5,17 +5,15 @@ State, Lifecycle, Skipped States, and Slug.
 
 from __future__ import annotations
 
-import json
-import os
 from functools import cache
 
-from pdlc.hosts.github_common import (
+from pdlc.hosts.lib.github.transport import (
     owner_repository,
     run_gh_json,
     run_graphql,
 )
 from pdlc.config import get_config
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.domain.model import SKIP_FIELD_NAME, SLUG_FIELD_NAME, VALID_GATES
 from pdlc.hosts.workitem_host.base import QueueItemSummary
 
@@ -136,49 +134,11 @@ query($itemId: ID!) {
 """
 
 
-def _normalize_project_item(item: dict) -> dict:
-    fields = item.get("fields") or {}
-    content = item.get("content") or {}
-    work_type = (
-        item.get("workType") or item.get("work_type") or item.get("issueType")
-        or content.get("workType") or content.get("work_type") or content.get("issueType")
-    )
-    if isinstance(work_type, dict):
-        work_type = work_type.get("name") or work_type.get("value")
-    return {
-        **item,
-        "Status": item.get("Status") or item.get("status") or fields.get("Status") or "",
-        "Gate State": (
-            item.get("Gate State")
-            or item.get("gate State")
-            or item.get("gateState")
-            or fields.get("Gate State")
-            or ""
-        ),
-        "Lifecycle": item.get("Lifecycle") or item.get("lifecycle") or fields.get("Lifecycle") or "",
-        SKIP_FIELD_NAME: (
-            item.get(SKIP_FIELD_NAME)
-            or item.get("skipped States")
-            or fields.get(SKIP_FIELD_NAME)
-            or ""
-        ),
-        SLUG_FIELD_NAME: item.get(SLUG_FIELD_NAME) or item.get("slug") or fields.get(SLUG_FIELD_NAME) or "",
-        "workType": _normalize_work_type(work_type),
-    }
-
-
 def _normalize_work_type(value: object) -> str:
     """Return the stable lower-case work type, preserving missing values."""
     if value is None:
         return ""
     return str(value).strip().lower()
-
-
-def _fixture_items() -> dict:
-    config = get_config()
-    with open(config.items_file) as handle:
-        result = json.load(handle)
-    return {**result, "items": [_normalize_project_item(item) for item in result.get("items", [])]}
 
 
 def _field_name(value: object) -> str:
@@ -220,12 +180,6 @@ def _queue_summary(item: dict, repository: str | None) -> QueueItemSummary | Non
 # cross-repository Project cards are not PDLC records for this backend.
 def queue_items() -> list[QueueItemSummary]:
     config = get_config()
-    if config.items_file:
-        return [
-            summary for item in _fixture_items().get("items", [])
-            if (summary := _queue_summary(item, config.repository)) is not None
-        ]
-
     summaries: list[QueueItemSummary] = []
     after: str | None = None
     while True:
@@ -284,23 +238,18 @@ def item_for_issue(issue: str) -> dict:
         raise PdlcError(f"Issue number must be numeric: {issue}")
 
     config = get_config()
-    if config.items_file:
-        matches = [
-            item for item in _fixture_items().get("items", [])
-            if str(item.get("content", {}).get("number", item.get("number"))) == issue
-        ]
-        if len(matches) != 1:
-            raise PdlcError("expected exactly one Project item")
-        return _normalize_project_item(matches[0])
-
     owner, repository = owner_repository()
     data = run_graphql(ITEM_FOR_ISSUE_QUERY, owner=owner, repo=repository, issue=int(issue))
     issue_node = data["data"]["repository"]["issue"]
+    if issue_node is None:
+        raise NotFound(f"no GitHub Issue #{issue}")
     project_number = int(config.project_number)
     matches = [
         node for node in issue_node["projectItems"]["nodes"]
         if node["project"]["number"] == project_number
     ]
+    if not matches:
+        raise NotFound(f"Issue #{issue} has no item in the configured Project")
     if len(matches) != 1:
         raise PdlcError("expected exactly one Project item")
     node = matches[0]
@@ -314,9 +263,9 @@ def item_for_issue(issue: str) -> dict:
         },
         "issueBody": issue_node["body"],
         "workType": _normalize_work_type((issue_node.get("issueType") or {}).get("name")),
-        "Status": (node.get("status") or {}).get("name"),
-        "Gate State": (node.get("gate") or {}).get("name"),
-        "Lifecycle": (node.get("lifecycle") or {}).get("name"),
+        "Status": (node.get("status") or {}).get("name") or "",
+        "Gate State": (node.get("gate") or {}).get("name") or "",
+        "Lifecycle": (node.get("lifecycle") or {}).get("name") or "",
         SKIP_FIELD_NAME: (node.get("skippedStates") or {}).get("text") or "",
         SLUG_FIELD_NAME: (node.get("slug") or {}).get("text") or "",
     }
@@ -324,6 +273,56 @@ def item_for_issue(issue: str) -> dict:
 
 def resolve_item(issue: str) -> dict:
     return item_for_issue(issue)
+
+
+def issue_for_slug(slug: str) -> str:
+    """Resolve an exact stable slug across every page of the configured Project."""
+    query = """
+    query($projectId: ID!, $after: String) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100, after: $after) {
+            nodes {
+              slug: fieldValueByName(name: "Slug") { ... on ProjectV2ItemFieldTextValue { text } }
+              content { ... on Issue { number repository { nameWithOwner } } }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }
+    """
+    matches: list[str] = []
+    after: str | None = None
+    repository = get_config().repository or ""
+    while True:
+        variables = {"projectId": _project_id()}
+        if after:
+            variables["after"] = after
+        project = (run_graphql(query, **variables).get("data") or {}).get("node")
+        if not isinstance(project, dict):
+            raise PdlcError("GitHub did not return the configured Project")
+        items = project["items"]
+        for item in items["nodes"]:
+            content = item.get("content") or {}
+            if (item.get("slug") or {}).get("text") != slug:
+                continue
+            if (content.get("repository") or {}).get("nameWithOwner", "").casefold() != repository.casefold():
+                continue
+            if content.get("number"):
+                matches.append(str(content["number"]))
+        page = items["pageInfo"]
+        if not page["hasNextPage"]:
+            break
+        cursor = page.get("endCursor")
+        if not cursor or cursor == after:
+            raise PdlcError("Project slug pagination did not advance")
+        after = cursor
+    if not matches:
+        raise NotFound(f"no PDLC record with slug: {slug}")
+    if len(matches) != 1:
+        raise PdlcError(f"slug is ambiguous: {slug}")
+    return matches[0]
 
 
 @cache

@@ -14,15 +14,15 @@ def get_backend() -> WorkItemBackend:
     if _instance is None:
         name = os.environ.get("PDLC_BACKEND", "github")
         if name == "github":
-            from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
+            from pdlc.hosts.github_provider import GitHubWorkItemBackend
 
             _instance = GitHubWorkItemBackend()
         elif name == "azure":
-            from pdlc.hosts.workitem_host.azure import AzureWorkItemBackend
+            from pdlc.hosts.azure_provider import AzureWorkItemBackend
 
             _instance = AzureWorkItemBackend()
         elif name == "file":
-            from pdlc.hosts.workitem_host.file import FileWorkItemBackend
+            from pdlc.hosts.file_provider import FileWorkItemBackend
 
             _instance = FileWorkItemBackend()
         else:

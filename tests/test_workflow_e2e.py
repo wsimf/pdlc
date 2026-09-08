@@ -7,7 +7,7 @@ import json
 from unittest.mock import Mock, patch
 
 from _support import FileBackendTest
-from pdlc.hosts.workitem_host.file import FileWorkItemBackend
+from pdlc.hosts.lib.file.workitem_backend import FileWorkItemBackend
 
 
 class WorkflowEndToEndTests(FileBackendTest):

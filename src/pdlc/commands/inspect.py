@@ -104,11 +104,11 @@ import tempfile
 from pathlib import Path
 
 
-from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.domain.lifecycle import PdlcError  # type: ignore
-from pdlc.internal.reporting import older_comments_notice, yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import comments_for_issue, due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree, user_comments_markdown  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
+from pdlc.internal.workitem import comments_for_issue, due_next, item_gate, item_skipped_states, ref_label, resolve_item, task_tree, user_comments_markdown
 
 
 def _due_next_owner(due: dict) -> str:
@@ -253,7 +253,8 @@ def render(issue: str) -> tuple[str, str, Path]:
     return full_output, compact_output, path
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description="Inspect a PDLC work item")
     parser.add_argument("work_item")
     parser.add_argument(
@@ -264,7 +265,7 @@ def main() -> int:
         "--file", action="store_true",
         help="write to {TEMPDIR}/{repo}-{issue}.md and print that path instead of stdout",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(command_args)
 
     if args.full and args.file:
         parser.error("--full and --file cannot be used together")
@@ -276,12 +277,12 @@ def main() -> int:
         return 1
 
     if args.file:
-        path.write_text(full_output)
+        path.write_text(full_output, encoding="utf-8")
         print(path)
     elif args.full:
         sys.stdout.write(full_output)
     else:
-        path.write_text(full_output)
+        path.write_text(full_output, encoding="utf-8")
         sys.stdout.write(compact_output)
 
     return 0

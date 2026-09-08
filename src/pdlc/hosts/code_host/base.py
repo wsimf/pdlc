@@ -11,18 +11,20 @@ rather than asserting anything.
 
 from __future__ import annotations
 
+from pdlc.domain.records import PullRequest
+
 from abc import ABC, abstractmethod
 
 
 class CodeHost(ABC):
     @abstractmethod
-    def ensure_pull_request_linked(self, code_ref: str) -> dict:
+    def ensure_pull_request_linked(self, code_ref: str) -> PullRequest:
         """The implementation pull request for the current branch, as a PR dict.
         The caller registers its number on the record; this does not edit the
         PR body or the work item."""
 
     @abstractmethod
-    def pull_requests_by_number(self, numbers: list[int]) -> list[dict]:
+    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
         """The given pull requests as dicts, in `numbers` order. Each entry:
         {number, title, url, state, isDraft, branch, mergedAt, checks}. A
         registered number that cannot be resolved must raise; silently dropping
@@ -45,7 +47,7 @@ class CodeHost(ABC):
         ``submit_task_stack``, which such a host also refuses."""
 
     @abstractmethod
-    def submit_task_stack(self) -> list[dict]:
+    def submit_task_stack(self) -> list[PullRequest]:
         """Submit the stack the current branch belongs to: sync it, push it, and
         create or update one pull request per branch. Returns every PR in the
         stack bottom-to-top.

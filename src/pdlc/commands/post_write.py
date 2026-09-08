@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.workitem import (
     create_work_item,
     item_gate,
     item_status,
@@ -37,9 +37,10 @@ from pdlc.internal.workitem import (  # type: ignore
     state_for_item,
     update_sections,
 )
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number  # type: ignore
-from pdlc.internal.invalidation import reauthor_invalidate_stage  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, require_file, wants_help  # type: ignore
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number
+from pdlc.internal.invalidation import reauthor_invalidate_stage
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import evidence_source, print_help, require_file, wants_help
 from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, State, WorkType
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -47,7 +48,7 @@ OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")
 
 
 def product_fragments(body_path: Path) -> dict[str, str]:
-    body = body_path.read_text()
+    body = body_path.read_text(encoding="utf-8")
     headings = level_two_headings(body)
     if not body.startswith("## Product") or headings != list(OWNED_SECTIONS):
         expected = ", ".join(f"## {section}" for section in OWNED_SECTIONS)
@@ -107,8 +108,9 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path,
     }
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0
@@ -149,7 +151,7 @@ def main() -> int:
                 print(json.dumps(result))
                 return 0
 
-            new_item = create_work_item(args.title, body_path.read_text(), args.slug, WorkType.FEATURE)
+            new_item = create_work_item(args.title, body_path.read_text(encoding="utf-8"), args.slug, WorkType.FEATURE)
             work_item_url = new_item["url"]
             work_item_number = str(new_item["number"])
             item_id = new_item["id"]

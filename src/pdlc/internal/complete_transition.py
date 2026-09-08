@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pdlc.internal.attachments import save_attachments, work_item_number  # type: ignore
+from pdlc.internal.attachments import save_attachments, work_item_number
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (

@@ -13,9 +13,9 @@ from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts import github_issues, github_project, github_pr_registry
-from pdlc.hosts.code_host.github import GitHubCodeHost
-from pdlc.hosts.workitem_host.github import GitHubWorkItemBackend
+from pdlc.hosts.lib.github import issues as github_issues, project as github_project, pr_registry as github_pr_registry
+from pdlc.hosts.lib.github.code_host import GitHubCodeHost
+from pdlc.hosts.lib.github.workitem_backend import GitHubWorkItemBackend
 
 from tests._gh_replay import GitHubHostTest, graphql_data
 
@@ -308,7 +308,7 @@ class SubIssueReadTest(GitHubHostTest):
     def test_post_comment_writes_marker_stamp(self) -> None:
         self.gh.gh("issue", "comment", response="https://github.com/wsimf/pdlc/issues/3#issuecomment-1")
 
-        github_issues.post_comment("3", "verification passed", "REVIEW")
+        github_issues.post_comment("3", "PDLC-REVIEW\n\nverification passed")
 
         args, _ = next(
             (call for call in self.gh.calls if call[0][:2] == ["issue", "comment"])
@@ -567,35 +567,35 @@ class CodeHostTest(GitHubHostTest):
             self.host.pull_requests_by_number([5, 9, 4])
 
     def test_checks_state_handles_check_runs_and_status_contexts(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         self.assertEqual(_checks_state({"statusCheckRollup": []}), "NONE")
         self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "IN_PROGRESS", "conclusion": None}]}), "PENDING")
         self.assertEqual(_checks_state({"statusCheckRollup": [{"state": "SUCCESS"}]}), "SUCCESS")
         self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "COMPLETED", "conclusion": "FAILURE"}]}), "FAILURE")
 
     def test_checks_state_aggregates_failures_independent_of_rollup_order(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         success = {"status": "COMPLETED", "conclusion": "SUCCESS"}
         failure = {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED"}
         self.assertEqual(_checks_state({"statusCheckRollup": [success, failure]}), "FAILURE")
         self.assertEqual(_checks_state({"statusCheckRollup": [failure, success]}), "FAILURE")
 
     def test_checks_state_reports_mixed_success_and_running_as_pending(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         self.assertEqual(_checks_state({"statusCheckRollup": [
             {"status": "COMPLETED", "conclusion": "SUCCESS"},
             {"status": "IN_PROGRESS", "conclusion": None},
         ]}), "PENDING")
 
     def test_checks_state_accepts_neutral_and_skipped_conclusions(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         self.assertEqual(_checks_state({"statusCheckRollup": [
             {"status": "COMPLETED", "conclusion": "NEUTRAL"},
             {"status": "COMPLETED", "conclusion": "SKIPPED"},
         ]}), "SUCCESS")
 
     def test_checks_state_treats_queued_waiting_and_null_conclusions_as_pending(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         for entry in (
             {"status": "QUEUED", "conclusion": None},
             {"status": "WAITING", "conclusion": None},
@@ -605,7 +605,7 @@ class CodeHostTest(GitHubHostTest):
                 self.assertEqual(_checks_state({"statusCheckRollup": [entry]}), "PENDING")
 
     def test_checks_state_fails_closed_for_unknown_or_malformed_nonempty_rollups(self) -> None:
-        from pdlc.hosts.code_host.github import _checks_state
+        from pdlc.hosts.lib.github.code_host import _checks_state
         for rollup in ([{"state": "MYSTERY"}], [{}], [None], {"state": "SUCCESS"}, "unexpected"):
             with self.subTest(rollup=rollup):
                 self.assertEqual(_checks_state({"statusCheckRollup": rollup}), "PENDING")

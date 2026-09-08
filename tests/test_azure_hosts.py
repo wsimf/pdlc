@@ -11,7 +11,7 @@ from _az_replay import ORGANIZATION, PROJECT, AzureHostTest, work_item
 from pdlc.config import Config, ConfigurationError
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.azure_workitems import (
+from pdlc.hosts.lib.azure.workitems import (
     DESCRIPTION_FIELD,
     GATE_FIELD,
     LIFECYCLE_FIELD,
@@ -23,7 +23,7 @@ from pdlc.hosts.azure_workitems import (
     TITLE_FIELD,
     TYPE_FIELD,
 )
-from pdlc.hosts.workitem_host.azure import AzureWorkItemBackend
+from pdlc.hosts.lib.azure.workitem_backend import AzureWorkItemBackend
 
 RECORD = work_item(
     7,
@@ -111,9 +111,9 @@ class ResolutionTest(AzureHostTest):
         with self.assertRaisesRegex(PdlcError, "slug is ambiguous: twin"):
             AzureWorkItemBackend().resolve("twin")
 
-    def test_a_quote_in_a_slug_is_refused_before_it_reaches_wiql(self):
-        with self.assertRaisesRegex(PdlcError, "must not contain a quote"):
-            AzureWorkItemBackend().resolve("o'brien")
+    def test_mixed_quotes_in_a_slug_are_refused_before_wiql(self):
+        with self.assertRaisesRegex(PdlcError, "both single and double quotes"):
+            AzureWorkItemBackend().resolve("o'b\"rien")
         self.assertEqual(self.az.calls, [])
 
 
@@ -309,6 +309,7 @@ class UpsertTaskTest(AzureHostTest):
     def setUp(self) -> None:
         super().setUp()
         self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.wiql("CONTAINS", response=[])
 
     def test_an_unchanged_task_is_not_rewritten(self):
         [result] = AzureWorkItemBackend().upsert_tasks("7", [self.TASK_INPUT], [self.EXISTING])
@@ -567,7 +568,7 @@ class AzureConfigurationTest(unittest.TestCase):
 
         saved = {key: os.environ.pop(key, None) for key in ("PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT")}
         try:
-            from pdlc.hosts.azure_common import azure_config
+            from pdlc.hosts.lib.azure.transport import azure_config
 
             with self.assertRaisesRegex(PdlcError, "PDLC_AZURE_ORG"):
                 azure_config()

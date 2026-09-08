@@ -8,9 +8,9 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from pdlc.config import Config, config_path, load_config
+from pdlc.config import config_path, load_config
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.hosts.github_common import run_gh_json
+from pdlc.hosts.lib.github.transport import run_gh_json
 
 
 Input = Callable[[str], str]
@@ -96,7 +96,7 @@ def _write_config(
     elif code_host == "github" and repository:
         lines += ["", "[backend.github]", f'repository = "{repository}"']
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _code_host(detected: bool, input_fn: Input) -> str:
@@ -106,10 +106,11 @@ def _code_host(detected: bool, input_fn: Input) -> str:
     return ["github", "file", "none"][_choose("Code host", options, input_fn)]
 
 
-def main(input_fn: Input = input) -> int:
+def main(input_fn: Input = input, *, argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
     # `setup` takes no positional arguments, so only an explicit flag is help;
     # an empty argv means "run the wizard".
-    if any(argument in ("-h", "--help") for argument in sys.argv[1:]):
+    if any(argument in ("-h", "--help") for argument in command_args):
         print(__doc__.strip())
         return 0
     config = load_config()

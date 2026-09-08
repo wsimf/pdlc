@@ -35,11 +35,40 @@ uv tool install --force 'git+ssh://git@github.com/wsimf/pdlc.git@my-branch'
 ## Development
 
 ```bash
+uv sync --locked
 uv run pdlc --help
+uv run ruff check src tests
+uv run mypy
+uv run python -m unittest discover -s tests -p 'test_*.py'
 uv build
 ```
 
 Run from a local checkout without installing with `uv run pdlc ...`.
+
+
+Ruff checks all source and tests; the strict mypy baseline covers normalized records, host ports, and shared process/storage boundaries (the files are listed in `pyproject.toml`).
+CI runs these checks, the full test suite, and packaging on Python 3.12–3.14.
+Provider tests use the replay transports in `tests/_gh_replay.py` and `tests/_az_replay.py`; the old `PDLC_ITEMS_FILE` and `PDLC_SUBISSUES_FILE` fixture switches have been removed from production configuration.
+
+### Provider organization
+
+`src/pdlc/hosts/{azure,github,file,none}_provider.py` exposes each provider's concrete implementations.
+Implementation details live together under `hosts/lib/azure/`, `hosts/lib/github/`, `hosts/lib/file/`, and `hosts/lib/none/`.
+The `workitem_host/`, `code_host/`, and `attachment_host/` packages retain their neutral ports and configured factories, so Azure Boards can still pair with GitHub code hosting.
+`domain/records.py` defines normalized data contracts; task publication passes validated `bodyText`, never a file path, across the work-item port.
+`domain/task_plan.py` owns pure task validation and dependency policy, while `internal/inputs.py` owns file/stdin handling.
+
+The CLI accepts explicit argument lists through `main(argv=...)` and resets its host/configuration caches between invocations.
+Environment overrides remain available during a command and are restored afterwards; concurrent embedded CLI calls are not supported.
+
+### Local-store writes
+
+File-store inspection does not initialize missing directories.
+Writes use UTF-8 atomic file replacement and a fail-fast `$PDLC_HOME/.writer.lock` directory to exclude concurrent writers.
+An interrupted writer may leave this lock behind: confirm that no writer is running before removing that directory and retrying.
+Atomic replacement protects individual files, not an entire multi-file workflow transaction.
+Azure task publication recovers an unlinked task by exact stable identity on retry and rejects ambiguous or foreign-parent matches.
+CLI transport failures remain explicit; a timeout after a write requires inspection of remote state before retry.
 
 Inspect comments without loading the full discussion with `pdlc inspect comments ISSUE --page N`. Pages contain 100 comments, are newest first, and report the exact total plus the next command when more remain.
 
@@ -64,8 +93,6 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_HOME` | `.pdlc` | Local file-backend and attachment storage root. |
 | `PDLC_ACTOR` | `local` | Actor name recorded by the file backend. |
 | `PDLC_REF_LABEL` | `pdlc` | Label used for local inspector scratch files. |
-| `PDLC_ITEMS_FILE` | unset | Fixture file used instead of live GitHub Project items. |
-| `PDLC_SUBISSUES_FILE` | unset | Fixture file used instead of live GitHub subissues. |
 | `PDLC_MAX_ATTEMPTS` | `5` | Maximum queue-loop polling attempts. |
 | `PDLC_INITIAL_DELAY_SECONDS` | `60` | Initial queue-loop retry delay. |
 | `PDLC_MAX_DELAY_SECONDS` | `900` | Queue-loop retry delay ceiling. |

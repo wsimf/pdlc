@@ -16,16 +16,16 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 
-from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.domain.completion import completion_blockers  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, require_file, wants_help  # type: ignore
+from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.domain.completion import completion_blockers
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
 from pdlc.domain.workflow import Event
-from pdlc.internal.vcs import stale_verification_rows  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.vcs import stale_verification_rows
+from pdlc.internal.workitem import (
     comments_for_issue,
     item_for_issue,
     item_gate,
@@ -44,17 +44,6 @@ from pdlc.internal.workitem import (  # type: ignore
 OPEN_QUESTIONS_SETTLED = "_Resolved at completion — see the completion comment._"
 
 
-def _read_evidence(evidence: str) -> str:
-    """Completion evidence is a file path or `-` for stdin — never an inline
-    literal, so a mistyped path fails loudly instead of being posted as-is."""
-    if evidence == "-":
-        text = sys.stdin.read()
-        if not text.strip():
-            raise PdlcError("completion evidence on stdin is empty")
-        return text
-    return require_file("completion evidence", evidence).read_text()
-
-
 def _stale_rows(verification_body: str) -> list[str]:
     """Rows in the latest verification comment whose commit anchor no longer
     holds against HEAD. Empty when the body does not parse — the malformed
@@ -66,7 +55,7 @@ def _stale_rows(verification_body: str) -> list[str]:
 
 
 def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
-    evidence_body = _read_evidence(evidence)
+    evidence_body = read_evidence_text("completion evidence", evidence)
 
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)
@@ -108,8 +97,9 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     return {"completed": True, "itemId": record["id"], "work_item": int(issue), "attachments": attachments}
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

@@ -1,6 +1,6 @@
 """Shared primitives for the Azure DevOps work-item backend: `az` process
 execution and organization/project configuration. No PDLC vocabulary lives
-here — see `azure_workitems.py` for the field names and work-item shapes.
+here — see `workitems.py` for the field names and work-item shapes.
 
 Transport is the `az` CLI rather than raw REST on purpose: a bearer token from
 `az account get-access-token` is redirected to sign-in on org-scoped endpoints,
@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import subprocess
 import tempfile
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
+from pdlc.hosts.lib.process import parse_json, run_process
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 
@@ -32,14 +31,8 @@ WIT_API_VERSION = "7.1"
 PATCH_MEDIA_TYPE = "application/json-patch+json"
 
 
-def run_az(args: Sequence[str]) -> str:
-    """Runs `az <args>`, raising PdlcError with az's stderr on failure."""
-    if shutil.which("az") is None:
-        raise PdlcError("required command not found: az")
-    result = subprocess.run(["az", *args], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise PdlcError(result.stderr.strip() or f"az {' '.join(args)} failed")
-    return result.stdout
+def run_az(args: Sequence[str], *, input: str | None = None) -> str:
+    return run_process(["az", *args], input=input)
 
 
 def run_az_json(args: Sequence[str]) -> Any:
@@ -50,7 +43,7 @@ def run_az_json(args: Sequence[str]) -> Any:
     raising a JSON decode error.
     """
     output = run_az([*args, "-o", "json"]).strip()
-    return json.loads(output) if output else None
+    return parse_json(output, "az") if output else None
 
 
 def azure_config() -> tuple[str, str]:
@@ -76,7 +69,7 @@ def project_args() -> list[str]:
 @contextmanager
 def _request_file(body: Any) -> Iterator[str]:
     """`az devops invoke` takes a request body only as a file on disk."""
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as handle:
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as handle:
         json.dump(body, handle)
         path = handle.name
     try:

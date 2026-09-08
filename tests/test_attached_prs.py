@@ -7,6 +7,7 @@ test_github_hosts.py."""
 import json
 import unittest
 
+from pathlib import Path
 from _support import FileBackendTest
 
 BODY = "## Scope\nDo the thing.\n\n## Acceptance criteria\n- ok\n"
@@ -69,7 +70,7 @@ class AttachmentSurvivesRePlanTests(FileBackendTest):
         backend = get_backend()
         existing = task_tree("70")
         body_file = self.write_file("task.md", BODY)
-        results = backend.upsert_tasks("70", [{"id": "TASK-001", "title": "[CORE] Core", "body": body_file}], existing)
+        results = backend.upsert_tasks("70", [{"id": "TASK-001", "title": "[CORE] Core", "bodyText": Path(body_file).read_text()}], existing)
 
         self.assertEqual(results[0]["action"], "unchanged")
         self.assertEqual(task_tree("70")[0]["prs"], [148])
