@@ -1,7 +1,7 @@
 import unittest
 from dataclasses import replace
 
-from pdlc.domain.lifecycle import wants_help
+from pdlc.internal.inputs import wants_help
 from pdlc.domain.workflow import (
     FEATURE_PIPELINE,
     PIPELINE_REGISTRY,

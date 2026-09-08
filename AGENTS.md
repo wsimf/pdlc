@@ -17,7 +17,7 @@ Done means every modified behavior has a caller, a regression check or an explic
 - `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and CLI options become `PDLC_*` environment variables.
 - `src/pdlc/commands/` owns command orchestration and user-facing argument/error handling.
 - `src/pdlc/domain/` owns pure lifecycle, evidence, model, and completion policy.
-- `src/pdlc/hosts/` owns GitHub, file, and no-op adapters for work items, code hosts, and attachments.
+- `src/pdlc/hosts/*_provider.py` exposes concrete providers; `hosts/lib/{azure,github,file,none}/` owns their implementations, and `workitem_host/`, `code_host/`, and `attachment_host/` retain neutral ports and selection.
 - `src/pdlc/internal/` owns shared facades and implementation helpers; callers should use these seams instead of reaching into a backend.
 - `tests/` contains package-level Python tests.
 - `agent/skills/` contains the agent-facing PDLC skills and their references; they drive the workflow through the installed `pdlc` CLI, which is expected on `PATH`.
@@ -40,6 +40,8 @@ Treat `pdlc inspect*` commands as read-only. Treat `pdlc post *` commands as sta
 The package requires Python `>=3.12` and uses `uv`; project metadata in `pyproject.toml` is the source of truth for packaging and entry points.
 
 ```bash
+XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv run ruff check src tests
+XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv run mypy
 XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv run python -m unittest discover -s tests -p 'test_*.py'
 XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv build
 git diff --check

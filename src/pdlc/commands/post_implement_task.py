@@ -30,11 +30,12 @@ import argparse
 import json
 import sys
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
-from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, require_file, wants_help  # type: ignore
-from pdlc.internal.stack import task_branch_name  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, require_file, wants_help
+from pdlc.internal.stack import task_branch_name
+from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
     close_task,
     item_slug,
@@ -92,7 +93,7 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     if not task.get("hasPlan"):
         raise PdlcError(f"{task['taskId']} has no Technical Plan and is not eligible for implementation")
 
-    text = sys.stdin.read() if evidence == "-" else require_file("implementation file", evidence).read_text()
+    text = sys.stdin.read() if evidence == "-" else require_file("implementation file", evidence).read_text(encoding="utf-8")
     summary = text.strip()
     if not summary:
         raise PdlcError("the implementation summary is empty")
@@ -120,8 +121,9 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     return result
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

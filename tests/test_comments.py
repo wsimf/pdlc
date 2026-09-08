@@ -2,7 +2,7 @@ import json
 
 from _support import FileBackendTest
 from _gh_replay import GitHubHostTest
-from pdlc.hosts import github_issues
+from pdlc.hosts.lib.github import issues as github_issues
 
 
 class CommentsInspectionTests(FileBackendTest):

@@ -51,8 +51,8 @@ class ConfigTests(unittest.TestCase):
         )
         config = load_config(nested)
         self.assertEqual(config.backend, "file")
-        self.assertEqual(config.no_sleep, "true")
-        self.assertEqual(config.max_attempts, "4")
+        self.assertIs(config.no_sleep, True)
+        self.assertEqual(config.max_attempts, 4)
 
     def test_later_cli_environment_changes_are_visible(self):
         nested = self.make_repo('[backend.github]\nrepository = "file/repository"\n')

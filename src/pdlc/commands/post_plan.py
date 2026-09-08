@@ -35,9 +35,9 @@ import tempfile
 from pathlib import Path
 
 
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments  # type: ignore
-from pdlc.internal.invalidation import reauthor_invalidate_stage  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
+from pdlc.internal.invalidation import reauthor_invalidate_stage
+from pdlc.internal.workitem import (
     PLAN_COMMENT_HEADING,
     is_stage_skipped,
     item_gate,
@@ -49,15 +49,8 @@ from pdlc.internal.workitem import (  # type: ignore
     state_for_item,
     task_tree,
 )
-from pdlc.domain.lifecycle import (  # type: ignore
-    PdlcError,
-    duplicates,
-    load_json_array,
-    print_help,
-    require_file,
-    unmarked_evidence_source,
-    wants_help,
-)
+from pdlc.domain.lifecycle import PdlcError, duplicates
+from pdlc.internal.inputs import load_json_array, print_help, require_file, unmarked_evidence_source, wants_help
 from pdlc.domain.workflow import Event
 
 
@@ -104,8 +97,9 @@ def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
     }
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0
@@ -190,7 +184,7 @@ def main() -> int:
             replacements.append({
                 "id": task_id,
                 "plan": str(plan_path),
-                "planText": plan_path.read_text(),
+                "planText": plan_path.read_text(encoding="utf-8"),
             })
 
         plan = build_plan(tree, replacements)
@@ -224,8 +218,8 @@ def main() -> int:
             post_comment(str(task["number"]), body)
             results.append({"taskId": entry["id"], "number": task["number"]})
 
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md") as handle:
-            handle.write(evidence_path.read_text())
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as handle:
+            handle.write(evidence_path.read_text(encoding="utf-8"))
             handle.write("\n---\n\n")
             handle.write(f"Planned {len(results)} task(s): {', '.join(result['taskId'] for result in results)}\n")
             if plan["alreadyPlanned"]:

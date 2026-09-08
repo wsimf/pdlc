@@ -29,31 +29,16 @@ reported back.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TypedDict
 from dataclasses import dataclass
 
 from pdlc.domain.workflow import WorkType
 
 
-class QueueItemContent(TypedDict):
-    number: int
-    title: str
-    url: str
-
-
-QueueItemSummary = TypedDict("QueueItemSummary", {
-    "id": str,
-    "content": QueueItemContent,
-    "Status": str,
-    "Gate State": str,
-    "Lifecycle": str,
-    "Skipped States": str,
-    "workType": str,
-})
+from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
 
 @dataclass(frozen=True)
 class CommentPage:
-    comments: list[dict]
+    comments: list[Comment]
     page: int
     per_page: int
     total: int
@@ -68,7 +53,7 @@ class WorkItemBackend(ABC):
     # --- resolution ---
 
     @abstractmethod
-    def resolve(self, ref: str) -> dict:
+    def resolve(self, ref: str) -> WorkItem:
         """The work item for `ref` (its human-facing number/slug). Raises on an
         unknown or ambiguous ref — never guesses."""
 
@@ -102,7 +87,7 @@ class WorkItemBackend(ABC):
     # --- comments ---
 
     @abstractmethod
-    def comments(self, ref: str) -> list[dict]:
+    def comments(self, ref: str) -> list[Comment]:
         """Every evidence/discussion comment, oldest first."""
 
     @abstractmethod
@@ -124,21 +109,25 @@ class WorkItemBackend(ABC):
     # --- delivery tasks ---
 
     @abstractmethod
-    def tasks(self, ref: str) -> list[dict]:
+    def tasks(self, ref: str) -> list[Task]:
         """The record's delivery tasks (raw; the facade classifies them)."""
 
     @abstractmethod
-    def tasks_by_number(self, numbers: list[str]) -> list[dict]:
+    def tasks_by_number(self, numbers: list[str]) -> list[Task]:
         """Specific tasks by their own ref, raw and in the given order."""
 
     @abstractmethod
-    def upsert_tasks(self, parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
+    def upsert_tasks(self, parent: str, tasks: list[TaskInput], existing: list[Task]) -> list[TaskPublication]:
         """Create or update every task by stable TASK-NNN identity, link new
         ones to the parent, and return one result dict per task:
         {action, taskId, number, title, url}."""
 
     @abstractmethod
     def close_task(self, task_ref: str) -> None: ...
+
+    def task_pr_numbers(self, ref: str) -> list[int]:
+        """Registered task PRs; adapters may avoid loading task bodies/comments."""
+        return sorted({number for task in self.tasks(ref) for number in task["prs"]})
 
     # --- attached pull requests ---
 
@@ -163,7 +152,7 @@ class WorkItemBackend(ABC):
     # --- creation ---
 
     @abstractmethod
-    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> CreatedRecord:
         """Create a new work item and register it. Returns {id, number, url}."""
 
     @staticmethod

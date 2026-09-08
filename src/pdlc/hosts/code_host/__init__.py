@@ -19,15 +19,15 @@ def get_code_host() -> CodeHost:
     if _instance is None:
         name = os.environ.get("PDLC_CODE_HOST") or _default_name()
         if name == "github":
-            from pdlc.hosts.code_host.github import GitHubCodeHost
+            from pdlc.hosts.github_provider import GitHubCodeHost
 
             _instance = GitHubCodeHost()
         elif name == "file":
-            from pdlc.hosts.code_host.file import FileCodeHost
+            from pdlc.hosts.file_provider import FileCodeHost
 
             _instance = FileCodeHost()
         elif name == "none":
-            from pdlc.hosts.code_host.none import NoneCodeHost
+            from pdlc.hosts.none_provider import NoneCodeHost
 
             _instance = NoneCodeHost()
         else:

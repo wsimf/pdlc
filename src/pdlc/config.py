@@ -15,7 +15,7 @@ ENVIRONMENT_KEYS = (
     "PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT", "PDLC_AZURE_RECORD_TYPE",
     "PDLC_AZURE_CLOSED_STATE",
     "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_HOME",
-    "PDLC_ACTOR", "PDLC_REF_LABEL", "PDLC_ITEMS_FILE", "PDLC_SUBISSUES_FILE",
+    "PDLC_ACTOR", "PDLC_REF_LABEL",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
     "PDLC_NO_SLEEP",
 )
@@ -25,8 +25,6 @@ TOML_ENVIRONMENT_KEYS = {
     ("backend.github", "repository"): "PDLC_REPOSITORY",
     ("backend.github", "project_number"): "PDLC_PROJECT_NUMBER",
     ("backend.github", "project_owner"): "PDLC_PROJECT_OWNER",
-    ("backend.github", "items_file"): "PDLC_ITEMS_FILE",
-    ("backend.github", "subissues_file"): "PDLC_SUBISSUES_FILE",
     ("backend.azure", "organization"): "PDLC_AZURE_ORG",
     ("backend.azure", "project"): "PDLC_AZURE_PROJECT",
     ("backend.azure", "record_type"): "PDLC_AZURE_RECORD_TYPE",
@@ -90,19 +88,34 @@ class Config:
     azure_project: str | None = None
     azure_record_type: str | None = None
     azure_closed_state: str | None = None
-    items_file: str | None = None
-    subissues_file: str | None = None
-    max_attempts: str | None = None
-    initial_delay_seconds: str | None = None
-    max_delay_seconds: str | None = None
-    no_sleep: str | None = None
+    max_attempts: int = 5
+    initial_delay_seconds: int = 60
+    max_delay_seconds: int = 900
+    no_sleep: bool = False
 
     @classmethod
     def from_environment(cls) -> "Config":
-        return cls(**{
+        values = {
             key.removeprefix("PDLC_").lower(): os.environ.get(key)
             for key in ENVIRONMENT_KEYS
-        })
+        }
+        for name, default, minimum in (
+            ("max_attempts", 5, 1), ("initial_delay_seconds", 60, 0),
+            ("max_delay_seconds", 900, 0),
+        ):
+            raw = values[name]
+            try:
+                value = int(raw) if raw is not None else default
+            except (TypeError, ValueError):
+                raise ConfigurationError(f"PDLC_{name.upper()} must be an integer >= {minimum}") from None
+            if value < minimum:
+                raise ConfigurationError(f"PDLC_{name.upper()} must be >= {minimum}")
+            values[name] = value
+        raw = (values["no_sleep"] or "false").lower()
+        if raw not in {"true", "false", "1", "0"}:
+            raise ConfigurationError("PDLC_NO_SLEEP must be true, false, 1, or 0")
+        values["no_sleep"] = raw in {"true", "1"}
+        return cls(**values)
 
     def validate_for_backend(self) -> None:
         """Require each selected host's own coordinates.
@@ -112,9 +125,17 @@ class Config:
         `PDLC_REPOSITORY` whenever the code host is GitHub.
         """
         backend = self.backend or "github"
-        if backend == "file":
-            return
+        if backend not in {"github", "azure", "file"}:
+            raise ConfigurationError(f"unknown PDLC_BACKEND: {backend!r}")
         code_host = self.code_host or default_code_host(backend)
+        if code_host not in {"github", "file", "none"}:
+            raise ConfigurationError(f"unknown PDLC_CODE_HOST: {code_host!r}")
+        if self.attachment_host not in {None, "file", "none"}:
+            raise ConfigurationError(f"unknown PDLC_ATTACHMENT_HOST: {self.attachment_host!r}")
+        if backend == "file":
+            if code_host == "github" and not self.repository:
+                raise ConfigurationError(configuration_guidance(["PDLC_REPOSITORY"]))
+            return
         required: dict[str, str | None] = {}
         if backend == "azure":
             required |= {
@@ -195,8 +216,8 @@ def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
     if not path.exists():
         return {}, Capabilities.empty()
     try:
-        values = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError) as error:
+        values = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
         raise ConfigurationError(f"Could not read {path}: {error}") from error
     flattened: dict[str, str] = {}
     capabilities: dict[str, dict[str, str]] = {"agents": {}, "skills": {}}
@@ -261,7 +282,13 @@ def configuration_guidance(missing: list[str]) -> str:
         "PDLC_REPOSITORY", "PDLC_PROJECT_NUMBER", "PDLC_PROJECT_OWNER"
     ]
     details = f"Missing: {', '.join(missing)}\n\n" if missing else ""
-    example = "\n".join(f'{name} = "<value>"' for name in required)
+    sections: dict[str, list[str]] = {}
+    for (section, key), environment_name in TOML_ENVIRONMENT_KEYS.items():
+        if environment_name in required:
+            sections.setdefault(section, []).append(f'{key} = "<value>"')
+    example = "\n\n".join(
+        f"[{section}]\n" + "\n".join(lines) for section, lines in sections.items()
+    )
     return (
         "pdlc is not configured for this repository.\n\n"
         f"{details}"
@@ -269,3 +296,10 @@ def configuration_guidance(missing: list[str]) -> str:
         f"{example}\n\n"
         "You can also set the corresponding PDLC_* environment variables."
     )
+
+
+def reset_config() -> None:
+    """Forget cached repository configuration at the command boundary."""
+    global _config_loaded, _capabilities
+    _config_loaded = False
+    _capabilities = None

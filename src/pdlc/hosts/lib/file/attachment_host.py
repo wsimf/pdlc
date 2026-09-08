@@ -17,6 +17,7 @@ import mimetypes
 import os
 import tempfile
 from pathlib import Path
+from pdlc.hosts.lib.file.storage import atomic_write, single_writer
 
 from pdlc.hosts.attachment_host.base import AttachmentHost
 from pdlc.domain.lifecycle import PdlcError
@@ -52,7 +53,7 @@ def _read_manifest(directory: Path) -> dict:
     if not path.exists():
         return {"version": _MANIFEST_VERSION, "files": []}
     try:
-        manifest = json.loads(path.read_text())
+        manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError) as error:
         raise PdlcError(f"attachment metadata could not be read: {path}: {error}") from None
     except json.JSONDecodeError as error:
@@ -94,15 +95,7 @@ def _read_manifest(directory: Path) -> dict:
 
 
 def _write_manifest(directory: Path, manifest: dict) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(prefix="files.", suffix=".tmp", dir=directory)
-    temporary_path = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w") as handle:
-            json.dump(manifest, handle, indent=2)
-            handle.write("\n")
-        temporary_path.replace(_manifest_path(directory))
-    finally:
-        temporary_path.unlink(missing_ok=True)
+    atomic_write(_manifest_path(directory), json.dumps(manifest, indent=2) + "\n")
 
 
 def _source_path(source: str | Path) -> Path:
@@ -132,6 +125,7 @@ def _resolved_path(directory: Path, metadata: dict) -> Path:
 class FileAttachmentHost(AttachmentHost):
     capabilities = {"local_path"}
 
+    @single_writer
     def save_for(self, scope: str, source: str | Path, description: str | None = None) -> dict:
         source_path = _source_path(source)
         directory = _attachments_dir(scope, create=True)

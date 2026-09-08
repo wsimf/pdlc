@@ -18,12 +18,11 @@ import unittest
 import unittest.mock
 from typing import Any, Callable
 
-import pdlc.hosts.github_common as github_common
-import pdlc.hosts.github_issues as github_issues
-import pdlc.hosts.github_project as github_project
-import pdlc.hosts.code_host.github as code_host_github
-import pdlc.hosts.workitem_host.github as workitem_github
-from pdlc.domain.lifecycle import PdlcError
+import pdlc.hosts.lib.github.transport as github_common
+import pdlc.hosts.lib.github.issues as github_issues
+import pdlc.hosts.lib.github.project as github_project
+import pdlc.hosts.lib.github.code_host as code_host_github
+import pdlc.hosts.lib.github.workitem_backend as workitem_github
 
 # Modules that bound ``run_gh`` into their own namespace at import time and so
 # need the patch applied there too, not just on github_common.

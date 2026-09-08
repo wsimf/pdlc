@@ -46,17 +46,19 @@ import tempfile
 from pathlib import Path
 
 
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.workitem import comments_for_issue, ref_label, resolve_item, timeline_compact, timeline_markdown  # type: ignore
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.workitem import comments_for_issue, ref_label, resolve_item, timeline_compact, timeline_markdown
 
 NO_EVIDENCE = "No PDLC evidence comments found\n"
 
 
-def main() -> int:
-    args = [arg for arg in sys.argv[1:] if arg not in ("--full",)]
-    full = "--full" in sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = [arg for arg in command_args if arg not in ("--full",)]
+    full = "--full" in command_args
 
-    if wants_help(sys.argv[1:]):
+    if wants_help(command_args):
         print_help(__doc__)
         return 0
     if len(args) != 1:
@@ -78,7 +80,7 @@ def main() -> int:
             return 0
 
         path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
-        path.write_text(full_text)
+        path.write_text(full_text, encoding="utf-8")
         sys.stdout.write(timeline_compact(issue, str(path), comments=comments))
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

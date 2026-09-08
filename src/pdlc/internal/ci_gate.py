@@ -80,7 +80,7 @@ def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State)
             "checks, fixes them on the implementation pull request(s), and re-publishes for review."
         )
         descriptor, name = tempfile.mkstemp()
-        with os.fdopen(descriptor, "w") as handle:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(body)
         try:
             post_comment(str(issue), name, "IMPLEMENTATION")

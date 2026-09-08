@@ -9,7 +9,7 @@ from _gh_replay import GitHubHostTest
 from _support import FileBackendTest
 
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.hosts.code_host.github import GitHubCodeHost
+from pdlc.hosts.lib.github.code_host import GitHubCodeHost
 from pdlc.internal.stack import stack_entry_pr, task_branch_name
 
 

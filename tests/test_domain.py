@@ -11,7 +11,7 @@ from pdlc.domain.completion_evidence import parse_completion_report, undispositi
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
-from pdlc.hosts.github_common import neutralize_refs
+from pdlc.hosts.lib.github.transport import neutralize_refs
 
 GOOD_VERIFICATION = """## Verification Run Results
 

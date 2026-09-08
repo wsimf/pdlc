@@ -39,9 +39,9 @@ class VcsFreshnessTests(unittest.TestCase):
         self.assertTrue(is_stale(ordinary, files_touched_by(ordinary)))
 
     def test_merge_commit_files_are_supported(self):
-        base = self.commit("base.txt", "base")
+        self.commit("base.txt", "base")
         self.git("git", "checkout", "-qb", "side")
-        side = self.commit("side.txt", "side")
+        self.commit("side.txt", "side")
         self.git("git", "checkout", "-q", "-")
         self.commit("main.txt", "main")
         self.git("git", "merge", "--no-ff", "-qm", "merge", "side")

@@ -1,17 +1,19 @@
 """GitHub work-item backend: the PDLC record is a GitHub Issue, its state is a
 GitHub Project (v2) item, and its delivery tasks are sub-issues.
 
-Most operations delegate to the established github_project / github_issues
+Most operations delegate to the established project / issues
 helpers; this class only gives them the WorkItemBackend shape and owns the
 raw body write and record creation.
 """
 
 from __future__ import annotations
 
-import pdlc.hosts.github_issues as github_issues
-import pdlc.hosts.github_pr_registry as pr_registry
-import pdlc.hosts.github_project as github_project
-from pdlc.hosts.github_common import (
+from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+
+import pdlc.hosts.lib.github.issues as github_issues
+import pdlc.hosts.lib.github.pr_registry as pr_registry
+import pdlc.hosts.lib.github.project as github_project
+from pdlc.hosts.lib.github.transport import (
     body_file,
     repo_args,
     run_gh,
@@ -20,7 +22,7 @@ from pdlc.hosts.github_common import (
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.workitem_host.base import CommentPage, QueueItemSummary, WorkItemBackend
+from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
 
 
 class GitHubWorkItemBackend(WorkItemBackend):
@@ -28,8 +30,8 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     # --- resolution ---
 
-    def resolve(self, ref: str) -> dict:
-        item = github_project.item_for_issue(ref)
+    def resolve(self, ref: str) -> WorkItem:
+        item = github_project.item_for_issue(ref if ref.isdigit() else github_project.issue_for_slug(ref))
         body = item.get("issueBody") or ""
         return {**item, "issueBody": pr_registry.strip(body), "prs": pr_registry.prs(body)}
 
@@ -65,34 +67,37 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     # --- comments ---
 
-    def comments(self, ref: str) -> list[dict]:
+    def comments(self, ref: str) -> list[Comment]:
         return github_issues.comments_for_issue(ref)
 
     def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
         return github_issues.comments_page(ref, page, per_page)
 
     def post_comment(self, ref: str, body: str) -> str:
-        return github_issues.post_comment(str(ref), body, None)
+        return github_issues.post_comment(str(ref), body)
 
     def post_blocker(self, ref: str, body: str) -> str:
         # No dedicated blocker surface on GitHub yet — the PDLC-DECISION marker
         # and the Decision Required gate carry the signal. Revisit with a pinned
         # comment or a label once that is worth the extra API calls.
-        return github_issues.post_comment(str(ref), body, None)
+        return github_issues.post_comment(str(ref), body)
 
     # --- delivery tasks ---
 
-    def tasks(self, ref: str) -> list[dict]:
+    def tasks(self, ref: str) -> list[Task]:
         return github_issues.subissues_for(ref)
 
-    def tasks_by_number(self, numbers: list[str]) -> list[dict]:
+    def tasks_by_number(self, numbers: list[str]) -> list[Task]:
         return github_issues.tasks_by_number(numbers)
 
-    def upsert_tasks(self, parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
+    def upsert_tasks(self, parent: str, tasks: list[TaskInput], existing: list[Task]) -> list[TaskPublication]:
         return github_issues.upsert_tasks(parent, tasks, existing)
 
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
+
+    def task_pr_numbers(self, ref: str) -> list[int]:
+        return sorted({number for task in github_issues.subissues_for(ref, include_comments=False) for number in task["prs"]})
 
     # --- attached pull requests ---
 
@@ -112,7 +117,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     # --- creation ---
 
-    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> CreatedRecord:
         work_type = self._validated_work_type(work_type)
         if work_type is not WorkType.FEATURE:
             raise PdlcError(f"GitHub creation is unavailable for work type: {work_type.value}")

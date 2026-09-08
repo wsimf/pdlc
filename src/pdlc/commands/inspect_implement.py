@@ -65,12 +65,13 @@ from __future__ import annotations
 import argparse
 import sys
 
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.internal.reporting import older_comments_notice  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.hosts.code_host import get_code_host  # type: ignore
-from pdlc.internal.stack import stack_entry_pr, task_branch_name  # type: ignore
-from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree  # type: ignore
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.internal.reporting import older_comments_notice
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
+from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.stack import stack_entry_pr, task_branch_name
+from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree
 
 _PHASES = {"core": False, "ui": True}
 
@@ -203,8 +204,9 @@ def inspect(issue: str, task_filter: str | None, phase: bool | None) -> str:
     return "\n".join(sections) + "\n"
 
 
-def main() -> int:
-    raw = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw = command_args
     if wants_help(raw):
         print_help(__doc__)
         return 0

@@ -15,23 +15,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
-from pdlc.internal.complete_transition import complete_transition, prepare_transition  # type: ignore
-from pdlc.internal.attachments import parse_attachment_arguments  # type: ignore
-from pdlc.internal.workitem import attach_pr  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
-
-
-def _read(label: str, source: str) -> str:
-    path, is_temporary = evidence_source(label, source)
-    try:
-        return path.read_text()
-    finally:
-        if is_temporary:
-            path.unlink(missing_ok=True)
+from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.complete_transition import complete_transition, prepare_transition
+from pdlc.internal.attachments import parse_attachment_arguments
+from pdlc.internal.workitem import attach_pr
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
 
 
 def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: list[dict]) -> dict:
@@ -40,8 +31,8 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
 
     publication = prepare_transition(issue, "Testing")
     body = (
-        f"{_read('evidence', evidence).rstrip()}\n\n"
-        f"## Traceability\n\n{_read('--traceability', traceability).strip()}\n"
+        f"{read_evidence_text('evidence', evidence).rstrip()}\n\n"
+        f"## Traceability\n\n{read_evidence_text('--traceability', traceability).strip()}\n"
     )
     pull_request = get_code_host().ensure_pull_request_linked(issue)
     attach_pr(issue, pull_request["number"])
@@ -50,8 +41,9 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
     return result
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

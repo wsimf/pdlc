@@ -13,17 +13,18 @@ README.md); this backend never creates or probes them.
 
 from __future__ import annotations
 
+from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
-import pdlc.hosts.azure_workitems as azure
+import pdlc.hosts.lib.azure.workitems as azure
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import TASK_ID_PATTERN
+from pdlc.domain.model import TASK_ID_PATTERN, TASK_TITLE_PATTERN
 from pdlc.domain.workflow import WorkType
-from pdlc.hosts.azure_common import run_az
-from pdlc.hosts.workitem_host.base import CommentPage, QueueItemSummary, WorkItemBackend
+from pdlc.hosts.lib.azure.transport import run_az
+from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
 
 DEFAULT_RECORD_TYPE = "User Story"
 DEFAULT_CLOSED_STATE = "Closed"
@@ -81,6 +82,15 @@ def _work_type(fields: dict) -> str:
     return name.strip().lower()
 
 
+def _comment_view(comment: dict) -> Comment:
+    return {
+        "body": comment.get("text") or "",
+        "createdAt": comment.get("createdDate") or "",
+        "url": comment.get("url") or "",
+        "author": {"login": (comment.get("createdBy") or {}).get("uniqueName") or ""},
+    }
+
+
 class AzureWorkItemBackend(WorkItemBackend):
     capabilities = {"subissue_graph", "queue_scan"}
 
@@ -114,7 +124,7 @@ class AzureWorkItemBackend(WorkItemBackend):
             "workType": _work_type(fields),
         }
 
-    def resolve(self, ref: str) -> dict:
+    def resolve(self, ref: str) -> WorkItem:
         return self._record_view(self._item(ref))
 
     def queue_items(self) -> list[QueueItemSummary]:
@@ -167,28 +177,12 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     # --- comments ---
 
-    def comments(self, ref: str) -> list[dict]:
-        return [
-            {
-                "body": comment.get("text") or "",
-                "createdAt": comment.get("createdDate") or "",
-                "url": comment.get("url") or "",
-                "author": {"login": (comment.get("createdBy") or {}).get("uniqueName") or ""},
-            }
-            for comment in azure.comments(azure.numeric(ref))
-        ]
+    def comments(self, ref: str) -> list[Comment]:
+        return [_comment_view(comment) for comment in azure.comments(azure.numeric(ref))]
 
     def comments_page(self, ref: str, page: int = 1, per_page: int = 100) -> CommentPage:
         result = azure.comments_page(azure.numeric(ref), page, per_page)
-        comments = [
-            {
-                "body": comment.get("text") or "",
-                "createdAt": comment.get("createdDate") or "",
-                "url": comment.get("url") or "",
-                "author": {"login": (comment.get("createdBy") or {}).get("uniqueName") or ""},
-            }
-            for comment in result.get("comments") or []
-        ]
+        comments = [_comment_view(comment) for comment in result.get("comments") or []]
         total = int(result.get("totalCount") or 0)
         return CommentPage(comments, page, per_page, total, bool(result.get("continuationToken")))
 
@@ -227,13 +221,13 @@ class AzureWorkItemBackend(WorkItemBackend):
         comments = _gather(azure.comments, [int(item["id"]) for item in items])
         return [self._task_view(item, batch) for item, batch in zip(items, comments)]
 
-    def tasks(self, ref: str) -> list[dict]:
+    def tasks(self, ref: str) -> list[Task]:
         return self._task_views(azure.children(self._record_id(ref)))
 
-    def tasks_by_number(self, numbers: list[str]) -> list[dict]:
+    def tasks_by_number(self, numbers: list[str]) -> list[Task]:
         return self._task_views(_gather(azure.show, [azure.numeric(number) for number in numbers]))
 
-    def upsert_tasks(self, parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
+    def upsert_tasks(self, parent: str, tasks: list[TaskInput], existing: list[Task]) -> list[TaskPublication]:
         parent_id = self._record_id(parent)
         by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
         return [
@@ -247,9 +241,24 @@ class AzureWorkItemBackend(WorkItemBackend):
         is still the same task."""
         task_id = task["id"]
         full_title = f"WORK-{parent_id}-{task_id} {task['title']}"
-        body_text = task.get("bodyText")
-        if body_text is None:
-            body_text = Path(task["body"]).read_text()
+        body_text = task["bodyText"]
+
+        recovered = False
+        if match is None:
+            candidates = [
+                item for item in azure.tasks_with_identity(parent_id, task_id)
+                if (identity := TASK_TITLE_PATTERN.match(_text(item.get("fields") or {}, azure.TITLE_FIELD)))
+                and identity.group(1) == str(parent_id) and identity.group(2) == task_id
+            ]
+            if len(candidates) > 1:
+                raise PdlcError(f"multiple Azure tasks carry stable identity WORK-{parent_id}-{task_id}")
+            if candidates:
+                candidate = candidates[0]
+                existing_parent = (candidate.get("fields") or {}).get(azure.PARENT_FIELD)
+                if existing_parent and int(existing_parent) != parent_id:
+                    raise PdlcError(f"task {candidate['id']} belongs to another parent")
+                match = self._task_view(candidate, [])
+                recovered = not existing_parent
 
         if match:
             number = match["number"]
@@ -271,6 +280,9 @@ class AzureWorkItemBackend(WorkItemBackend):
             azure.add_parent(number, parent_id)
             action = "created"
 
+        if recovered:
+            azure.add_parent(number, parent_id)
+
         return {
             "action": action, "taskId": task_id, "number": number,
             "title": full_title, "url": azure.item_url(number),
@@ -278,6 +290,10 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     def close_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_closed_state())
+
+    def task_pr_numbers(self, ref: str) -> list[int]:
+        items = azure.children(self._record_id(ref), ("System.Id", azure.PRS_FIELD))
+        return sorted({number for item in items for number in _parse_prs(item.get("fields") or {})})
 
     # --- attached pull requests ---
 
@@ -297,7 +313,7 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     # --- creation ---
 
-    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+    def create(self, title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> CreatedRecord:
         work_type = self._validated_work_type(work_type)
         if work_type is not WorkType.FEATURE:
             raise PdlcError(f"Azure creation is unavailable for work type: {work_type.value}")

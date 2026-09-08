@@ -30,17 +30,19 @@ from __future__ import annotations
 
 import os
 import sys
+from pdlc.config import Config
 import tempfile
 import time
 from pathlib import Path
 
 
-from pdlc.internal.ci_gate import peek_ci_state  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help  # type: ignore
-from pdlc.domain.model import blocked_reason  # type: ignore
-from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State  # type: ignore
-from pdlc.internal.reporting import yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.ci_gate import peek_ci_state
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help
+from pdlc.domain.model import blocked_reason
+from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State
+from pdlc.internal.reporting import yaml_front_matter
+from pdlc.internal.workitem import (
     is_stage_skipped,
     item_gate,
     item_issue,
@@ -98,7 +100,7 @@ def _advance_past_skips(item: dict, pipeline: Pipeline) -> dict:
         issue = item_issue(item)
 
         descriptor, name = tempfile.mkstemp()
-        with os.fdopen(descriptor, "w") as handle:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(f"{state.stage} skipped (declared in Skipped States).\n")
         try:
             post_comment(issue, name, "SKIPPED")
@@ -191,10 +193,11 @@ def next_once(selector: str | None) -> dict:
 # retrying those would hide a real failure. Each wait and the final give-up are
 # printed to stderr so the caller can see why the loop returned.
 def loop_(selector: str | None) -> tuple[dict, int | None]:
-    max_attempts = int(os.environ.get("PDLC_MAX_ATTEMPTS", "5"))
-    delay = int(os.environ.get("PDLC_INITIAL_DELAY_SECONDS", "60"))
-    max_delay = int(os.environ.get("PDLC_MAX_DELAY_SECONDS", "900"))
-    no_sleep = bool(os.environ.get("PDLC_NO_SLEEP"))
+    config = Config.from_environment()
+    max_attempts = config.max_attempts
+    delay = config.initial_delay_seconds
+    max_delay = config.max_delay_seconds
+    no_sleep = config.no_sleep
 
     result: dict = {"action": "none", "reason": "no PDLC work item is currently available"}
     for attempt in range(1, max_attempts + 1):
@@ -282,8 +285,9 @@ def render(result: dict, *, attempts: int | None = None) -> str:
     return f"{front}\n\n# Next Action\n\n{instruction}\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if any(arg in ("-h", "--help") for arg in args):
         print_help(__doc__)
         return 0

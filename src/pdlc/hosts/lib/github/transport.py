@@ -1,43 +1,24 @@
-"""Shared primitives for the pdlc `gh`/GraphQL helpers: process execution and
-repo/project configuration. No PDLC vocabulary lives here — see
-pdlc_common.py for the error type, evidence markers, stage order, and local
-file/stdin handling.
-"""
+"""GitHub CLI transport, repository coordinates, and safe body files."""
 
 from __future__ import annotations
 
-import json
-import os
 import re
-import shutil
-import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.hosts.lib.process import parse_json, run_process
 from pdlc.config import get_config
 
 
-def _require_command(name: str) -> None:
-    if shutil.which(name) is None:
-        raise PdlcError(f"required command not found: {name}")
-
-
 def run_gh(args: Sequence[str], *, input: str | None = None) -> str:
-    """Runs `gh <args>`, raising PdlcError with gh's stderr on failure."""
-    _require_command("gh")
-    result = subprocess.run(
-        ["gh", *args], input=input, capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        raise PdlcError(result.stderr.strip() or f"gh {' '.join(args)} failed")
-    return result.stdout
+    return run_process(["gh", *args], input=input)
 
 
 def run_gh_json(args: Sequence[str], **kwargs: Any) -> Any:
-    return json.loads(run_gh(args, **kwargs))
+    return parse_json(run_gh(args, **kwargs), "gh")
 
 
 def run_graphql(query: str, **variables: Any) -> dict:
@@ -100,7 +81,7 @@ def body_file(text: str) -> Iterator[str]:
     Every GitHub-backend write of agent-authored body or comment content goes
     through here so the neutralization has a single chokepoint.
     """
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md") as handle:
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as handle:
         handle.write(neutralize_refs(text))
         path = handle.name
     try:

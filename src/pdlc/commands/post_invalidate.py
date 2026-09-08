@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
-from pdlc.internal.invalidation import invalidate_stage  # type: ignore
-from pdlc.internal.workitem import item_for_issue  # type: ignore
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import evidence_source, print_help, wants_help
+from pdlc.internal.invalidation import invalidate_stage
+from pdlc.internal.workitem import item_for_issue
 
 
 def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[dict]) -> dict:
@@ -33,7 +33,7 @@ def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[di
     # to Stale. Verification rework loops are tracked separately by PDLC-REVIEW.
     path, is_temporary = evidence_source("evidence", evidence)
     try:
-        evidence_body = path.read_text()
+        evidence_body = path.read_text(encoding="utf-8")
     finally:
         if is_temporary:
             path.unlink(missing_ok=True)
@@ -44,8 +44,9 @@ def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[di
     return {"invalidated": True, "itemId": record["id"], "work_item": int(issue), "stage": stage, "gateState": "Stale", "attachments": attachments}
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

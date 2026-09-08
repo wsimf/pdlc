@@ -39,10 +39,11 @@ import sys
 from pathlib import Path
 
 
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, load_json_array, print_help, require_file, wants_help  # type: ignore
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.domain.lifecycle import NotFound, PdlcError
+from pdlc.internal.inputs import load_json_array, print_help, require_file, wants_help
 from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, Lifecycle, WorkType
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.workitem import (
     append_to_section,
     create_work_item,
     find_marked_comments,
@@ -91,10 +92,10 @@ def _defer(origin: str, stage: str, defer: dict) -> dict:
     try:
         existing = resolve_item(slug)
         return {"number": int(existing["content"]["number"]), "title": title, "reused": True}
-    except PdlcError:
+    except NotFound:
         pass
 
-    child = create_work_item(title, Path(defer["body"]).read_text(), slug, WorkType.FEATURE)
+    child = create_work_item(title, Path(defer["body"]).read_text(encoding="utf-8"), slug, WorkType.FEATURE)
     number = int(child["number"])
     initial_stage = FEATURE_PIPELINE.active_stage_names[0]
     set_state(child["id"], initial_stage, Gate.PENDING.value, Lifecycle.PLANNING.value)
@@ -164,8 +165,9 @@ def post_decision(issue: str, manifest_path: Path, attachment_inputs: list[dict]
     }
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

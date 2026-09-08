@@ -72,11 +72,11 @@ import tempfile
 from pathlib import Path
 
 
-from pdlc.config import get_capabilities  # type: ignore
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task  # type: ignore
-from pdlc.domain.lifecycle import PdlcError  # type: ignore
-from pdlc.internal.reporting import older_comments_notice, yaml_front_matter  # type: ignore
-from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number, user_comments_markdown  # type: ignore
+from pdlc.config import get_capabilities
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
+from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number, user_comments_markdown
 
 
 # The implementer slot a task's own `isUI` routes to. Resolved here, on the task,
@@ -129,14 +129,15 @@ def render(numbers: list[str]) -> str:
     return "\n\n".join(rendered) + "\n"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description="Inspect one or more PDLC delivery tasks")
     parser.add_argument("numbers", nargs="+", metavar="DELIVERY_TASK")
     parser.add_argument(
         "--file", action="store_true",
         help="write to {TEMPDIR}/{repo}-task-{numbers}.md and print that path instead of stdout",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(command_args)
 
     try:
         output = render(args.numbers)
@@ -147,7 +148,7 @@ def main() -> int:
     if args.file:
         suffix = "-".join(args.numbers)
         path = Path(tempfile.gettempdir()) / f"{ref_label()}-task-{suffix}.md"
-        path.write_text(output)
+        path.write_text(output, encoding="utf-8")
         print(path)
     else:
         sys.stdout.write(output)

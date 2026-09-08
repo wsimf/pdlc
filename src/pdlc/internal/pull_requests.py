@@ -9,9 +9,11 @@ number list into full PR dicts via the code host.
 
 from __future__ import annotations
 
+from pdlc.domain.records import validate_pull_request
+from pdlc.hosts.workitem_host import get_backend
 from pdlc.hosts.code_host import get_code_host
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.workitem import resolve_item, task_tree
+from pdlc.internal.workitem import resolve_item
 
 
 def registered_pr_numbers(ref: str, *, record: dict | None = None, tasks: list[dict] | None = None) -> list[int]:
@@ -19,8 +21,11 @@ def registered_pr_numbers(ref: str, *, record: dict | None = None, tasks: list[d
     delivery tasks, ascending and de-duplicated."""
     record = record or resolve_item(ref)
     numbers: set[int] = set(record.get("prs") or [])
-    for task in tasks if tasks is not None else task_tree(ref):
-        numbers.update(task.get("prs") or [])
+    if tasks is None:
+        numbers.update(get_backend().task_pr_numbers(ref))
+    else:
+        for task in tasks:
+            numbers.update(task.get("prs") or [])
     return sorted(numbers)
 
 
@@ -31,4 +36,4 @@ def record_pull_requests(ref: str, *, record: dict | None = None, tasks: list[di
     resolved = get_code_host().pull_requests_by_number(numbers) if numbers else []
     if {pr.get("number") for pr in resolved} != set(numbers):
         raise PdlcError("code host returned fewer pull requests than the registry; refusing to continue")
-    return resolved
+    return [validate_pull_request(pr) for pr in resolved]

@@ -104,10 +104,9 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 
-from pdlc.internal.workitem import (  # type: ignore
+from pdlc.internal.workitem import (
     append_to_section,
     item_for_issue,
     post_blocker,
@@ -115,10 +114,11 @@ from pdlc.internal.workitem import (  # type: ignore
     set_gate,
     workflow_for_item,
 )
-from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number  # type: ignore
-from pdlc.internal.invalidation import bounce_stage  # type: ignore
-from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, evidence_source, print_help, wants_help  # type: ignore
+from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.internal.invalidation import bounce_stage
+from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
 from pdlc.domain.workflow import Event, Outcome
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
@@ -133,21 +133,7 @@ VERIFICATION_OUTCOMES = {
 def _lines_from(source: str | None) -> list[str]:
     if not source:
         return []
-    path, is_temporary = evidence_source("findings", source)
-    try:
-        return [line.strip() for line in path.read_text().splitlines() if line.strip()]
-    finally:
-        if is_temporary:
-            path.unlink(missing_ok=True)
-
-
-def _read_source(label: str, source: str) -> str:
-    path, is_temporary = evidence_source(label, source)
-    try:
-        return path.read_text()
-    finally:
-        if is_temporary:
-            path.unlink(missing_ok=True)
+    return [line.strip() for line in read_evidence_text("findings", source).splitlines() if line.strip()]
 
 
 def _fixed_bullet(line: str) -> str:
@@ -199,11 +185,11 @@ def post_verify(
     except ValueError as error:
         raise PdlcError(str(error)) from None
 
-    report_text = _read_source("report", report).strip()
+    report_text = read_evidence_text("report", report).strip()
     if not report_text:
         raise PdlcError("report is empty")
 
-    decision_body = _read_source("--decision", decision) if is_decision else ""
+    decision_body = read_evidence_text("--decision", decision) if is_decision else ""
     if is_decision and DECISION_HEADING not in decision_body:
         raise PdlcError(f"a decision-required verification must include a '{DECISION_HEADING}' section")
 
@@ -274,8 +260,9 @@ def post_verify(
     return {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": target.gate.value, "attachments": attachments}
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

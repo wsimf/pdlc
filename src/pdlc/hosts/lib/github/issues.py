@@ -1,17 +1,14 @@
 """GitHub Issues transport for the GitHub work-item backend: delivery
 sub-issues (read, upsert, link) and evidence comments. Pull requests belong
 to `code_host`; body section editing and evidence parsing are pure and live
-in `pdlc_model`. Everything here is reached only through
-`workitem_host/github.py`.
+in `pdlc.domain.model`. Everything here is reached only through
+`workitem_backend.py`.
 """
 
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
 
-from pdlc.hosts.github_common import (
+from pdlc.hosts.lib.github.transport import (
     body_file,
     neutralize_refs,
     owner_repository,
@@ -20,14 +17,12 @@ from pdlc.hosts.github_common import (
     run_gh_json,
     run_graphql,
 )
-import pdlc.hosts.github_pr_registry as pr_registry
-from pdlc.hosts.github_project import item_for_issue
-from pdlc.domain.lifecycle import PdlcError, read_body_source
+import pdlc.hosts.lib.github.pr_registry as pr_registry
+from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import (
     TASK_ID_PATTERN,
     TASK_TITLE_PATTERN,
     comment_bodies,
-    compose_comment,
 )
 
 # Delivery task sub-issues of a parent Issue: enough to match one to its stable
@@ -116,22 +111,16 @@ def link_subissues(parent: int | str, children: list[int | str]) -> None:
 # that has none; comments is the list of comment body strings, from which the
 # task's plan and implementation progress are derived. `body` is the human
 # content only — the registry block is split out into `prs`.
-def subissues_for(issue: str) -> list[dict]:
+def subissues_for(issue: str, *, include_comments: bool = True) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
 
     owner, repository = owner_repository()
 
-    fixture = os.environ.get("PDLC_SUBISSUES_FILE")
-    if fixture:
-        with open(fixture) as handle:
-            nodes = json.load(handle)
-        return [
-            pr_registry.view({**node, "comments": comment_bodies(node.get("comments"))})
-            for node in nodes
-        ]
-
-    data = run_graphql(SUBISSUES_QUERY, owner=owner, repo=repository, number=int(issue))
+    query = SUBISSUES_QUERY
+    if not include_comments:
+        query = query.replace("comments(last: 100) { nodes { body } totalCount pageInfo { hasPreviousPage startCursor } }", "")
+    data = run_graphql(query, owner=owner, repo=repository, number=int(issue))
     nodes = data["data"]["repository"]["issue"]["subIssues"]["nodes"]
 
     result = []
@@ -153,14 +142,12 @@ def _upsert_task(
     parent: str,
     task_id: str,
     title: str,
-    body_path: str,
+    body_text: str,
     match: dict | None,
     *,
-    body_text: str | None = None,
     link_created: bool = True,
 ) -> dict:
     full_title = f"WORK-{parent}-{task_id} {title}"
-    body_text = body_text if body_text is not None else Path(body_path).read_text()
 
     if match:
         number = match["number"]
@@ -194,8 +181,6 @@ def _upsert_task(
 
 
 def _recover_unlinked_tasks(parent: str, task_ids: list[str], existing: list[dict]) -> list[dict]:
-    if os.environ.get("PDLC_ITEMS_FILE"):
-        return []
     existing_ids = {task.get("taskId") for task in existing}
     missing_ids = set(task_ids) - existing_ids
     if not missing_ids:
@@ -231,9 +216,8 @@ def upsert_tasks(parent: str, tasks: list[dict], existing: list[dict]) -> list[d
                 parent,
                 task["id"],
                 task["title"],
-                task["body"],
+                task["bodyText"],
                 existing_by_id.get(task["id"]),
-                body_text=task.get("bodyText"),
                 link_created=False,
             )
             results.append(result)
@@ -284,32 +268,14 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
 
 # Issue evidence
 
-# Posts an Issue comment from a literal string, an existing file's contents,
-# or `-` for stdin. With a marker, it opens with a PDLC-<MARKER> stamp so
-# orientation can tell a durable PDLC record from ordinary Issue chatter —
-# require_marker validates the vocabulary (see pdlc_common.py) and a body
-# that already starts with one is refused. Without a marker it posts as-is,
-# for ad-hoc comments that aren't PDLC evidence.
-def post_comment(issue: str, text_or_file: str, marker: str | None = None) -> str:
-    content_text = compose_comment(marker, read_body_source(text_or_file, label="evidence"))
-    with body_file(content_text) as body_path:
+def post_comment(issue: str, body: str) -> str:
+    with body_file(body) as body_path:
         return run_gh(["issue", "comment", str(issue), *repo_args(), "--body-file", body_path])
 
 
 def comments_for_issue(issue: str) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
-    if os.environ.get("PDLC_ITEMS_FILE"):
-        comments = item_for_issue(issue).get("comments") or []
-        return [
-            comment if isinstance(comment, dict) else {
-                "body": comment,
-                "createdAt": "1970-01-01T00:00:00Z",
-                "url": "",
-                "author": {"login": "fixture"},
-            }
-            for comment in comments
-        ]
     owner, repository = owner_repository()
     pages = run_gh_json([
         "api", "--paginate", "--slurp",
@@ -331,11 +297,6 @@ def comments_page(issue: str, page: int = 1, per_page: int = 100):
     from pdlc.hosts.workitem_host.base import CommentPage
     if not issue.isdigit() or page < 1 or per_page != 100:
         raise PdlcError("comments page must be >= 1 and use 100 comments per page")
-    if os.environ.get("PDLC_ITEMS_FILE"):
-        comments = comments_for_issue(issue)
-        start = (page - 1) * per_page
-        selected = list(reversed(comments))[start:start + per_page]
-        return CommentPage(selected, page, per_page, len(comments), start + len(selected) < len(comments))
     owner, repository = owner_repository()
     count_query = "query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){issue(number:$number){comments(last:100){totalCount pageInfo{hasPreviousPage startCursor}}}}}"
     total = run_graphql(count_query, owner=owner, repo=repository, number=int(issue))["data"]["repository"]["issue"]["comments"]["totalCount"]

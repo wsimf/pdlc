@@ -12,18 +12,19 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
-from pdlc.internal.complete_transition import complete_transition, prepare_transition  # type: ignore
-from pdlc.internal.attachments import parse_attachment_arguments  # type: ignore
-from pdlc.internal.workitem import attach_pr  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
+from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.complete_transition import complete_transition, prepare_transition
+from pdlc.internal.attachments import parse_attachment_arguments
+from pdlc.internal.workitem import attach_pr
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
 
 
-def main() -> int:
-    raw_args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = command_args
     if wants_help(raw_args):
         print_help(__doc__)
         return 0

@@ -20,7 +20,7 @@ from __future__ import annotations
 import sys
 
 from pdlc.config import CAPABILITY_SLOTS, get_capabilities
-from pdlc.domain.lifecycle import print_help
+from pdlc.internal.inputs import print_help
 
 # What an agent slot's sub-agent is expected to do, shown only in the dump.
 _AGENT_SLOT_NOTE = {
@@ -87,8 +87,9 @@ def _dump() -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if any(a in ("-h", "--help") for a in args):
         print_help(__doc__)
         return 0

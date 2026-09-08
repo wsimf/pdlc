@@ -2,7 +2,6 @@
 bounce, and the guards on `--decision` / `--bounce` / structurally invalid
 clean evidence."""
 
-import json
 
 from _support import FileBackendTest
 

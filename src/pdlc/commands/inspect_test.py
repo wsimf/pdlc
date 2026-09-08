@@ -35,14 +35,14 @@ implemented." when there's nothing in scope.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 
-from pdlc.hosts.code_host import get_code_host  # type: ignore
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown  # type: ignore
-from pdlc.domain.lifecycle import PdlcError, print_help, wants_help  # type: ignore
-from pdlc.internal.pull_requests import record_pull_requests  # type: ignore
-from pdlc.internal.workitem import due_next, resolve_item, task_tree  # type: ignore
+from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.workitem import due_next, resolve_item, task_tree
 
 
 # A PR's touched files, straight from the code host rather than guessed from
@@ -110,8 +110,9 @@ def inspect(issue: str) -> str:
     return "\n".join(sections) + "\n"
 
 
-def main() -> int:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    args = command_args
     if wants_help(args):
         print_help(__doc__)
         return 0

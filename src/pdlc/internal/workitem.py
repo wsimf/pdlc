@@ -1,14 +1,15 @@
 """The one import surface for the `pdlc-*` scripts to reach a PDLC record.
 
 Pure logic (section editing, task classification, routing, field accessors) is
-re-exported straight from `pdlc_model`. Everything that touches the backing
+re-exported straight from `pdlc.domain.model`. Everything that touches the backing
 store goes through `workitem_host.get_backend()`, so the scripts never name a
 backend and a swap is one env var.
 """
 
 from __future__ import annotations
 
-from pdlc.domain.lifecycle import PdlcError, read_body_source as _read_source
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.inputs import read_body_source as _read_source
 from pdlc.domain.workflow import Lifecycle, PIPELINES, Pipeline, State, WorkType
 from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     CORE_TAG,
@@ -34,6 +35,7 @@ from pdlc.domain.model import timeline_markdown as _model_timeline_markdown
 from pdlc.domain.model import user_comments as _model_user_comments
 from pdlc.domain.model import user_comments_markdown as _model_user_comments_markdown
 from pdlc.domain.model import verification_evidence_comments as _model_verification_evidence_comments
+from pdlc.domain.records import Comment, CreatedRecord, Task, TaskPublication, WorkItem, validate_work_item, validate_task, validate_task_inputs
 from pdlc.hosts.workitem_host import get_backend
 from pdlc.hosts.workitem_host.base import QueueItemSummary
 
@@ -42,8 +44,8 @@ UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verificat
 
 # --- resolution / state ---
 
-def resolve_item(ref: str) -> dict:
-    return get_backend().resolve(str(ref))
+def resolve_item(ref: str) -> WorkItem:
+    return validate_work_item(get_backend().resolve(str(ref)))
 
 
 item_for_issue = resolve_item
@@ -148,7 +150,7 @@ def write_body(ref: str, body: str) -> None:
 
 # --- comments ---
 
-def comments_for_issue(ref: str) -> list[dict]:
+def comments_for_issue(ref: str) -> list[Comment]:
     return get_backend().comments(str(ref))
 
 def comments_page(ref: str, page: int = 1):
@@ -217,15 +219,15 @@ def timeline_compact(ref: str, file_path: str, *, comments: list[dict] | None = 
 
 # --- delivery tasks ---
 
-def subissues_for(ref: str) -> list[dict]:
-    return [classify_task(task) for task in get_backend().tasks(str(ref))]
+def subissues_for(ref: str) -> list[Task]:
+    return [classify_task(validate_task(task)) for task in get_backend().tasks(str(ref))]
 
 
 task_tree = subissues_for
 
 
-def tasks_by_number(numbers: list[str]) -> list[dict]:
-    return [classify_task(task) for task in get_backend().tasks_by_number([str(n) for n in numbers])]
+def tasks_by_number(numbers: list[str]) -> list[Task]:
+    return [classify_task(validate_task(task)) for task in get_backend().tasks_by_number([str(n) for n in numbers])]
 
 
 def require_all_subissues_closed(ref: str) -> None:
@@ -234,8 +236,8 @@ def require_all_subissues_closed(ref: str) -> None:
         raise PdlcError(f"open delivery tasks prevent this transition: {','.join(open_numbers)}")
 
 
-def upsert_tasks(parent: str, tasks: list[dict], existing: list[dict]) -> list[dict]:
-    return get_backend().upsert_tasks(str(parent), tasks, existing)
+def upsert_tasks(parent: str, tasks: list[dict], existing: list[Task]) -> list[TaskPublication]:
+    return get_backend().upsert_tasks(str(parent), validate_task_inputs(tasks), existing)
 
 
 def close_task(task_ref: str) -> None:
@@ -259,5 +261,5 @@ def attached_prs(ref: str) -> list[int]:
 
 # --- creation ---
 
-def create_work_item(title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> dict:
+def create_work_item(title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> CreatedRecord:
     return get_backend().create(title, body, slug, work_type)

@@ -4,12 +4,31 @@ import sys
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from unittest.mock import patch
+from types import SimpleNamespace
 
-from pdlc.cli import _options, _resolve, _usage, main
+from pdlc.cli import _options, _resolve, main
 from pdlc.config import ConfigurationError
 
 
 class CliTests(unittest.TestCase):
+    def test_explicit_argv_does_not_leak_environment_or_cached_hosts(self):
+        from pdlc.hosts.workitem_host import get_backend
+
+        seen = []
+        original_argv = sys.argv
+
+        def command(*, argv):
+            seen.append((type(get_backend()).__name__, argv))
+            self.assertIs(sys.argv, original_argv)
+            return 0
+
+        with patch.dict(os.environ, {"PDLC_AZURE_ORG": "org", "PDLC_AZURE_PROJECT": "project"}, clear=True), patch("pdlc.cli.load_config"), patch("pdlc.cli.importlib.import_module", return_value=SimpleNamespace(main=command)):
+            self.assertEqual(main(["--backend", "file", "inspect", "7"]), 0)
+            self.assertNotIn("PDLC_BACKEND", os.environ)
+            self.assertEqual(main(["--backend", "azure", "inspect", "8"]), 0)
+            self.assertNotIn("PDLC_BACKEND", os.environ)
+        self.assertEqual(seen, [("FileWorkItemBackend", ["7"]), ("AzureWorkItemBackend", ["8"])])
+
     def test_resolves_post_complete(self):
         module, arguments = _resolve(["post", "complete", "236", "completion.md"])
         self.assertEqual(module, "pdlc.commands.post_complete")
@@ -59,13 +78,13 @@ class CliTests(unittest.TestCase):
             self.assertEqual(main(), 1)
         self.assertIn("unknown command", err.getvalue())
 
-    def test_configuration_errors_are_printed_to_stdout(self):
+    def test_configuration_errors_are_printed_to_stderr(self):
         output = io.StringIO()
         with patch.object(sys, "argv", ["pdlc", "inspect", "236"]):
             with patch(
                 "pdlc.cli.load_config",
                 side_effect=ConfigurationError("configure me"),
-            ), redirect_stdout(output):
+            ), redirect_stderr(output):
                 from pdlc.cli import main
 
                 self.assertEqual(main(), 1)

@@ -49,7 +49,7 @@ class PostWriteAttachmentTests(FileBackendTest):
         self.assertFalse((self.home / "32" / "attachments").exists())
 
     def test_malformed_attachment_metadata_fails_cleanly(self):
-        from pdlc.hosts.attachment_host.file import FileAttachmentHost
+        from pdlc.hosts.lib.file.attachment_host import FileAttachmentHost
 
         directory = self.home / "1" / "attachments"
         directory.mkdir(parents=True)
