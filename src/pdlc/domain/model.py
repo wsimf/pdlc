@@ -186,22 +186,30 @@ def comment_bodies(raw: object) -> list[str]:
     return [item.get("body", "") if isinstance(item, dict) else str(item) for item in raw]
 
 
+# The human-readable part of a delivery task's title: everything after the
+# `WORK-N-TASK-NNN` identity prefix, with the leading `[UI]`/`[CORE]` routing
+# tag left in place. Used as the pull-request title at checkpoint. Falls back to
+# the raw title when the prefix is absent, and to "" when the title is only the
+# prefix.
+def task_title(task: dict) -> str:
+    raw = task.get("title") or ""
+    match = TASK_TITLE_PATTERN.match(raw)
+    return (match.group(3) if match else raw).strip()
+
+
 # Classifies one task's stage progress so callers read flags instead of
 # interpreting bodies and comments themselves.
 def classify_task(task: dict) -> dict:
-    title = task.get("title") or ""
     comments = task.get("comments") or []
     plan_comment = latest_plan_comment(comments)
     has_implementation = has_implementation_comment(comments)
-    title_match = TASK_TITLE_PATTERN.match(title)
-    rest = title_match.group(3) if title_match else title
     return {
         **task,
         "hasPlan": plan_comment is not None,
         "hasImplementation": has_implementation,
         "planComment": plan_comment,
         "needsPlan": task["state"] == "OPEN" and not has_implementation,
-        "isUI": rest.startswith(UI_TAG),
+        "isUI": task_title(task).startswith(UI_TAG),
         # Attached pull requests come from the backend, which owns how they are
         # stored; classification never parses them out of the body.
         "prs": list(task.get("prs") or []),

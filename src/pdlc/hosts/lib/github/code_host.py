@@ -15,6 +15,7 @@ from pdlc.domain.records import PullRequest
 
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.hosts.lib.github.transport import (
+    body_file,
     repo_args,
     run_gh,
     run_gh_json,
@@ -151,6 +152,14 @@ class GitHubCodeHost(CodeHost):
         run_gh(["stack", "sync", "--prune"])
         run_gh(["stack", "submit", "--auto"])
         return self.pull_requests_by_number(self.stack_pr_numbers())
+
+    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+        # `gh pr edit --title --body-file` replaces both fields wholesale. This
+        # runs after `submit_task_stack`, and `gh stack` only writes a PR's title
+        # and body when it first creates the PR, never on a later sync/submit, so
+        # the task's own title and evidence stay the PR's resting state.
+        with body_file(body) as path:
+            run_gh(["pr", "edit", str(number), *repo_args(), "--title", title, "--body-file", path])
 
     @staticmethod
     def stack_pr_numbers() -> list[int]:

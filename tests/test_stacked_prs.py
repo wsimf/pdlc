@@ -3,6 +3,7 @@ registry, the GitHub host's delegation to `gh stack`, and task checkpointing."""
 
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from _gh_replay import GitHubHostTest
@@ -134,6 +135,23 @@ class GitHubStackSubmitTests(GitHubHostTest):
         })
         # A branch with no PR yet is simply absent from the numbers.
         self.assertEqual(self.host.stack_pr_numbers(), [40, 41])
+
+    def test_set_pull_request_content_overwrites_title_and_body(self):
+        captured: list[tuple[list[str], str]] = []
+
+        def edit(args, _input):
+            captured.append((args, Path(args[args.index("--body-file") + 1]).read_text(encoding="utf-8")))
+            return ""
+
+        self.gh.route(lambda args, _input: args[:2] == ["pr", "edit"], edit)
+
+        self.host.set_pull_request_content(148, "[CORE] Persist geometry", "## Implementation\n\nShipped.\n")
+
+        args, body = captured[0]
+        self.assertEqual(args[:3], ["pr", "edit", "148"])
+        self.assertIn("--repo", args)
+        self.assertEqual(args[args.index("--title") + 1], "[CORE] Persist geometry")
+        self.assertEqual(body, "## Implementation\n\nShipped.\n")
 
     def test_missing_extension_is_a_clear_error(self):
         self.gh.gh("extension", "list", response="gh\tsome/other\tv1\n")
@@ -284,6 +302,32 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertEqual(result.json["taskPr"]["number"], 148)
         self.assertEqual(result.json["prs"], [148])
         host.submit_task_stack.assert_called_once_with()
+
+    def test_sets_the_pr_title_and_body_from_the_task_and_evidence(self):
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{
+            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+        }]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+        self.assertEqual(result.code, 0, result.stderr)
+        host.set_pull_request_content.assert_called_once_with(
+            148, "[CORE] Core", "## Implementation\n\nShipped it."
+        )
+
+    def test_pr_content_failure_leaves_the_task_rerunnable(self):
+        self._seed()
+        before = self.task_comments_text(70, 701)
+        host = Mock()
+        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.set_pull_request_content.side_effect = PdlcError("gh pr edit failed")
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"), "--close")
+        self.assertEqual(result.code, 1)
+        self.assertIn("gh pr edit failed", result.stderr)
+        self.assertEqual(self.task_comments_text(70, 701), before)
+        self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
 
     def test_file_backend_reports_no_stack_support_without_mutating_the_task(self):
         self._seed()

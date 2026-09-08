@@ -79,7 +79,7 @@ pdlc post implement-task DELIVERY_TASK - --close <<'EOF'
 EOF
 ```
 
-This first runs `gh stack sync --prune` and `gh stack submit --auto` — the extension rebases the stack, drops members whose PR has landed, and creates or updates one pull request per branch — then registers this task's PR number on the task; only then does it post the `## Implementation` comment and close the task. A stack-submit failure therefore leaves no comment and no closure — `pdlc inspect implement` still offers the task and a re-run is clean. This task's PR comes back in `taskPr` and its registered numbers in `prs`. It does **not** gate on that PR's checks; CI is reconciled after the stage review, at the `CI Pending` gate.
+This first runs `gh stack sync --prune` and `gh stack submit --auto` — the extension rebases the stack, drops members whose PR has landed, and creates or updates one pull request per branch — then overwrites this task's PR title with the task's own title and its PR body with the summary above, and registers the PR number on the task; only then does it post the `## Implementation` comment and close the task. A failure anywhere in that sequence leaves no comment and no closure — `pdlc inspect implement` still offers the task and a re-run is clean. This task's PR comes back in `taskPr` and its registered numbers in `prs`. It does **not** gate on that PR's checks; CI is reconciled after the stage review, at the `CI Pending` gate.
 
 If the stack submit opened or updated the PR but the run failed before `prs` came back — or you had to open the PR by hand — register it explicitly so later stages see it: `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent). Then re-run `pdlc post implement-task` to land the comment and closure.
 
