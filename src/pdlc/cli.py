@@ -12,9 +12,11 @@ from pdlc.internal.inputs import wants_help
 
 COMMANDS = {
     ("setup",): "pdlc.commands.setup",
-    # Human-only worktree scaffolding; deliberately omitted from `_usage()` and
-    # the agent workflow. Local Git only, so it needs no work-item backend.
+    # Human-only worktree scaffolding / teardown; deliberately omitted from
+    # `_usage()` and the agent workflow. `prepare` is local Git only; `cleanup`
+    # additionally resolves the work item to confirm it is Complete.
     ("prepare",): "pdlc.commands.prepare",
+    ("cleanup",): "pdlc.commands.cleanup",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "comments"): "pdlc.commands.inspect_comments",

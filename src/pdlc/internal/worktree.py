@@ -58,17 +58,22 @@ def default_base_ref() -> str:
     return ref or "HEAD"
 
 
-def existing_worktree(path: Path) -> bool:
-    """True when ``path`` is already registered as a worktree of this repo.
-    Raises when the directory exists but is not a worktree — the driver must
-    clear it themselves rather than have ``prepare`` clobber it."""
+def worktree_registered(path: Path) -> bool:
+    """True when ``path`` is a worktree of this repo, per ``git worktree list``."""
     listing = _git(["worktree", "list", "--porcelain"])
     registered = {
         Path(line[len("worktree ") :]).resolve()
         for line in listing.splitlines()
         if line.startswith("worktree ")
     }
-    if path.resolve() in registered:
+    return path.resolve() in registered
+
+
+def existing_worktree(path: Path) -> bool:
+    """True when ``path`` is already registered as a worktree of this repo.
+    Raises when the directory exists but is not a worktree — the driver must
+    clear it themselves rather than have ``prepare`` clobber it."""
+    if worktree_registered(path):
         return True
     if path.exists():
         raise PdlcError(f"{path} already exists and is not a Git worktree")
@@ -88,13 +93,16 @@ def fetch_base(base_ref: str) -> None:
         print(f"pdlc: could not fetch {base_ref}: {error}", flush=True)
 
 
-def create_worktree(path: Path, branch: str, base_ref: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    exists = subprocess.run(
+def branch_exists(branch: str) -> bool:
+    return subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
         capture_output=True,
     ).returncode == 0
-    if exists:
+
+
+def create_worktree(path: Path, branch: str, base_ref: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if branch_exists(branch):
         _git(["worktree", "add", str(path), branch])
     else:
         _git(["worktree", "add", "-b", branch, str(path), base_ref])
@@ -109,3 +117,34 @@ def run_init_script(path: Path, script: str) -> None:
         raise PdlcError(
             f"init script failed (exit {result.returncode}); worktree left at {path}"
         )
+
+
+# --- cleanup (pdlc cleanup) ---
+
+def stack_branches(slug: str) -> list[str]:
+    """Every local `gh stack` task branch for ``slug`` — the deterministic
+    `pdlc/<slug>/<task-id>` names from `pdlc.internal.stack.task_branch_name`."""
+    if not slug:
+        return []
+    listing = _git(
+        ["for-each-ref", "--format=%(refname:short)", f"refs/heads/pdlc/{slug}/"]
+    )
+    return [line for line in listing.splitlines() if line.strip()]
+
+
+def remove_worktree(path: Path) -> None:
+    """Remove a prepared worktree and prune its admin entry. ``--force`` because
+    a completed tree still carries build artefacts (node_modules, target/…) that
+    would otherwise block removal; the record is verified Complete before this
+    runs. A path that is not a registered worktree is left untouched."""
+    if not worktree_registered(path):
+        if path.exists():
+            raise PdlcError(f"{path} exists but is not a Git worktree; remove it yourself")
+        return
+    _git(["worktree", "remove", "--force", str(path)])
+    _git(["worktree", "prune"])
+
+
+def delete_branch(branch: str) -> None:
+    if branch_exists(branch):
+        _git(["branch", "-D", branch])
