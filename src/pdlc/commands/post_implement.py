@@ -18,6 +18,7 @@ from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.complete_transition import complete_transition, prepare_transition
 from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.workitem import attach_pr
+from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 
@@ -40,8 +41,15 @@ def main(argv: list[str] | None = None) -> int:
     issue, evidence = args
     try:
         publication = prepare_transition(issue, "Implementation")
-        pull_request = get_code_host().ensure_pull_request_linked(issue)
+        code_host = get_code_host()
+        pull_request = code_host.ensure_pull_request_linked(issue)
         attach_pr(issue, pull_request["number"])
+        # Every task PR was opened as a draft while the stack was still being
+        # built; the whole implementation is now claimed done, so take the open
+        # ones out of draft together for human review. Done before the evidence
+        # posts so a failure here leaves the record cleanly republishable.
+        open_prs = [pr["number"] for pr in record_pull_requests(issue) if pr["state"] == "OPEN"]
+        code_host.mark_pull_requests_ready(open_prs)
         result = complete_transition(publication, evidence, attachment_inputs)
         result["pullRequest"] = pull_request
     except PdlcError as error:

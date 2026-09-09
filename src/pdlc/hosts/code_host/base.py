@@ -65,3 +65,15 @@ class CodeHost(ABC):
         evidence rather than the stack mechanism's auto-generated summary. A
         host with no stacked-PR mechanism raises PdlcError, matching
         ``submit_task_stack``; the checkpoint path never reaches it there."""
+
+    @abstractmethod
+    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+        """Take the given pull requests out of draft so humans can review them.
+
+        Called once at ``pdlc post implement`` — after every delivery task is
+        closed and the record enters phase review — for every open PR registered
+        on the record and its tasks, which in the stacked flow is more than one.
+        Must be idempotent: an already-ready PR is left untouched, so a
+        ``Changes Required`` bounce that republishes is safe. A host with no
+        draft concept does nothing; a merged or closed number is skipped by the
+        caller, not raised on here."""

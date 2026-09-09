@@ -136,7 +136,8 @@ record which downstream evidence is invalidated.
   stacked PR per delivery task, and result evidence. `pdlc-implement` lands one
   task per invocation; the parent remains at `Implementation / Pending` while
   any delivery task is open, and only after all task evidence is settled does it
-  enter phase review.
+  enter phase review. Each task PR is opened as a draft; `pdlc post implement`
+  takes the whole open stack out of draft as the record enters phase review.
 - Testing: whole-feature requirement traceability, acceptance coverage, and CI
   evidence across the task PR stack.
 - Verification: claims, runtime behavior, UX journeys, review findings, and

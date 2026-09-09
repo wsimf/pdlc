@@ -92,7 +92,7 @@ Exceptions: none; CI is in flight.
 EOF
 ```
 
-`pdlc post implement` refuses while any delivery task is open, registers the top task PR on the record, posts the evidence, and sets `Review Required`. Leave the stack open — merging it is a driver/review decision. The stage review then lands `CI Pending`, and `pdlc post ci` reconciles the live check rollup across every PR registered on the record and its tasks — a red result routes back here at `Changes Required`.
+`pdlc post implement` refuses while any delivery task is open, registers the top task PR on the record, takes every open PR registered on the record and its tasks out of draft so humans can review the stack, posts the evidence, and sets `Review Required`. Leave the stack open — merging it is a driver/review decision. The stage review then lands `CI Pending`, and `pdlc post ci` reconciles the live check rollup across every PR registered on the record and its tasks — a red result routes back here at `Changes Required`.
 
 ## Step 5: Report
 

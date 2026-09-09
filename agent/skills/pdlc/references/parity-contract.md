@@ -59,7 +59,10 @@ anything is written, not asserted by the agent that wrote the breakdown.
   add`, and `pdlc post implement-task` submits the stack, leaving one pull
   request per branch. Nothing infers a base branch, lists remote branches, or
   asks whether a predecessor's branch still exists; agents never `git push`,
-  `git rebase`, or open PRs by hand.
+  `git rebase`, or open PRs by hand. Task PRs stay draft while the stack is
+  built; `pdlc post implement` marks every open one ready for review as the
+  record enters phase review, and a later bounce that republishes leaves the
+  already-ready PRs untouched.
 - Implementation ships each task's production code **and its unit coverage** on
   the task branch — `pdlc-implement` dispatches `pdlc-test-writer` scoped to the
   single task after the task review passes. Whole-feature acceptance coverage is
