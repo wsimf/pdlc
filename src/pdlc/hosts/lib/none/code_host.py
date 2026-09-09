@@ -31,3 +31,7 @@ class NoneCodeHost(CodeHost):
 
     def set_pull_request_content(self, number: int, title: str, body: str) -> None:
         raise PdlcError("no code host is configured; cannot edit a pull request")
+
+    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+        if numbers:
+            raise PdlcError("no code host is configured; cannot mark a pull request ready")

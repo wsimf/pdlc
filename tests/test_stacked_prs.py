@@ -153,6 +153,22 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertEqual(args[args.index("--title") + 1], "[CORE] Persist geometry")
         self.assertEqual(body, "## Implementation\n\nShipped.\n")
 
+    def test_mark_pull_requests_ready_takes_each_number_out_of_draft(self):
+        seen: list[list[str]] = []
+        self.gh.route(
+            lambda args, _input: args[:2] == ["pr", "ready"],
+            lambda args, _input: (seen.append(args), "")[1],
+        )
+
+        self.host.mark_pull_requests_ready([148, 149])
+
+        self.assertEqual([args[:3] for args in seen], [["pr", "ready", "148"], ["pr", "ready", "149"]])
+        self.assertTrue(all("--repo" in args for args in seen))
+
+    def test_mark_pull_requests_ready_with_no_numbers_calls_gh_nothing(self):
+        self.host.mark_pull_requests_ready([])
+        self.assertFalse(any(args[:2] == ["pr", "ready"] for args, _ in self.gh.calls))
+
     def test_missing_extension_is_a_clear_error(self):
         self.gh.gh("extension", "list", response="gh\tsome/other\tv1\n")
         with self.assertRaises(PdlcError) as caught:
@@ -337,6 +353,59 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertIn("cannot submit stacked pull requests", result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
         self.assertEqual(self.task_comments_text(70, 701), before)
+
+
+class PublishMarksTheStackReadyTests(FileBackendTest):
+    """`pdlc post implement` takes the whole registered task PR stack out of
+    draft when the last delivery task is closed."""
+
+    def _pr(self, number: int, state: str, *, is_draft: bool) -> dict:
+        return {
+            "number": number, "title": f"Task {number}", "url": f"https://x/{number}",
+            "state": state, "isDraft": is_draft, "branch": f"pdlc/record-70/task-{number:03d}",
+            "mergedAt": "2026-01-01T00:00:00Z" if state == "MERGED" else None, "checks": "SUCCESS",
+        }
+
+    def _host(self, prs: list[dict]) -> Mock:
+        host = Mock()
+        host.ensure_pull_request_linked.return_value = {"number": prs[-1]["number"]}
+        by_number = {pr["number"]: pr for pr in prs}
+        host.pull_requests_by_number.side_effect = lambda numbers: [by_number[n] for n in numbers]
+        return host
+
+    def test_only_open_registered_prs_are_marked_ready(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [147, 148, 149])
+        host = self._host([
+            self._pr(147, "MERGED", is_draft=False),
+            self._pr(148, "OPEN", is_draft=True),
+            self._pr(149, "OPEN", is_draft=True),
+        ])
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file())
+
+        self.assertEqual(result.code, 0, result.stderr)
+        host.mark_pull_requests_ready.assert_called_once_with([148, 149])
+        self.assertEqual(self.state(70), ("Implementation", "Review Required"))
+
+    def test_publication_fails_cleanly_when_marking_ready_errors(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [148])
+        host = self._host([self._pr(148, "OPEN", is_draft=True)])
+        host.mark_pull_requests_ready.side_effect = PdlcError("gh pr ready failed")
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file())
+
+        self.assertEqual(result.code, 1)
+        self.assertIn("gh pr ready failed", result.stderr)
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
+        self.assertEqual(self.comments_text(70), "")
 
 
 if __name__ == "__main__":

@@ -67,3 +67,8 @@ class FileCodeHost(CodeHost):
 
     def set_pull_request_content(self, number: int, title: str, body: str) -> None:
         raise PdlcError("the file code host cannot edit pull requests")
+
+    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+        # `pull_requests.json` carries no live draft state to transition; a file
+        # workflow scenario has nothing to mark ready.
+        return None

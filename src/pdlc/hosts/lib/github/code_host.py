@@ -161,6 +161,14 @@ class GitHubCodeHost(CodeHost):
         with body_file(body) as path:
             run_gh(["pr", "edit", str(number), *repo_args(), "--title", title, "--body-file", path])
 
+    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+        # `gh pr ready` on a PR that is already out of draft is a no-op that
+        # still exits 0, so republishing after a `Changes Required` bounce needs
+        # no guard here. The caller filters out merged/closed numbers, which
+        # `gh pr ready` would otherwise reject.
+        for number in numbers:
+            run_gh(["pr", "ready", str(number), *repo_args()])
+
     @staticmethod
     def stack_pr_numbers() -> list[int]:
         """The pull-request numbers in the current local stack, bottom-to-top,
