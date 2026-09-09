@@ -19,6 +19,7 @@ ENVIRONMENT_KEYS = (
     "PDLC_ACTOR", "PDLC_REF_LABEL",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
     "PDLC_NO_SLEEP",
+    "PDLC_WORKTREE_ROOT", "PDLC_WORKTREE_INIT_SCRIPT", "PDLC_WORKTREE_BASE_REF",
 )
 
 TOML_ENVIRONMENT_KEYS = {
@@ -42,6 +43,9 @@ TOML_ENVIRONMENT_KEYS = {
     ("workflow", "initial_delay_seconds"): "PDLC_INITIAL_DELAY_SECONDS",
     ("workflow", "max_delay_seconds"): "PDLC_MAX_DELAY_SECONDS",
     ("workflow", "no_sleep"): "PDLC_NO_SLEEP",
+    ("worktree", "root"): "PDLC_WORKTREE_ROOT",
+    ("worktree", "init_script"): "PDLC_WORKTREE_INIT_SCRIPT",
+    ("worktree", "base_ref"): "PDLC_WORKTREE_BASE_REF",
 }
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
@@ -101,6 +105,14 @@ class Config:
     initial_delay_seconds: int = 60
     max_delay_seconds: int = 900
     no_sleep: bool = False
+    # `pdlc prepare` (human-only) worktree scaffolding. `worktree_root` is the
+    # parent directory for every prepared tree; the command nests
+    # `<root>/<repo-name>/<workitem>` under it. `worktree_init_script` is an
+    # optional shell snippet run in the new tree, `worktree_base_ref` the ref
+    # new branches start from (default: the repo's detected default branch).
+    worktree_root: str | None = None
+    worktree_init_script: str | None = None
+    worktree_base_ref: str | None = None
 
     @classmethod
     def from_environment(cls) -> "Config":

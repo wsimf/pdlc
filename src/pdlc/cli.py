@@ -12,6 +12,9 @@ from pdlc.internal.inputs import wants_help
 
 COMMANDS = {
     ("setup",): "pdlc.commands.setup",
+    # Human-only worktree scaffolding; deliberately omitted from `_usage()` and
+    # the agent workflow. Local Git only, so it needs no work-item backend.
+    ("prepare",): "pdlc.commands.prepare",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "comments"): "pdlc.commands.inspect_comments",
@@ -130,7 +133,11 @@ def _dispatch(raw_arguments: list[str]) -> int:
         arguments, _ = _options(raw_arguments)
         module_name, command_arguments = _resolve(arguments)
         # setup runs the wizard; capability routing is local and needs no backend.
-        local_only = {"pdlc.commands.setup", "pdlc.commands.inspect_capability"}
+        local_only = {
+            "pdlc.commands.setup",
+            "pdlc.commands.inspect_capability",
+            "pdlc.commands.prepare",
+        }
         if module_name not in local_only and not wants_help(command_arguments):
             Config.from_environment().validate_for_backend()
     except ConfigurationError as error:

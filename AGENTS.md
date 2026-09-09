@@ -14,7 +14,7 @@ Done means every modified behavior has a caller, a regression check or an explic
 
 ## Repository map
 
-- `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and CLI options become `PDLC_*` environment variables.
+- `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and CLI options become `PDLC_*` environment variables. `prepare` is a human-only, backend-free command for worktree scaffolding and is intentionally absent from `--help` and the agent workflow.
 - `src/pdlc/commands/` owns command orchestration and user-facing argument/error handling.
 - `src/pdlc/domain/` owns pure lifecycle, evidence, model, and completion policy.
 - `src/pdlc/hosts/*_provider.py` exposes concrete providers; `hosts/lib/{azure,github,file,none}/` owns their implementations, and `workitem_host/`, `code_host/`, and `attachment_host/` retain neutral ports and selection.
