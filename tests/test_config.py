@@ -79,6 +79,14 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.azure_assigned_to, "@me")
         self.assertEqual(config.github_assigned_to, "ada")
 
+    def test_pr_attachment_is_read_from_the_code_host_table(self):
+        nested = self.make_repo(
+            '[backend]\nname = "file"\n'
+            '[code_host]\nname = "github"\npr_attachment = "Fixes {work.number}"\n'
+        )
+        config = load_config(nested)
+        self.assertEqual(config.pr_attachment, "Fixes {work.number}")
+
     def test_config_file_supports_toml_types(self):
         nested = self.make_repo(
             '[backend]\nname = "file"\n'
