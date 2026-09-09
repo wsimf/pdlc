@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pdlc.cli import _usage
 from pdlc.commands import prepare
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.worktree import sanitize_workitem, target_path
+from pdlc.internal.worktree import sanitize_workitem, target_path, worktree_root
 
 
 class SanitizeTests(unittest.TestCase):
@@ -27,6 +27,10 @@ class SanitizeTests(unittest.TestCase):
     def test_target_path_expands_and_nests(self):
         path = target_path("~/wt", "myrepo", "142")
         self.assertEqual(path, Path.home() / "wt" / "myrepo" / "142")
+
+    def test_worktree_root_defaults_when_unset(self):
+        self.assertEqual(worktree_root(None), "~/.pdlc/worktrees")
+        self.assertEqual(worktree_root("/custom"), "/custom")
 
 
 class PrepareCommandTests(unittest.TestCase):
@@ -73,11 +77,11 @@ class PrepareCommandTests(unittest.TestCase):
         self.assertEqual(out, str(self.wt_root / "myrepo" / "142"))
         self.assertIn("already present", err)
 
-    def test_missing_root_errors(self):
-        code, out, err = self._run(["142"], {})
-        self.assertEqual(code, 1)
-        self.assertEqual(out, "")
-        self.assertIn("worktree.root is not set", err)
+    def test_unset_root_falls_back_to_default(self):
+        with patch.object(prepare, "worktree_root", lambda configured: str(self.wt_root)):
+            code, out, _ = self._run(["142", "--from", "HEAD"], {})
+        self.assertEqual(code, 0)
+        self.assertEqual(out, str(self.wt_root / "myrepo" / "142"))
 
     def test_init_script_runs_with_yes(self):
         marker = self.wt_root / "ran"

@@ -16,7 +16,8 @@ workflow and is intentionally absent from `pdlc --help`.
 
 Config (`[worktree]` table, merged from ~/.pdlc/config.toml then .pdlc/config.toml):
 
-    root         required; parent directory for every prepared worktree
+    root         parent directory for every prepared worktree
+                 (default: ~/.pdlc/worktrees)
     base_ref     ref new branches start from (default: detected default branch)
     init_script  optional shell snippet run in the new worktree after creation
 """
@@ -36,6 +37,7 @@ from pdlc.internal.worktree import (
     fetch_base,
     run_init_script,
     target_path,
+    worktree_root,
 )
 
 
@@ -87,13 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         workitem, from_ref, assume_yes = _parse(args)
         config = get_config()
-        if not config.worktree_root:
-            raise PdlcError(
-                "worktree.root is not set. Add it to ~/.pdlc/config.toml or "
-                ".pdlc/config.toml:\n\n[worktree]\nroot = \"~/.pdlc/worktrees\""
-            )
         repo = repository_root()
-        path = target_path(config.worktree_root, repo.name, workitem)
+        path = target_path(worktree_root(config.worktree_root), repo.name, workitem)
 
         if existing_worktree(path):
             print(f"pdlc: worktree already present at {path}", file=sys.stderr)

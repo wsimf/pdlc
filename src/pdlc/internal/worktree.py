@@ -17,6 +17,14 @@ from pdlc.domain.lifecycle import PdlcError
 
 _TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 
+DEFAULT_WORKTREE_ROOT = "~/.pdlc/worktrees"
+
+
+def worktree_root(configured: str | None) -> str:
+    """The configured `worktree.root`, or the `~/.pdlc/worktrees` default when
+    the slot is unset. Kept here so `prepare` and `cleanup` agree on it."""
+    return configured or DEFAULT_WORKTREE_ROOT
+
 
 def sanitize_workitem(token: str) -> str:
     """The work item token as given, once proven safe to splice into a path and

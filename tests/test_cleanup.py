@@ -81,13 +81,18 @@ class CleanupCommandTests(unittest.TestCase):
         self.assertTrue(self.wt.exists())
         self.assertIn("pdlc/record-142", self._branches())
 
-    def test_missing_root_errors(self):
+    def test_unset_root_falls_back_to_default(self):
         cfg = SimpleNamespace(worktree_root=None)
         err = io.StringIO()
-        with patch.object(cleanup, "get_config", lambda: cfg), redirect_stderr(err):
+        with patch.object(cleanup, "get_config", lambda: cfg), \
+             patch.object(cleanup, "worktree_root", lambda configured: str(self.wt_root)), \
+             patch.object(cleanup, "resolve_item", lambda ref: {}), \
+             patch.object(cleanup, "workflow_for_item", lambda rec: (SimpleNamespace(terminal_stage="Complete"), _state())), \
+             patch.object(cleanup, "item_slug", lambda rec: "my-feature"), \
+             redirect_stderr(err):
             code = cleanup.main(["142", "--yes"])
-        self.assertEqual(code, 1)
-        self.assertIn("worktree.root is not set", err.getvalue())
+        self.assertEqual(code, 0)
+        self.assertFalse(self.wt.exists())
 
     def test_absent_from_usage(self):
         self.assertNotIn("cleanup", _usage())

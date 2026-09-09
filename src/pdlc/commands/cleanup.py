@@ -30,6 +30,7 @@ from pdlc.internal.worktree import (
     remove_worktree,
     stack_branches,
     target_path,
+    worktree_root,
 )
 
 
@@ -83,12 +84,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         workitem, assume_yes = _parse(args)
         config = get_config()
-        if not config.worktree_root:
-            raise PdlcError('worktree.root is not set; nothing to clean up')
         repo = repository_root()
         record = _require_complete(workitem)
 
-        path = target_path(config.worktree_root, repo.name, workitem)
+        path = target_path(worktree_root(config.worktree_root), repo.name, workitem)
         branches = [branch_name(workitem), *stack_branches(item_slug(record))]
 
         if not _confirm(path, branches, assume_yes):
