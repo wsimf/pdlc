@@ -10,6 +10,14 @@ reviewer findings — keep it addressable.
 Spike the delivery tasks below against current source and return an
 implementation-ready plan for each.
 
+## Execution boundary
+
+You are being invoked as the leaf technical planner.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not dispatch another agent to author plans or do this stage's work — bounded, read-only codebase exploration is the only delegation allowed.
+Return the plans and manifest to the calling `pdlc-plan` skill.
+
 ## Parent work item
 
 `<number>` — full body:

@@ -9,6 +9,14 @@ verdict, and changes nothing.
 ```md
 Review the supplied delivery-task plans before they are posted to the work item store.
 
+## Execution boundary
+
+You are being invoked as the leaf plan reviewer.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Review the supplied plans directly and return one report to the calling `pdlc-plan` skill.
+
 ## Parent work item
 
 <complete parent work item body: Product, UI, Decisions, Open Questions>

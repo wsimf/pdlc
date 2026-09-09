@@ -13,6 +13,14 @@ You are verifying acceptance for a feature: <one-sentence description of what sh
 Build and run the current worktree fresh, then work through this TODO
 list in order. Do not stop early once the build succeeds — report a result for every item.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one verification pass.
+Do not invoke any `pdlc-*` skill; invoke only the build-run capability named in the line above.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Walk the TODO below directly and return one report to the calling `pdlc-verify` skill.
+
 ## TODO
 - [ ] Build and launch the current worktree.
 - [ ] Walk each journey below exactly as written. For each, record Accepted /

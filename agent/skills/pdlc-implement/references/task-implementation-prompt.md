@@ -17,6 +17,14 @@ addressable.
 You are implementing one delivery task's production code. Make exactly one commit
 for this dispatch and report back; do not push, branch, or open a pull request.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one task.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Implement the task below directly and return one report to the calling `pdlc-implement` skill.
+
 ## Task
 
 `<WORK-NNN-TASK-NNN>` (tag included) — `<title>`
