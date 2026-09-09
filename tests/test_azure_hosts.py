@@ -30,7 +30,7 @@ RECORD = work_item(
     7,
     **{
         TITLE_FIELD: "Retry failed uploads",
-        TYPE_FIELD: "User Story",
+        TYPE_FIELD: "Product Backlog Item",
         DESCRIPTION_FIELD: "## Product\n\nShip **retries**.\n",
         STATUS_FIELD: "Implementation",
         GATE_FIELD: "Review Required",
@@ -68,7 +68,7 @@ class ResolutionTest(AzureHostTest):
         # Azure omits a never-written custom field from `fields` entirely; the
         # port promises a string either way.
         self.az.az("boards", "work-item", "show", response=work_item(
-            9, **{TITLE_FIELD: "New record", TYPE_FIELD: "User Story"}
+            9, **{TITLE_FIELD: "New record", TYPE_FIELD: "Product Backlog Item"}
         ))
         item = AzureWorkItemBackend().resolve("9")
         self.assertEqual(
@@ -90,9 +90,9 @@ class ResolutionTest(AzureHostTest):
         self._saved_env.setdefault("PDLC_AZURE_RECORD_TYPE", None)
         import os
 
-        os.environ["PDLC_AZURE_RECORD_TYPE"] = "Product Backlog Item"
+        os.environ["PDLC_AZURE_RECORD_TYPE"] = "User Story"
         self.az.az("boards", "work-item", "show", response=work_item(
-            9, **{TITLE_FIELD: "Scrum record", TYPE_FIELD: "Product Backlog Item"}
+            9, **{TITLE_FIELD: "Agile record", TYPE_FIELD: "User Story"}
         ))
         self.assertEqual(AzureWorkItemBackend().resolve("9")["workType"], "feature")
 
@@ -123,7 +123,7 @@ class QueueScanTest(AzureHostTest):
         self.az.wiql("FROM workitems", response=[
             work_item(7, **{
                 TITLE_FIELD: "Retry failed uploads",
-                TYPE_FIELD: "User Story",
+                TYPE_FIELD: "Product Backlog Item",
                 STATUS_FIELD: "Implementation",
                 GATE_FIELD: "Review Required",
                 LIFECYCLE_FIELD: "Planning",
@@ -313,7 +313,7 @@ class DeliveryTaskTest(AzureHostTest):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         AzureWorkItemBackend().close_task("8")
         self.assertIn("--state", self.az.calls[-1])
-        self.assertEqual(self.az.calls[-1][self.az.calls[-1].index("--state") + 1], "Closed")
+        self.assertEqual(self.az.calls[-1][self.az.calls[-1].index("--state") + 1], "Done")
 
 
 class UpsertTaskTest(AzureHostTest):
@@ -495,7 +495,7 @@ class CreationAndIdentityTest(AzureHostTest):
         self.assertIn({"op": "add", "path": f"/fields/{SLUG_FIELD}", "value": "retry-uploads"}, operations)
         self.assertIn({"op": "add", "path": f"/fields/{TITLE_FIELD}", "value": "Retry failed uploads"}, operations)
         args = self.az.calls[0]
-        self.assertEqual(args[args.index("--route-parameters") + 2], "type=User Story")
+        self.assertEqual(args[args.index("--route-parameters") + 2], "type=Product Backlog Item")
 
     def test_a_created_description_is_marked_as_markdown(self):
         # Large text fields default to HTML through the API, which renders

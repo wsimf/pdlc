@@ -86,8 +86,8 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_GITHUB_ASSIGNED_TO` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
 | `PDLC_AZURE_ORG` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
 | `PDLC_AZURE_PROJECT` | unset; required for Azure | Azure DevOps project name. |
-| `PDLC_AZURE_RECORD_TYPE` | `User Story` | Work-item type used for a PDLC record. |
-| `PDLC_AZURE_CLOSED_STATE` | `Closed` | Work-item state a delivery task is closed into. |
+| `PDLC_AZURE_RECORD_TYPE` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
+| `PDLC_AZURE_CLOSED_STATE` | `Done` | Work-item state a delivery task is closed into. `Closed` is always recognized as terminal regardless of this setting. |
 | `PDLC_AZURE_ASSIGNED_TO` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
 | `PDLC_BACKEND` | `github` | Work-item backend: `github`, `azure`, or `file`. |
 | `PDLC_CODE_HOST` | Follows `PDLC_BACKEND`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
@@ -122,8 +122,8 @@ name = "azure"
 [backend.azure]
 organization = "https://dev.azure.com/OWNER"
 project = "PROJECT"
-record_type = "User Story"   # optional
-closed_state = "Closed"      # optional
+record_type = "Product Backlog Item"   # optional; defaults to "Product Backlog Item"
+closed_state = "Done"        # optional; defaults to "Done"
 assigned_to = "@me"          # optional; scope the queue scan to your work items
 
 [code_host]
@@ -185,9 +185,9 @@ Two things are organization-admin work that `pdlc` deliberately never attempts, 
 
 Azure Boards has no project-level field layer: fields live on the work-item type and can only be added through a customized (inherited) process, which needs organization-admin rights. There is no `az` command for this and `pdlc` never attempts it — treat the fields below as a prerequisite an admin satisfies once per organization, before anyone runs a workflow command.
 
-In **Organization settings → Process**, create an inherited process from **Agile** (right-click the process → *Create inherited process*), then add these fields. The reference name is derived from the display name automatically, so enter `PdlcStatus` and Azure stores it as `Custom.PdlcStatus` — do not type the `Custom.` prefix yourself.
+In **Organization settings → Process**, create an inherited process from **Scrum** (right-click the process → *Create inherited process*), then add these fields. The reference name is derived from the display name automatically, so enter `PdlcStatus` and Azure stores it as `Custom.PdlcStatus` — do not type the `Custom.` prefix yourself.
 
-Add all six to **`User Story`**, the work-item type PDLC uses for a record:
+Add all six to **`Product Backlog Item`**, the work-item type PDLC uses for a record (use `User Story` instead if you inherit from Agile and set `record_type` accordingly):
 
 | Field | Type | Options / contents |
 |---|---|---|

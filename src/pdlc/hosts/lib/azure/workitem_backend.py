@@ -1,5 +1,5 @@
 """Azure DevOps Boards work-item backend: the PDLC record is a work item of
-the configured record type (`User Story` on an Agile-derived process), its
+the configured record type (`Product Backlog Item` on the Scrum process), its
 state is a set of custom fields on that work item, and its delivery tasks are
 child work items of type `Task`.
 
@@ -26,8 +26,8 @@ from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.azure.transport import run_az
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
 
-DEFAULT_RECORD_TYPE = "User Story"
-DEFAULT_CLOSED_STATE = "Closed"
+DEFAULT_RECORD_TYPE = "Product Backlog Item"
+DEFAULT_CLOSED_STATE = "Done"
 
 # A delivery task's comments have no batch API, so a record with N tasks needs
 # N reads, each paying `az devops invoke`'s ~1.3s of resource discovery. Every
@@ -38,9 +38,10 @@ _MAX_PARALLEL_READS = 8
 T = TypeVar("T")
 R = TypeVar("R")
 
-# `Removed` is Azure's "this was abandoned" terminal state; PDLC only cares
-# that such a task no longer blocks a transition.
-_ALWAYS_CLOSED_STATES = {"Removed"}
+# `Removed` is Azure's "this was abandoned" terminal state and `Closed` is the
+# Agile template's terminal state; PDLC only cares that such a task no longer
+# blocks a transition, regardless of which state `close_task` writes.
+_ALWAYS_CLOSED_STATES = {"Removed", "Closed"}
 
 
 def _record_type() -> str:
