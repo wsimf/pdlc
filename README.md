@@ -32,6 +32,37 @@ To switch to a different branch or tag, reinstall with `--force`:
 uv tool install --force 'git+ssh://git@github.com/wsimf/pdlc.git@my-branch'
 ```
 
+## Worktrees
+
+`pdlc prepare` and `pdlc cleanup` are human-only helpers — they are not part of the agent workflow and do not appear in `pdlc --help`. They bracket a work item's implementation with an isolated Git worktree so the agent never touches your main checkout.
+
+Run `pdlc prepare` **before starting implementation**, once a record is planned and its tasks are ready:
+
+```bash
+cd "$(pdlc prepare 142)"
+```
+
+This creates `<worktree.root>/<repo-name>/142` on a `pdlc/record-142` branch (from the repo's default branch), optionally runs your init script, and prints the path so the subshell `cd`s into it. Point the agent at that directory and let it run the `gh stack` implementation loop there. Re-running `pdlc prepare 142` just reprints the existing path.
+
+Run `pdlc cleanup` **after the record is complete**, from your main checkout:
+
+```bash
+pdlc cleanup 142
+```
+
+It resolves the work item, refuses unless it is locked at `Complete`, then removes the worktree and force-deletes its local branches — `pdlc/record-142` and every `pdlc/<slug>/<task-id>` branch `gh stack` created. Merged pull requests and remote branches are left to GitHub. Add `--yes` to skip the confirmation prompt.
+
+Configure with the optional `[worktree]` table (merged from `~/.pdlc/config.toml` then `.pdlc/config.toml` like every other setting):
+
+```toml
+[worktree]
+root = "~/.pdlc/worktrees"   # optional; this is also the default
+base_ref = "origin/main"      # optional; default: the repo's detected default branch
+init_script = "npm ci"        # optional; pdlc prepare offers to run it in the new worktree
+```
+
+`init_script` runs as a shell snippet in the new worktree; `pdlc prepare` shows it and prompts before running (`--yes` to skip). Keep it POSIX `sh` — it is passed to the platform shell.
+
 ## Development
 
 ```bash
@@ -100,6 +131,9 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_INITIAL_DELAY_SECONDS` | `60` | Initial queue-loop retry delay. |
 | `PDLC_MAX_DELAY_SECONDS` | `900` | Queue-loop retry delay ceiling. |
 | `PDLC_NO_SLEEP` | unset | Any non-empty value skips queue-loop retry sleeps. |
+| `PDLC_WORKTREE_ROOT` | `~/.pdlc/worktrees` | Parent directory for `pdlc prepare` / `pdlc cleanup` worktrees; each is nested `<root>/<repo-name>/<workitem>`. |
+| `PDLC_WORKTREE_BASE_REF` | detected default branch | Ref that new `pdlc prepare` branches start from. |
+| `PDLC_WORKTREE_INIT_SCRIPT` | unset | Shell snippet `pdlc prepare` offers to run in a freshly created worktree. |
 
 For GitHub, create `.pdlc/config.toml` with:
 
