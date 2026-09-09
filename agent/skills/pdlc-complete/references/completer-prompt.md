@@ -12,6 +12,14 @@ Prepare the structured completion evidence body for this PDLC record. Do not
 edit the record itself — Product, UI, requirements, and tasks are frozen at
 Verification.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one bounded task.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Prepare the evidence body directly and return one report to the calling `pdlc-complete` skill.
+
 ## Record
 
 - Complete parent work item body, end to end:

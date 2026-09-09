@@ -17,6 +17,14 @@ review of any task but this one. That depth belongs to `pdlc-review` and
 You are reviewing one delivery task's implementation, read-only. Report findings
 and a verdict; change nothing.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one review.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Review the change below directly and return one report to the calling `pdlc-implement` skill.
+
 ## Task
 
 `<TASK-ID>` `<title>`

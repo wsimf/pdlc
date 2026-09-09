@@ -9,6 +9,14 @@ it returns findings and a verdict, and changes nothing.
 ```md
 Review the supplied local artifact before it is written to the work item store.
 
+## Execution boundary
+
+You are being invoked as the leaf UI-and-Tasks reviewer.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Review the supplied artifact directly and return one report to the calling `pdlc-tasks` skill.
+
 ## Parent work item
 
 <complete parent work item body, including every `FR-*` / `C-*` / `UJ-*` identifier>

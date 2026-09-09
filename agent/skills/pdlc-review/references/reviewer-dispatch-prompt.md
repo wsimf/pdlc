@@ -10,6 +10,14 @@ here. Read-only: it returns findings and a verdict, and changes nothing.
 ```md
 Independently review the artifact below for the named PDLC stage.
 
+## Execution boundary
+
+You are being invoked as the leaf stage reviewer.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Review the artifact directly and return one report to the calling `pdlc-review` skill.
+
 ## Record
 
 - Parent work item: `<number>` — work item ID: `<id>`.

@@ -15,6 +15,14 @@ inspect capability test-authoring` and `pdlc inspect capability test-framework`
 Write requirement-to-source-traceable acceptance coverage for the implemented
 scope below, then run the suite and commit it on the current branch.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one task.
+Do not invoke any `pdlc-*` skill; invoke only the test-authoring skill named in the line above, if any.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Write and run the coverage directly and return one report to the calling `pdlc-test` skill.
+
 ## Traceability map
 
 <the Step 3 map, in full — one row per requirement:>

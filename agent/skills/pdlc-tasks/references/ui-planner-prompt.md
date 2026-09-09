@@ -11,6 +11,14 @@ reviewer findings — keep it addressable.
 
 Author the `UI` section for this PDLC record and return it as one fragment file.
 
+## Execution boundary
+
+You are being invoked as the leaf UI planner.
+Do not invoke any `pdlc-*` skill; invoke only the UX-design skill named in the line above, if any.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Author the fragment directly and return it to the calling `pdlc-tasks` skill.
+
 ## Parent work item
 
 `<number>` — full body:

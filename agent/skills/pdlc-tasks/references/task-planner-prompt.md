@@ -9,6 +9,14 @@ reviewer findings — keep it addressable.
 ````md
 Decompose this PDLC record into a dependency-ordered set of delivery tasks.
 
+## Execution boundary
+
+You are being invoked as the leaf task author.
+Do not invoke any `pdlc-*` skill.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Do not spawn, dispatch, or ask another agent to do this work.
+Author the breakdown directly and return the task files and manifest to the calling `pdlc-tasks` skill.
+
 ## Parent work item
 
 `<number>` — full body, including the `UI` section and every `FR-*` / `C-*` /

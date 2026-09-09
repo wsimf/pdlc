@@ -14,6 +14,13 @@ Substitute every `<...>` placeholder. The sub-agent knows nothing about PDLC: gi
 Review the change scope below and report the findings verbatim. Review only —
 do not edit, stage, commit, or apply any fix.
 
+## Execution boundary
+
+You are being invoked as a leaf worker for this one review.
+Do not invoke any `pdlc-*` skill; invoke only the review capability named in the line above.
+Do not re-run the calling skill or rediscover the lifecycle stage.
+Return the findings to the calling `pdlc-verify` skill.
+
 ## Scope
 <one of:
  - "The current branch's diff against its base branch" — the default, when the
