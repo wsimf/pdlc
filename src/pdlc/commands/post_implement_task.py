@@ -16,10 +16,11 @@ human-authored task body and its Technical Plan as they were. Pass --close once
 the task review passed, its unit coverage landed, and its criteria are met.
 
 This first submits the task's stacked pull request via `gh stack`, sets that PR's
-title to the delivery task's own title and its body to this evidence (plus the
-optional `[code_host] pr_attachment` line, with `{work.number}` resolved to the
-parent work item's bare number), and records its number on the task, then writes
-the comment. A failure in that sequence
+title to the delivery task's own title and its body to this evidence (prefixed
+with the optional `[code_host] pr_attachment` line, with `{work.number}` resolved
+to the parent work item's bare number), and records its number on the task, then
+writes the comment. The attachment line is PR-body only and never appears in the
+`## Implementation` comment. A failure in that sequence
 leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
 still offers the task and a re-run is clean rather than a duplicate.
 
@@ -77,15 +78,17 @@ def _submit_task_stack(task: dict) -> dict:
 
 
 def _pr_body(summary: str, work_number: str) -> str:
-    """The task PR description: the implementation evidence, plus the optional
-    `[code_host] pr_attachment` line with every `{work.number}` replaced by the
-    parent work item's bare number. Unset config leaves the body as the evidence
-    alone, so the PR description matches the `## Implementation` comment.
+    """The task PR description: the optional `[code_host] pr_attachment` line as
+    the first line, then the implementation evidence. Every `{work.number}` in
+    the attachment is replaced by the parent work item's bare number. Unset
+    config leaves the body as the evidence alone, so the PR description then
+    matches the `## Implementation` comment. The attachment never reaches the
+    comment — it is a PR-body-only affordance.
     """
     attachment = (get_config().pr_attachment or "").strip()
     if not attachment:
         return summary
-    return f"{summary}\n\n{attachment.replace('{work.number}', work_number)}"
+    return f"{attachment.replace('{work.number}', work_number)}\n\n{summary}"
 
 
 def post_implement_task(delivery_task: str, evidence: str, close: bool, attachment_inputs: list[dict]) -> dict:

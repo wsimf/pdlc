@@ -346,10 +346,11 @@ class ImplementTaskStackTests(FileBackendTest):
                 ):
             result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
         self.assertEqual(result.code, 0, result.stderr)
-        # Every `{work.number}` becomes the parent's bare number; the `## Implementation`
-        # comment on the task is unaffected — only the PR body carries the line.
+        # The attachment is the first line of the PR body, every `{work.number}`
+        # resolved to the parent's bare number; the `## Implementation` comment
+        # on the task never carries it.
         host.set_pull_request_content.assert_called_once_with(
-            148, "[CORE] Core", "## Implementation\n\nShipped it.\n\nFixes 70 / see 70"
+            148, "[CORE] Core", "Fixes 70 / see 70\n\n## Implementation\n\nShipped it."
         )
         self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
 

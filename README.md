@@ -92,7 +92,7 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_BACKEND` | `github` | Work-item backend: `github`, `azure`, or `file`. |
 | `PDLC_CODE_HOST` | Follows `PDLC_BACKEND`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `PDLC_ATTACHMENT_HOST` | `file` | Attachment host: `file` or `none`. |
-| `PDLC_PR_ATTACHMENT` | unset | Optional line appended to each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). |
+| `PDLC_PR_ATTACHMENT` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
 | `PDLC_HOME` | `.pdlc` | Local file-backend and attachment storage root. |
 | `PDLC_ACTOR` | `local` | Actor name recorded by the file backend. |
 | `PDLC_REF_LABEL` | `pdlc` | Label used for local inspector scratch files. |
@@ -129,7 +129,7 @@ assigned_to = "@me"          # optional; scope the queue scan to your work items
 
 [code_host]
 name = "github"
-pr_attachment = "Fixes {work.number}"   # optional; appended to each task PR body
+pr_attachment = "Fixes {work.number}"   # optional; first line of each task PR body
 
 [backend.github]
 repository = "OWNER/REPOSITORY"
