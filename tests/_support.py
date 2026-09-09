@@ -86,7 +86,7 @@ class FileBackendTest(unittest.TestCase):
             self._saved_env[key] = os.environ.get(key)
             os.environ[key] = value
         # Drop anything a developer's shell might inject that would steer the run.
-        for key in ("PDLC_REF_LABEL",):
+        for key in ("PDLC_REF_LABEL", "PDLC_PR_ATTACHMENT"):
             self._saved_env[key] = os.environ.pop(key, None)
 
         (self.home / "records").mkdir(parents=True)

@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 from _gh_replay import GitHubHostTest
 from _support import FileBackendTest
 
+from pdlc.config import Config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.github.code_host import GitHubCodeHost
 from pdlc.internal.stack import stack_entry_pr, task_branch_name
@@ -331,6 +332,26 @@ class ImplementTaskStackTests(FileBackendTest):
         host.set_pull_request_content.assert_called_once_with(
             148, "[CORE] Core", "## Implementation\n\nShipped it."
         )
+
+    def test_pr_attachment_config_appends_a_line_with_the_bare_work_number(self):
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{
+            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+        }]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
+                patch(
+                    "pdlc.commands.post_implement_task.get_config",
+                    return_value=Config(pr_attachment="Fixes {work.number} / see {work.number}"),
+                ):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+        self.assertEqual(result.code, 0, result.stderr)
+        # Every `{work.number}` becomes the parent's bare number; the `## Implementation`
+        # comment on the task is unaffected — only the PR body carries the line.
+        host.set_pull_request_content.assert_called_once_with(
+            148, "[CORE] Core", "## Implementation\n\nShipped it.\n\nFixes 70 / see 70"
+        )
+        self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
 
     def test_pr_content_failure_leaves_the_task_rerunnable(self):
         self._seed()

@@ -15,7 +15,7 @@ ENVIRONMENT_KEYS = (
     "PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT", "PDLC_AZURE_RECORD_TYPE",
     "PDLC_AZURE_CLOSED_STATE", "PDLC_AZURE_ASSIGNED_TO",
     "PDLC_GITHUB_ASSIGNED_TO",
-    "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_HOME",
+    "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_PR_ATTACHMENT", "PDLC_HOME",
     "PDLC_ACTOR", "PDLC_REF_LABEL",
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
     "PDLC_NO_SLEEP",
@@ -33,6 +33,7 @@ TOML_ENVIRONMENT_KEYS = {
     ("backend.azure", "closed_state"): "PDLC_AZURE_CLOSED_STATE",
     ("backend.azure", "assigned_to"): "PDLC_AZURE_ASSIGNED_TO",
     ("code_host", "name"): "PDLC_CODE_HOST",
+    ("code_host", "pr_attachment"): "PDLC_PR_ATTACHMENT",
     ("attachment_host", "name"): "PDLC_ATTACHMENT_HOST",
     ("runtime", "home"): "PDLC_HOME",
     ("runtime", "actor"): "PDLC_ACTOR",
@@ -85,6 +86,9 @@ class Config:
     backend: str | None = None
     code_host: str | None = None
     attachment_host: str | None = None
+    # Optional line appended to each task PR body at `pdlc post implement-task`;
+    # `{work.number}` resolves to the parent work item's bare number.
+    pr_attachment: str | None = None
     home: str | None = None
     actor: str | None = None
     ref_label: str | None = None
