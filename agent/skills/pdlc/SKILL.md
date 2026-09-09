@@ -98,7 +98,7 @@ To proceed, ask for: <the exact next instruction to give>
 
 Keep every line grounded in something actually inspected. Do not claim build, test, runtime, UX, or runtime evidence that was not produced in this turn or explicitly recorded on the work item. Stop after the report.
 
-Continue to drive the work item forward after the driver intends to proceed by invoking the appropriate skill specified in references/stage-ownership.md.
+Continue to drive the work item forward after the driver intends to proceed by invoking the appropriate skill specified in references/stage-ownership.md as per `Due next`. Then work autonomously until the next human approval is required.
 
 If `# Due Next` routes to `human-input`, Product authoring or re-authoring needs an interactive driver. Report that `pdlc-write` is required and stop; invoke it only when the driver explicitly asks to proceed.
 
