@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import os
 import sys
-from pdlc.config import Config
+from pdlc.config import get_config
 import tempfile
 import time
 from pathlib import Path
@@ -193,7 +193,7 @@ def next_once(selector: str | None) -> dict:
 # retrying those would hide a real failure. Each wait and the final give-up are
 # printed to stderr so the caller can see why the loop returned.
 def loop_(selector: str | None) -> tuple[dict, int | None]:
-    config = Config.from_environment()
+    config = get_config()
     max_attempts = config.max_attempts
     delay = config.initial_delay_seconds
     max_delay = config.max_delay_seconds

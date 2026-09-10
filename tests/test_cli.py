@@ -1,13 +1,13 @@
 import io
-import os
 import sys
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from unittest.mock import patch
 from types import SimpleNamespace
 
+import pdlc.config
 from pdlc.cli import _options, _resolve, main
-from pdlc.config import ConfigurationError
+from pdlc.config import Config, ConfigurationError, install_config
 
 
 class CliTests(unittest.TestCase):
@@ -22,11 +22,17 @@ class CliTests(unittest.TestCase):
             self.assertIs(sys.argv, original_argv)
             return 0
 
-        with patch.dict(os.environ, {"PDLC_AZURE_ORG": "org", "PDLC_AZURE_PROJECT": "project"}, clear=True), patch("pdlc.cli.load_config"), patch("pdlc.cli.importlib.import_module", return_value=SimpleNamespace(main=command)):
+        def fake_load_config(start=None, *, overrides=None):
+            values = {"azure_org": "org", "azure_project": "project"}
+            values.update(overrides or {})
+            install_config(Config(**values))
+            return pdlc.config._config
+
+        with patch("pdlc.cli.load_config", side_effect=fake_load_config), patch("pdlc.cli.importlib.import_module", return_value=SimpleNamespace(main=command)):
             self.assertEqual(main(["--backend", "file", "inspect", "7"]), 0)
-            self.assertNotIn("PDLC_BACKEND", os.environ)
+            self.assertIsNone(pdlc.config._config)
             self.assertEqual(main(["--backend", "azure", "inspect", "8"]), 0)
-            self.assertNotIn("PDLC_BACKEND", os.environ)
+            self.assertIsNone(pdlc.config._config)
         self.assertEqual(seen, [("FileWorkItemBackend", ["7"]), ("AzureWorkItemBackend", ["8"])])
 
     def test_resolves_post_complete(self):
@@ -48,19 +54,10 @@ class CliTests(unittest.TestCase):
             _resolve(["frobnicate"])
         self.assertIn("unknown command", str(caught.exception))
 
-    def test_options_are_promoted_to_environment_variables(self):
-        saved = {key: os.environ.get(key) for key in ("PDLC_REPOSITORY", "PDLC_BACKEND")}
-        try:
-            remaining, _ = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
-            self.assertEqual(remaining, ["inspect", "9"])
-            self.assertEqual(os.environ["PDLC_REPOSITORY"], "o/r")
-            self.assertEqual(os.environ["PDLC_BACKEND"], "file")
-        finally:
-            for key, value in saved.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+    def test_options_become_config_overrides(self):
+        remaining, overrides = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
+        self.assertEqual(remaining, ["inspect", "9"])
+        self.assertEqual(overrides, {"repository": "o/r", "backend": "file"})
 
     def test_option_without_a_value_is_rejected(self):
         with self.assertRaises(ValueError):

@@ -1,4 +1,11 @@
-"""Load pdlc configuration from the repository and environment."""
+"""Load pdlc configuration from ``.pdlc/config.toml`` files.
+
+Configuration is file-first: ``~/.pdlc/config.toml`` for machine-wide defaults,
+layered under the repository's ``.pdlc/config.toml``, with CLI flags on top. Only
+two settings are still read from the process environment — ``PDLC_HOME`` and
+``PDLC_REPOSITORY`` — because they identify *where* the store and the checkout
+live before any file has been located.
+"""
 
 from __future__ import annotations
 
@@ -6,51 +13,52 @@ import os
 import re
 import subprocess
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
 
 
-ENVIRONMENT_KEYS = (
-    "PDLC_REPOSITORY", "PDLC_PROJECT_NUMBER", "PDLC_PROJECT_OWNER",
-    "PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT", "PDLC_AZURE_RECORD_TYPE",
-    "PDLC_AZURE_CLOSED_STATE", "PDLC_AZURE_ASSIGNED_TO",
-    "PDLC_GITHUB_ASSIGNED_TO",
-    "PDLC_BACKEND", "PDLC_CODE_HOST", "PDLC_ATTACHMENT_HOST", "PDLC_PR_ATTACHMENT", "PDLC_HOME",
-    "PDLC_ACTOR", "PDLC_REF_LABEL",
-    "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
-    "PDLC_NO_SLEEP",
-    "PDLC_WORKTREE_ROOT", "PDLC_WORKTREE_INIT_SCRIPT", "PDLC_WORKTREE_BASE_REF",
-    "PDLC_DEBUG",
-)
-
-TOML_ENVIRONMENT_KEYS = {
-    ("backend", "name"): "PDLC_BACKEND",
-    ("backend.github", "repository"): "PDLC_REPOSITORY",
-    ("backend.github", "project_number"): "PDLC_PROJECT_NUMBER",
-    ("backend.github", "project_owner"): "PDLC_PROJECT_OWNER",
-    ("backend.github", "assigned_to"): "PDLC_GITHUB_ASSIGNED_TO",
-    ("backend.azure", "organization"): "PDLC_AZURE_ORG",
-    ("backend.azure", "project"): "PDLC_AZURE_PROJECT",
-    ("backend.azure", "record_type"): "PDLC_AZURE_RECORD_TYPE",
-    ("backend.azure", "closed_state"): "PDLC_AZURE_CLOSED_STATE",
-    ("backend.azure", "assigned_to"): "PDLC_AZURE_ASSIGNED_TO",
-    ("code_host", "name"): "PDLC_CODE_HOST",
-    ("code_host", "pr_attachment"): "PDLC_PR_ATTACHMENT",
-    ("attachment_host", "name"): "PDLC_ATTACHMENT_HOST",
-    ("runtime", "home"): "PDLC_HOME",
-    ("runtime", "actor"): "PDLC_ACTOR",
-    ("runtime", "ref_label"): "PDLC_REF_LABEL",
-    ("workflow", "max_attempts"): "PDLC_MAX_ATTEMPTS",
-    ("workflow", "initial_delay_seconds"): "PDLC_INITIAL_DELAY_SECONDS",
-    ("workflow", "max_delay_seconds"): "PDLC_MAX_DELAY_SECONDS",
-    ("workflow", "no_sleep"): "PDLC_NO_SLEEP",
-    ("worktree", "root"): "PDLC_WORKTREE_ROOT",
-    ("worktree", "init_script"): "PDLC_WORKTREE_INIT_SCRIPT",
-    ("worktree", "base_ref"): "PDLC_WORKTREE_BASE_REF",
-    ("debug", "enabled"): "PDLC_DEBUG",
+# ``(table, key) -> Config field``. The single source of truth for which TOML
+# settings exist and where each one lands on the dataclass.
+CONFIG_FIELDS = {
+    ("backend", "name"): "backend",
+    ("backend.github", "repository"): "repository",
+    ("backend.github", "project_number"): "project_number",
+    ("backend.github", "project_owner"): "project_owner",
+    ("backend.github", "assigned_to"): "github_assigned_to",
+    ("backend.azure", "organization"): "azure_org",
+    ("backend.azure", "project"): "azure_project",
+    ("backend.azure", "record_type"): "azure_record_type",
+    ("backend.azure", "closed_state"): "azure_closed_state",
+    ("backend.azure", "assigned_to"): "azure_assigned_to",
+    ("code_host", "name"): "code_host",
+    ("code_host", "pr_attachment"): "pr_attachment",
+    ("attachment_host", "name"): "attachment_host",
+    ("runtime", "home"): "home",
+    ("runtime", "actor"): "actor",
+    ("runtime", "ref_label"): "ref_label",
+    ("workflow", "max_attempts"): "max_attempts",
+    ("workflow", "initial_delay_seconds"): "initial_delay_seconds",
+    ("workflow", "max_delay_seconds"): "max_delay_seconds",
+    ("workflow", "no_sleep"): "no_sleep",
+    ("worktree", "root"): "worktree_root",
+    ("worktree", "init_script"): "worktree_init_script",
+    ("worktree", "base_ref"): "worktree_base_ref",
+    ("debug", "enabled"): "debug",
 }
+
+# ``field -> "table.key"``, for pointing a user at the setting they are missing.
+FIELD_LOCATIONS = {
+    field: f"{table}.{key}" for (table, key), field in CONFIG_FIELDS.items()
+}
+
+_INT_FIELDS = {
+    "max_attempts": 1,
+    "initial_delay_seconds": 0,
+    "max_delay_seconds": 0,
+}
+_BOOL_FIELDS = ("no_sleep", "debug")
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
 # should route each seam to. They live in their own `config.toml` tables so a
@@ -66,7 +74,7 @@ CAPABILITY_SLOTS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-_config_loaded = False
+_config: "Config | None" = None
 _capabilities: "Capabilities | None" = None
 
 
@@ -75,7 +83,7 @@ class ConfigurationError(PdlcError):
 
 
 def default_code_host(backend: str) -> str:
-    """The code host implied by a backend when ``PDLC_CODE_HOST`` is unset.
+    """The code host implied by a backend when ``[code_host] name`` is unset.
 
     Azure Boards owns work items only, so it implies no code host at all; the
     GitHub and file backends each host code themselves. Shared with
@@ -123,65 +131,88 @@ class Config:
     worktree_base_ref: str | None = None
 
     @classmethod
-    def from_environment(cls) -> "Config":
-        values = {
-            key.removeprefix("PDLC_").lower(): os.environ.get(key)
-            for key in ENVIRONMENT_KEYS
+    def from_values(cls, values: dict[str, object]) -> "Config":
+        """Build a Config from merged ``.pdlc/config.toml`` settings (keyed by
+        field name), coercing and range-checking the typed settings."""
+        known = {field.name for field in fields(cls)}
+        data: dict[str, object] = {
+            name: value
+            for name, value in values.items()
+            if name in known and value is not None
         }
-        for name, default, minimum in (
-            ("max_attempts", 5, 1), ("initial_delay_seconds", 60, 0),
-            ("max_delay_seconds", 900, 0),
-        ):
-            raw = values[name]
+        for name, minimum in _INT_FIELDS.items():
+            if name not in data:
+                continue
+            raw = data[name]
             try:
-                value = int(raw) if raw is not None else default
+                number = int(raw)  # type: ignore[call-overload]
             except (TypeError, ValueError):
-                raise ConfigurationError(f"PDLC_{name.upper()} must be an integer >= {minimum}") from None
-            if value < minimum:
-                raise ConfigurationError(f"PDLC_{name.upper()} must be >= {minimum}")
-            values[name] = value
-        for name in ("no_sleep", "debug"):
-            raw = (values[name] or "false").lower()
-            if raw not in {"true", "false", "1", "0"}:
-                raise ConfigurationError(f"PDLC_{name.upper()} must be true, false, 1, or 0")
-            values[name] = raw in {"true", "1"}
-        return cls(**values)
+                raise ConfigurationError(
+                    f"[{FIELD_LOCATIONS[name]}] must be an integer >= {minimum}"
+                ) from None
+            if isinstance(raw, float) and number != raw:
+                raise ConfigurationError(
+                    f"[{FIELD_LOCATIONS[name]}] must be an integer >= {minimum}"
+                )
+            if number < minimum:
+                raise ConfigurationError(f"[{FIELD_LOCATIONS[name]}] must be >= {minimum}")
+            data[name] = number
+        for name in _BOOL_FIELDS:
+            if name not in data:
+                continue
+            raw = data[name]
+            if isinstance(raw, bool):
+                continue
+            text = str(raw).lower()
+            if text not in {"true", "false", "1", "0"}:
+                raise ConfigurationError(
+                    f"[{FIELD_LOCATIONS[name]}] must be a boolean"
+                )
+            data[name] = text in {"true", "1"}
+        for name, value in list(data.items()):
+            if name not in _INT_FIELDS and name not in _BOOL_FIELDS:
+                data[name] = str(value)
+        return cls(**data)  # type: ignore[arg-type]
 
     def validate_for_backend(self) -> None:
         """Require each selected host's own coordinates.
 
         The work-item backend and the code host are independent: Azure Boards
         is expected to pair with GitHub repos, so an azure backend still needs
-        `PDLC_REPOSITORY` whenever the code host is GitHub.
+        a repository whenever the code host is GitHub.
         """
         backend = self.backend or "github"
         if backend not in {"github", "azure", "file"}:
-            raise ConfigurationError(f"unknown PDLC_BACKEND: {backend!r}")
+            raise ConfigurationError(f"unknown [backend] name: {backend!r}")
         code_host = self.code_host or default_code_host(backend)
         if code_host not in {"github", "file", "none"}:
-            raise ConfigurationError(f"unknown PDLC_CODE_HOST: {code_host!r}")
+            raise ConfigurationError(f"unknown [code_host] name: {code_host!r}")
         if self.attachment_host not in {None, "file", "none"}:
-            raise ConfigurationError(f"unknown PDLC_ATTACHMENT_HOST: {self.attachment_host!r}")
+            raise ConfigurationError(
+                f"unknown [attachment_host] name: {self.attachment_host!r}"
+            )
         if backend == "file":
             if code_host == "github" and not self.repository:
-                raise ConfigurationError(configuration_guidance(["PDLC_REPOSITORY"]))
+                raise ConfigurationError(
+                    configuration_guidance(["backend.github.repository"])
+                )
             return
         required: dict[str, str | None] = {}
         if backend == "azure":
             required |= {
-                "PDLC_AZURE_ORG": self.azure_org,
-                "PDLC_AZURE_PROJECT": self.azure_project,
+                "backend.azure.organization": self.azure_org,
+                "backend.azure.project": self.azure_project,
             }
             if code_host == "github":
-                required["PDLC_REPOSITORY"] = self.repository
+                required["backend.github.repository"] = self.repository
             missing = [name for name, value in required.items() if not value]
             if missing:
                 raise ConfigurationError(configuration_guidance(missing))
             return
         required = {
-            "PDLC_REPOSITORY": self.repository,
-            "PDLC_PROJECT_NUMBER": self.project_number,
-            "PDLC_PROJECT_OWNER": self.project_owner,
+            "backend.github.repository": self.repository,
+            "backend.github.project_number": self.project_number,
+            "backend.github.project_owner": self.project_owner,
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
@@ -276,14 +307,14 @@ def home_config_path() -> Path:
     return Path.home() / ".pdlc" / "config.toml"
 
 
-def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
+def _read_file(path: Path) -> tuple[dict[str, object], Capabilities]:
     if not path.exists():
         return {}, Capabilities.empty()
     try:
         values = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
         raise ConfigurationError(f"Could not read {path}: {error}") from error
-    flattened: dict[str, str] = {}
+    flattened: dict[str, object] = {}
     capabilities: dict[str, dict[str, str]] = {"agents": {}, "skills": {}}
 
     def visit(section: tuple[str, ...], section_values: dict) -> None:
@@ -292,8 +323,8 @@ def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
                 visit((*section, name), value)
                 continue
             section_name = ".".join(section)
-            environment_name = TOML_ENVIRONMENT_KEYS.get((section_name, name))
-            if environment_name is None:
+            field = CONFIG_FIELDS.get((section_name, name))
+            if field is None:
                 raise ConfigurationError(
                     f"Unknown setting in {path}: [{section_name}] {name}"
                 )
@@ -301,9 +332,7 @@ def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
                 raise ConfigurationError(
                     f"Setting [{section_name}] {name} in {path} must be a TOML scalar"
                 )
-            flattened[environment_name] = (
-                str(value).lower() if isinstance(value, bool) else str(value)
-            )
+            flattened[field] = value
 
     for section, section_values in values.items():
         if not isinstance(section_values, dict):
@@ -317,19 +346,20 @@ def _read_file(path: Path) -> tuple[dict[str, str], Capabilities]:
     )
 
 
-def load_config(start: Path | None = None) -> Config:
-    """Merge config and return the result, in ascending priority:
-    process environment, then ``~/.pdlc/config.toml``, then the repository's
-    ``.pdlc/config.toml``. Capability slots merge the same way, per slot.
+def load_config(start: Path | None = None, *, overrides: dict[str, object] | None = None) -> Config:
+    """Merge configuration, cache it, and return it. Ascending priority:
+    the ``PDLC_HOME`` / ``PDLC_REPOSITORY`` environment variables, then
+    ``~/.pdlc/config.toml``, then the repository's ``.pdlc/config.toml``, then
+    ``overrides`` (CLI flags). Capability slots merge the same way, per slot.
 
     The repository file is optional when a home file exists, so ``pdlc`` runs
     outside a Git repository on machine-wide config alone.
 
-    ``PDLC_REPOSITORY`` alone has a further fallback: if nothing sets it, it is
+    The repository alone has a further fallback: if nothing sets it, it is
     derived from the checkout's ``origin`` remote. An explicit value always
     wins.
     """
-    global _config_loaded, _capabilities
+    global _config, _capabilities
     home_path = home_config_path()
     home_flat, home_caps = _read_file(home_path)
     try:
@@ -341,20 +371,46 @@ def load_config(start: Path | None = None) -> Config:
     repo_flat, repo_caps = (
         _read_file(repo_path) if repo_path is not None else ({}, Capabilities.empty())
     )
-    os.environ.update({**home_flat, **repo_flat})
-    # Last resort only: when neither file nor environment names the GitHub
-    # repository, derive it from the checkout's `origin` remote so a shared
-    # repo works without every developer keeping a local `PDLC_REPOSITORY`.
-    if not os.environ.get("PDLC_REPOSITORY") and repo_path is not None:
+    merged: dict[str, object] = {}
+    for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):
+        if os.environ.get(environment_name):
+            merged[field] = os.environ[environment_name]
+    merged.update(home_flat)
+    merged.update(repo_flat)
+    if overrides:
+        merged.update({k: v for k, v in overrides.items() if v is not None})
+    # Last resort only: when nothing names the GitHub repository, derive it from
+    # the checkout's `origin` remote so a shared repo works without every
+    # developer keeping a local `PDLC_REPOSITORY`.
+    if not merged.get("repository") and repo_path is not None:
         derived = git_remote_repository(repo_path.parent.parent)
         if derived:
-            os.environ["PDLC_REPOSITORY"] = derived
+            merged["repository"] = derived
     _capabilities = Capabilities(
         agents={**home_caps.agents, **repo_caps.agents},
         skills={**home_caps.skills, **repo_caps.skills},
     )
-    _config_loaded = True
-    return Config.from_environment()
+    _config = Config.from_values(merged)
+    # The file backend still resolves its store from `PDLC_HOME`; bridge a
+    # `[runtime] home` set only in a config file back onto the environment.
+    if _config.home:
+        os.environ["PDLC_HOME"] = _config.home
+    return _config
+
+
+def install_config(config: Config) -> None:
+    """Install a fully-formed Config for the process (tests, embedding)."""
+    global _config
+    _config = config
+
+
+def set_config(**overrides: object) -> Config:
+    """Replace named fields on the current process config, loading a default
+    one first if none is installed. For tests and interactive overrides."""
+    global _config
+    base = _config if _config is not None else Config()
+    _config = replace(base, **overrides)  # type: ignore[arg-type]
+    return _config
 
 
 def get_capabilities() -> Capabilities:
@@ -366,29 +422,31 @@ def get_capabilities() -> Capabilities:
 
 
 def get_config() -> Config:
-    """Return current repository configuration for any pdlc module."""
-    if not _config_loaded:
+    """Return the process configuration, loading it once if needed."""
+    if _config is None:
         return load_config()
-    return Config.from_environment()
+    return _config
 
 
 def configuration_guidance(missing: list[str]) -> str:
     required = missing or [
-        "PDLC_REPOSITORY", "PDLC_PROJECT_NUMBER", "PDLC_PROJECT_OWNER"
+        "backend.github.repository",
+        "backend.github.project_number",
+        "backend.github.project_owner",
     ]
     details = f"Missing: {', '.join(missing)}\n\n" if missing else ""
     sections: dict[str, list[str]] = {}
-    for (section, key), environment_name in TOML_ENVIRONMENT_KEYS.items():
-        if environment_name in required:
+    for (section, key) in CONFIG_FIELDS:
+        if f"{section}.{key}" in required:
             sections.setdefault(section, []).append(f'{key} = "<value>"')
     example = "\n\n".join(
         f"[{section}]\n" + "\n".join(lines) for section, lines in sections.items()
     )
     repository_hint = (
-        "\n\nPDLC_REPOSITORY is normally auto-detected from this checkout's "
+        "\n\nThe repository is normally auto-detected from this checkout's "
         "`origin` remote; it must be set explicitly here because that lookup did "
         "not resolve a github.com repository."
-        if "PDLC_REPOSITORY" in missing
+        if "backend.github.repository" in missing
         else ""
     )
     return (
@@ -397,13 +455,13 @@ def configuration_guidance(missing: list[str]) -> str:
         "Create .pdlc/config.toml with the required values, for example:\n\n"
         f"{example}\n\n"
         "You can also put the same values in ~/.pdlc/config.toml for machine-wide "
-        "defaults, or set the corresponding PDLC_* environment variables."
+        "defaults. Only PDLC_HOME and PDLC_REPOSITORY are read from the environment."
         f"{repository_hint}"
     )
 
 
 def reset_config() -> None:
-    """Forget cached repository configuration at the command boundary."""
-    global _config_loaded, _capabilities
-    _config_loaded = False
+    """Forget cached configuration at the command boundary."""
+    global _config, _capabilities
+    _config = None
     _capabilities = None

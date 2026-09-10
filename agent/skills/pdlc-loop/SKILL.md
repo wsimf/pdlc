@@ -70,7 +70,7 @@ Track the passes as you go and report them in order at the end: for each, the re
 
 Only `none` retries, with exponential backoff: `min(initial × 2^(attempt-1), maximum)`. Errors and malformed state raise straight away. Each wait and the final give-up print to stderr so the caller sees why the loop returned.
 
-Defaults: five attempts, 60s initial delay, 15-minute cap. Override with `PDLC_MAX_ATTEMPTS`, `PDLC_INITIAL_DELAY_SECONDS`, `PDLC_MAX_DELAY_SECONDS`. `PDLC_NO_SLEEP` skips the waits (tests).
+Defaults: five attempts, 60s initial delay, 15-minute cap. Override with the `[workflow]` keys `max_attempts`, `initial_delay_seconds`, `max_delay_seconds` in `.pdlc/config.toml`. `[workflow] no_sleep = true` skips the waits (tests).
 
 ---
 

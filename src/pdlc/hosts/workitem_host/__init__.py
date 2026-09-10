@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-
+from pdlc.config import get_config
 from pdlc.hosts.workitem_host.base import WorkItemBackend
 
 _instance: WorkItemBackend | None = None
@@ -12,7 +11,7 @@ _instance: WorkItemBackend | None = None
 def get_backend() -> WorkItemBackend:
     global _instance
     if _instance is None:
-        name = os.environ.get("PDLC_BACKEND", "github")
+        name = get_config().backend or "github"
         if name == "github":
             from pdlc.hosts.github_provider import GitHubWorkItemBackend
 
@@ -26,7 +25,7 @@ def get_backend() -> WorkItemBackend:
 
             _instance = FileWorkItemBackend()
         else:
-            raise RuntimeError(f"unknown PDLC_BACKEND: {name!r}")
+            raise RuntimeError(f"unknown [backend] name: {name!r}")
     return _instance
 
 

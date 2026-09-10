@@ -133,38 +133,46 @@ CLI transport failures remain explicit; a timeout after a write requires inspect
 
 Inspect comments without loading the full discussion with `pdlc inspect comments ISSUE --page N`. Pages contain 100 comments, are newest first, and report the exact total plus the next command when more remain.
 
-## Environment variables
+## Configuration
 
-Values in `.pdlc/config.toml` override environment variables. CLI options override both.
+Configuration is file-first. Settings live in `.pdlc/config.toml` at the repository root, layered over `~/.pdlc/config.toml` for machine-wide defaults, with CLI options (`--repo`, `--backend`, `--project-number`, `--project-owner`, `--home`) on top for a single run.
 
-All variables are optional unless a selected backend or workflow requires them.
+Only two settings are read from the process environment, because they identify *where* things are before any config file is located:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
-| `PDLC_PROJECT_NUMBER` | unset; required for GitHub | GitHub Projects number. |
-| `PDLC_PROJECT_OWNER` | unset; required for GitHub | GitHub Projects owner. |
-| `PDLC_GITHUB_ASSIGNED_TO` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
-| `PDLC_AZURE_ORG` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
-| `PDLC_AZURE_PROJECT` | unset; required for Azure | Azure DevOps project name. |
-| `PDLC_AZURE_RECORD_TYPE` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
-| `PDLC_AZURE_CLOSED_STATE` | `Done` | Work-item state a delivery task is closed into. `Closed` is always recognized as terminal regardless of this setting. |
-| `PDLC_AZURE_ASSIGNED_TO` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
-| `PDLC_BACKEND` | `github` | Work-item backend: `github`, `azure`, or `file`. |
-| `PDLC_CODE_HOST` | Follows `PDLC_BACKEND`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
-| `PDLC_ATTACHMENT_HOST` | `file` | Attachment host: `file` or `none`. |
-| `PDLC_PR_ATTACHMENT` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
-| `PDLC_HOME` | `.pdlc` | Local file-backend and attachment storage root. |
-| `PDLC_ACTOR` | `local` | Actor name recorded by the file backend. |
-| `PDLC_REF_LABEL` | `pdlc` | Label used for local inspector scratch files. |
-| `PDLC_MAX_ATTEMPTS` | `5` | Maximum queue-loop polling attempts. |
-| `PDLC_INITIAL_DELAY_SECONDS` | `60` | Initial queue-loop retry delay. |
-| `PDLC_MAX_DELAY_SECONDS` | `900` | Queue-loop retry delay ceiling. |
-| `PDLC_NO_SLEEP` | unset | Any non-empty value skips queue-loop retry sleeps. |
-| `PDLC_WORKTREE_ROOT` | `~/.pdlc/worktrees` | Parent directory for `pdlc prepare` / `pdlc cleanup` worktrees; each is nested `<root>/<repo-name>/<workitem>`. |
-| `PDLC_WORKTREE_BASE_REF` | detected default branch | Ref that new `pdlc prepare` branches start from. |
-| `PDLC_WORKTREE_INIT_SCRIPT` | unset | Shell snippet `pdlc prepare` offers to run in a freshly created worktree. |
-| `PDLC_DEBUG` | unset | `true` appends every external CLI call (`az`, `gh`, `git`, …) to `~/.pdlc/debug.log` as `[<time>] - (<tool>) : <full command>`. Set via `[debug]` `enabled = true`. |
+| `PDLC_REPOSITORY` | unset | GitHub repository in `OWNER/REPOSITORY` form; overrides `[backend.github] repository`. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
+| `PDLC_HOME` | `.pdlc` | Local file-backend and attachment storage root; overrides `[runtime] home`. |
+| `PDLC_DEBUG` | unset | `true` turns on external-call tracing before a config file is read; equivalent to `[debug] enabled = true`. |
+
+Every other setting is a `.pdlc/config.toml` key. All are optional unless a selected backend or workflow requires them:
+
+| Table / key | Default | Purpose |
+|---|---|---|
+| `[backend] name` | `github` | Work-item backend: `github`, `azure`, or `file`. |
+| `[backend.github] repository` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. |
+| `[backend.github] project_number` | unset; required for GitHub | GitHub Projects number. |
+| `[backend.github] project_owner` | unset; required for GitHub | GitHub Projects owner. |
+| `[backend.github] assigned_to` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
+| `[backend.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
+| `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
+| `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
+| `[backend.azure] closed_state` | `Done` | Work-item state a delivery task is closed into. `Closed` is always recognized as terminal regardless of this setting. |
+| `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
+| `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
+| `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
+| `[attachment_host] name` | `file` | Attachment host: `file` or `none`. |
+| `[runtime] home` | `.pdlc` | Local file-backend and attachment storage root (see also `PDLC_HOME`). |
+| `[runtime] actor` | `local` | Actor name recorded by the file backend. |
+| `[runtime] ref_label` | `pdlc` | Label used for local inspector scratch files. |
+| `[workflow] max_attempts` | `5` | Maximum queue-loop polling attempts. |
+| `[workflow] initial_delay_seconds` | `60` | Initial queue-loop retry delay. |
+| `[workflow] max_delay_seconds` | `900` | Queue-loop retry delay ceiling. |
+| `[workflow] no_sleep` | `false` | `true` skips queue-loop retry sleeps. |
+| `[worktree] root` | `~/.pdlc/worktrees` | Parent directory for `pdlc prepare` / `pdlc cleanup` worktrees; each is nested `<root>/<repo-name>/<workitem>`. |
+| `[worktree] base_ref` | detected default branch | Ref that new `pdlc prepare` branches start from. |
+| `[worktree] init_script` | unset | Shell snippet `pdlc prepare` offers to run in a freshly created worktree. |
+| `[debug] enabled` | `false` | `true` appends every external CLI call (`az`, `gh`, `git`, …) to `~/.pdlc/debug.log` as `[<time>] - (<tool>) : <full command>`. |
 
 For GitHub, create `.pdlc/config.toml` with:
 

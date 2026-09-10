@@ -6,7 +6,7 @@ import importlib
 import os
 import sys
 
-from pdlc.config import ConfigurationError, Config, load_config
+from pdlc.config import ConfigurationError, load_config
 from pdlc.internal.inputs import wants_help
 
 
@@ -50,7 +50,7 @@ def _usage() -> str:
     return (
         "usage: pdlc [--repo OWNER/REPO] [--project-number N] [--project-owner OWNER] "
         "[--backend NAME] [--home PATH] [exec] COMMAND ...\n"
-        "\nGlobal options set PDLC_* environment variables; `exec` is an accepted no-op prefix.\n"
+        "\nGlobal options override .pdlc/config.toml for this run; `exec` is an accepted no-op prefix.\n"
         "\nsetup\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
         "\ninspect (read-only)\n"
@@ -91,28 +91,32 @@ def _usage() -> str:
     )
 
 
-def _options(argv: list[str]) -> tuple[list[str], list[str]]:
+_FLAG_FIELDS = {
+    "--repo": "repository",
+    "--project-number": "project_number",
+    "--project-owner": "project_owner",
+    "--backend": "backend",
+    "--home": "home",
+}
+
+
+def _options(argv: list[str]) -> tuple[list[str], dict[str, str]]:
+    """Split global config flags off the front-matter and return them as
+    ``load_config`` overrides keyed by Config field name."""
     remaining: list[str] = []
+    overrides: dict[str, str] = {}
     index = 0
     while index < len(argv):
         argument = argv[index]
-        if argument in {"--repo", "--project-number", "--project-owner", "--backend", "--home"}:
+        if argument in _FLAG_FIELDS:
             if index + 1 >= len(argv):
                 raise ValueError(f"{argument} requires a value")
-            value = argv[index + 1]
-            environment_name = {
-                "--repo": "PDLC_REPOSITORY",
-                "--project-number": "PDLC_PROJECT_NUMBER",
-                "--project-owner": "PDLC_PROJECT_OWNER",
-                "--backend": "PDLC_BACKEND",
-                "--home": "PDLC_HOME",
-            }[argument]
-            os.environ[environment_name] = value
+            overrides[_FLAG_FIELDS[argument]] = argv[index + 1]
             index += 2
             continue
         remaining.append(argument)
         index += 1
-    return remaining, []
+    return remaining, overrides
 
 
 def _resolve(arguments: list[str]) -> tuple[str, list[str]]:
@@ -131,8 +135,8 @@ def _dispatch(raw_arguments: list[str]) -> int:
         print(_usage())
         return 0
     try:
-        load_config()
-        arguments, _ = _options(raw_arguments)
+        arguments, overrides = _options(raw_arguments)
+        config = load_config(overrides=overrides)
         module_name, command_arguments = _resolve(arguments)
         # setup runs the wizard; capability routing is local and needs no backend.
         local_only = {
@@ -141,7 +145,7 @@ def _dispatch(raw_arguments: list[str]) -> int:
             "pdlc.commands.prepare",
         }
         if module_name not in local_only and not wants_help(command_arguments):
-            Config.from_environment().validate_for_backend()
+            config.validate_for_backend()
     except ConfigurationError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         print(

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
+from pdlc.config import get_config
 from pdlc.hosts.attachment_host.base import AttachmentHost
 
 _instance: AttachmentHost | None = None
@@ -13,7 +13,7 @@ _instance: AttachmentHost | None = None
 def get_host() -> AttachmentHost:
     global _instance
     if _instance is None:
-        name = os.environ.get("PDLC_ATTACHMENT_HOST", "file")
+        name = get_config().attachment_host or "file"
         if name == "file":
             from pdlc.hosts.file_provider import FileAttachmentHost
 
@@ -23,7 +23,7 @@ def get_host() -> AttachmentHost:
 
             _instance = NoneAttachmentHost()
         else:
-            raise RuntimeError(f"unknown PDLC_ATTACHMENT_HOST: {name!r}")
+            raise RuntimeError(f"unknown [attachment_host] name: {name!r}")
     return _instance
 
 

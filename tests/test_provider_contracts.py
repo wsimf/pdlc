@@ -2,7 +2,6 @@
 
 import importlib
 import io
-import os
 import subprocess
 import tempfile
 import unittest
@@ -12,7 +11,15 @@ from unittest.mock import patch
 
 from _support import FileBackendTest
 from pdlc.commands.post_decision import _defer
-from pdlc.config import Config, ConfigurationError, _read_file, configuration_guidance
+from pdlc.config import (
+    CONFIG_FIELDS,
+    Config,
+    ConfigurationError,
+    _read_file,
+    configuration_guidance,
+    install_config,
+    reset_config,
+)
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.domain.records import validate_task_inputs, validate_task, validate_work_item
 from pdlc.hosts.azure_provider import AzureWorkItemBackend
@@ -30,33 +37,41 @@ from pdlc.internal.pull_requests import registered_pr_numbers
 class ConfigurationContractTests(unittest.TestCase):
     def test_false_really_enables_backoff(self):
         next_command = importlib.import_module("pdlc.commands.next")
-        for value in ("false", "0"):
-            with self.subTest(value=value), patch.dict(os.environ, {
-                "PDLC_NO_SLEEP": value, "PDLC_MAX_ATTEMPTS": "2",
-                "PDLC_INITIAL_DELAY_SECONDS": "3", "PDLC_MAX_DELAY_SECONDS": "9",
-            }), patch.object(next_command, "next_once", return_value={"action": "none"}), patch.object(next_command.time, "sleep") as sleep, redirect_stderr(io.StringIO()):
+        self.addCleanup(reset_config)
+        for no_sleep in (False,):
+            with self.subTest(no_sleep=no_sleep), patch.object(next_command, "next_once", return_value={"action": "none"}), patch.object(next_command.time, "sleep") as sleep, redirect_stderr(io.StringIO()):
+                install_config(Config(
+                    no_sleep=no_sleep, max_attempts=2,
+                    initial_delay_seconds=3, max_delay_seconds=9,
+                ))
                 next_command.loop_(None)
                 sleep.assert_called_once_with(3)
 
     def test_invalid_runtime_settings_are_configuration_errors(self):
         for name, value in (
-            ("PDLC_NO_SLEEP", "maybe"), ("PDLC_MAX_ATTEMPTS", "0"),
-            ("PDLC_MAX_ATTEMPTS", "2.5"), ("PDLC_INITIAL_DELAY_SECONDS", "-1"),
-            ("PDLC_MAX_DELAY_SECONDS", "not-a-number"),
+            ("no_sleep", "maybe"), ("max_attempts", 0),
+            ("max_attempts", 2.5), ("initial_delay_seconds", -1),
+            ("max_delay_seconds", "not-a-number"),
         ):
-            with self.subTest(name=name, value=value), patch.dict(os.environ, {name: value}, clear=True):
+            with self.subTest(name=name, value=value):
                 with self.assertRaises(ConfigurationError):
-                    Config.from_environment()
+                    Config.from_values({name: value})
 
     def test_guidance_contains_parseable_grouped_toml(self):
-        for names in (["PDLC_REPOSITORY"], ["PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT"]):
+        for names in (
+            ["backend.github.repository"],
+            ["backend.azure.organization", "backend.azure.project"],
+        ):
             guidance = configuration_guidance(names)
             example = guidance.split("for example:\n\n", 1)[1].split("\n\nYou can", 1)[0]
             with tempfile.TemporaryDirectory() as root:
                 path = Path(root) / "config.toml"
                 path.write_text(example, encoding="utf-8")
                 values, _ = _read_file(path)
-                self.assertEqual(set(values), set(names))
+                expected = {
+                    CONFIG_FIELDS[tuple(name.rsplit(".", 1))] for name in names
+                }
+                self.assertEqual(set(values), expected)
 
 
 class FailureContractTests(unittest.TestCase):
@@ -217,7 +232,7 @@ class FileStoreContractTests(FileBackendTest):
 
     def test_reading_an_absent_store_does_not_create_it(self):
         root = self.work / "absent"
-        self.set_env(PDLC_HOME=str(root))
+        self.set_home(root)
         backend = FileWorkItemBackend()
         self.assertEqual(backend.queue_items(), [])
         for ref in ("1", "missing-slug"):

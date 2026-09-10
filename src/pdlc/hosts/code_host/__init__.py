@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import os
-
-from pdlc.config import default_code_host
+from pdlc.config import default_code_host, get_config
 from pdlc.hosts.code_host.base import CodeHost
 
 _instance: CodeHost | None = None
 
 
 def _default_name() -> str:
-    return default_code_host(os.environ.get("PDLC_BACKEND", "github"))
+    return default_code_host(get_config().backend or "github")
 
 
 def get_code_host() -> CodeHost:
     global _instance
     if _instance is None:
-        name = os.environ.get("PDLC_CODE_HOST") or _default_name()
+        name = get_config().code_host or _default_name()
         if name == "github":
             from pdlc.hosts.github_provider import GitHubCodeHost
 
@@ -31,7 +29,7 @@ def get_code_host() -> CodeHost:
 
             _instance = NoneCodeHost()
         else:
-            raise RuntimeError(f"unknown PDLC_CODE_HOST: {name!r}")
+            raise RuntimeError(f"unknown [code_host] name: {name!r}")
     return _instance
 
 

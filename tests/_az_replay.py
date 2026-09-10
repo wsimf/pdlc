@@ -19,6 +19,7 @@ import unittest
 import unittest.mock
 from typing import Any, Callable
 
+from pdlc.config import Config, install_config, reset_config, set_config
 import pdlc.hosts.lib.azure.transport as azure_common
 import pdlc.hosts.lib.azure.workitem_backend as workitem_azure
 
@@ -162,28 +163,21 @@ class AzureHostTest(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        self._saved_env: dict[str, str | None] = {}
-        for key, value in {
-            "PDLC_BACKEND": "azure",
-            "PDLC_AZURE_ORG": ORGANIZATION,
-            "PDLC_AZURE_PROJECT": PROJECT,
-            "PDLC_AZURE_RECORD_TYPE": None,
-            "PDLC_AZURE_CLOSED_STATE": None,
-            "PDLC_AZURE_ASSIGNED_TO": None,
-        }.items():
-            self._saved_env[key] = os.environ.get(key)
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        self._saved_repository = os.environ.pop("PDLC_REPOSITORY", None)
+        install_config(Config(
+            backend="azure",
+            azure_org=ORGANIZATION,
+            azure_project=PROJECT,
+        ))
         self.addCleanup(self._restore_env)
 
+    def configure(self, **fields: object) -> None:
+        set_config(**fields)
+
     def _restore_env(self) -> None:
-        for key, value in self._saved_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        reset_config()
+        if self._saved_repository is not None:
+            os.environ["PDLC_REPOSITORY"] = self._saved_repository
 
 
 mock = unittest.mock

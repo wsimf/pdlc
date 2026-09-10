@@ -8,7 +8,6 @@ transport, JSON shaping, and reconciliation logic are all checked offline.
 from __future__ import annotations
 
 import json
-import os
 import unittest
 from pathlib import Path
 
@@ -159,8 +158,7 @@ class ProjectQueueItemsTest(GitHubHostTest):
         }
 
     def test_a_configured_assignee_filters_the_queue_by_login(self) -> None:
-        os.environ["PDLC_GITHUB_ASSIGNED_TO"] = "ada"
-        self.addCleanup(lambda: os.environ.pop("PDLC_GITHUB_ASSIGNED_TO", None))
+        self.configure(github_assigned_to="ada")
         self.gh.gh("project", "view", response={"id": "PVT_project"})
         self.gh.graphql(
             "items(first: 100, after: $after)",
@@ -172,8 +170,7 @@ class ProjectQueueItemsTest(GitHubHostTest):
         self.assertEqual([item["content"]["number"] for item in result], [3])
 
     def test_the_at_me_shorthand_resolves_to_the_authenticated_user(self) -> None:
-        os.environ["PDLC_GITHUB_ASSIGNED_TO"] = "@me"
-        self.addCleanup(lambda: os.environ.pop("PDLC_GITHUB_ASSIGNED_TO", None))
+        self.configure(github_assigned_to="@me")
         self.gh.api("user", response={"login": "grace"})
         self.gh.gh("project", "view", response={"id": "PVT_project"})
         self.gh.graphql(
