@@ -23,6 +23,15 @@ from pdlc.domain.model import (
     TASK_ID_PATTERN,
     TASK_TITLE_PATTERN,
     comment_bodies,
+    comment_objects,
+)
+
+# Shared comment sub-selection for the task GraphQL queries. Carries enough per
+# comment (author, timestamp, url) to render a task's own `## User Comments`
+# section, not just derive its plan/implementation progress from the bodies.
+TASK_COMMENTS_SELECTION = (
+    "comments(last: 100) { nodes { body createdAt url author { login } } "
+    "totalCount pageInfo { hasPreviousPage startCursor } }"
 )
 
 # Delivery task sub-issues of a parent Issue: enough to match one to its stable
@@ -35,13 +44,13 @@ query($owner: String!, $repo: String!, $number: Int!) {
       subIssues(first: 100) {
         nodes {
           number title url state body
-          comments(last: 100) { nodes { body } totalCount pageInfo { hasPreviousPage startCursor } }
+          __TASK_COMMENTS__
         }
       }
     }
   }
 }
-"""
+""".replace("__TASK_COMMENTS__", TASK_COMMENTS_SELECTION)
 
 
 def link_subissue(parent: int | str, child: int | str) -> None:
@@ -119,7 +128,7 @@ def subissues_for(issue: str, *, include_comments: bool = True) -> list[dict]:
 
     query = SUBISSUES_QUERY
     if not include_comments:
-        query = query.replace("comments(last: 100) { nodes { body } totalCount pageInfo { hasPreviousPage startCursor } }", "")
+        query = query.replace(TASK_COMMENTS_SELECTION, "")
     data = run_graphql(query, owner=owner, repo=repository, number=int(issue))
     nodes = data["data"]["repository"]["issue"]["subIssues"]["nodes"]
 
@@ -129,6 +138,7 @@ def subissues_for(issue: str, *, include_comments: bool = True) -> list[dict]:
         result.append(pr_registry.view({
             **node,
             "comments": comment_bodies(node.get("comments")),
+            "commentObjects": comment_objects(node.get("comments")),
             "commentsMeta": _comments_metadata(node.get("comments")),
             "taskId": match.group(1) if match else None,
         }))
@@ -239,7 +249,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
     owner, repository = owner_repository()
     selections = "\n".join(
         f"issue{index}: issue(number: {int(number)}) {{ number title url state body "
-        f"comments(last: 100) {{ nodes {{ body }} totalCount pageInfo {{ hasPreviousPage startCursor }} }} }}"
+        + TASK_COMMENTS_SELECTION + " }"
         for index, number in enumerate(numbers)
     )
     query = f"""
@@ -260,6 +270,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
         result.append(pr_registry.view({
             **task,
             "comments": comment_bodies(task.get("comments")),
+            "commentObjects": comment_objects(task.get("comments")),
             "commentsMeta": _comments_metadata(task.get("comments")),
             "taskId": match.group(1) if match else None,
         }))

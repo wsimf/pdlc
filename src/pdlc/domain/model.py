@@ -186,6 +186,28 @@ def comment_bodies(raw: object) -> list[str]:
     return [item.get("body", "") if isinstance(item, dict) else str(item) for item in raw]
 
 
+# Normalises a task's comment payload to a list of Comment dicts (body,
+# createdAt, url, author.login), accepting the same shapes as `comment_bodies`.
+# Missing fields default to empty/"unknown" so `user_comments` sorting and
+# rendering stay total on backends that only carry the body.
+def comment_objects(raw: object) -> list[dict]:
+    if isinstance(raw, dict):
+        raw = raw.get("nodes") or []
+    if not isinstance(raw, list):
+        return []
+    result = []
+    for item in raw:
+        item = item if isinstance(item, dict) else {"body": str(item)}
+        author = item.get("author") or {}
+        result.append({
+            "body": item.get("body", ""),
+            "createdAt": item.get("createdAt", ""),
+            "url": item.get("url", ""),
+            "author": {"login": author.get("login") or "unknown"},
+        })
+    return result
+
+
 # The human-readable part of a delivery task's title: everything after the
 # `WORK-N-TASK-NNN` identity prefix, with the leading `[UI]`/`[CORE]` routing
 # tag left in place. Used as the pull-request title at checkpoint. Falls back to

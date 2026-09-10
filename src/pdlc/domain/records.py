@@ -46,6 +46,7 @@ class Task(TypedDict):
     comments: list[str]
     taskId: str | None
     prs: list[int]
+    commentObjects: NotRequired[list[Comment]]
     commentsMeta: NotRequired[dict[str, Any]]
     hasPlan: NotRequired[bool]
     hasImplementation: NotRequired[bool]
@@ -123,6 +124,9 @@ def validate_task(value: object) -> Task:
         raise PdlcError("task.state must be OPEN or CLOSED")
     if not isinstance(task.get("comments"), list) or any(not isinstance(c, str) for c in task["comments"]):
         raise PdlcError("task.comments must be an array of strings")
+    objects = task.get("commentObjects")
+    if objects is not None and (not isinstance(objects, list) or any(not isinstance(c, dict) or not isinstance(c.get("body"), str) for c in objects)):
+        raise PdlcError("task.commentObjects must be an array of comment objects")
     if task.get("taskId") is not None and not isinstance(task["taskId"], str):
         raise PdlcError("task.taskId must be a string or null")
     _numbers(task.get("prs"), "task.prs")

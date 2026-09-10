@@ -123,13 +123,15 @@ class FileWorkItemBackend(WorkItemBackend):
     def _task_view(self, path: Path) -> dict:
         meta = _read_meta(path)
         body = (path / "body.md").read_text(encoding="utf-8") if (path / "body.md").exists() else ""
+        comments = _read_comments(path)
         return {
             "number": meta["number"],
             "title": meta["title"],
             "url": meta.get("url", ""),
             "state": meta.get("state", "OPEN"),
             "body": body,
-            "comments": [comment["body"] for comment in _read_comments(path)],
+            "comments": [comment["body"] for comment in comments],
+            "commentObjects": comments,
             "taskId": meta.get("taskId"),
             "prs": list(meta.get("prs", [])),
         }

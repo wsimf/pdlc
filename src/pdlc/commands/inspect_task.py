@@ -23,9 +23,11 @@ capability slots (`ui-implementer` / `core-implementer`, both falling back to
 `general-purpose`). It is a routing fact, not an instruction to dispatch — only
 `pdlc-implement` acts on it.
 
-The parent Work Item's local attachments and its `## User Comments` (comments
-carrying no `PDLC-*` marker) are rendered once, between the first task's front
-matter and its `# Task` body.
+The parent Work Item's local attachments are rendered once, between the first
+task's front matter and its `# Task` body. Each task then carries its own
+`## User Comments` — the comments on that task that carry no `PDLC-*` marker,
+i.e. human discussion the plan/evidence markers hide. Parent-level discussion
+lives in `pdlc inspect WORK_ITEM`, not here.
 
 --file writes the rendered markdown to {TEMPDIR}/{repo}-task-{numbers}.md
 instead of stdout, and prints that path — for callers (e.g. subagent
@@ -49,7 +51,7 @@ prompts) that want a file reference rather than inline content.
 
     ## User Comments
 
-    ...the parent Work Item's unmarked comments, on the first task only...
+    ...this task's own unmarked comments, or "None"...
 
     # Task
 
@@ -75,8 +77,9 @@ from pathlib import Path
 from pdlc.config import get_capabilities
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.model import user_comments_markdown
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
-from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number, user_comments_markdown
+from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number
 
 
 # The implementer slot a task's own `isUI` routes to. Resolved here, on the task,
@@ -89,9 +92,11 @@ def _agent_section(task: dict) -> str:
     return f"## Agent\n\n{agent} — the project's implementer for a {phase} task."
 
 
-# `preamble` is the parent Work Item's attachment and user-comment sections: they
-# sit between the first task's front matter and its `# Task` body, matching
-# `pdlc inspect`'s front-matter -> attachments -> user comments -> body order.
+# `preamble` is the parent Work Item's attachment section, rendered once on the
+# first task between its front matter and body. Each task then carries its own
+# `## User Comments` (its unmarked comments — human discussion the plan/evidence
+# markers hide), matching `pdlc inspect`'s front-matter -> attachments -> user
+# comments -> body order but scoped to the task rather than the parent.
 def _render_task(task: dict, preamble: str = "") -> str:
     front_matter = yaml_front_matter({
         "number": task["number"],
@@ -106,8 +111,9 @@ def _render_task(task: dict, preamble: str = "") -> str:
         "prs": task["prs"],
     })
     body = (task.get("body") or "").rstrip("\n")
-    lead = f"{preamble}\n\n" if preamble else ""
-    rendered = f"{front_matter}\n\n{lead}# Task\n\n{body}"
+    comments = user_comments_markdown(task.get("commentObjects") or [])
+    sections = [front_matter, *([preamble] if preamble else []), comments, f"# Task\n\n{body}"]
+    rendered = "\n\n".join(sections)
     notice = older_comments_notice(task["number"], task.get("commentsMeta"), len(task.get("comments") or []))
     if notice:
         rendered += f"\n\n> Older comments are omitted from this view. {notice}."
@@ -124,7 +130,7 @@ def render(numbers: list[str]) -> str:
         raise PdlcError("delivery tasks must belong to the same Work Item")
     parent = next(iter(parent_numbers))
     attachments = attachments_for_item(resolve_item(parent))
-    preamble = f"{attachments_markdown(attachments)}\n\n{user_comments_markdown(parent)}"
+    preamble = attachments_markdown(attachments)
     rendered = [_render_task(task, preamble if index == 0 else "") for index, task in enumerate(tasks)]
     return "\n\n".join(rendered) + "\n"
 
