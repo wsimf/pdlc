@@ -8,6 +8,7 @@ from unittest.mock import patch
 from pdlc.config import (
     Config,
     ConfigurationError,
+    configuration_guidance,
     get_capabilities,
     get_config,
     load_config,
@@ -131,6 +132,17 @@ class ConfigTests(unittest.TestCase):
     def test_github_validation_explains_configuration(self):
         with self.assertRaisesRegex(ConfigurationError, "Create .pdlc/config.toml"):
             Config().validate_for_backend()
+
+    def test_missing_repository_names_the_value_and_the_origin_fallback(self):
+        guidance = configuration_guidance(["PDLC_REPOSITORY"])
+        self.assertIn("Missing: PDLC_REPOSITORY", guidance)
+        self.assertIn("auto-detected", guidance)
+        self.assertIn("origin", guidance)
+
+    def test_guidance_omits_the_origin_hint_when_repository_is_not_missing(self):
+        self.assertNotIn(
+            "auto-detected", configuration_guidance(["PDLC_PROJECT_NUMBER"])
+        )
 
     def test_file_backend_does_not_need_github_values(self):
         Config(backend="file").validate_for_backend()

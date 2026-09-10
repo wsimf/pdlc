@@ -366,6 +366,13 @@ def configuration_guidance(missing: list[str]) -> str:
     example = "\n\n".join(
         f"[{section}]\n" + "\n".join(lines) for section, lines in sections.items()
     )
+    repository_hint = (
+        "\n\nPDLC_REPOSITORY is normally auto-detected from this checkout's "
+        "`origin` remote; it must be set explicitly here because that lookup did "
+        "not resolve a github.com repository."
+        if "PDLC_REPOSITORY" in missing
+        else ""
+    )
     return (
         "pdlc is not configured for this repository.\n\n"
         f"{details}"
@@ -373,6 +380,7 @@ def configuration_guidance(missing: list[str]) -> str:
         f"{example}\n\n"
         "You can also put the same values in ~/.pdlc/config.toml for machine-wide "
         "defaults, or set the corresponding PDLC_* environment variables."
+        f"{repository_hint}"
     )
 
 
