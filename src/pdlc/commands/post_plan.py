@@ -31,8 +31,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tempfile
-from pathlib import Path
 
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
@@ -50,7 +48,7 @@ from pdlc.internal.workitem import (
     task_tree,
 )
 from pdlc.domain.lifecycle import PdlcError, duplicates
-from pdlc.internal.inputs import load_json_array, print_help, require_file, unmarked_evidence_source, wants_help
+from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event
 
 
@@ -117,19 +115,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(script_args)
 
-    scratch: list[Path] = []
     try:
         manifest_path = require_file("--manifest file", args.manifest)
         manifest = load_json_array("--manifest", manifest_path)
         validate_attachments(attachment_inputs)
 
-        evidence_path: Path | None = None
+        evidence_body: str | None = None
         if not args.dry_run:
             if not args.evidence:
                 raise PdlcError("--evidence FILE|- is required")
-            evidence_path, is_temporary = unmarked_evidence_source("--evidence file", args.evidence)
-            if is_temporary:
-                scratch.append(evidence_path)
+            evidence_body = resolve_text(args.evidence, label="--evidence")
+            assert_unmarked(evidence_body, "--evidence")
 
         record = resolve_item(args.work_item)
         pipeline = pipeline_for_item(record)
@@ -205,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             }))
             return 0
 
-        assert evidence_path is not None
+        assert evidence_body is not None
 
         if gate == "Approval Required":
             reauthor_invalidate_stage(record, "Technical Plan", pipeline)
@@ -218,16 +214,14 @@ def main(argv: list[str] | None = None) -> int:
             post_comment(str(task["number"]), body)
             results.append({"taskId": entry["id"], "number": task["number"]})
 
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as handle:
-            handle.write(evidence_path.read_text(encoding="utf-8"))
-            handle.write("\n---\n\n")
-            handle.write(f"Planned {len(results)} task(s): {', '.join(result['taskId'] for result in results)}\n")
-            if plan["alreadyPlanned"]:
-                handle.write(f"Already planned, left untouched by this pass: {', '.join(plan['alreadyPlanned'])}\n")
-            summary_path = Path(handle.name)
-        scratch.append(summary_path)
+        summary = (
+            f"{evidence_body}\n---\n\n"
+            f"Planned {len(results)} task(s): {', '.join(result['taskId'] for result in results)}\n"
+        )
+        if plan["alreadyPlanned"]:
+            summary += f"Already planned, left untouched by this pass: {', '.join(plan['alreadyPlanned'])}\n"
 
-        post_comment(args.work_item, str(summary_path), "PLAN")
+        post_comment(args.work_item, summary, "PLAN")
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
         print(json.dumps({
@@ -244,9 +238,6 @@ def main(argv: list[str] | None = None) -> int:
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-    finally:
-        for path in scratch:
-            path.unlink(missing_ok=True)
 
     return 0
 

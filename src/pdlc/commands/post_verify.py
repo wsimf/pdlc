@@ -118,7 +118,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import bounce_stage
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
+from pdlc.internal.inputs import is_stdin, resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, Outcome
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
@@ -133,7 +133,7 @@ VERIFICATION_OUTCOMES = {
 def _lines_from(source: str | None) -> list[str]:
     if not source:
         return []
-    return [line.strip() for line in read_evidence_text("findings", source).splitlines() if line.strip()]
+    return [line.strip() for line in resolve_text(source, label="findings").splitlines() if line.strip()]
 
 
 def _fixed_bullet(line: str) -> str:
@@ -171,7 +171,7 @@ def post_verify(
     stdin_sources = [
         name
         for name, source in (("report", report), ("--fixed", fixed), ("--deferred", deferred), ("--decision", decision))
-        if source == "-"
+        if source is not None and is_stdin(source)
     ]
     if len(stdin_sources) > 1:
         raise PdlcError(f"stdin can supply only one input, not: {', '.join(stdin_sources)}")
@@ -185,11 +185,9 @@ def post_verify(
     except ValueError as error:
         raise PdlcError(str(error)) from None
 
-    report_text = read_evidence_text("report", report).strip()
-    if not report_text:
-        raise PdlcError("report is empty")
+    report_text = resolve_text(report, label="report").strip()
 
-    decision_body = read_evidence_text("--decision", decision) if is_decision else ""
+    decision_body = resolve_text(decision, label="--decision") if is_decision else ""
     if is_decision and DECISION_HEADING not in decision_body:
         raise PdlcError(f"a decision-required verification must include a '{DECISION_HEADING}' section")
 

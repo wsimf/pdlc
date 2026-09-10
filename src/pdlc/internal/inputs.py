@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -35,65 +34,50 @@ def require_file(label: str, path: str | os.PathLike | None) -> Path:
     return file_path
 
 
-def evidence_source(label: str, given: str) -> tuple[Path, bool]:
-    """Evidence bodies arrive either as a path or as `-` for stdin, so short
-    evidence can go inline without a temp file the caller has to create.
-    Returns (path, is_temporary) — the caller unlinks the path itself when
-    is_temporary is True."""
-    if given == "-":
-        content = read_evidence_text(label, given)
-        descriptor, name = tempfile.mkstemp()
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(content)
-        return Path(name), True
-
-    return require_file(label, given), False
+# stdin arrives as `-` from a heredoc or pipe; the device paths are the same
+# stream under a different name and agents reach for them interchangeably, so
+# all four resolve to "read stdin" rather than being treated as file paths.
+_STDIN_ALIASES = ("-", "/dev/stdin", "/dev/fd/0", "/proc/self/fd/0")
 
 
-def read_evidence_text(label: str, source: str) -> str:
-    """Read a required UTF-8 file or stdin without allocating a scratch file."""
+def is_stdin(value: str) -> bool:
+    """True when `value` names the stdin stream rather than a file path."""
+    return value in _STDIN_ALIASES
+
+
+def resolve_text(value: str, *, label: str) -> str:
+    """Resolve an evidence or comment-body argument to its text.
+
+    Three explicit forms, no path/literal guessing:
+      * `text:<body>` — everything after the prefix is the literal body.
+      * `-` (or a stdin device path) — read all of stdin.
+      * anything else — a path to a UTF-8 file; an unknown path is an error,
+        never a silent literal.
+
+    Blank content is refused on every form so a stage can never publish an
+    empty body.
+    """
+    if value.startswith("text:"):
+        text = value[len("text:"):]
+        if not text.strip():
+            raise PdlcError(f"{label} is empty")
+        return text
+
+    from_stdin = is_stdin(value)
     try:
-        text = sys.stdin.read() if source == "-" else require_file(label, source).read_text(encoding="utf-8")
+        text = sys.stdin.read() if from_stdin else require_file(label, value).read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise PdlcError(f"could not read {label}: {error}") from error
     if not text.strip():
-        location = " on stdin" if source == "-" else ""
-        raise PdlcError(f"{label}{location} is empty")
+        raise PdlcError(f"{label}{' on stdin' if from_stdin else ''} is empty")
     return text
 
 
-def unmarked_evidence_source(label: str, given: str) -> tuple[Path, bool]:
-    path, is_temporary = evidence_source(label, given)
-    with path.open(encoding="utf-8") as handle:
-        first_line = handle.readline()
-    if first_line.startswith("PDLC-"):
-        if is_temporary:
-            path.unlink(missing_ok=True)
-        raise PdlcError("evidence already starts with a marker; write the body only")
-    return path, is_temporary
-
-
-def read_body_source(text_or_file: str, *, label: str = "body") -> str:
-    """Resolve a comment/evidence body given as a literal string, a path to a
-    file holding it, or `-` for stdin, to the body text.
-
-    A multi-line value is a literal body, never a path. The filesystem probe
-    on a single-line value is defensive: `Path.is_file()` on an over-length
-    name raises ENAMETOOLONG on macOS rather than returning False, so any such
-    error is caught and the value is taken as a literal body."""
-    if text_or_file == "-":
-        content = sys.stdin.read()
-        if not content:
-            raise PdlcError(f"{label} on stdin is empty")
-        return content
-    if "\n" not in text_or_file:
-        try:
-            candidate = Path(text_or_file)
-            if candidate.is_file():
-                return candidate.read_text(encoding="utf-8")
-        except OSError:
-            pass
-    return text_or_file
+def assert_unmarked(text: str, label: str) -> None:
+    """Reject a body that already opens with a `PDLC-` marker line — a sign the
+    caller pasted a rendered comment back instead of writing just the body."""
+    if text.lstrip().startswith("PDLC-"):
+        raise PdlcError(f"{label} already starts with a marker; write the body only")
 
 
 def load_json_array(label: str, path: Path, *, allow_empty: bool = True) -> list[dict[str, Any]]:

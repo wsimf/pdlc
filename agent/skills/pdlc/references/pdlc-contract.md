@@ -189,9 +189,9 @@ note are each a plain comment on the delivery task whose first non-empty line is
 headings. The parent's `Technical Plan` / `PDLC-IMPLEMENTATION` markers still
 belong to the respective *stage* publication evidence.
 
-Every script that posts evidence accepts either a path or `-` to read the body
-from stdin, so short evidence goes inline through a quoted heredoc without a
-temp file. Empty evidence is refused on both paths.
+Every script that posts evidence takes the body as a file path, or as
+`text:<body>` for a short one-line body passed as a single argument. An unknown
+path is an error, never a silent literal; empty evidence is always refused.
 
 ## Determinism and idempotency
 

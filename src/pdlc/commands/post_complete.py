@@ -22,7 +22,7 @@ from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.completion import completion_blockers
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
+from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event
 from pdlc.internal.vcs import stale_verification_rows
 from pdlc.internal.workitem import (
@@ -55,7 +55,7 @@ def _stale_rows(verification_body: str) -> list[str]:
 
 
 def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
-    evidence_body = read_evidence_text("completion evidence", evidence)
+    evidence_body = resolve_text(evidence, label="completion evidence")
 
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)

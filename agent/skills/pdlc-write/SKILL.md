@@ -101,7 +101,7 @@ This is why Product has no `Review Required` state — the review happens here, 
 
 ## Step 3: Land the record
 
-Pass the reviewed file straight through as `--body`, with the evidence body on stdin: your scope, the reviewer's verdict and coverage boundaries, and any unresolved risk. Body only — the script stamps the marker and refuses evidence that already carries one.
+Pass the reviewed file straight through as `--body`, and the evidence body as a file path: your scope, the reviewer's verdict and coverage boundaries, and any unresolved risk. Body only — the script stamps the marker and refuses evidence that already carries one.
 
 **New record** — derive the slug and pass `--title` and `--slug`:
 
@@ -110,15 +110,10 @@ pdlc post write \
   --title "Route shape detection" \
   --slug route-shape-detection \
   --body /tmp/pdlc-route-shape-detection-body.md \
-  --evidence - <<'EOF'
-Scope: full product specification, 14 requirements over 4 constraints.
-Verdict: clean, no findings outstanding.
-Coverage: specification only; no source was changed.
-Risk: tile-pinning quota is an open question, recorded as such.
-EOF
+  --evidence /tmp/pdlc-route-shape-detection-evidence.md
 ```
 
-Use `--evidence /path/to/file.md` when the body is long enough to be worth keeping. Both forms take the body verbatim — a quoted heredoc means backticks and `$` are never expanded.
+`--evidence` takes a file path (a `text:<body>` one-liner is accepted but Product evidence is rarely that short). The body is taken verbatim.
 
 Creates the work item, stamps `Slug`, posts evidence, sets `Product / Approval Required`. Refuses a body that is not exactly the three owned sections.
 
@@ -128,10 +123,7 @@ Creates the work item, stamps `Slug`, posts evidence, sets `Product / Approval R
 pdlc post write \
   --work-item WORK_ITEM \
   --body /tmp/pdlc-route-shape-detection-body.md \
-  --evidence - <<'EOF'
-Scope: reconciled Product and Decisions after the offline-quota decision.
-Verdict: clean on re-review.
-EOF
+  --evidence /tmp/pdlc-route-shape-detection-evidence.md
 ```
 
 Never set `Approved` — the driver does that with `pdlc post approve`. On failure, keep the scratch file, report the exact failure, and inspect the work item before retrying. The scratch file is temporary input only — never leave a local product-specification document behind once landed.

@@ -9,7 +9,6 @@ backend and a swap is one env var.
 from __future__ import annotations
 
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import read_body_source as _read_source
 from pdlc.domain.workflow import Lifecycle, PIPELINES, Pipeline, State, WorkType
 from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     CORE_TAG,
@@ -158,17 +157,17 @@ def comments_page(ref: str, page: int = 1):
     return get_backend().comments_page(str(ref), page, 100)
 
 
-def post_comment(ref: str, text_or_file: str, marker: str | None = None) -> str:
-    body = compose_comment(marker, _read_source(text_or_file))
-    return get_backend().post_comment(str(ref), body)
+def post_comment(ref: str, body: str, marker: str | None = None) -> str:
+    """Post `body` as-is under an optional `PDLC-<marker>` line. Callers resolve
+    a file/stdin argument to text with `inputs.resolve_text` before calling."""
+    return get_backend().post_comment(str(ref), compose_comment(marker, body))
 
 
-def post_blocker(ref: str, text_or_file: str, marker: str | None = None) -> str:
+def post_blocker(ref: str, body: str, marker: str | None = None) -> str:
     """Post a blocking review decision through the backend's blocker channel.
     Same body/marker composition as post_comment; the backend decides how
     prominently to surface it."""
-    body = compose_comment(marker, _read_source(text_or_file))
-    return get_backend().post_blocker(str(ref), body)
+    return get_backend().post_blocker(str(ref), compose_comment(marker, body))
 
 
 def find_marked_comments(ref: str, marker: str, *, comments: list[dict] | None = None) -> list[dict]:

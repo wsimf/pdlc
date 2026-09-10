@@ -4,7 +4,7 @@ script-owned YAML-shaped metadata followed by Findings.
 A reviewer may set Changes Required, Approval Required, or Decision Required —
 never Approved.
 
-    pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
 `decision-required` is for a finding the owning skill cannot mechanically
 reconcile — one that needs a product, architecture, UX, or scope call from the
@@ -36,7 +36,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.workitem import is_stage_skipped, item_for_issue, item_status, post_blocker, post_comment, set_gate, workflow_for_item
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import print_help, unmarked_evidence_source, wants_help
+from pdlc.internal.inputs import assert_unmarked, print_help, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Gate, Outcome
 
 REVIEW_OUTCOMES = {
@@ -69,12 +69,8 @@ def review(issue: str, outcome: str, evidence: str, attachment_inputs: list[dict
         raise PdlcError(str(error)) from None
     ci_pending = target.gate == Gate.CI_PENDING
 
-    path, is_temporary = unmarked_evidence_source("evidence", evidence)
-    try:
-        body = path.read_text(encoding="utf-8")
-    finally:
-        if is_temporary:
-            path.unlink(missing_ok=True)
+    body = resolve_text(evidence, label="evidence")
+    assert_unmarked(body, "evidence")
     if outcome == "decision-required" and DECISION_HEADING not in body:
         raise PdlcError(f"a decision-required review must include a '{DECISION_HEADING}' section")
 
@@ -120,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if len(args) != 3:
         print(
-            "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|-",
+            "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|-",
             file=sys.stderr,
         )
         return 1

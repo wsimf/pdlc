@@ -73,10 +73,10 @@ Spawn `pdlc-test-writer` once, scoped to this task only — its plan, its accept
 
 Write a summary following [`references/implementation-summary.md`](references/implementation-summary.md), then land it. It is a comment on the delivery task; **the task body is never edited**, and implementation notes never go into the parent work item body.
 
+Write the summary to a file and pass its path:
+
 ```bash
-pdlc post implement-task DELIVERY_TASK - --close <<'EOF'
-<summary from references/implementation-summary.md>
-EOF
+pdlc post implement-task DELIVERY_TASK /tmp/pdlc-task-summary.md --close
 ```
 
 This submits the task's branch as a pull request — one per task, stacked on the previous task's — titled with this task's title and described by the summary above, registers its number on the task, posts the `## Implementation` comment, and closes the task. On success `taskPr` is this task's PR and `prs` holds its registered numbers; a partial failure posts no comment and leaves the task open, so `pdlc inspect implement` still offers it for a clean re-run. It does **not** gate on the PR's checks — CI is reconciled after the stage review, at the `CI Pending` gate.
@@ -86,11 +86,10 @@ If the PR was opened or updated but the run failed before `prs` came back — or
 **Publish only when every delivery task on the record is closed.** The parent stays at `Implementation / Pending` while any task is open — that is what stops testing and verification from starting before the whole task graph is done. Any task still open → stop and report what landed and what remains; the loop or the driver dispatches the next.
 
 ```bash
-pdlc post implement WORK_ITEM - <<'EOF'
-Result: all 7 delivery tasks closed; the task PR stack (#148–#154) is ready for review.
-Exceptions: none; CI is in flight.
-EOF
+pdlc post implement WORK_ITEM "text:Result: all 7 delivery tasks closed; task PR stack #148–#154 ready for review. Exceptions: none; CI in flight."
 ```
+
+Pass a longer summary as a file path instead.
 
 `pdlc post implement` refuses while any delivery task is open, registers the top task PR on the record, takes every open PR registered on the record and its tasks out of draft so humans can review the stack, posts the evidence, and sets `Review Required`. Leave the stack open — merging it is a driver/review decision. The stage review then lands `CI Pending`, and `pdlc post ci` reconciles the live check rollup across every PR registered on the record and its tasks — a red result routes back here at `Changes Required`.
 

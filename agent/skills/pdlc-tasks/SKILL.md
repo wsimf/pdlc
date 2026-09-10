@@ -76,13 +76,11 @@ After two failed reconciliations, stop and put the decision to the driver. The v
 
 ## Step 6: Land at Approval Required
 
+Write the evidence body to a file and pass its path:
+
 ```bash
 pdlc post tasks --work-item WORK_ITEM --stage Tasks \
-  --manifest /tmp/pdlc-tasks.json --evidence - <<'EOF'
-Scope: 7 delivery tasks for offline tile pinning, split at the download-queue boundary.
-Coverage: specification only; no source was changed.
-Risk: TASK-004 depends on the unresolved quota decision and may need resplitting.
-EOF
+  --manifest /tmp/pdlc-tasks.json --evidence /tmp/pdlc-tasks-evidence.md
 ```
 
 For UI, pass `--stage UI --body /tmp/pdlc-ui.md` instead. Creates/updates every artifact, posts evidence, and sets `Approval Required` in one step. When the record was at `Approval Required` (a driver change request), the same call first returns the stage to Stale itself.

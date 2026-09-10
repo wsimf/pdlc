@@ -49,7 +49,6 @@ import argparse
 import json
 import re
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,7 +71,7 @@ from pdlc.internal.workitem import (
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import load_json_array, print_help, require_file, unmarked_evidence_source, wants_help
+from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State
 
 from pdlc.domain.task_plan import build_plan, declared_identifiers, resolve_task_ids, tagged_title
@@ -88,7 +87,7 @@ class PublicationContext:
     reauthor: bool = False
 
 
-def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_path: Path, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
+def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_body: str, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     lines = body_path.read_text(encoding="utf-8").splitlines()
     if lines and UI_HEADING_PATTERN.match(lines[0]):
         lines = lines[1:]
@@ -115,7 +114,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
     spliced = splice_section(parent_body, "UI", fragment)
     write_body(str(issue), spliced)
 
-    post_comment(issue, str(evidence_path), "UI")
+    post_comment(issue, evidence_body, "UI")
     set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
     print(json.dumps({
@@ -129,7 +128,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_p
     }))
 
 
-def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
+def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     manifest = load_json_array("--manifest", manifest_path, allow_empty=False)
     for index, task in enumerate(manifest, 1):
         if "id" in task and task.get("id") is not None and not isinstance(task.get("id"), str):
@@ -193,17 +192,12 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_path: Path |
 
     # The evidence body is the durable judgement. Counts, order, and coverage
     # are already recoverable from the task tree and should not inflate history.
-    summary_lines = [evidence_path.read_text(encoding="utf-8").rstrip("\n")]
+    assert evidence_body is not None
+    summary_lines = [evidence_body.rstrip("\n")]
     if open_orphans:
         summary_lines += ["", f"Exception: open tasks absent from this breakdown: {', '.join(open_orphans)}"]
 
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as handle:
-        handle.write("\n".join(summary_lines) + "\n")
-        summary_path = handle.name
-    try:
-        post_comment(issue, summary_path, "TASKS")
-    finally:
-        Path(summary_path).unlink(missing_ok=True)
+    post_comment(issue, "\n".join(summary_lines) + "\n", "TASKS")
 
     set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
@@ -246,7 +240,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(script_args)
 
-    scratch: list[Path] = []
     body_path: Path | None = None
     manifest_path: Path | None = None
     try:
@@ -268,13 +261,12 @@ def main(argv: list[str] | None = None) -> int:
         # Evidence is slurped and checked up front so a publish can never
         # fail for a missing body after the artifact has already been
         # written.
-        evidence_path: Path | None = None
+        evidence_body: str | None = None
         if not args.dry_run:
             if not args.evidence:
                 raise PdlcError("--evidence FILE|- is required")
-            evidence_path, is_temporary = unmarked_evidence_source("--evidence file", args.evidence)
-            if is_temporary:
-                scratch.append(evidence_path)
+            evidence_body = resolve_text(args.evidence, label="--evidence")
+            assert_unmarked(evidence_body, "--evidence")
 
         # Guard the record's state
         #
@@ -317,16 +309,13 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.stage == "UI":
             context = PublicationContext(record, pipeline, gate == "Approval Required")
-            land_ui(args.work_item, item, parent_body, body_path, evidence_path, args.dry_run, attachment_inputs, target, context)
+            land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, target, context)
         else:
             context = PublicationContext(record, pipeline, gate == "Approval Required")
-            land_tasks(args.work_item, item, manifest_path, evidence_path, args.dry_run, parent_body, attachment_inputs, target, context)
+            land_tasks(args.work_item, item, manifest_path, evidence_body, args.dry_run, parent_body, attachment_inputs, target, context)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-    finally:
-        for path in scratch:
-            path.unlink(missing_ok=True)
 
     return 0
 

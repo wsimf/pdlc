@@ -40,7 +40,7 @@ from pdlc.internal.workitem import (
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import evidence_source, print_help, require_file, wants_help
+from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, State, WorkType
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -68,7 +68,7 @@ def level_two_headings(body: str) -> list[str]:
     return headings
 
 
-def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path, attachment_inputs: list[dict]) -> dict:
+def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, attachment_inputs: list[dict]) -> dict:
     record = resolve_item(issue)
     pipeline = pipeline_for_item(record)
     if item_status(record) != "Product":
@@ -96,7 +96,7 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_path: Path,
     item_id = record["id"]
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     update_sections(issue, fragments)
-    post_comment(issue, str(evidence_path), "PRODUCT")
+    post_comment(issue, evidence_body, "PRODUCT")
     set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
     return {
         "created": False,
@@ -140,30 +140,26 @@ def main(argv: list[str] | None = None) -> int:
         if is_new and not SLUG_PATTERN.match(args.slug):
             raise PdlcError(f"slug must be lowercase kebab-case: {args.slug}")
 
-        evidence_path, is_temporary = evidence_source("--evidence", args.evidence_file)
-        try:
-            body_path = require_file("--body file", args.body_file)
-            fragments = product_fragments(body_path)
-            validate_attachments(attachment_inputs)
+        evidence_body = resolve_text(args.evidence_file, label="--evidence")
+        body_path = require_file("--body file", args.body_file)
+        fragments = product_fragments(body_path)
+        validate_attachments(attachment_inputs)
 
-            if not is_new:
-                result = publish_existing(args.work_item, fragments, evidence_path, attachment_inputs)
-                print(json.dumps(result))
-                return 0
+        if not is_new:
+            result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs)
+            print(json.dumps(result))
+            return 0
 
-            new_item = create_work_item(args.title, body_path.read_text(encoding="utf-8"), args.slug, WorkType.FEATURE)
-            work_item_url = new_item["url"]
-            work_item_number = str(new_item["number"])
-            item_id = new_item["id"]
+        new_item = create_work_item(args.title, body_path.read_text(encoding="utf-8"), args.slug, WorkType.FEATURE)
+        work_item_url = new_item["url"]
+        work_item_number = str(new_item["number"])
+        item_id = new_item["id"]
 
-            attachments = save_attachments(work_item_number, attachment_inputs)
-            target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
-            set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
-            set_slug(item_id, args.slug)
-            post_comment(work_item_number, str(evidence_path), "PRODUCT")
-        finally:
-            if is_temporary:
-                evidence_path.unlink(missing_ok=True)
+        attachments = save_attachments(work_item_number, attachment_inputs)
+        target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
+        set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
+        set_slug(item_id, args.slug)
+        post_comment(work_item_number, evidence_body, "PRODUCT")
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

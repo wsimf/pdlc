@@ -6,7 +6,7 @@ orchestrator may call this, and only on an explicit human instruction — gh
 identity cannot distinguish a human from an agent acting on their behalf, so
 this is a procedural boundary, not an authentication check.
 
-    pdlc post approve WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sys
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.domain.workflow import Event
 from pdlc.internal.workitem import (
     current_actor,
@@ -49,8 +49,9 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
 
     login = current_actor()
 
+    evidence_body = resolve_text(evidence, label="approval evidence")
     attachments = save_attachments(work_item_number(record), attachment_inputs)
-    post_comment(issue, evidence, "APPROVED")
+    post_comment(issue, evidence_body, "APPROVED")
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
 
     return {
@@ -77,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 2:
-        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
     issue, evidence = args
 
