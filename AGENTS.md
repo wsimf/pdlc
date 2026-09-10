@@ -55,6 +55,10 @@ The skills name no project-specific tool. A consuming repo routes each seam to i
 
 For Python syntax validation in this environment, use `PYTHONPYCACHEPREFIX=/tmp/pdlc-pycache python3 -m compileall -q src`; this proves compilation only, not GitHub, build, simulator, or runtime behavior.
 
+Never assume `az` has a default organization configured. Every `az` invocation must pass `--organization` explicitly (and `--project` where the command takes one) from `.pdlc/config.toml`; in the azure backend that means routing through `org_args()` / `project_args()` in `hosts/lib/azure/transport.py` rather than a bare `az` call.
+
+Scratch Azure Boards for manual backend testing on this host: organization `https://dev.azure.com/madushan92`, project `pdlc-scratch`, default team `pdlc-scratch Team`, work-item type `User Story`.
+
 ## Change hygiene
 
 Use `apply_patch` for edits. Keep Markdown sentences on one source line. Add comments only where they explain a contract, ownership boundary, or non-obvious constraint, and keep them current.
