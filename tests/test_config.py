@@ -12,6 +12,7 @@ from pdlc.config import (
     get_capabilities,
     get_config,
     load_config,
+    reset_config,
 )
 from pdlc.commands.setup import _write_config
 
@@ -27,6 +28,15 @@ class ConfigTests(unittest.TestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Strip every PDLC_* variable so only what a test sets counts.
+        env = patch.dict(
+            os.environ,
+            {k: v for k, v in os.environ.items() if not k.startswith("PDLC_")},
+            clear=True,
+        )
+        env.start()
+        self.addCleanup(env.stop)
+        self.addCleanup(reset_config)
 
     def make_repo(self, config: str | None = None) -> Path:
         root = Path(tempfile.mkdtemp())
@@ -59,21 +69,14 @@ class ConfigTests(unittest.TestCase):
         # A temp dir with no ``.git`` ancestor stands in for "run outside a repo".
         return Path(tempfile.mkdtemp()) / "nested"
 
-    def test_config_file_overrides_environment(self):
+    def test_repository_file_overrides_the_environment_variable(self):
         nested = self.make_repo(
             '[backend.github]\n'
             'repository = "file/repository"\n'
+            'project_number = 7\n'
             'project_owner = "file-owner"\n'
         )
-        with patch.dict(
-            os.environ,
-            {
-                "PDLC_REPOSITORY": "environment/repository",
-                "PDLC_PROJECT_NUMBER": "7",
-                "PDLC_PROJECT_OWNER": "environment-owner",
-            },
-            clear=False,
-        ):
+        with patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repository"}):
             config = load_config(nested)
         self.assertEqual(config.repository, "file/repository")
         self.assertEqual(config.project_owner, "file-owner")
@@ -116,14 +119,12 @@ class ConfigTests(unittest.TestCase):
         nested = self.make_repo('[backend]\nname = "file"\n[debug]\nenabled = true\n')
         config = load_config(nested)
         self.assertIs(config.debug, True)
-        self.assertEqual(os.environ["PDLC_DEBUG"], "true")
 
-    def test_later_cli_environment_changes_are_visible(self):
+    def test_cli_overrides_beat_the_config_file(self):
         nested = self.make_repo('[backend.github]\nrepository = "file/repository"\n')
-        with patch.dict(os.environ, {}, clear=False):
-            load_config(nested)
-            os.environ["PDLC_REPOSITORY"] = "cli/repository"
-            self.assertEqual(get_config().repository, "cli/repository")
+        config = load_config(nested, overrides={"repository": "cli/repository"})
+        self.assertEqual(config.repository, "cli/repository")
+        self.assertEqual(get_config().repository, "cli/repository")
 
     def test_environment_is_used_when_config_is_missing(self):
         nested = self.make_repo()
@@ -140,14 +141,14 @@ class ConfigTests(unittest.TestCase):
             Config().validate_for_backend()
 
     def test_missing_repository_names_the_value_and_the_origin_fallback(self):
-        guidance = configuration_guidance(["PDLC_REPOSITORY"])
-        self.assertIn("Missing: PDLC_REPOSITORY", guidance)
+        guidance = configuration_guidance(["backend.github.repository"])
+        self.assertIn("Missing: backend.github.repository", guidance)
         self.assertIn("auto-detected", guidance)
         self.assertIn("origin", guidance)
 
     def test_guidance_omits_the_origin_hint_when_repository_is_not_missing(self):
         self.assertNotIn(
-            "auto-detected", configuration_guidance(["PDLC_PROJECT_NUMBER"])
+            "auto-detected", configuration_guidance(["backend.github.project_number"])
         )
 
     def test_file_backend_does_not_need_github_values(self):
@@ -235,14 +236,12 @@ class ConfigTests(unittest.TestCase):
                     config = load_config(nested)
                 self.assertIsNone(config.repository)
 
-    def test_home_config_overrides_environment(self):
-        self.write_home_config('[backend.github]\nproject_owner = "home-owner"\n')
+    def test_home_config_repository_overrides_the_environment_variable(self):
+        self.write_home_config('[backend.github]\nrepository = "home/repository"\n')
         nested = self.make_repo()
-        with patch.dict(
-            os.environ, {"PDLC_PROJECT_OWNER": "environment-owner"}, clear=False
-        ):
+        with patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repository"}):
             config = load_config(nested)
-        self.assertEqual(config.project_owner, "home-owner")
+        self.assertEqual(config.repository, "home/repository")
 
     def test_home_config_applies_without_repository(self):
         self.write_home_config(

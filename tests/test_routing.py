@@ -100,10 +100,10 @@ class RoutingTests(FileBackendTest):
 
     def test_loop_gives_up_and_reports_attempt_count(self):
         self.seed_record(16, "Complete", "Approved")
-        self.set_env(
-            PDLC_MAX_ATTEMPTS="3",
-            PDLC_INITIAL_DELAY_SECONDS="0",
-            PDLC_MAX_DELAY_SECONDS="0",
+        self.configure(
+            max_attempts=3,
+            initial_delay_seconds=0,
+            max_delay_seconds=0,
         )
         result = self.next("loop")
         self.assertEqual(result.front_matter("action"), "none")

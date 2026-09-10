@@ -22,6 +22,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from pdlc.config import Config, install_config, reset_config, set_config
 from pdlc.hosts import attachment_host, code_host, workitem_host
 
 BODY_DEFAULT = """## Product
@@ -46,13 +47,14 @@ UJ-1 covers the first run.
 
 TASK_BODY_DEFAULT = "## Scope\nx\n\n## Acceptance criteria\n- ok\n"
 
-_ENV_DEFAULTS = {
-    "PDLC_BACKEND": "file",
-    "PDLC_CODE_HOST": "file",
-    "PDLC_ATTACHMENT_HOST": "file",
-    "PDLC_ACTOR": "tester",
-    "PDLC_NO_SLEEP": "1",
-}
+def _file_config() -> Config:
+    return Config(
+        backend="file",
+        code_host="file",
+        attachment_host="file",
+        actor="tester",
+        no_sleep=True,
+    )
 
 
 class Result:
@@ -82,18 +84,21 @@ class FileBackendTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.work, ignore_errors=True)
 
         self._saved_env: dict[str, str | None] = {}
-        for key, value in {**_ENV_DEFAULTS, "PDLC_HOME": str(self.home)}.items():
+        # `PDLC_HOME` still points the file backend at its store; every other
+        # setting now comes from the installed Config.
+        for key in ("PDLC_HOME", "PDLC_REPOSITORY", "PDLC_DEBUG"):
             self._saved_env[key] = os.environ.get(key)
-            os.environ[key] = value
-        # Drop anything a developer's shell might inject that would steer the run.
-        for key in ("PDLC_REF_LABEL", "PDLC_PR_ATTACHMENT"):
-            self._saved_env[key] = os.environ.pop(key, None)
+        os.environ["PDLC_HOME"] = str(self.home)
+        os.environ.pop("PDLC_REPOSITORY", None)
+        os.environ.pop("PDLC_DEBUG", None)
+        install_config(_file_config())
 
         (self.home / "records").mkdir(parents=True)
         (self.home / "seq").write_text("40")
 
         self._reset_hosts()
         self.addCleanup(self._restore_env)
+        self.addCleanup(reset_config)
         self.addCleanup(self._reset_hosts)
 
     # --- environment / singletons ---
@@ -110,10 +115,13 @@ class FileBackendTest(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def set_env(self, **values: str) -> None:
-        for key, value in values.items():
-            self._saved_env.setdefault(key, os.environ.get(key))
-            os.environ[key] = value
+    def configure(self, **fields: object) -> None:
+        """Override settings on the installed Config and rebuild the hosts."""
+        set_config(**fields)
+        self._reset_hosts()
+
+    def set_home(self, path: object) -> None:
+        os.environ["PDLC_HOME"] = str(path)
 
     # --- seeding ---
 

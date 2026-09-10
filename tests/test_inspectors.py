@@ -6,8 +6,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from _support import FileBackendTest
-from pdlc.config import load_config
+from _support import FileBackendTest, _file_config
+from pdlc.config import install_config, load_config
 
 
 class InspectTests(FileBackendTest):
@@ -191,7 +191,10 @@ class InspectTaskAgentTests(FileBackendTest):
         if config is not None:
             (root / ".pdlc").mkdir()
             (root / ".pdlc" / "config.toml").write_text(config)
+        # `load_config` merges the throwaway repo's capability tables into the
+        # process; re-pin the file backend so the inspectors still run locally.
         load_config(root)
+        install_config(_file_config())
         self.addCleanup(load_config)
 
     def test_agent_section_names_the_configured_implementer_for_the_phase(self):
@@ -239,8 +242,7 @@ class InspectImplementTests(FileBackendTest):
     def _github_code_host(self) -> None:
         """Stack setup lines come from the code host, and only GitHub has a
         stacked-PR mechanism; the suite's default file host has none."""
-        self.set_env(PDLC_CODE_HOST="github")
-        self._reset_hosts()
+        self.configure(code_host="github")
 
     def test_reports_the_next_eligible_core_task_before_ui(self):
         self._github_code_host()

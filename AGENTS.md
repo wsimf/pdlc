@@ -14,7 +14,7 @@ Done means every modified behavior has a caller, a regression check or an explic
 
 ## Repository map
 
-- `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and CLI options become `PDLC_*` environment variables. `prepare` and `cleanup` are human-only worktree commands, intentionally absent from `--help` and the agent workflow: `prepare` is backend-free scaffolding, `cleanup` resolves the work item to confirm it is Complete before tearing down its worktree and `gh stack` branches.
+- `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and global CLI options become `Config` overrides layered over `.pdlc/config.toml` for that run. `prepare` and `cleanup` are human-only worktree commands, intentionally absent from `--help` and the agent workflow: `prepare` is backend-free scaffolding, `cleanup` resolves the work item to confirm it is Complete before tearing down its worktree and `gh stack` branches.
 - `src/pdlc/commands/` owns command orchestration and user-facing argument/error handling.
 - `src/pdlc/domain/` owns pure lifecycle, evidence, model, and completion policy.
 - `src/pdlc/hosts/*_provider.py` exposes concrete providers; `hosts/lib/{azure,github,file,none}/` owns their implementations, and `workitem_host/`, `code_host/`, and `attachment_host/` retain neutral ports and selection.
@@ -49,7 +49,7 @@ XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv build
 git diff --check
 ```
 
-Use `PDLC_BACKEND=file` with a temporary `PDLC_HOME` for local workflow scenarios. The default work-item backend is GitHub; the file backend persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-host selection follows `PDLC_CODE_HOST`, and attachments follow `PDLC_ATTACHMENT_HOST`.
+For local workflow scenarios set `[backend] name = "file"` in `.pdlc/config.toml` and point `PDLC_HOME` at a temporary directory. The default work-item backend is GitHub; the file backend persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-host selection follows `[code_host] name`, and attachments follow `[attachment_host] name`. Only `PDLC_HOME`, `PDLC_REPOSITORY`, and `PDLC_DEBUG` are read from the environment; every other setting is a config-file key.
 
 The skills name no project-specific tool. A consuming repo routes each seam to its own specialist skill or sub-agent through the `[agents]` and `[skills]` tables of `.pdlc/config.toml`, read back by `pdlc inspect capability`; an unset slot falls back to `general-purpose` or an inline seam. The slot contract lives in `agent/skills/pdlc/references/capabilities.md`.
 

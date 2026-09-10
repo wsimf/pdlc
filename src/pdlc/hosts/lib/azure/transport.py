@@ -51,8 +51,8 @@ def azure_config() -> tuple[str, str]:
     config = get_config()
     if not config.azure_org or not config.azure_project:
         raise PdlcError(
-            "the azure backend needs PDLC_AZURE_ORG and PDLC_AZURE_PROJECT "
-            "(or [backend.azure] organization/project in .pdlc/config.toml)"
+            "the azure backend needs an organization and project "
+            "([backend.azure] organization/project in .pdlc/config.toml)"
         )
     return config.azure_org.rstrip("/"), config.azure_project
 

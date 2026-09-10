@@ -1,7 +1,8 @@
 """Append external CLI invocations to a debug log when tracing is on.
 
 Enabled by ``[debug] enabled = true`` in ``.pdlc/config.toml`` (or
-``~/.pdlc/config.toml``), which ``load_config`` surfaces as ``PDLC_DEBUG``.
+``~/.pdlc/config.toml``); a ``PDLC_DEBUG`` environment variable is honoured too,
+so tracing can be turned on before any config file is located.
 Every ``az`` / ``gh`` call routes through ``pdlc.hosts.lib.process.run_process``
 and every ``git`` call through the ``pdlc.internal`` VCS/worktree helpers, so a
 ``record_external_call`` at each of those seams captures the full set.
@@ -21,7 +22,13 @@ _LOG_PATH = Path.home() / ".pdlc" / "debug.log"
 
 
 def _enabled() -> bool:
-    return (os.environ.get("PDLC_DEBUG") or "false").lower() in {"true", "1"}
+    if (os.environ.get("PDLC_DEBUG") or "false").lower() in {"true", "1"}:
+        return True
+    # Reach for the cached config only; loading it here would recurse, since
+    # `git_remote_repository` records a call through this seam.
+    from pdlc import config
+
+    return config._config is not None and config._config.debug
 
 
 def record_external_call(tool: str, args: Sequence[str]) -> None:

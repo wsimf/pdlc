@@ -19,7 +19,7 @@ Decide which of two modes applies before doing anything else:
 
 Never infer an work item number or a feature idea from the branch, recent files, open PRs, or conversation history. If the input is missing, malformed, ambiguous, or names a piece of work which is not a PDLC work item, stop and ask rather than guessing.
 
-If any `pdlc` command reports that configuration is missing, stop immediately. Tell the user exactly which values it named as missing and ask them to set `.pdlc/config.toml` (or the `PDLC_*` variables) first. Do not continue the task, retry, or work around it.
+If any `pdlc` command reports that configuration is missing, stop immediately. Tell the user exactly which values it named as missing and ask them to set those values in `.pdlc/config.toml` first. Do not continue the task, retry, or work around it.
 
 ---
 

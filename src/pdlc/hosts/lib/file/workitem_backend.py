@@ -334,10 +334,14 @@ class FileWorkItemBackend(WorkItemBackend):
     # --- identity ---
 
     def current_actor(self) -> str:
-        return os.environ.get("PDLC_ACTOR", "local")
+        from pdlc.config import get_config
+
+        return get_config().actor or "local"
 
     def ref_label(self) -> str:
-        return os.environ.get("PDLC_REF_LABEL", "pdlc")
+        from pdlc.config import get_config
+
+        return get_config().ref_label or "pdlc"
 
 
 # --- flat helpers ---

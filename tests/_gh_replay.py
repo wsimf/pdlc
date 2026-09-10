@@ -18,6 +18,7 @@ import unittest
 import unittest.mock
 from typing import Any, Callable
 
+from pdlc.config import Config, install_config, reset_config, set_config
 import pdlc.hosts.lib.github.transport as github_common
 import pdlc.hosts.lib.github.issues as github_issues
 import pdlc.hosts.lib.github.project as github_project
@@ -127,31 +128,24 @@ class GitHubHostTest(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        self._saved_env: dict[str, str | None] = {}
-        for key, value in {
-            "PDLC_BACKEND": "github",
-            "PDLC_REPOSITORY": self.REPOSITORY,
-            "PDLC_PROJECT_OWNER": self.PROJECT_OWNER,
-            "PDLC_PROJECT_NUMBER": self.PROJECT_NUMBER,
-            "PDLC_GITHUB_ASSIGNED_TO": None,
-            "PDLC_ITEMS_FILE": None,
-            "PDLC_SUBISSUES_FILE": None,
-        }.items():
-            self._saved_env[key] = os.environ.get(key)
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        self._saved_repository = os.environ.pop("PDLC_REPOSITORY", None)
+        install_config(Config(
+            backend="github",
+            repository=self.REPOSITORY,
+            project_owner=self.PROJECT_OWNER,
+            project_number=self.PROJECT_NUMBER,
+        ))
         self.addCleanup(self._restore_env)
         self._clear_caches()
         self.addCleanup(self._clear_caches)
 
+    def configure(self, **fields: object) -> None:
+        set_config(**fields)
+
     def _restore_env(self) -> None:
-        for key, value in self._saved_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        reset_config()
+        if self._saved_repository is not None:
+            os.environ["PDLC_REPOSITORY"] = self._saved_repository
 
     def _clear_caches(self) -> None:
         github_project.project_fields.cache_clear()

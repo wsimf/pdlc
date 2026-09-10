@@ -5,7 +5,6 @@ organization; the routes replay those payloads offline.
 
 from __future__ import annotations
 
-import os
 import unittest
 
 from _az_replay import ORGANIZATION, PROJECT, AzureHostTest, work_item
@@ -87,10 +86,7 @@ class ResolutionTest(AzureHostTest):
         self.assertEqual(AzureWorkItemBackend().resolve("9")["workType"], "bug")
 
     def test_a_configured_record_type_defines_the_feature_pipeline(self):
-        self._saved_env.setdefault("PDLC_AZURE_RECORD_TYPE", None)
-        import os
-
-        os.environ["PDLC_AZURE_RECORD_TYPE"] = "User Story"
+        self.configure(azure_record_type="User Story")
         self.az.az("boards", "work-item", "show", response=work_item(
             9, **{TITLE_FIELD: "Agile record", TYPE_FIELD: "User Story"}
         ))
@@ -163,14 +159,12 @@ class QueueScanTest(AzureHostTest):
         self.assertNotIn("System.AssignedTo", wiql)
 
     def test_a_configured_assignee_narrows_the_queue_wiql(self):
-        os.environ["PDLC_AZURE_ASSIGNED_TO"] = "Ada Lovelace"
-        self.addCleanup(lambda: os.environ.pop("PDLC_AZURE_ASSIGNED_TO", None))
+        self.configure(azure_assigned_to="Ada Lovelace")
         self.az.wiql("System.AssignedTo] = 'Ada Lovelace'", response="")
         self.assertEqual(AzureWorkItemBackend().queue_items(), [])
 
     def test_the_at_me_shorthand_becomes_the_wiql_macro(self):
-        os.environ["PDLC_AZURE_ASSIGNED_TO"] = "@me"
-        self.addCleanup(lambda: os.environ.pop("PDLC_AZURE_ASSIGNED_TO", None))
+        self.configure(azure_assigned_to="@me")
         self.az.wiql("System.AssignedTo] = @Me", response="")
         self.assertEqual(AzureWorkItemBackend().queue_items(), [])
 
@@ -564,13 +558,13 @@ class AzureConfigurationTest(unittest.TestCase):
     def test_the_azure_backend_requires_its_own_coordinates(self):
         with self.assertRaises(ConfigurationError) as caught:
             Config(backend="azure", code_host="none").validate_for_backend()
-        self.assertIn("PDLC_AZURE_ORG", str(caught.exception))
-        self.assertIn("PDLC_AZURE_PROJECT", str(caught.exception))
+        self.assertIn("backend.azure.organization", str(caught.exception))
+        self.assertIn("backend.azure.project", str(caught.exception))
 
     def test_a_github_code_host_still_needs_a_repository(self):
         # The two hosts are independent: Azure Boards + GitHub repos is the
         # target pairing, so neither half's requirements imply the other's.
-        with self.assertRaisesRegex(ConfigurationError, "PDLC_REPOSITORY"):
+        with self.assertRaisesRegex(ConfigurationError, "backend.github.repository"):
             Config(
                 backend="azure", code_host="github",
                 azure_org="https://dev.azure.com/acme", azure_project="delivery",
@@ -594,31 +588,27 @@ class AzureConfigurationTest(unittest.TestCase):
         # One helper feeds both `validate_for_backend` and the code-host
         # selector; if they ever diverge, a run validates against one host and
         # then executes against another.
-        import os
-        from unittest import mock
-
         from pdlc.config import default_code_host
         from pdlc.hosts.code_host import _default_name
 
+        from pdlc.config import install_config, reset_config
+
+        self.addCleanup(reset_config)
         for backend, expected in (("github", "github"), ("file", "file"), ("azure", "none")):
             with self.subTest(backend=backend):
                 self.assertEqual(default_code_host(backend), expected)
-                with mock.patch.dict(os.environ, {"PDLC_BACKEND": backend}):
-                    self.assertEqual(_default_name(), expected)
+                install_config(Config(backend=backend))
+                self.assertEqual(_default_name(), expected)
 
     def test_a_missing_organization_fails_at_the_transport_rather_than_guessing(self):
-        import os
+        from pdlc.config import install_config, reset_config
 
-        saved = {key: os.environ.pop(key, None) for key in ("PDLC_AZURE_ORG", "PDLC_AZURE_PROJECT")}
-        try:
-            from pdlc.hosts.lib.azure.transport import azure_config
+        install_config(Config(backend="azure"))
+        self.addCleanup(reset_config)
+        from pdlc.hosts.lib.azure.transport import azure_config
 
-            with self.assertRaisesRegex(PdlcError, "PDLC_AZURE_ORG"):
-                azure_config()
-        finally:
-            for key, value in saved.items():
-                if value is not None:
-                    os.environ[key] = value
+        with self.assertRaisesRegex(PdlcError, "organization and project"):
+            azure_config()
 
 
 class ConcurrentTaskReadTest(AzureHostTest):
