@@ -230,8 +230,13 @@ def git_remote_repository(root: Path) -> str | None:
     This is only the last-resort source for ``PDLC_REPOSITORY``: an environment
     variable or a `config.toml` value always wins and this never overrides one
     (see ``load_config``). Anything unexpected — no git, no ``origin``, a
-    non-GitHub URL — yields ``None`` so the normal "not configured" error still
-    stands rather than a wrong guess.
+    non-GitHub URL, or an SSH host alias that hides ``github.com`` — yields
+    ``None`` so the normal "not configured" error still stands rather than a
+    wrong guess.
+
+    Handles the HTTPS (``https://github.com/owner/repo.git``), SCP-style SSH
+    (``git@github.com:owner/repo.git``), and ``ssh://`` URL forms, including an
+    explicit port.
     """
     try:
         result = subprocess.run(
@@ -243,7 +248,7 @@ def git_remote_repository(root: Path) -> str | None:
     except (OSError, subprocess.CalledProcessError):
         return None
     match = re.search(
-        r"(?:github\.com[:/])([^/ :]+)/([^/]+?)(?:\.git)?$", result.stdout.strip()
+        r"github\.com(?::\d+)?[:/]([^/ :]+)/([^/]+?)(?:\.git)?$", result.stdout.strip()
     )
     return f"{match.group(1)}/{match.group(2)}" if match else None
 

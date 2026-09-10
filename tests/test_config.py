@@ -175,11 +175,19 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(load_config(nested).repository, "repo/repository")
 
     def test_repository_is_derived_from_git_origin_when_unset(self):
-        nested = self.make_git_repo("https://github.com/acme/widgets.git")
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("PDLC_REPOSITORY", None)
-            config = load_config(nested)
-        self.assertEqual(config.repository, "acme/widgets")
+        for origin_url in (
+            "https://github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+            "git@github.com:acme/widgets.git",
+            "ssh://git@github.com/acme/widgets.git",
+            "ssh://git@github.com:22/acme/widgets.git",
+        ):
+            with self.subTest(origin_url=origin_url):
+                nested = self.make_git_repo(origin_url)
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("PDLC_REPOSITORY", None)
+                    config = load_config(nested)
+                self.assertEqual(config.repository, "acme/widgets")
 
     def test_configured_repository_beats_git_origin(self):
         nested = self.make_git_repo(
@@ -198,11 +206,16 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(load_config(nested).repository, "acme/from-env")
 
     def test_non_github_git_origin_is_not_derived(self):
-        nested = self.make_git_repo("https://gitlab.com/acme/widgets.git")
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("PDLC_REPOSITORY", None)
-            config = load_config(nested)
-        self.assertIsNone(config.repository)
+        for origin_url in (
+            "https://gitlab.com/acme/widgets.git",
+            "git@github-work:acme/widgets.git",
+        ):
+            with self.subTest(origin_url=origin_url):
+                nested = self.make_git_repo(origin_url)
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("PDLC_REPOSITORY", None)
+                    config = load_config(nested)
+                self.assertIsNone(config.repository)
 
     def test_home_config_overrides_environment(self):
         self.write_home_config('[backend.github]\nproject_owner = "home-owner"\n')

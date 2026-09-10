@@ -110,7 +110,7 @@ All variables are optional unless a selected backend or workflow requires them.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. Falls back to the checkout's `origin` remote when nothing sets it. |
+| `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
 | `PDLC_PROJECT_NUMBER` | unset; required for GitHub | GitHub Projects number. |
 | `PDLC_PROJECT_OWNER` | unset; required for GitHub | GitHub Projects owner. |
 | `PDLC_GITHUB_ASSIGNED_TO` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
