@@ -11,15 +11,18 @@ from typing import Callable
 from pdlc.config import config_path, load_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.github.transport import run_gh_json
+from pdlc.internal.trace import record_external_call
 
 
 Input = Callable[[str], str]
 
 
 def _origin() -> tuple[str | None, str | None]:
+    args = ["git", "config", "--get", "remote.origin.url"]
+    record_external_call("git", args)
     try:
         result = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"],
+            args,
             capture_output=True,
             text=True,
             check=True,

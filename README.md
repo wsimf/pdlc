@@ -134,6 +134,7 @@ All variables are optional unless a selected backend or workflow requires them.
 | `PDLC_WORKTREE_ROOT` | `~/.pdlc/worktrees` | Parent directory for `pdlc prepare` / `pdlc cleanup` worktrees; each is nested `<root>/<repo-name>/<workitem>`. |
 | `PDLC_WORKTREE_BASE_REF` | detected default branch | Ref that new `pdlc prepare` branches start from. |
 | `PDLC_WORKTREE_INIT_SCRIPT` | unset | Shell snippet `pdlc prepare` offers to run in a freshly created worktree. |
+| `PDLC_DEBUG` | unset | `true` appends every external CLI call (`az`, `gh`, `git`, …) to `~/.pdlc/debug.log` as `[<time>] - (<tool>) : <full command>`. Set via `[debug]` `enabled = true`. |
 
 For GitHub, create `.pdlc/config.toml` with:
 

@@ -20,6 +20,7 @@ ENVIRONMENT_KEYS = (
     "PDLC_MAX_ATTEMPTS", "PDLC_INITIAL_DELAY_SECONDS", "PDLC_MAX_DELAY_SECONDS",
     "PDLC_NO_SLEEP",
     "PDLC_WORKTREE_ROOT", "PDLC_WORKTREE_INIT_SCRIPT", "PDLC_WORKTREE_BASE_REF",
+    "PDLC_DEBUG",
 )
 
 TOML_ENVIRONMENT_KEYS = {
@@ -46,6 +47,7 @@ TOML_ENVIRONMENT_KEYS = {
     ("worktree", "root"): "PDLC_WORKTREE_ROOT",
     ("worktree", "init_script"): "PDLC_WORKTREE_INIT_SCRIPT",
     ("worktree", "base_ref"): "PDLC_WORKTREE_BASE_REF",
+    ("debug", "enabled"): "PDLC_DEBUG",
 }
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
@@ -105,6 +107,9 @@ class Config:
     initial_delay_seconds: int = 60
     max_delay_seconds: int = 900
     no_sleep: bool = False
+    # When true, every external CLI call (az, gh, git, …) is appended to
+    # ~/.pdlc/debug.log by pdlc.internal.trace.
+    debug: bool = False
     # `pdlc prepare` / `pdlc cleanup` (human-only) worktree scaffolding.
     # `worktree_root` is the parent directory for every prepared tree, which the
     # commands nest `<root>/<repo-name>/<workitem>` under; unset falls back to
@@ -133,10 +138,11 @@ class Config:
             if value < minimum:
                 raise ConfigurationError(f"PDLC_{name.upper()} must be >= {minimum}")
             values[name] = value
-        raw = (values["no_sleep"] or "false").lower()
-        if raw not in {"true", "false", "1", "0"}:
-            raise ConfigurationError("PDLC_NO_SLEEP must be true, false, 1, or 0")
-        values["no_sleep"] = raw in {"true", "1"}
+        for name in ("no_sleep", "debug"):
+            raw = (values[name] or "false").lower()
+            if raw not in {"true", "false", "1", "0"}:
+                raise ConfigurationError(f"PDLC_{name.upper()} must be true, false, 1, or 0")
+            values[name] = raw in {"true", "1"}
         return cls(**values)
 
     def validate_for_backend(self) -> None:

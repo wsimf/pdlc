@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.trace import record_external_call
 
 
 _TOKEN = re.compile(r"[A-Za-z0-9._-]+")
@@ -39,6 +40,7 @@ def sanitize_workitem(token: str) -> str:
 
 
 def _git(args: list[str], *, cwd: Path | None = None) -> str:
+    record_external_call("git", ["git", *args])
     result = subprocess.run(
         ["git", *args], capture_output=True, text=True, cwd=cwd
     )
@@ -102,10 +104,9 @@ def fetch_base(base_ref: str) -> None:
 
 
 def branch_exists(branch: str) -> bool:
-    return subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
-        capture_output=True,
-    ).returncode == 0
+    args = ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]
+    record_external_call("git", args)
+    return subprocess.run(args, capture_output=True).returncode == 0
 
 
 def create_worktree(path: Path, branch: str, base_ref: str) -> None:
@@ -120,6 +121,7 @@ def run_init_script(path: Path, script: str) -> None:
     """Run the configured init script as a shell snippet in the new worktree.
     Output is inherited so the driver sees it live; a non-zero exit is raised
     (the worktree still exists and is reported)."""
+    record_external_call("sh", ["sh", "-c", script])
     result = subprocess.run(script, shell=True, cwd=path)
     if result.returncode != 0:
         raise PdlcError(
