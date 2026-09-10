@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -241,6 +243,34 @@ def config_path(start: Path | None = None) -> Path:
     return repository_root(start) / ".pdlc" / "config.toml"
 
 
+def git_remote_repository(root: Path) -> str | None:
+    """Best-effort ``owner/name`` from the repository's ``origin`` remote.
+
+    This is only the last-resort source for ``PDLC_REPOSITORY``: an environment
+    variable or a `config.toml` value always wins and this never overrides one
+    (see ``load_config``). Anything unexpected — no git, no ``origin``, a
+    non-GitHub URL, or an SSH host alias that hides ``github.com`` — yields
+    ``None`` so the normal "not configured" error still stands rather than a
+    wrong guess.
+
+    Handles the HTTPS (``https://github.com/owner/repo.git``), SCP-style SSH
+    (``git@github.com:owner/repo.git``), and ``ssh://`` URL forms, including an
+    explicit port.
+    """
+    from pdlc.internal.trace import record_external_call
+
+    args = ["git", "-C", str(root), "config", "--get", "remote.origin.url"]
+    record_external_call("git", args)
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    match = re.search(
+        r"github\.com(?::\d+)?[:/]([^/ :]+)/([^/]+?)(?:\.git)?$", result.stdout.strip()
+    )
+    return f"{match.group(1)}/{match.group(2)}" if match else None
+
+
 def home_config_path() -> Path:
     """Machine-wide config, layered under the repository file (see ``load_config``)."""
     return Path.home() / ".pdlc" / "config.toml"
@@ -294,6 +324,10 @@ def load_config(start: Path | None = None) -> Config:
 
     The repository file is optional when a home file exists, so ``pdlc`` runs
     outside a Git repository on machine-wide config alone.
+
+    ``PDLC_REPOSITORY`` alone has a further fallback: if nothing sets it, it is
+    derived from the checkout's ``origin`` remote. An explicit value always
+    wins.
     """
     global _config_loaded, _capabilities
     home_path = home_config_path()
@@ -308,6 +342,13 @@ def load_config(start: Path | None = None) -> Config:
         _read_file(repo_path) if repo_path is not None else ({}, Capabilities.empty())
     )
     os.environ.update({**home_flat, **repo_flat})
+    # Last resort only: when neither file nor environment names the GitHub
+    # repository, derive it from the checkout's `origin` remote so a shared
+    # repo works without every developer keeping a local `PDLC_REPOSITORY`.
+    if not os.environ.get("PDLC_REPOSITORY") and repo_path is not None:
+        derived = git_remote_repository(repo_path.parent.parent)
+        if derived:
+            os.environ["PDLC_REPOSITORY"] = derived
     _capabilities = Capabilities(
         agents={**home_caps.agents, **repo_caps.agents},
         skills={**home_caps.skills, **repo_caps.skills},
@@ -343,6 +384,13 @@ def configuration_guidance(missing: list[str]) -> str:
     example = "\n\n".join(
         f"[{section}]\n" + "\n".join(lines) for section, lines in sections.items()
     )
+    repository_hint = (
+        "\n\nPDLC_REPOSITORY is normally auto-detected from this checkout's "
+        "`origin` remote; it must be set explicitly here because that lookup did "
+        "not resolve a github.com repository."
+        if "PDLC_REPOSITORY" in missing
+        else ""
+    )
     return (
         "pdlc is not configured for this repository.\n\n"
         f"{details}"
@@ -350,6 +398,7 @@ def configuration_guidance(missing: list[str]) -> str:
         f"{example}\n\n"
         "You can also put the same values in ~/.pdlc/config.toml for machine-wide "
         "defaults, or set the corresponding PDLC_* environment variables."
+        f"{repository_hint}"
     )
 
 

@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from unittest.mock import patch
 from pdlc.config import (
     Config,
     ConfigurationError,
+    configuration_guidance,
     get_capabilities,
     get_config,
     load_config,
@@ -39,6 +41,19 @@ class ConfigTests(unittest.TestCase):
         path = self._home / ".pdlc" / "config.toml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(config)
+
+    def make_git_repo(self, origin_url: str, config: str | None = None) -> Path:
+        root = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(
+            ["git", "-C", str(root), "remote", "add", "origin", origin_url],
+            check=True,
+        )
+        if config is not None:
+            config_dir = root / ".pdlc"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(config)
+        return root / "nested"
 
     def non_repo_dir(self) -> Path:
         # A temp dir with no ``.git`` ancestor stands in for "run outside a repo".
@@ -124,6 +139,17 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigurationError, "Create .pdlc/config.toml"):
             Config().validate_for_backend()
 
+    def test_missing_repository_names_the_value_and_the_origin_fallback(self):
+        guidance = configuration_guidance(["PDLC_REPOSITORY"])
+        self.assertIn("Missing: PDLC_REPOSITORY", guidance)
+        self.assertIn("auto-detected", guidance)
+        self.assertIn("origin", guidance)
+
+    def test_guidance_omits_the_origin_hint_when_repository_is_not_missing(self):
+        self.assertNotIn(
+            "auto-detected", configuration_guidance(["PDLC_PROJECT_NUMBER"])
+        )
+
     def test_file_backend_does_not_need_github_values(self):
         Config(backend="file").validate_for_backend()
 
@@ -165,6 +191,49 @@ class ConfigTests(unittest.TestCase):
         self.write_home_config('[backend.github]\nrepository = "home/repository"\n')
         nested = self.make_repo('[backend.github]\nrepository = "repo/repository"\n')
         self.assertEqual(load_config(nested).repository, "repo/repository")
+
+    def test_repository_is_derived_from_git_origin_when_unset(self):
+        for origin_url in (
+            "https://github.com/acme/widgets.git",
+            "https://github.com/acme/widgets",
+            "git@github.com:acme/widgets.git",
+            "ssh://git@github.com/acme/widgets.git",
+            "ssh://git@github.com:22/acme/widgets.git",
+        ):
+            with self.subTest(origin_url=origin_url):
+                nested = self.make_git_repo(origin_url)
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("PDLC_REPOSITORY", None)
+                    config = load_config(nested)
+                self.assertEqual(config.repository, "acme/widgets")
+
+    def test_configured_repository_beats_git_origin(self):
+        nested = self.make_git_repo(
+            "https://github.com/acme/widgets.git",
+            '[backend.github]\nrepository = "acme/configured"\n',
+        )
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PDLC_REPOSITORY", None)
+            self.assertEqual(load_config(nested).repository, "acme/configured")
+
+    def test_environment_repository_beats_git_origin(self):
+        nested = self.make_git_repo("https://github.com/acme/widgets.git")
+        with patch.dict(
+            os.environ, {"PDLC_REPOSITORY": "acme/from-env"}, clear=False
+        ):
+            self.assertEqual(load_config(nested).repository, "acme/from-env")
+
+    def test_non_github_git_origin_is_not_derived(self):
+        for origin_url in (
+            "https://gitlab.com/acme/widgets.git",
+            "git@github-work:acme/widgets.git",
+        ):
+            with self.subTest(origin_url=origin_url):
+                nested = self.make_git_repo(origin_url)
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("PDLC_REPOSITORY", None)
+                    config = load_config(nested)
+                self.assertIsNone(config.repository)
 
     def test_home_config_overrides_environment(self):
         self.write_home_config('[backend.github]\nproject_owner = "home-owner"\n')

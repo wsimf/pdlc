@@ -1,6 +1,36 @@
 # PDLC
 
-The PDLC command-line tool and its agent workflow instructions.
+**PDLC runs a feature from idea to shipped code as a governed lifecycle on your existing issue tracker, with coding agents doing the work and the tracker holding the state.**
+
+Point it at a one-line idea or an existing work item. It drives the feature through a fixed sequence of stages — product spec, UI, task breakdown, technical plan, implementation, testing, verification — pausing for human approval at the gates that matter and letting an autonomous loop grind through the rest. Every stage produces a reviewed artifact; every transition is recorded as evidence on the work item itself, not in a side database.
+
+## What it is
+
+- An installable `pdlc` CLI that is the only interface to the workflow state.
+- A set of agent **skills** (`agent/skills/`) and specialist **sub-agents** (`agent/sub-agents/`) that drive the lifecycle by calling that CLI — one skill per stage, plus an orchestrator and an autonomous queue loop.
+- A backend abstraction: work items live in **GitHub Issues + Projects** or **Azure Boards**; code and pull requests live in **GitHub**; the two are chosen independently, so Azure Boards can pair with GitHub code hosting.
+
+## Core idea
+
+The work-item store is the system of record. Local files are temporary inputs; the CLI is the only way to read or change lifecycle state.
+
+- **Fixed lifecycle.** `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`. A per-work-item `Gate State` (`Pending`, `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, `Approval Required`, `Approved`, `Stale`) says what the active stage is waiting on.
+- **Machine-checked, never inferred.** Stage, gate, task identity, PR linkage, evidence, and completion readiness come from the store — never from branch names, checkboxes, or prose.
+- **Evidence, not logs.** Each transition appends an evidence comment explaining why it happened; the work-item body stays a clean current-intent specification.
+- **Human gates are explicit.** Approvals, skips, decision resolutions, invalidations, and final completion are always driver actions. Everything else — routing, reviews, CI reconciliation, retries with backoff — can run unattended.
+- **Independent review at every stage.** Read-only reviewer sub-agents check each artifact against the requirements and plans before the gate opens; a reviewer can raise a `Decision Required` block when a finding needs a product, architecture, or scope call.
+- **Stacked delivery.** Implementation is decomposed into dependency-ordered delivery tasks, each shipped as its own stacked pull request linked back to the parent.
+
+## Capabilities
+
+- **Start** a feature from an idea: `pdlc` with a description hands it to `pdlc-write`, which drafts and reviews the Product artifact.
+- **Orient** on any work item: `pdlc inspect <work-item>` returns metadata, the classified task tree, linked-PR check rollup, and the routing decision for what is due next.
+- **Drive** the queue: `pdlc next` routes one item (or scans the whole queue) to the next stage skill; `pdlc next loop` retries with backoff until something is actionable.
+- **Advance** stages with the `pdlc post *` commands — each one performs a single authorized transition and records its evidence.
+- **Inspect** progress read-only with `pdlc inspect timeline`, `pdlc inspect comments --page N`, and per-stage readiness checks (`inspect implement`, `inspect test`, `inspect verify`, `inspect complete`).
+- **Route seams to your toolchain.** A consuming repo maps each capability slot (implementer, reviewer, test author, …) to its own skill or sub-agent through `.pdlc/config.toml`; unset slots fall back to a general-purpose agent, so the skills name no project-specific tool.
+
+Run `pdlc --help` for the full command list.
 
 ## Installation
 
@@ -111,7 +141,7 @@ All variables are optional unless a selected backend or workflow requires them.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. |
+| `PDLC_REPOSITORY` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
 | `PDLC_PROJECT_NUMBER` | unset; required for GitHub | GitHub Projects number. |
 | `PDLC_PROJECT_OWNER` | unset; required for GitHub | GitHub Projects owner. |
 | `PDLC_GITHUB_ASSIGNED_TO` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |

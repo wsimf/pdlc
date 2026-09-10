@@ -89,3 +89,4 @@ class CliTests(unittest.TestCase):
 
                 self.assertEqual(main(), 1)
         self.assertIn("configure me", output.getvalue())
+        self.assertIn("Do not continue the task", output.getvalue())

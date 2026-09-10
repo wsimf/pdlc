@@ -2,35 +2,24 @@
 
 from __future__ import annotations
 
-import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
 
-from pdlc.config import config_path, load_config
+from pdlc.config import config_path, git_remote_repository, load_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.github.transport import run_gh_json
-from pdlc.internal.trace import record_external_call
 
 
 Input = Callable[[str], str]
 
 
 def _origin() -> tuple[str | None, str | None]:
-    args = ["git", "config", "--get", "remote.origin.url"]
-    record_external_call("git", args)
-    try:
-        result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (OSError, subprocess.CalledProcessError):
+    repository = git_remote_repository(Path.cwd())
+    if not repository:
         return None, None
-    match = re.search(r"(?:github\.com[:/])([^/ :]+)/([^/]+?)(?:\.git)?$", result.stdout.strip())
-    return (match.group(1), match.group(2)) if match else (None, None)
+    owner, _, name = repository.partition("/")
+    return owner, name
 
 
 def _choose(prompt: str, options: list[str], input_fn: Input) -> int:

@@ -144,6 +144,12 @@ def _dispatch(raw_arguments: list[str]) -> int:
             Config.from_environment().validate_for_backend()
     except ConfigurationError as error:
         print(f"pdlc: {error}", file=sys.stderr)
+        print(
+            "pdlc: configuration must be fixed before any pdlc command can run. "
+            "Stop here, tell the user exactly which values are missing, and ask "
+            "them to set the configuration first. Do not continue the task.",
+            file=sys.stderr,
+        )
         return 1
     except ValueError as error:
         print(f"pdlc: {error}", file=sys.stderr)
