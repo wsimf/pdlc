@@ -409,6 +409,22 @@ class CommentTest(AzureHostTest):
              "url": "https://az/comments/2", "author": {"login": "dev@acme.test"}},
         ])
 
+    def test_comments_html_decode_their_text(self):
+        self.az.invoke("wit", "comments", response={"comments": [
+            {"id": 1, "text": "he said &quot;retry &amp; back off&quot; &lt;here&gt;",
+             "createdDate": "2026-09-07T06:00:00Z", "createdBy": {"uniqueName": "dev@acme.test"},
+             "url": "https://az/comments/1"},
+        ]})
+        [comment] = AzureWorkItemBackend().comments("7")
+        self.assertEqual(comment["body"], 'he said "retry & back off" <here>')
+
+    def test_comments_page_html_decodes_its_text(self):
+        self.az.invoke("wit", "comments", response={
+            "comments": [{"id": 1, "text": "a &amp; b"}], "totalCount": 1,
+        })
+        page = AzureWorkItemBackend().comments_page("7")
+        self.assertEqual([comment["body"] for comment in page.comments], ["a & b"])
+
     def test_comments_follow_a_continuation_token(self):
         pages = [
             {"comments": [{"id": 1, "text": "first"}], "continuationToken": "next"},
