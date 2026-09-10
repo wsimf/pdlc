@@ -91,6 +91,12 @@ class FailureContractTests(unittest.TestCase):
             self.assertEqual(run_process(["gh", "version"]), "Māori")
         self.assertEqual(run.call_args.kwargs["timeout"], 120)
         self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        # The child is pinned to a UTF-8 locale so a non-UTF-8 host locale cannot
+        # make `az` emit CP-1252 bytes we then fail to decode.
+        child_env = run.call_args.kwargs["env"]
+        self.assertEqual(child_env["LC_ALL"], "C.UTF-8")
+        self.assertEqual(child_env["PYTHONUTF8"], "1")
+        self.assertEqual(child_env["PYTHONIOENCODING"], "utf-8")
 
     def test_azure_launches_resolved_windows_cmd_path(self):
         from pdlc.hosts.lib.azure.transport import run_az
