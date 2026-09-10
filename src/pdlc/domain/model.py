@@ -41,6 +41,11 @@ CORE_TAG = "[CORE]"
 PLAN_COMMENT_HEADING = "## Technical Plan"
 IMPLEMENTATION_COMMENT_HEADING = "## Implementation"
 
+# A delivery task's plan and implementation comments carry no `PDLC-*` marker,
+# so `user_comments` must be told to exclude them by heading; the parent record
+# stamps the equivalent evidence with markers and needs no such exclusion.
+TASK_EVIDENCE_HEADINGS = (PLAN_COMMENT_HEADING, IMPLEMENTATION_COMMENT_HEADING)
+
 
 # Work-item field accessors -------------------------------------------------
 
@@ -360,16 +365,31 @@ def marked_comments(comments: list[dict]) -> list[dict]:
 # Every comment carrying no `PDLC-*` marker — authored by a human or an
 # outside bot, oldest first. These have no workflow meaning; the timeline
 # (marker-only) hides them, so `pdlc inspect` surfaces them separately.
-def user_comments(comments: list[dict]) -> list[dict]:
-    plain = [comment for comment in comments if not MARKER_PREFIX.match(comment["body"])]
+def user_comments(comments: list[dict], *, exclude_headings: tuple[str, ...] = ()) -> list[dict]:
+    plain = [
+        comment
+        for comment in comments
+        if not MARKER_PREFIX.match(comment["body"])
+        and not _opens_with_heading(comment["body"], exclude_headings)
+    ]
     plain.sort(key=lambda comment: comment["createdAt"])
     return plain
 
 
+# True when the comment's first non-empty line is exactly one of `headings` —
+# the same match `latest_heading_comment` uses to locate evidence comments.
+def _opens_with_heading(body: str, headings: tuple[str, ...]) -> bool:
+    for line in (body or "").splitlines():
+        if line.strip():
+            return line.strip() in headings
+    return False
+
+
 # A `## User Comments` section for the supplied snapshot, or `None` when there
-# are no unmarked comments.
-def user_comments_markdown(comments: list[dict]) -> str:
-    plain = user_comments(comments)
+# are no unmarked comments. `exclude_headings` drops unmarked evidence comments
+# (a delivery task's plan / implementation notes) that would otherwise leak in.
+def user_comments_markdown(comments: list[dict], *, exclude_headings: tuple[str, ...] = ()) -> str:
+    plain = user_comments(comments, exclude_headings=exclude_headings)
     if not plain:
         return "## User Comments\n\nNone"
     lines = ["## User Comments"]

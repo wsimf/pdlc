@@ -10,7 +10,7 @@ from pdlc.domain.workflow import FEATURE_PIPELINE
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
+from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
 from pdlc.hosts.lib.github.transport import neutralize_refs
 
 GOOD_VERIFICATION = """## Verification Run Results
@@ -128,6 +128,26 @@ class UserCommentsTests(unittest.TestCase):
 
     def test_markdown_none_when_all_marked(self):
         self.assertEqual(user_comments_markdown(self._COMMENTS[:1]), "## User Comments\n\nNone")
+
+    _WITH_EVIDENCE = _COMMENTS + [
+        {"body": "## Technical Plan\n\nown the seam", "createdAt": "2026-01-05T00:00:00Z",
+         "url": "plan", "author": {"login": "planner"}},
+        {"body": "\n## Implementation\n\nshipped it", "createdAt": "2026-01-06T00:00:00Z",
+         "url": "impl", "author": {"login": "impl"}},
+    ]
+
+    def test_exclude_headings_drops_unmarked_task_evidence_comments(self):
+        kept = user_comments(self._WITH_EVIDENCE, exclude_headings=TASK_EVIDENCE_HEADINGS)
+        self.assertEqual([c["url"] for c in kept], ["u1", "u4"])
+        out = user_comments_markdown(self._WITH_EVIDENCE, exclude_headings=TASK_EVIDENCE_HEADINGS)
+        self.assertNotIn("own the seam", out)
+        self.assertNotIn("shipped it", out)
+
+    def test_exclude_headings_keeps_comments_that_only_mention_the_heading_later(self):
+        comment = {"body": "looks good\n\n## Technical Plan is solid", "createdAt": "2026-01-07T00:00:00Z",
+                   "url": "reply", "author": {"login": "sudara"}}
+        kept = user_comments([comment], exclude_headings=TASK_EVIDENCE_HEADINGS)
+        self.assertEqual([c["url"] for c in kept], ["reply"])
 
 
 class NeutralizeRefsTests(unittest.TestCase):
