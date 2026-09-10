@@ -52,7 +52,9 @@ flowchart TD
     Tasks --> DryRun
 
     DryRun["pdlc post tasks --dry-run<br/>guard stage + gate<br/>validate coverage, dependencies,<br/>UI applicability — writes nothing"]
-    DryRun --> LocalReview["pdlc-tasks-reviewer<br/>reads the local files, not the record"]
+    DryRun -->|"validation fails — hand problems to the sub-agent, re-run (no cap)"| UI
+    DryRun -->|"validation fails — hand problems to the sub-agent, re-run (no cap)"| Tasks
+    DryRun -->|"clean"| LocalReview["pdlc-tasks-reviewer<br/>reads the local files, not the record"]
     LocalReview --> LocalVerdict{Findings?}
     LocalVerdict -->|Changes, max 2 passes| UI
     LocalVerdict -->|Changes, max 2 passes| Tasks
@@ -62,7 +64,8 @@ flowchart TD
     Land --> Human
 
     Plan --> PlanDryRun["pdlc post plan --dry-run<br/>guard stage + gate<br/>validate plan fragments<br/>against the task tree — writes nothing"]
-    PlanDryRun --> PlanReview["pdlc-plan-reviewer<br/>reads the local task bodies"]
+    PlanDryRun -->|"validation fails — hand problems to the sub-agent, re-run (no cap)"| Plan
+    PlanDryRun -->|"clean"| PlanReview["pdlc-plan-reviewer<br/>reads the local task bodies"]
     PlanReview --> PlanVerdict{Findings?}
     PlanVerdict -->|Changes, max 2 passes| Plan
     PlanVerdict -->|Clean| PlanLand
