@@ -15,10 +15,26 @@ flowchart TD
     Start --> Next
 
     Next -->|Pending / Stale / Changes Required| Owner
+    Next -->|"Product, any gate"| HumanInput["human-input<br/>autonomous loop stops,<br/>asks the driver to run pdlc-write"]
     Next -->|Review Required| Review["pdlc-review<br/>independent reviewer"]
+    Next -->|Decision Required| Decision["human-decision<br/>decision-resolver-workflow"]
+    Next -->|CI Pending| CIWait["autonomous loop backs off<br/>while checks run;<br/>driver may run pdlc post ci"]
     Next -->|Approval Required| Human["Human approval required"]
+    Next -->|"Skipped stage (Skipped States)"| SkipCascade["pdlc next auto-advances<br/>Pending / Changes / Stale straight to<br/>the next stage's Pending<br/>PDLC-SKIPPED, no specialist or reviewer"]
     Next -->|Complete| Done([No work])
-    Next -->|Malformed state| Blocked([Blocked: report exact state])
+    Next -->|"Malformed / unknown type / unavailable pipeline"| Blocked([Blocked: report exact state])
+
+    SkipCascade --> Next
+    CIWait --> CIGate
+    HumanInput --> Write
+
+    Decision --> DecisionLand["pdlc post decision<br/>manifest of per-decision outcomes<br/>(each answered, or deferred to its own<br/>Product / Pending work item)<br/>sets Changes Required"]
+    DecisionLand --> Owner
+    Decision -->|"resolution changes approved upstream intent"| Invalidate
+
+    Invalidate["pdlc post invalidate — human<br/>returns a settled / Approved stage to Stale<br/>PDLC-INVALIDATED<br/>marks downstream evidence stale"]
+    Invalidate --> Next
+    Settled([Any Approved stage<br/>upstream intent changed]) --> Invalidate
 
     Owner{"Active stage"}
 
@@ -57,7 +73,7 @@ flowchart TD
 
     Verify --> VResult{"pdlc post verify<br/>--recommendation"}
     VResult -->|Approval Required| Human
-    VResult -->|Decision Required| Blocked
+    VResult -->|Decision Required| Decision
     VResult -->|Changes Required| Verify
     VResult -->|"Changes Required --bounce STAGE"| Bounce["PDLC-REVIEW records Bounce + Loop<br/>STAGE → Stale, no driver step<br/>(advances the rework count)"]
     Bounce --> Next
@@ -72,7 +88,7 @@ flowchart TD
 
     Review --> ReviewResult{Findings?}
     ReviewResult -->|Changes required| Owner
-    ReviewResult -->|Decision required| Blocked
+    ReviewResult -->|Decision required| Decision
     ReviewResult -->|"Clean, Testing"| Churned{"Verification rework loop<br/>entered 1–3×?"}
     ReviewResult -->|"Clean, Implementation"| CIGate["pdlc post ci<br/>reconcile the registered PR stack's CI<br/>green → Approval Required<br/>red → Changes Required"]
     CIGate -->|"green"| Churned
