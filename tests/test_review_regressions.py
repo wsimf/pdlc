@@ -5,6 +5,7 @@ from pdlc.commands.inspect_test import _testable_scope_section
 from pdlc.commands.inspect_verify import _reuse_items
 from pdlc.commands.post_complete import _stale_rows
 from pdlc.commands.inspect_implement import _next_task_section
+from pdlc.commands.inspect_task import _render_task
 from pdlc.internal.reporting import older_comments_notice
 from pdlc.domain.evidence import parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
@@ -16,10 +17,23 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertEqual(older_comments_notice("TASK-001", {"totalCount": 205}, 100), "105 more comments; use pdlc inspect comments TASK-001 --page 2")
         self.assertEqual(older_comments_notice("TASK-001", {"totalCount": 100}, 100), "")
 
-    def test_implement_task_output_includes_comment_notice(self):
-        task = {"number": 1, "taskId": "TASK-001", "title": "Task", "isUI": False, "state": "OPEN", "hasPlan": True, "hasImplementation": False, "planComment": "plan", "comments": [{}] * 100, "commentsMeta": {"totalCount": 101}}
+    def test_next_task_omits_the_technical_plan(self):
+        # The plan is no longer rendered by `inspect implement`; `inspect task` owns it.
+        task = {"number": 1, "taskId": "TASK-001", "title": "Task", "isUI": False, "state": "OPEN", "hasPlan": True, "hasImplementation": False, "planComment": "## Technical Plan\n\nsecret"}
         output, chosen = _next_task_section({"Slug": "record-1"}, [task], None, None)
         self.assertIs(chosen, task)
+        self.assertNotIn("secret", output)
+        self.assertNotIn("Technical Plan", output)
+
+    def test_inspect_task_output_includes_comment_notice(self):
+        # The truncated-comment notice must reach the reader where the plan is now
+        # rendered — `inspect task`, which pulls the plan from the task's comments.
+        task = {"number": 1, "taskId": "TASK-001", "title": "Task", "url": "", "state": "OPEN", "isUI": False,
+                "hasPlan": True, "hasImplementation": False, "needsPlan": False, "prs": [], "body": "b",
+                "planComment": "plan", "commentObjects": [], "comments": [{}] * 100, "commentsMeta": {"totalCount": 101}}
+        with patch("pdlc.commands.inspect_task.get_capabilities") as caps:
+            caps.return_value.agent.return_value = "general-purpose"
+            output = _render_task(task)
         self.assertIn("1 more comments; use pdlc inspect comments 1 --page 2", output)
     REPORT = """## Claims Audit
 - Claim (Verified @ deadbeef)

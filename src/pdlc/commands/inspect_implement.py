@@ -11,9 +11,10 @@ restricts it to the CORE or UI half. The two cannot be combined.
 `## Readiness` reports whether the stage is due (Status Implementation, gate
 Pending / Changes Required / Stale, not skipped). `## Next Task` names the first
 eligible task in scope — OPEN, technically planned, not yet implemented — in
-CORE-before-UI then task-number order, with its `## Technical Plan` rendered
-inline, its `branch:`, and whatever setup lines the configured code host needs to
-put that branch on its stack — for GitHub, `gh stack` invocations entered at the
+CORE-before-UI then task-number order, with its `branch:` and whatever setup
+lines the configured code host needs to put that branch on its stack — its
+`## Technical Plan` is not rendered here; the `pdlc inspect task` handoff below
+renders it. For GitHub, the setup lines are `gh stack` invocations entered at the
 previous implemented task's registered pull request. The stack vocabulary is the
 host's own: nothing here computes a base branch or checks whether a
 predecessor's branch still exists. A code host with no stacked-PR mechanism
@@ -23,8 +24,8 @@ confirm from the task body and record comments (dependency closure by Result,
 HITL approval) — this script stops short of that judgment, exactly as
 `pdlc inspect test` does. `## Remaining` summarises the rest. Whenever a task was
 chosen, the output ends with the `pdlc inspect task` call that renders it in
-full — its body, acceptance criteria, and the `## Agent` naming the implementer
-sub-agent it routes to.
+full — its body, acceptance criteria, its `## Technical Plan`, and the `## Agent`
+naming the implementer sub-agent it routes to.
 
 Not ready, or nothing eligible, is reported plainly rather than raised.
 
@@ -42,9 +43,6 @@ Not ready, or nothing eligible, is reported plainly rather than raised.
     stackSetup: gh stack checkout 151 && gh stack add pdlc/record-142/task-004
     stackEntryPr: 151  (the previous implemented task's registered PR)
 
-    ## Technical Plan
-    ...
-
     ## Judgment Required
 
     - every task this one depends on is closed, proven by its Result and current
@@ -57,7 +55,7 @@ Not ready, or nothing eligible, is reported plainly rather than raised.
     3 of 5 delivery tasks closed.
 
     Next: run `pdlc inspect task 51` for this task's full body, acceptance
-    criteria, and the sub-agent to implement it with.
+    criteria, its `## Technical Plan`, and the sub-agent to implement it with.
 """
 
 from __future__ import annotations
@@ -66,7 +64,6 @@ import argparse
 import sys
 
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
-from pdlc.internal.reporting import older_comments_notice
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.hosts.code_host import get_code_host
@@ -158,7 +155,8 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
     # this only supplies the branch and the entry point PDLC itself owns.
     setup = get_code_host().task_stack_setup(branch, stack_entry_pr(delivery, chosen))
 
-    plan = (chosen.get("planComment") or "").strip()
+    # The `## Technical Plan` is not rendered here: the handoff line below routes
+    # to `pdlc inspect task`, which renders it in full alongside the task body.
     lines = [
         "## Next Task",
         "",
@@ -168,12 +166,7 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
         f"isUI: {'true' if chosen['isUI'] else 'false'}",
         f"branch: {branch}",
         *setup,
-        "",
-        plan or "_No ## Technical Plan comment found — treat as not eligible and report it._",
     ]
-    notice = older_comments_notice(chosen["number"], chosen.get("commentsMeta"), len(chosen.get("comments") or []))
-    if notice:
-        lines += ["", f"> Older comments are omitted from this view. {notice}."]
     return "\n".join(lines), chosen
 
 
@@ -199,7 +192,7 @@ def inspect(issue: str, task_filter: str | None, phase: bool | None) -> str:
         sections += [
             "",
             f"Next: run `pdlc inspect task {chosen['number']}` for this task's full body, "
-            "acceptance criteria, and the sub-agent to implement it with.",
+            "acceptance criteria, its `## Technical Plan`, and the sub-agent to implement it with.",
         ]
     return "\n".join(sections) + "\n"
 
