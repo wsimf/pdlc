@@ -18,6 +18,8 @@ value in its error, which is surfaced unchanged.
 
 from __future__ import annotations
 
+import html
+
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.hosts.lib.azure.transport import (
     PATCH_MEDIA_TYPE,
@@ -215,6 +217,15 @@ def add_parent(child_id: int | str, parent_id: int | str) -> None:
 
 # --- comments ---
 
+# Azure stores UI-authored comments as HTML, so their `text` comes back with
+# entities like `&quot;` and `&amp;`. `pdlc` treats comment bodies as Markdown
+# everywhere (see `post_comment`), so decode on read. Markdown-authored comments
+# round-trip through `unescape` unchanged unless they contain a literal entity.
+def _decode(comment: dict) -> dict:
+    text = comment.get("text")
+    return {**comment, "text": html.unescape(text)} if isinstance(text, str) else comment
+
+
 def comments(item_id: int | str) -> list[dict]:
     """Every discussion comment, oldest first. `az` has no verb for this, and
     `work-item show --expand all` omits comments, so it is the one read that
@@ -228,7 +239,7 @@ def comments(item_id: int | str) -> list[dict]:
             route_parameters={"project": project, "workItemId": str(item_id)},
             query_parameters=parameters or None,
         ) or {}
-        collected.extend(page.get("comments") or [])
+        collected.extend(_decode(comment) for comment in page.get("comments") or [])
         token = page.get("continuationToken")
         if not token:
             break
@@ -261,7 +272,7 @@ def comments_page(item_id: int | str, page: int = 1, per_page: int = 100) -> dic
         token = result.get("continuationToken")
         if index < page - 1 and not token:
             return {"comments": [], "totalCount": result.get("totalCount", 0)}
-    return result
+    return {**result, "comments": [_decode(comment) for comment in result.get("comments") or []]}
 
 
 def post_comment(item_id: int | str, body: str) -> str:
