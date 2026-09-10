@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.trace import record_external_call
 
 # A child CLI whose stdout is a pipe encodes text with the ambient locale, so a
 # non-UTF-8 locale makes `az` write an em dash as the lone byte 0x97. `LC_ALL`
@@ -42,6 +43,7 @@ def _decode(raw: bytes) -> str:
 
 
 def run_process(args: Sequence[str], *, input: str | None = None, timeout: float = 120) -> str:
+    record_external_call(args[0], args)
     # Resolve PATHEXT launchers such as az.cmd instead of passing a bare name.
     executable = shutil.which(args[0])
     if executable is None:
