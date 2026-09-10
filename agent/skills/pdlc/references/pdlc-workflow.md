@@ -1,6 +1,6 @@
 # PDLC workflow
 
-This diagram is the enabled Feature pipeline. The resolved record's `workType` selects a pipeline before routing; a missing type uses Feature compatibility, while unknown types and registered unavailable pipelines block.
+This diagram is the enabled Feature pipeline. The resolved record's `workType` selects a pipeline once, at resolution, before any routing; a missing type uses Feature compatibility, while unknown types and registered-but-unavailable pipelines block. `Bug` is registered as a distinct work type but its pipeline is not yet available — its stage spine and evidence contract are deliberately not derived from Feature — so a `Bug` record blocks until that workflow is designed. When it lands it is its own `pdlc`-governed pipeline with its own diagram, selected by the same step shown here.
 
 This flow describes how the parent work item, its state, delivery tasks,
 and pull requests work together. The work item store is the system of record;
@@ -10,9 +10,14 @@ the focused `pdlc` commands enforce every work item mutation.
 flowchart TD
     Start([Human names a work item<br/>or autonomous loop runs])
     New([Human supplies a fresh idea]) --> Write
+    Resolve{"pdlc next resolves the record's workType<br/>→ selects a pipeline (once, at resolution)"}
     Next["pdlc next<br/>reads Status + Gate State"]
 
-    Start --> Next
+    Start --> Resolve
+    Resolve -->|"Feature — or missing type (Feature compat)"| Next
+    Resolve -->|"Bug — pipeline registered, not yet available"| BugPipeline["Bug pipeline<br/>own stage spine + evidence contract,<br/>not derived from Feature<br/>→ its own pdlc-governed diagram"]
+    Resolve -->|"unknown type / unavailable pipeline"| Blocked
+    BugPipeline -->|"until that workflow ships"| Blocked
 
     Next -->|Pending / Stale / Changes Required| Owner
     Next -->|Review Required| Review["pdlc-review<br/>independent reviewer"]
