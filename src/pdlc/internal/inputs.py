@@ -48,11 +48,21 @@ def is_stdin(value: str) -> bool:
 def resolve_text(value: str, *, label: str) -> str:
     """Resolve an evidence or comment-body argument to its text.
 
-    `-` (or an explicit stdin device path) reads all of stdin; every other value
-    is a path to a UTF-8 file. Blank content is refused on both paths so a stage
-    can never publish an empty body. This is the only accepted spelling of the
-    "a file or stdin" contract — callers never pass a literal body inline.
+    Three explicit forms, no path/literal guessing:
+      * `text:<body>` — everything after the prefix is the literal body.
+      * `-` (or a stdin device path) — read all of stdin.
+      * anything else — a path to a UTF-8 file; an unknown path is an error,
+        never a silent literal.
+
+    Blank content is refused on every form so a stage can never publish an
+    empty body.
     """
+    if value.startswith("text:"):
+        text = value[len("text:"):]
+        if not text.strip():
+            raise PdlcError(f"{label} is empty")
+        return text
+
     from_stdin = is_stdin(value)
     try:
         text = sys.stdin.read() if from_stdin else require_file(label, value).read_text(encoding="utf-8")

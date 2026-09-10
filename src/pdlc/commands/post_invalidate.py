@@ -8,7 +8,7 @@ The posted PDLC-INVALIDATED comment opens with a script-owned
 comment history — not just the current work-item state — records which stage
 each invalidation returned to Stale.
 
-    pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 3:
-        print("usage: pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
     issue, stage, evidence = args
 

@@ -55,8 +55,15 @@ Wait for its report. Relay its judgments without reinterpreting them. If the com
 
 One call does everything: it validates the evidence body, posts it, locks the record, and blanks the settled `## Open Questions` section. Run it only on the driver's explicit instruction from this turn:
 
+Write the completion evidence body to a file and pass its path:
+
 ```bash
-pdlc post complete WORK_ITEM - <<'EOF'
+pdlc post complete WORK_ITEM /tmp/pdlc-complete-evidence.md
+```
+
+The body has all six `##` sections:
+
+```markdown
 ## Shipped
 
 Offline tile pinning across 7 tasks, PRs #144-#153, all merged.
@@ -81,7 +88,6 @@ clean @ a1b2c3d — claims, 4 journeys, UX reviewed, cumulative review clean.
 ## Skipped Stages
 
 - None
-EOF
 ```
 
 All six `##` sections are required. **Decisions**, **Limitations**, and **Skipped Stages** are a bulleted list or a lone `- None`. **Open Questions** carries one line per live entry from the record — `<question> — Resolved: <answer>` or `<question> — Deferred: <what>, tracked as <ref>` — or a lone `- None` when the record had none; the parser rejects a body that leaves any live entry unaccounted for. **Verification** must state `clean @ <commit>`.

@@ -2,7 +2,7 @@
 """Register the top task pull request for the current branch, then complete the
 Implementation stage.
 
-    pdlc post implement WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post implement WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
 The PR number is recorded on the record — later stages read the record's pull
 requests from that registry, not from a `Closes #N` keyword in the PR body.
@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 2:
-        print("usage: pdlc post implement WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post implement WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
 
     issue, evidence = args

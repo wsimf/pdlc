@@ -6,7 +6,7 @@ orchestrator may call this, and only on an explicit human instruction — gh
 identity cannot distinguish a human from an agent acting on their behalf, so
 this is a procedural boundary, not an authentication check.
 
-    pdlc post approve WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
     if len(args) != 2:
-        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
+        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
     issue, evidence = args
 

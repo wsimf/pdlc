@@ -4,7 +4,7 @@ script-owned YAML-shaped metadata followed by Findings.
 A reviewer may set Changes Required, Approval Required, or Decision Required —
 never Approved.
 
-    pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
 `decision-required` is for a finding the owning skill cannot mechanically
 reconcile — one that needs a product, architecture, UX, or scope call from the
@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if len(args) != 3:
         print(
-            "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|-",
+            "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|-",
             file=sys.stderr,
         )
         return 1

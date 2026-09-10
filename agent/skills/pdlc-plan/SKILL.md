@@ -82,17 +82,14 @@ After two failed reconciliations, stop and put the decision to the driver. The v
 
 ## Step 7: Land at Approval Required
 
+Write the evidence body to a file and pass its path:
+
 ```bash
 pdlc post plan --work-item WORK_ITEM \
-  --manifest /tmp/pdlc-plan.json --evidence - <<'EOF'
-Scope: planned 6 incomplete tasks (TASK-002..TASK-007) against current source.
-Approach: geometry moves to ProfileFileService; no persistence schema change.
-Validation: each task's criteria mapped to a focused test or build check.
-Risk: TASK-005 depends on an unresolved tile-quota decision, recorded as open.
-EOF
+  --manifest /tmp/pdlc-plan.json --evidence /tmp/pdlc-plan-evidence.md
 ```
 
-Rewrites each task by its stable `TASK-NNN` identity, posts evidence, sets `Approval Required` — one step, the only thing that moves the gate. When the record was at `Approval Required` (a driver change request), the same call first returns Technical Plan to Stale itself. Body only — the script stamps the marker and appends which tasks were planned or left alone; don't hand-count those. Use a file path in place of `-` for long evidence.
+Rewrites each task by its stable `TASK-NNN` identity, posts evidence, sets `Approval Required` — one step, the only thing that moves the gate. When the record was at `Approval Required` (a driver change request), the same call first returns Technical Plan to Stale itself. Body only — the script stamps the marker and appends which tasks were planned or left alone; don't hand-count those.
 
 Do not touch the parent's `Product`, `UI`, `Decisions`, or `Open Questions` — earlier stages already own and approved them. On failure, keep the task body files and manifest, and report the exact failure.
 

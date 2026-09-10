@@ -3,11 +3,11 @@
 on the delivery task, and optionally closes it — the two things Step 5 of
 pdlc-implement does together, in one call.
 
-    pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|- [--close] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|text:STR|- [--close] [--attachment PATH [--attachment-description TEXT]]
 
-IMPLEMENTATION_FILE is the summary body. Cover what shipped, the files touched,
-which acceptance criteria the evidence establishes, the validation run, the
-linked PR, and any limitation. The `## Implementation` heading is prepended
+The implementation summary is a file path, or `text:<body>` for a short one.
+Cover what shipped, the files touched, which acceptance criteria the evidence
+establishes, the validation run, the linked PR, and any limitation. The `## Implementation` heading is prepended
 automatically when the summary does not already start with it; pdlc-inspect
 reads that heading to report the task as implemented.
 
@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Record one delivery task's implementation comment")
     parser.add_argument("delivery_task", help="Delivery task number")
-    parser.add_argument("evidence", help="Implementation comment body — a file path, or - for stdin")
+    parser.add_argument("evidence", help="Implementation comment body — a file path, or text:<body> for a short one")
     parser.add_argument("--close", action="store_true", help="Close the task after the comment lands")
     args = parser.parse_args(script_args)
 

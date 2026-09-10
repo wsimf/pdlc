@@ -159,6 +159,15 @@ class FailureContractTests(unittest.TestCase):
             with patch("sys.stdin", io.StringIO("real body\n")):
                 self.assertEqual(resolve_text(alias, label="evidence"), "real body\n")
 
+    def test_text_prefix_is_a_literal_body(self):
+        self.assertEqual(resolve_text("text:User approved the plan.", label="evidence"), "User approved the plan.")
+        with self.assertRaisesRegex(PdlcError, "empty"):
+            resolve_text("text:   ", label="evidence")
+
+    def test_unknown_path_errors_rather_than_becoming_a_literal(self):
+        with self.assertRaisesRegex(PdlcError, "does not exist"):
+            resolve_text("not-a-real-file.md", label="evidence")
+
     def test_invalid_normalized_payloads_fail_at_the_boundary(self):
         for validate, value in (
             (validate_work_item, {"id": "7"}),

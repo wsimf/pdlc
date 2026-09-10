@@ -53,14 +53,10 @@ Wait for its report. Do not review the artifact yourself in parallel, and do not
 
 ## Step 4: Record the outcome
 
+Write the findings body to a file and pass its path:
+
 ```bash
-pdlc post review WORK_ITEM changes-required - <<'EOF'
-Scope: Technical Plan, all 6 tasks.
-Findings:
-1. TASK-004's plan writes geometry on the render path, contradicting C-3.
-2. TASK-006 has no validation mapping for its second acceptance criterion.
-Coverage: plans and named source only; no build or test run.
-EOF
+pdlc post review WORK_ITEM changes-required /tmp/pdlc-review-findings.md
 ```
 
 The reviewer returns exactly one of three verdicts — pass the matching outcome:
