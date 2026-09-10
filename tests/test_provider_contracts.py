@@ -30,7 +30,7 @@ from pdlc.hosts.lib.azure import workitems as azure
 from pdlc.hosts.lib.file.storage import atomic_write
 from pdlc.hosts.lib.github import project
 from pdlc.hosts.lib.process import parse_json, run_process
-from pdlc.internal.inputs import read_evidence_text
+from pdlc.internal.inputs import resolve_text
 from pdlc.internal.pull_requests import registered_pr_numbers
 
 
@@ -147,10 +147,17 @@ class FailureContractTests(unittest.TestCase):
             path = Path(root) / "evidence.md"
             path.write_text(" \n ", encoding="utf-8")
             with self.assertRaisesRegex(PdlcError, "empty"):
-                read_evidence_text("evidence", str(path))
+                resolve_text(str(path), label="evidence")
         with patch("sys.stdin", io.StringIO(" \n ")):
             with self.assertRaisesRegex(PdlcError, "empty"):
-                read_evidence_text("evidence", "-")
+                resolve_text("-", label="evidence")
+
+    def test_stdin_device_paths_read_stdin_not_a_file(self):
+        # Agents reach for /dev/stdin in place of `-`; it must resolve to the
+        # stream, never be posted verbatim as the body.
+        for alias in ("-", "/dev/stdin", "/dev/fd/0", "/proc/self/fd/0"):
+            with patch("sys.stdin", io.StringIO("real body\n")):
+                self.assertEqual(resolve_text(alias, label="evidence"), "real body\n")
 
     def test_invalid_normalized_payloads_fail_at_the_boundary(self):
         for validate, value in (

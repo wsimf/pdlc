@@ -17,7 +17,7 @@ import sys
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.domain.workflow import Event
 from pdlc.internal.workitem import (
     current_actor,
@@ -49,8 +49,9 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
 
     login = current_actor()
 
+    evidence_body = resolve_text(evidence, label="approval evidence")
     attachments = save_attachments(work_item_number(record), attachment_inputs)
-    post_comment(issue, evidence, "APPROVED")
+    post_comment(issue, evidence_body, "APPROVED")
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
 
     return {

@@ -22,17 +22,17 @@ from pdlc.internal.complete_transition import complete_transition, prepare_trans
 from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.workitem import attach_pr
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import read_evidence_text, print_help, wants_help
+from pdlc.internal.inputs import is_stdin, resolve_text, print_help, wants_help
 
 
 def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: list[dict]) -> dict:
-    if evidence == "-" and traceability == "-":
+    if is_stdin(evidence) and is_stdin(traceability):
         raise PdlcError("stdin can supply only one of EVIDENCE or --traceability")
 
     publication = prepare_transition(issue, "Testing")
     body = (
-        f"{read_evidence_text('evidence', evidence).rstrip()}\n\n"
-        f"## Traceability\n\n{read_evidence_text('--traceability', traceability).strip()}\n"
+        f"{resolve_text(evidence, label='evidence').rstrip()}\n\n"
+        f"## Traceability\n\n{resolve_text(traceability, label='--traceability').strip()}\n"
     )
     pull_request = get_code_host().ensure_pull_request_linked(issue)
     attach_pr(issue, pull_request["number"])

@@ -19,7 +19,7 @@ import sys
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import evidence_source, print_help, wants_help
+from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.internal.invalidation import invalidate_stage
 from pdlc.internal.workitem import item_for_issue
 
@@ -31,12 +31,7 @@ def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[di
     # `Invalidated stage: <STAGE>` line into the comment so history — not just
     # the transient work-item state — records which stage the driver returned
     # to Stale. Verification rework loops are tracked separately by PDLC-REVIEW.
-    path, is_temporary = evidence_source("evidence", evidence)
-    try:
-        evidence_body = path.read_text(encoding="utf-8")
-    finally:
-        if is_temporary:
-            path.unlink(missing_ok=True)
+    evidence_body = resolve_text(evidence, label="evidence")
 
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     invalidate_stage(issue, record, stage, evidence_body)
