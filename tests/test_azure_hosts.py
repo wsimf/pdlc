@@ -309,6 +309,14 @@ class DeliveryTaskTest(AzureHostTest):
             ["## Technical Plan\n\nplan", "## Implementation\n\ndone"],
         )
 
+    def test_task_carries_full_comment_objects_for_its_own_user_comments(self):
+        self.az.wiql("System.Parent", response=[self.TASK])
+        objects = AzureWorkItemBackend().tasks("7")[0]["commentObjects"]
+        self.assertEqual([c["body"] for c in objects], ["## Technical Plan\n\nplan", "## Implementation\n\ndone"])
+        self.assertEqual(objects[0]["createdAt"], "2026-09-07T06:30:00Z")
+        self.assertEqual(objects[0]["url"], "https://az/comments/1")
+        self.assertEqual(objects[0]["author"]["login"], "dev@acme.test")
+
     def test_close_task_moves_the_work_item_state(self):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         AzureWorkItemBackend().close_task("8")
