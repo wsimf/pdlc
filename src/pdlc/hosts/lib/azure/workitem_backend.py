@@ -219,6 +219,7 @@ class AzureWorkItemBackend(WorkItemBackend):
             "state": "CLOSED" if state in {_closed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
             "body": _text(fields, azure.DESCRIPTION_FIELD),
             "comments": [comment.get("text") or "" for comment in comments],
+            "commentObjects": [_comment_view(comment) for comment in comments],
             "taskId": match.group(1) if match else None,
             "prs": _parse_prs(fields),
         }

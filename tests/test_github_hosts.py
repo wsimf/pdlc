@@ -385,6 +385,32 @@ class SubIssueUpsertTest(GitHubHostTest):
         self.assertEqual([t["taskId"] for t in tasks], ["TASK-001", "TASK-002"])
         self.assertEqual(tasks[0]["comments"], ["c"])
 
+    def test_tasks_by_number_carries_full_comment_objects(self) -> None:
+        self.gh.graphql(
+            "issue0: issue(number:",
+            graphql_data({
+                "repository": {
+                    "issue0": {
+                        "number": 11, "title": "WORK-3-TASK-001 A", "url": "u11",
+                        "state": "OPEN", "body": "b", "comments": {"nodes": [
+                            {"body": "does retry share the parent budget?",
+                             "createdAt": "2026-01-02T00:00:00Z", "url": "u11#c1",
+                             "author": {"login": "sudara"}},
+                        ]},
+                    },
+                }
+            }),
+        )
+
+        [task] = github_issues.tasks_by_number(["11"])
+
+        self.assertEqual(task["commentObjects"], [{
+            "body": "does retry share the parent budget?",
+            "createdAt": "2026-01-02T00:00:00Z",
+            "url": "u11#c1",
+            "author": {"login": "sudara"},
+        }])
+
     def test_tasks_by_number_raises_on_missing_issue(self) -> None:
         self.gh.graphql("issue0: issue(number:", graphql_data({"repository": {"issue0": None}}))
         with self.assertRaises(PdlcError):

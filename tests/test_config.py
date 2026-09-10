@@ -112,6 +112,12 @@ class ConfigTests(unittest.TestCase):
         self.assertIs(config.no_sleep, True)
         self.assertEqual(config.max_attempts, 4)
 
+    def test_debug_flag_is_read_from_the_debug_table(self):
+        nested = self.make_repo('[backend]\nname = "file"\n[debug]\nenabled = true\n')
+        config = load_config(nested)
+        self.assertIs(config.debug, True)
+        self.assertEqual(os.environ["PDLC_DEBUG"], "true")
+
     def test_later_cli_environment_changes_are_visible(self):
         nested = self.make_repo('[backend.github]\nrepository = "file/repository"\n')
         with patch.dict(os.environ, {}, clear=False):

@@ -34,7 +34,7 @@ Fail fast here. Everything below reads a section of that output.
 
 Implementation stays at `Pending` across every task. Do not move the gate here — Step 4 moves it, and only once every delivery task on the record is closed.
 
-**`## Next Task`** — the single eligible task (OPEN, technically planned, not yet implemented), with its `## Technical Plan` inline, its `branch:`, and the `stackSetup:` command. This is the task, whether or not you would have picked it: the order is CORE before UI, then task number, and `--task` / `--phase` only narrow the scan. Nothing eligible → report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
+**`## Next Task`** — the single eligible task (OPEN, technically planned, not yet implemented), with its `branch:` and the `stackSetup:` command; its `## Technical Plan` comes from the Step 1 `pdlc inspect task` render, not here. This is the task, whether or not you would have picked it: the order is CORE before UI, then task number, and `--task` / `--phase` only narrow the scan. Nothing eligible → report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
 
 **`## Judgment Required`** — what the script cannot decide. Settle every line before dispatching, from the task body and the record's own comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one.
 

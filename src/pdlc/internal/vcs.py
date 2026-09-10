@@ -10,14 +10,21 @@ this so the audit-time and lock-time passes can never drift apart.
 from __future__ import annotations
 
 import subprocess
+from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.evidence import parse_verification_report
+from pdlc.internal.trace import record_external_call
+
+
+def _run_git(args: list[str], **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
+    record_external_call("git", ["git", *args])
+    return subprocess.run(["git", *args], **kwargs)
 
 
 def files_touched_by(commit: str) -> list[str]:
-    result = subprocess.run(
-        ["git", "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m", commit],
+    result = _run_git(
+        ["diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-m", commit],
         capture_output=True,
         text=True,
     )
@@ -31,14 +38,14 @@ def is_stale(commit: str, files: list[str]) -> bool:
     when the commit is unknown / touched nothing (nothing to trust)."""
     if not files:
         return True
-    exists = subprocess.run(["git", "cat-file", "-e", commit + "^{commit}"], capture_output=True)
+    exists = _run_git(["cat-file", "-e", commit + "^{commit}"], capture_output=True)
     if exists.returncode != 0:
         return True
-    ancestry = subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"], capture_output=True)
+    ancestry = _run_git(["merge-base", "--is-ancestor", commit, "HEAD"], capture_output=True)
     if ancestry.returncode != 0:
         return True
-    result = subprocess.run(
-        ["git", "log", "--oneline", f"{commit}..HEAD", "--", *files],
+    result = _run_git(
+        ["log", "--oneline", f"{commit}..HEAD", "--", *files],
         capture_output=True,
         text=True,
     )

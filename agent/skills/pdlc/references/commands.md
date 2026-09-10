@@ -15,7 +15,7 @@ to the work item store.
 | `pdlc inspect verify` | Readiness, task completion, timeline, journeys-to-review, and reuse/staleness report for a Verification pass. | Anyone — read-only. |
 | `pdlc inspect complete` | Readiness, task completion, and Verification-evidence staleness report for a completion pass. | Anyone — read-only. |
 | `pdlc inspect test` | Readiness and testable-scope (closed tasks with a Result, their PRs' real touched files) report for a Testing pass. | Anyone — read-only. |
-| `pdlc inspect implement` | Readiness and the single next eligible delivery task (OPEN, planned, not yet implemented) in CORE-before-UI order, with its Technical Plan and the `gh stack` setup command for its branch inline. | Anyone — read-only. |
+| `pdlc inspect implement` | Readiness and the single next eligible delivery task (OPEN, planned, not yet implemented) in CORE-before-UI order, with the `gh stack` setup command for its branch. The Technical Plan is not rendered here — `pdlc inspect task` renders it with the task body. | Anyone — read-only. |
 | `pdlc inspect review` | Readiness and the Status→artifact→reviewer-agent mapping for a review pass. | Anyone — read-only. |
 | `pdlc inspect capability [SLOT]` | Resolve the project's capability routing from `.pdlc/config.toml` (`[agents]`, `[skills]`). No arg dumps every slot; a slot name emits one line to paste into a sub-agent brief — the sub-agent to dispatch to, or the "invoke this skill first" instruction (with an inline fallback when the slot is unset). See `references/capabilities.md`. | Anyone — read-only. |
 | `pdlc next` | Report the routing decision for one item, or scan the queue. | Anyone — read-only apart from the skip cascade. |

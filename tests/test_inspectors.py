@@ -67,12 +67,51 @@ class InspectTests(FileBackendTest):
         self.assertLess(out.index("## Attachments"), out.index("## User Comments"))
         self.assertLess(out.index("## User Comments"), out.index("# Tasks"))
 
-    def test_inspect_task_surfaces_unmarked_user_comments(self):
+    def _seed_task_comments(self):
+        log = self.records_dir() / "20" / "tasks" / "201" / "comments.jsonl"
+        entries = [
+            {"body": "PDLC-REVIEW\n\nMARKED_TASK_TEXT", "createdAt": "2026-01-01T00:00:00Z",
+             "url": "file://x/201#c1", "author": {"login": "bot"}},
+            {"body": "is the retry budget shared with the parent?", "createdAt": "2026-01-02T00:00:00Z",
+             "url": "file://x/201#c2", "author": {"login": "sudara"}},
+        ]
+        log.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+    def test_inspect_task_surfaces_its_own_unmarked_comments_not_the_parents(self):
         self._seed_comments()
+        self._seed_task_comments()
         out = self.invoke("inspect_task", 201).stdout
         self.assertIn("## User Comments", out)
         self.assertLess(out.index("## User Comments"), out.index("# Task"))
-        self.assertIn("does this cover the offline case?", out)
+        # The task's own discussion, not the parent Work Item's.
+        self.assertIn("is the retry budget shared with the parent?", out)
+        self.assertNotIn("does this cover the offline case?", out)
+        # Marker comments stay out of the user-comment section.
+        self.assertNotIn("MARKED_TASK_TEXT", out)
+
+    def test_inspect_task_does_not_leak_plan_or_implementation_into_user_comments(self):
+        log = self.records_dir() / "20" / "tasks" / "201" / "comments.jsonl"
+        entries = [
+            {"body": "## Technical Plan\n\nPLAN_BODY_TEXT", "createdAt": "2026-01-01T00:00:00Z",
+             "url": "file://x/201#p", "author": {"login": "planner"}},
+            {"body": "## Implementation\n\nIMPL_BODY_TEXT", "createdAt": "2026-01-02T00:00:00Z",
+             "url": "file://x/201#i", "author": {"login": "impl"}},
+            {"body": "is the retry budget shared with the parent?", "createdAt": "2026-01-03T00:00:00Z",
+             "url": "file://x/201#c", "author": {"login": "sudara"}},
+        ]
+        log.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+        out = self.invoke("inspect_task", 201).stdout
+        user_section = out[out.index("## User Comments"):out.index("# Task")]
+        self.assertNotIn("PLAN_BODY_TEXT", user_section)
+        self.assertNotIn("IMPL_BODY_TEXT", user_section)
+        self.assertIn("is the retry budget shared with the parent?", user_section)
+        # The plan still renders through its own section further down.
+        self.assertIn("PLAN_BODY_TEXT", out)
+
+    def test_inspect_task_renders_user_comments_none_when_the_task_has_none(self):
+        out = self.invoke("inspect_task", 201).stdout
+        self.assertIn("## User Comments\n\nNone", out)
 
     def test_missing_record_is_a_hard_stop(self):
         result = self.invoke("inspect", 999)
@@ -218,7 +257,9 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("taskId: TASK-001", result.stdout)
         self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
         self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
-        self.assertIn("Do the thing.", result.stdout)
+        # The Technical Plan is not rendered here; the handoff routes to `inspect task` for it.
+        self.assertNotIn("Do the thing.", result.stdout)
+        self.assertIn("its `## Technical Plan`", result.stdout)
         self.assertIn("Judgment Required", result.stdout)
 
     def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):

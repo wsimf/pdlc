@@ -86,18 +86,31 @@ class FailureContractTests(unittest.TestCase):
                     run_process(["az", "version"], timeout=2)
 
     def test_transport_bounds_execution_and_decodes_utf8(self):
-        result = subprocess.CompletedProcess(["gh"], 0, stdout="Māori", stderr="")
+        result = subprocess.CompletedProcess(["gh"], 0, stdout="Māori".encode(), stderr=b"")
         with patch("pdlc.hosts.lib.process.shutil.which", return_value="/tools/gh"), patch("pdlc.hosts.lib.process.subprocess.run", return_value=result) as run:
             self.assertEqual(run_process(["gh", "version"]), "Māori")
         self.assertEqual(run.call_args.kwargs["timeout"], 120)
-        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        # The child is pinned to a UTF-8 locale so a POSIX `az` emits UTF-8
+        # regardless of the host locale.
+        child_env = run.call_args.kwargs["env"]
+        self.assertEqual(child_env["LC_ALL"], "C.UTF-8")
+        self.assertEqual(child_env["PYTHONUTF8"], "1")
+        self.assertEqual(child_env["PYTHONIOENCODING"], "utf-8")
+
+    def test_transport_recovers_a_cp1252_response(self):
+        # The Windows `az` build ignores the locale and emits its ANSI code page,
+        # so an em dash arrives as the lone byte 0x97 with CRLF line endings.
+        raw = "first — line\r\nsecond\r\n".encode("cp1252")
+        result = subprocess.CompletedProcess(["az"], 0, stdout=raw, stderr=b"")
+        with patch("pdlc.hosts.lib.process.shutil.which", return_value="/tools/az"), patch("pdlc.hosts.lib.process.subprocess.run", return_value=result):
+            self.assertEqual(run_process(["az", "version"]), "first — line\nsecond\n")
 
     def test_azure_launches_resolved_windows_cmd_path(self):
         from pdlc.hosts.lib.azure.transport import run_az
 
         executable = r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
         arguments = ["boards", "query", "--project", "My Project"]
-        result = subprocess.CompletedProcess([executable], 0, stdout="[]", stderr="")
+        result = subprocess.CompletedProcess([executable], 0, stdout=b"[]", stderr=b"")
         with patch("pdlc.hosts.lib.process.shutil.which", return_value=executable) as which, patch("pdlc.hosts.lib.process.subprocess.run", return_value=result) as run:
             self.assertEqual(run_az(arguments), "[]")
         which.assert_called_once_with("az")

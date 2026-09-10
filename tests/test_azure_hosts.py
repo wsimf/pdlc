@@ -309,6 +309,14 @@ class DeliveryTaskTest(AzureHostTest):
             ["## Technical Plan\n\nplan", "## Implementation\n\ndone"],
         )
 
+    def test_task_carries_full_comment_objects_for_its_own_user_comments(self):
+        self.az.wiql("System.Parent", response=[self.TASK])
+        objects = AzureWorkItemBackend().tasks("7")[0]["commentObjects"]
+        self.assertEqual([c["body"] for c in objects], ["## Technical Plan\n\nplan", "## Implementation\n\ndone"])
+        self.assertEqual(objects[0]["createdAt"], "2026-09-07T06:30:00Z")
+        self.assertEqual(objects[0]["url"], "https://az/comments/1")
+        self.assertEqual(objects[0]["author"]["login"], "dev@acme.test")
+
     def test_close_task_moves_the_work_item_state(self):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         AzureWorkItemBackend().close_task("8")
@@ -400,6 +408,22 @@ class CommentTest(AzureHostTest):
             {"body": "PDLC-REVIEW\n\nclean", "createdAt": "2026-09-07T07:00:00Z",
              "url": "https://az/comments/2", "author": {"login": "dev@acme.test"}},
         ])
+
+    def test_comments_html_decode_their_text(self):
+        self.az.invoke("wit", "comments", response={"comments": [
+            {"id": 1, "text": "he said &quot;retry &amp; back off&quot; &lt;here&gt;",
+             "createdDate": "2026-09-07T06:00:00Z", "createdBy": {"uniqueName": "dev@acme.test"},
+             "url": "https://az/comments/1"},
+        ]})
+        [comment] = AzureWorkItemBackend().comments("7")
+        self.assertEqual(comment["body"], 'he said "retry & back off" <here>')
+
+    def test_comments_page_html_decodes_its_text(self):
+        self.az.invoke("wit", "comments", response={
+            "comments": [{"id": 1, "text": "a &amp; b"}], "totalCount": 1,
+        })
+        page = AzureWorkItemBackend().comments_page("7")
+        self.assertEqual([comment["body"] for comment in page.comments], ["a & b"])
 
     def test_comments_follow_a_continuation_token(self):
         pages = [
