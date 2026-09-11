@@ -69,7 +69,12 @@ adapted from `gh`'s help layout to pdlc's own read-only/mutating split:
 - A leaf command's docstring never lists sub-commands: it has no `COMMANDS` section, only
   whatever subset of `NAME`, `USAGE`, `DESCRIPTION`, `FLAGS`, and `EXAMPLES` applies. `NAME` is
   one line, `pdlc <command> - <one-line summary>`. `USAGE` holds the invocation synopsis
-  line(s) that were previously embedded mid-paragraph. `DESCRIPTION` carries the full
+  line(s) that were previously embedded mid-paragraph. When a command has more than one
+  invocation form and the right one depends on state (e.g. creating a new record vs.
+  updating an existing one, or which stage/mode a flag selects), spell out the condition
+  inline rather than listing bare alternatives — `- if <condition>:` followed by the
+  indented invocation — so an agent can tell which form applies without reading the whole
+  `DESCRIPTION`. `DESCRIPTION` carries the full
   behavioral prose — evidence formats, JSON shapes, gate semantics, sample output — moved
   under the heading verbatim, never trimmed or summarized. `FLAGS` documents only that
   command's own flags beyond `--attachment`/`--attachment-description`, which are common

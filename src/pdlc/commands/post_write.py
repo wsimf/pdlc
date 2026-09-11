@@ -3,8 +3,10 @@
     pdlc post write - publish the reviewed Product artifact
 
 USAGE
-    pdlc post write --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
-    pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
+    - if creating a new record:
+        pdlc post write --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
+    - if updating an existing record's Product section:
+        pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
 
 DESCRIPTION
     The supplied body contains exactly the three sections owned by Product:
