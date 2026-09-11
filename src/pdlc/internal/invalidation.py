@@ -14,10 +14,17 @@ from pdlc.internal.workitem import (
     item_status,
     pipeline_for_item,
     post_comment,
+    reopen_task,
     set_skipped_states,
     set_state,
     state_for_item,
+    subissues_for,
 )
+
+# Stages whose evidence lives on the delivery tasks themselves rather than the
+# record body, so invalidating back onto one can mean reopening tasks Implementation
+# had already closed.
+TASK_SCOPED_STAGES = ("Technical Plan", "Implementation")
 
 
 def reauthor_invalidate_stage(record: dict, stage: str, pipeline: Pipeline) -> None:
@@ -72,7 +79,32 @@ def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) ->
     return target
 
 
-def invalidate_stage(issue: str, record: dict, stage: str, evidence_body: str) -> None:
+def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) -> list[str]:
+    """Reopen closed delivery tasks so they are back in scope for the
+    invalidated stage's own gate (e.g. `needsPlan`). `task_refs` narrows the
+    scope to specific tasks; omitted, every closed task under the record is
+    reopened. Returns the numbers actually reopened."""
+    tasks = subissues_for(issue)
+    if task_refs:
+        wanted = {str(ref) for ref in task_refs}
+        known = {str(task["number"]) for task in tasks}
+        unknown = sorted(wanted - known)
+        if unknown:
+            raise PdlcError(f"unknown delivery task(s) for #{issue}: {','.join(unknown)}")
+        tasks = [task for task in tasks if str(task["number"]) in wanted]
+
+    reopened = []
+    for task in tasks:
+        if task["state"] != "CLOSED":
+            continue
+        number = str(task["number"])
+        reopen_task(number)
+        post_comment(number, f"Invalidated stage: {target_stage}\n\nReopened for rework.\n", "INVALIDATED")
+        reopened.append(number)
+    return reopened
+
+
+def invalidate_stage(issue: str, record: dict, stage: str, evidence_body: str, task_refs: list[str] | None = None) -> None:
     # A completed record is locked: its evidence shipped, so nothing may reopen
     # it, and no invalidation may target a stage the record has not reached yet.
     current = item_status(record)
@@ -84,4 +116,13 @@ def invalidate_stage(issue: str, record: dict, stage: str, evidence_body: str) -
         target = pipeline.next_state(source, Event.INVALIDATED, requested_target=stage)
     except ValueError as error:
         raise PdlcError(str(error)) from None
+
+    if task_refs and target.stage not in TASK_SCOPED_STAGES:
+        raise PdlcError(
+            f"--task only applies when invalidating to {' or '.join(TASK_SCOPED_STAGES)}, not {target.stage}"
+        )
+
     _record_invalidation(issue, record, target, evidence_body)
+
+    if target.stage in TASK_SCOPED_STAGES:
+        _reopen_tasks(issue, target.stage, task_refs)

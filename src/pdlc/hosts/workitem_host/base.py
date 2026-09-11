@@ -133,6 +133,12 @@ class WorkItemBackend(ABC):
     @abstractmethod
     def close_task(self, task_ref: str) -> None: ...
 
+    @abstractmethod
+    def reopen_task(self, task_ref: str) -> None:
+        """Return a closed task to OPEN. Used to undo a task's Implementation
+        closure when a driver invalidates Technical Plan or Implementation
+        back onto it, so the task is in scope for `needsPlan` again."""
+
     def task_pr_numbers(self, ref: str) -> list[int]:
         """Registered task PRs; adapters may avoid loading task bodies/comments."""
         return sorted({number for task in self.tasks(ref) for number in task["prs"]})

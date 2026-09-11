@@ -317,6 +317,12 @@ class DeliveryTaskTest(AzureHostTest):
         self.assertIn("--state", self.az.calls[-1])
         self.assertEqual(self.az.calls[-1][self.az.calls[-1].index("--state") + 1], "Done")
 
+    def test_reopen_task_moves_the_work_item_state_back(self):
+        self.az.az("boards", "work-item", "update", response=self.TASK)
+        AzureWorkItemBackend().reopen_task("8")
+        self.assertIn("--state", self.az.calls[-1])
+        self.assertEqual(self.az.calls[-1][self.az.calls[-1].index("--state") + 1], "To Do")
+
 
 class UpsertTaskTest(AzureHostTest):
     TASK_INPUT = {"id": "TASK-001", "title": "[CORE] retry queue", "body": None, "bodyText": "do the thing"}

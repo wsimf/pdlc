@@ -251,6 +251,10 @@ def close_task(task_ref: str) -> None:
     get_backend().close_task(str(task_ref))
 
 
+def reopen_task(task_ref: str) -> None:
+    get_backend().reopen_task(str(task_ref))
+
+
 def attach_pr(ref: str, pr_number: int) -> list[int]:
     """Attach `pr_number` to a record or one of its delivery tasks, so later
     stages read its pull requests explicitly rather than inferring them from a

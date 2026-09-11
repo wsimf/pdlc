@@ -158,6 +158,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
 | `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
 | `[backend.azure] closed_state` | `Done` | Work-item state a delivery task is closed into. `Closed` is always recognized as terminal regardless of this setting. |
+| `[backend.azure] open_state` | `To Do` | Work-item state a delivery task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
 | `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
 | `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
@@ -199,6 +200,7 @@ organization = "https://dev.azure.com/OWNER"
 project = "PROJECT"
 record_type = "Product Backlog Item"   # optional; defaults to "Product Backlog Item"
 closed_state = "Done"        # optional; defaults to "Done"
+open_state = "To Do"         # optional; defaults to "To Do"
 assigned_to = "@me"          # optional; scope the queue scan to your work items
 
 [code_host]

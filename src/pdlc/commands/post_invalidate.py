@@ -8,7 +8,14 @@ The posted PDLC-INVALIDATED comment opens with a script-owned
 comment history — not just the current work-item state — records which stage
 each invalidation returned to Stale.
 
-    pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
+Invalidating to Technical Plan or Implementation also reopens delivery tasks
+Implementation had already closed, so they are back in scope for re-planning
+or re-implementation; each reopened task gets its own PDLC-INVALIDATED
+comment. `--task` (repeatable) narrows this to specific task numbers; omitted,
+every closed task under the record is reopened. `--task` on any other target
+stage is rejected — those stages carry no per-task evidence to reopen.
+
+    pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|- [--task TASK_NUMBER ...] [--attachment PATH [--attachment-description TEXT]]
 """
 
 from __future__ import annotations
@@ -24,7 +31,25 @@ from pdlc.internal.invalidation import invalidate_stage
 from pdlc.internal.workitem import item_for_issue
 
 
-def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[dict]) -> dict:
+def _parse_task_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
+    """Extract repeated `--task TASK_NUMBER` pairs."""
+    remaining: list[str] = []
+    tasks: list[str] = []
+    index = 0
+    while index < len(argv):
+        argument = argv[index]
+        if argument != "--task":
+            remaining.append(argument)
+            index += 1
+            continue
+        if index + 1 >= len(argv) or argv[index + 1].startswith("--"):
+            raise PdlcError("--task requires a delivery task number")
+        tasks.append(argv[index + 1])
+        index += 2
+    return remaining, tasks
+
+
+def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[dict], task_refs: list[str] | None = None) -> dict:
     record = item_for_issue(issue)
 
     # The STAGE argv drives the state change; invalidate_stage also stamps an
@@ -34,7 +59,7 @@ def invalidate(issue: str, stage: str, evidence: str, attachment_inputs: list[di
     evidence_body = resolve_text(evidence, label="evidence")
 
     attachments = save_attachments(work_item_number(record), attachment_inputs)
-    invalidate_stage(issue, record, stage, evidence_body)
+    invalidate_stage(issue, record, stage, evidence_body, task_refs)
 
     return {"invalidated": True, "itemId": record["id"], "work_item": int(issue), "stage": stage, "gateState": "Stale", "attachments": attachments}
 
@@ -47,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
+        args, task_refs = _parse_task_arguments(args)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
@@ -56,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     issue, stage, evidence = args
 
     try:
-        result = invalidate(issue, stage, evidence, attachment_inputs)
+        result = invalidate(issue, stage, evidence, attachment_inputs, task_refs)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

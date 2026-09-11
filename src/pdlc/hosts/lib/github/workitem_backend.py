@@ -99,6 +99,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
 
+    def reopen_task(self, task_ref: str) -> None:
+        run_gh(["issue", "reopen", str(task_ref), *repo_args()])
+
     def task_pr_numbers(self, ref: str) -> list[int]:
         return sorted({number for task in github_issues.subissues_for(ref, include_comments=False) for number in task["prs"]})
 
