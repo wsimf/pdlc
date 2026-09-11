@@ -329,8 +329,26 @@ class ImplementTaskStackTests(FileBackendTest):
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
         self.assertEqual(result.code, 0, result.stderr)
+        # The `[CORE]`/`[UI]` tag is stripped from the PR title unconditionally.
         host.set_pull_request_content.assert_called_once_with(
-            148, "[CORE] Core", "## Implementation\n\nShipped it."
+            148, "Core", "## Implementation\n\nShipped it."
+        )
+
+    def test_pr_title_format_config_resolves_placeholders(self):
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{
+            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+        }]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
+                patch(
+                    "pdlc.commands.post_implement_task.get_config",
+                    return_value=Config(pr_title_format="[{work.type} {work.number}] {task.title} ({task.id})"),
+                ):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+        self.assertEqual(result.code, 0, result.stderr)
+        host.set_pull_request_content.assert_called_once_with(
+            148, "[feature 70] Core (TASK-001)", "## Implementation\n\nShipped it."
         )
 
     def test_pr_attachment_config_appends_a_line_with_the_bare_work_number(self):
@@ -350,7 +368,7 @@ class ImplementTaskStackTests(FileBackendTest):
         # resolved to the parent's bare number; the `## Implementation` comment
         # on the task never carries it.
         host.set_pull_request_content.assert_called_once_with(
-            148, "[CORE] Core", "Fixes 70 / see 70\n\n## Implementation\n\nShipped it."
+            148, "Core", "Fixes 70 / see 70\n\n## Implementation\n\nShipped it."
         )
         self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
 

@@ -16,9 +16,11 @@ human-authored task body and its Technical Plan as they were. Pass --close once
 the task review passed, its unit coverage landed, and its criteria are met.
 
 This first submits the task's stacked pull request via `gh stack`, sets that PR's
-title to the delivery task's own title and its body to this evidence (prefixed
-with the optional `[code_host] pr_attachment` line, with `{work.number}` resolved
-to the parent work item's bare number), and records its number on the task, then
+title (the delivery task's own title with its `WORK-N-TASK-N` id prefix and
+`[CORE]`/`[UI]` tag stripped, or the optional `[code_host] pr_title_format`
+applied to it) and its body to this evidence (prefixed with the optional
+`[code_host] pr_attachment` line, with `{work.number}` resolved to the parent
+work item's bare number), and records its number on the task, then
 writes the comment. The attachment line is PR-body only and never appears in the
 `## Implementation` comment. A failure in that sequence
 leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
@@ -32,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 
 from pdlc.config import get_config
@@ -75,6 +78,32 @@ def _submit_task_stack(task: dict) -> dict:
             f"(branches submitted: {submitted}) — check the task branch is part of the stack"
         )
     return match
+
+
+# Leading `[CORE]` / `[UI]` tag on a delivery task title (`tagged_title`), which
+# carries no signal in a PR title — the UI/CORE distinction is machine-tracked on
+# the task issue, not the PR.
+_TASK_TAG = re.compile(r"^\[(?:CORE|UI)\]\s*")
+
+
+def _pr_title(task: dict, work_number: str, work_type: str) -> str:
+    """The task PR title: the delivery task's own title with its `WORK-N-TASK-N`
+    id prefix and `[CORE]`/`[UI]` tag stripped, or the optional
+    `[code_host] pr_title_format` applied to it. Placeholders: `{task.title}`
+    (the stripped title), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the
+    parent's bare number), `{work.type}` (`feature`/`bug`).
+    """
+    bare = _TASK_TAG.sub("", task_title(task) or task["taskId"]).strip()
+    template = (get_config().pr_title_format or "").strip()
+    if not template:
+        return bare
+    return (
+        template
+        .replace("{task.title}", bare)
+        .replace("{task.id}", task["taskId"])
+        .replace("{work.number}", work_number)
+        .replace("{work.type}", str(work_type))
+    )
 
 
 def _pr_body(summary: str, work_number: str) -> str:
@@ -130,13 +159,13 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
-    # Give the freshly submitted PR the task's own title and this evidence as its
-    # description, replacing `gh stack`'s auto-generated summary. Runs before the
+    # Give the freshly submitted PR its title (see `_pr_title`) and this evidence
+    # as its description, replacing `gh stack`'s auto-generated summary. Runs before the
     # comment and closure so a failure here leaves the task re-runnable, exactly
     # like a stack-submit failure.
     get_code_host().set_pull_request_content(
         task_pr["number"],
-        task_title(task) or task["taskId"],
+        _pr_title(task, parent_number_for_task(task), pipeline.work_type),
         _pr_body(summary, parent_number_for_task(task)),
     )
     result["taskPr"] = task_pr
