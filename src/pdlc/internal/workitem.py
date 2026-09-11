@@ -30,6 +30,8 @@ from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
 )
 from pdlc.domain.model import find_marked_comments as _model_find_marked_comments
 from pdlc.domain.model import marked_comments as _model_marked_comments
+from pdlc.domain.model import task_timeline_compact as _model_task_timeline_compact
+from pdlc.domain.model import task_timeline_markdown as _model_task_timeline_markdown
 from pdlc.domain.model import timeline_compact as _model_timeline_compact
 from pdlc.domain.model import timeline_markdown as _model_timeline_markdown
 from pdlc.domain.model import user_comments as _model_user_comments
@@ -222,6 +224,16 @@ def user_comments_markdown(ref: str, *, comments: list[dict] | None = None) -> s
 def timeline_compact(ref: str, file_path: str, *, comments: list[dict] | None = None) -> str:
     snapshot = comments if comments is not None else comments_for_issue(ref)
     return _model_timeline_compact(snapshot, file_path)
+
+
+def task_timeline_markdown(ref: str, *, comments: list[dict] | None = None) -> str:
+    snapshot = comments if comments is not None else comments_for_issue(ref)
+    return _model_task_timeline_markdown(snapshot)
+
+
+def task_timeline_compact(ref: str, file_path: str, *, comments: list[dict] | None = None) -> str:
+    snapshot = comments if comments is not None else comments_for_issue(ref)
+    return _model_task_timeline_compact(snapshot, file_path)
 
 
 # --- delivery tasks ---
