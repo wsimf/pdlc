@@ -312,3 +312,19 @@ def edit_comment(item_id: int | str, comment_ref: str, body: str) -> str:
         http_method="PATCH", body={"text": body},
     )
     return f"{item_url(item_id)}?discussionId={match.group(1)}"
+
+
+def delete_comment(item_id: int | str, comment_ref: str) -> None:
+    """Permanently remove an existing comment, addressed by the same
+    `?discussionId=` reference `edit_comment` accepts. Used when invalidation
+    should retire stale task evidence outright rather than leave a
+    superseded body on record."""
+    match = _DISCUSSION_ID_PATTERN.search(comment_ref)
+    if not match:
+        raise PdlcError(f"cannot parse an Azure comment id from: {comment_ref}")
+    _, project = azure_config()
+    az_invoke(
+        "wit", "comments",
+        route_parameters={"project": project, "workItemId": str(item_id), "commentId": match.group(1)},
+        http_method="DELETE",
+    )

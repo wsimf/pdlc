@@ -189,19 +189,32 @@ class FileBackendTest(unittest.TestCase):
         )
         return directory
 
-    def seed_implementation_comment(self, record: int, task_number: int, body: str) -> None:
-        """Write a `## Implementation` comment directly onto a seeded task's
-        log, matching the file backend's own append shape, so a test can seed
-        pre-existing implementation evidence without exercising the full
-        `pdlc post implement-task` path."""
-        path = self.records_dir() / str(record) / "tasks" / str(task_number) / "comments.jsonl"
+    def _seed_task_comment(self, record: int, task_number: int, body: str) -> None:
+        """Append one comment directly onto a seeded task's log, matching the
+        file backend's own append shape (including its `commentSeq` counter,
+        so a later real append or delete never collides with a seeded id).
+        Lets a test seed pre-existing plan/implementation evidence without
+        exercising the full `pdlc post plan`/`pdlc post implement-task` path."""
+        directory = self.records_dir() / str(record) / "tasks" / str(task_number)
+        comments_path = directory / "comments.jsonl"
+        existing = [json.loads(line) for line in comments_path.read_text().splitlines() if line.strip()]
+        meta_path = directory / "meta.json"
+        meta = json.loads(meta_path.read_text())
+        next_id = int(meta.get("commentSeq") or 0) + 1
+        meta_path.write_text(json.dumps({**meta, "commentSeq": next_id}) + "\n")
         comment = {
-            "body": f"## Implementation\n\n{body}",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "url": "file://x#comment-1",
+            "body": body,
+            "createdAt": f"2026-01-{next_id:02d}T00:00:00Z",
+            "url": f"file://x#comment-{next_id}",
             "author": {"login": "tester"},
         }
-        path.write_text(json.dumps(comment) + "\n")
+        comments_path.write_text("".join(json.dumps(entry) + "\n" for entry in [*existing, comment]))
+
+    def seed_implementation_comment(self, record: int, task_number: int, body: str) -> None:
+        self._seed_task_comment(record, task_number, f"## Implementation\n\n{body}")
+
+    def seed_plan_comment(self, record: int, task_number: int, body: str) -> None:
+        self._seed_task_comment(record, task_number, f"## Technical Plan\n\n{body}")
 
     def seed_prs(self, record: int, pull_requests: list[dict], *, register: bool = True) -> None:
         path = self.records_dir() / str(record) / "pull_requests.json"

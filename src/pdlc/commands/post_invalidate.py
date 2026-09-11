@@ -26,12 +26,13 @@ DESCRIPTION
     every closed task under the record is reopened. `--task` on any other target
     stage is rejected — those stages carry no per-task evidence to reopen.
 
-    Reopening a task also edits its existing `## Implementation` comment in
-    place, prefixing it with `Invalidated stage: <STAGE>` so the heading no
-    longer opens the comment. This clears `hasImplementation`/sets `needsPlan`
-    back to true for that task without deleting the superseded evidence —
-    without it, a reopened task would still read as implemented and stay out
-    of scope for both `pdlc post plan` and `pdlc post implement-task`.
+    Reopening a task also deletes its existing evidence comments outright —
+    every `## Implementation` comment always, and every `## Technical Plan`
+    comment too when STAGE is Technical Plan — rather than editing them in
+    place, so no superseded evidence lingers as noise. This clears
+    `hasImplementation`/sets `needsPlan` back to true for that task; without
+    it, a reopened task would still read as implemented and stay out of scope
+    for both `pdlc post plan` and `pdlc post implement-task`.
 """
 
 from __future__ import annotations

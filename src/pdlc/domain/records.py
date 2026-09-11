@@ -52,8 +52,6 @@ class Task(TypedDict):
     hasImplementation: NotRequired[bool]
     planComment: NotRequired[str | None]
     planCommentUrl: NotRequired[str | None]
-    implementationComment: NotRequired[str | None]
-    implementationCommentUrl: NotRequired[str | None]
     needsPlan: NotRequired[bool]
     isUI: NotRequired[bool]
 

@@ -304,6 +304,18 @@ def edit_comment(comment_url: str, body: str) -> str:
     return comment_url
 
 
+def delete_comment(comment_url: str) -> None:
+    """Permanently remove an existing issue comment, addressed by the same
+    `html_url` reference `edit_comment` accepts. Used when invalidation
+    should retire stale task evidence outright rather than leave a
+    superseded body on record."""
+    match = _COMMENT_ID_PATTERN.search(comment_url)
+    if not match:
+        raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
+    owner, repository = owner_repository()
+    run_gh(["api", "--method", "DELETE", f"repos/{owner}/{repository}/issues/comments/{match.group(1)}"])
+
+
 def comments_for_issue(issue: str) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")

@@ -203,6 +203,9 @@ class AzureWorkItemBackend(WorkItemBackend):
     def edit_comment(self, ref: str, comment_ref: str, body: str) -> str:
         return azure.edit_comment(azure.numeric(ref), comment_ref, body)
 
+    def delete_comment(self, ref: str, comment_ref: str) -> None:
+        azure.delete_comment(azure.numeric(ref), comment_ref)
+
     def post_blocker(self, ref: str, body: str) -> str:
         # Same channel as an ordinary comment, matching GitHub: the
         # `Decision Required` gate is the machine signal and the PDLC-DECISION

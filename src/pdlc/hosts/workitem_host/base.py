@@ -108,6 +108,13 @@ class WorkItemBackend(ABC):
         reference to the edited comment."""
 
     @abstractmethod
+    def delete_comment(self, ref: str, comment_ref: str) -> None:
+        """Permanently remove an existing comment, addressed by the same
+        reference `edit_comment` accepts. Used when invalidation should
+        retire stale task evidence outright rather than leave a superseded
+        body on record."""
+
+    @abstractmethod
     def post_blocker(self, ref: str, body: str) -> str:
         """Record a blocking review decision the driver must resolve before the
         record can move. The `Decision Required` gate is the machine-readable

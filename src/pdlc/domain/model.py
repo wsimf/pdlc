@@ -195,6 +195,22 @@ def has_implementation_comment(comments: list[str]) -> bool:
     return latest_heading_comment(comments, IMPLEMENTATION_COMMENT_HEADING) is not None
 
 
+# Every comment object (not just the latest) that opens with `heading`,
+# oldest first. Invalidation needs every match, not the newest one, so a task
+# implemented more than once does not keep reading as implemented after the
+# newest evidence is retired.
+def heading_comment_objects(comments: list[dict], heading: str) -> list[dict]:
+    matches = []
+    for comment in comments:
+        body = comment.get("body") if isinstance(comment, dict) else str(comment)
+        for line in (body or "").splitlines():
+            if line.strip():
+                if line.strip() == heading:
+                    matches.append(comment)
+                break
+    return matches
+
+
 # Normalises a task's comment payload to a plain list of body strings,
 # accepting the GraphQL `{nodes: [{body}]}` shape, a list of strings or
 # `{body}` dicts, or a missing key.
@@ -245,7 +261,6 @@ def classify_task(task: dict) -> dict:
     comments = task.get("comments") or []
     comment_objects = task.get("commentObjects") or []
     plan_comment_object = latest_heading_comment_object(comment_objects, PLAN_COMMENT_HEADING)
-    implementation_comment_object = latest_heading_comment_object(comment_objects, IMPLEMENTATION_COMMENT_HEADING)
     has_implementation = has_implementation_comment(comments)
     return {
         **task,
@@ -255,11 +270,6 @@ def classify_task(task: dict) -> dict:
         # The existing plan comment's reference, so a re-plan can replace it in
         # place instead of appending a second `## Technical Plan` comment.
         "planCommentUrl": (plan_comment_object or {}).get("url"),
-        "implementationComment": (implementation_comment_object or {}).get("body"),
-        # The existing implementation comment's reference, so invalidation can
-        # edit it in place to strip the `## Implementation` heading rather than
-        # leaving it in place forever counting toward `hasImplementation`.
-        "implementationCommentUrl": (implementation_comment_object or {}).get("url"),
         "needsPlan": task["state"] == "OPEN" and not has_implementation,
         "isUI": task_title(task).startswith(UI_TAG),
         # Attached pull requests come from the backend, which owns how they are
