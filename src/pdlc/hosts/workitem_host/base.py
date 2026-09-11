@@ -144,7 +144,7 @@ class WorkItemBackend(ABC):
     def reopen_task(self, task_ref: str) -> None:
         """Return a closed task to OPEN. Used to undo a task's Implementation
         closure when a driver invalidates Technical Plan or Implementation
-        back onto it, so the task is in scope for `needsPlan` again."""
+        back onto it, so the task is back in scope for rework."""
 
     def task_pr_numbers(self, ref: str) -> list[int]:
         """Registered task PRs; adapters may avoid loading task bodies/comments."""

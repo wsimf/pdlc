@@ -85,7 +85,8 @@ def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) ->
 
 def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) -> list[str]:
     """Reopen closed delivery tasks so they are back in scope for the
-    invalidated stage's own gate (e.g. `needsPlan`). `task_refs` narrows the
+    invalidated stage's own gate (`needsPlan` for Technical Plan,
+    `implementationInvalidated` for Implementation). `task_refs` narrows the
     scope to specific tasks; omitted, every closed task under the record is
     reopened. Returns the numbers actually reopened."""
     tasks = subissues_for(issue)
@@ -106,13 +107,16 @@ def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) ->
         post_comment(number, f"Invalidated stage: {target_stage}\n\nReopened for rework.\n", "INVALIDATED")
 
         # Reopening alone leaves the task's own `## Implementation`/`## Technical
-        # Plan` comments in place, so `hasImplementation`/`needsPlan` would never
-        # reflect the reopen: delete the stale evidence outright rather than
-        # editing it, so the task reads as unimplemented again with no
-        # superseded noise left behind. Every matching comment is retired, not
-        # just the newest, so a task implemented more than once does not stay
-        # permanently blocked. Deleted newest-first so the file backend's
-        # positional references to the remaining, earlier comments stay valid.
+        # Plan` comments in place, so `implementationInvalidated`/`needsPlan`
+        # would never reflect the reopen: delete the stale evidence outright
+        # rather than editing it, so the task reads as needing rework again with
+        # no superseded noise left behind. `hasImplementation` itself stays true
+        # (it tracks the attached PR, which this never touches); deleting the
+        # `## Implementation` comment instead flips `implementationInvalidated`.
+        # Every matching comment is retired, not just the newest, so a task
+        # implemented more than once does not stay permanently blocked. Deleted
+        # newest-first so the file backend's positional references to the
+        # remaining, earlier comments stay valid.
         headings = [IMPLEMENTATION_COMMENT_HEADING]
         if target_stage == "Technical Plan":
             headings.append(PLAN_COMMENT_HEADING)

@@ -28,11 +28,16 @@ directory and stdout carries a compact index.
 
 Always includes a `# Tasks` section: every delivery task as its own YAML
 front-matter block (number, title, completed, isUI, hasPlan,
-hasImplementation, needsPlan) — metadata only, no body. `hasPlan` is true once
-a task has been technically planned; `hasImplementation` is true once
-implementation work has been carried out for it. A single GraphQL call computes
-every flag, so this costs nothing extra; it omits the body text itself, which is
-usually only needed for a handful of tasks. Fetch those with
+hasImplementation, implementationInvalidated, needsPlan) — metadata only, no
+body. `hasPlan` is true once a task has a `## Technical Plan` comment;
+`needsPlan` tracks that directly (open and no plan comment). `hasImplementation`
+is true once a pull request is attached to the task — it survives invalidation,
+since invalidation only deletes evidence comments, not the PR itself.
+`implementationInvalidated` is true when a PR is attached but the task's
+`## Implementation` comment is missing, i.e. reopened for rework since it was
+last implemented. A single GraphQL call computes every flag, so this costs
+nothing extra; it omits the body text itself, which is usually only needed for
+a handful of tasks. Fetch those with
 `pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]`. Dependency closure and
 HITL approval still require reading a candidate's body and the record's own
 comments; this stops short of that judgment. Evidence comments are
@@ -87,6 +92,7 @@ for orientation, and points at the full file with the raw work item body.
     isUI: false
     hasPlan: true
     hasImplementation: false
+    implementationInvalidated: false
     needsPlan: false
     ---
 
@@ -152,6 +158,7 @@ def _task_front_matter(task: dict) -> str:
         "isUI": task["isUI"],
         "hasPlan": task["hasPlan"],
         "hasImplementation": task["hasImplementation"],
+        "implementationInvalidated": task["implementationInvalidated"],
         "needsPlan": task["needsPlan"],
     })
 

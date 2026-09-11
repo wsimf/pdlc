@@ -184,12 +184,14 @@ note are each a plain comment on the delivery task whose first non-empty line is
 `## Technical Plan` or `## Implementation` — no marker. `pdlc post plan` and
 `pdlc post implement-task` post them (the latter prepends the
 `## Implementation` heading when the supplied summary omits it), and
-`pdlc-inspect` derives the
-`hasPlan` / `hasImplementation` flags (and renders the plan) from those
-headings. Unlike other evidence, a task's `## Technical Plan` comment is not
-append-only: a re-plan replaces it in place, so a task never carries more than
-one. The parent's `Technical Plan` / `PDLC-IMPLEMENTATION` markers still
-belong to the respective *stage* publication evidence.
+`pdlc-inspect` derives `hasPlan` (and renders the plan) from the former.
+`hasImplementation` instead tracks the task's attached pull request, so it
+survives invalidation; `implementationInvalidated` is what tracks whether the
+`## Implementation` comment is present. Unlike other evidence, a task's
+`## Technical Plan` comment is not append-only: a re-plan replaces it in
+place, so a task never carries more than one. The parent's `Technical Plan` /
+`PDLC-IMPLEMENTATION` markers still belong to the respective *stage*
+publication evidence.
 
 Every script that posts evidence takes the body as a file path, or as
 `text:<body>` for a short one-line body passed as a single argument. An unknown

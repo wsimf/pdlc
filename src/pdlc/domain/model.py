@@ -261,20 +261,28 @@ def classify_task(task: dict) -> dict:
     comments = task.get("comments") or []
     comment_objects = task.get("commentObjects") or []
     plan_comment_object = latest_heading_comment_object(comment_objects, PLAN_COMMENT_HEADING)
-    has_implementation = has_implementation_comment(comments)
+    has_plan = plan_comment_object is not None
+    prs = list(task.get("prs") or [])
+    # Implementation is tracked by attached PR, not by comment: a PR survives
+    # invalidation (only the evidence comments are deleted), so a task stays
+    # `hasImplementation` across a rework cycle while `implementationInvalidated`
+    # flags that its `## Implementation` comment is missing and needs redoing.
+    has_implementation = bool(prs)
+    has_implementation_evidence = has_implementation_comment(comments)
     return {
         **task,
-        "hasPlan": plan_comment_object is not None,
+        "hasPlan": has_plan,
         "hasImplementation": has_implementation,
+        "implementationInvalidated": has_implementation and not has_implementation_evidence,
         "planComment": (plan_comment_object or {}).get("body"),
         # The existing plan comment's reference, so a re-plan can replace it in
         # place instead of appending a second `## Technical Plan` comment.
         "planCommentUrl": (plan_comment_object or {}).get("url"),
-        "needsPlan": task["state"] == "OPEN" and not has_implementation,
+        "needsPlan": task["state"] == "OPEN" and not has_plan,
         "isUI": task_title(task).startswith(UI_TAG),
         # Attached pull requests come from the backend, which owns how they are
         # stored; classification never parses them out of the body.
-        "prs": list(task.get("prs") or []),
+        "prs": prs,
     }
 
 

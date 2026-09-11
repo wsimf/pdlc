@@ -116,10 +116,16 @@ def _in_scope(task: dict, task_filter: str | None, phase: bool | None) -> bool:
 
 
 def _eligible(task: dict) -> bool:
-    return task["state"] == "OPEN" and task["hasPlan"] and not task["hasImplementation"]
+    return (
+        task["state"] == "OPEN"
+        and task["hasPlan"]
+        and (not task["hasImplementation"] or task["implementationInvalidated"])
+    )
 
 
 def _remaining_status(task: dict) -> str:
+    if task["hasImplementation"] and task["implementationInvalidated"]:
+        return "implementation invalidated — eligible for rework"
     if task["hasImplementation"]:
         return "implementation recorded but task still open — report it"
     if not task["hasPlan"]:

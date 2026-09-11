@@ -29,10 +29,13 @@ DESCRIPTION
     Reopening a task also deletes its existing evidence comments outright —
     every `## Implementation` comment always, and every `## Technical Plan`
     comment too when STAGE is Technical Plan — rather than editing them in
-    place, so no superseded evidence lingers as noise. This clears
-    `hasImplementation`/sets `needsPlan` back to true for that task; without
-    it, a reopened task would still read as implemented and stay out of scope
-    for both `pdlc post plan` and `pdlc post implement-task`.
+    place, so no superseded evidence lingers as noise. `hasImplementation`
+    tracks the attached pull request, not the comment, so it stays true across
+    this; deleting the `## Implementation` comment instead sets
+    `implementationInvalidated` to true, which is what puts the task back in
+    scope for `pdlc post implement-task`. Deleting the `## Technical Plan`
+    comment sets `hasPlan` to false, which sets `needsPlan` back to true and
+    puts the task back in scope for `pdlc post plan`.
 """
 
 from __future__ import annotations

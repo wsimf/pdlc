@@ -11,14 +11,19 @@ FLAGS
 DESCRIPTION
     Renders one or more delivery tasks, each as its own
     YAML front-matter block (number, title, url, state, taskId, isUI, hasPlan,
-    hasImplementation, needsPlan) followed by its full body as a `# Task` markdown
-    section — pdlc inspect's shape, but for whichever tasks a caller actually
-    needs in full, rather than every task on the record.
+    hasImplementation, implementationInvalidated, needsPlan) followed by its
+    full body as a `# Task` markdown section — pdlc inspect's shape, but for
+    whichever tasks a caller actually needs in full, rather than every task on
+    the record.
 
-`hasPlan` reflects that this task has been technically planned; `hasImplementation`
-reflects that implementation work has been carried out for it. When the task has
-a plan, it is rendered after the `# Task` body. Read these flags and the rendered
-plan rather than fetching task comments directly.
+`hasPlan` reflects that this task has a `## Technical Plan` comment; `needsPlan`
+tracks that directly. `hasImplementation` reflects that a pull request is
+attached to the task — it survives invalidation, since invalidation only
+deletes evidence comments, not the PR. `implementationInvalidated` is true when
+a PR is attached but the task's `## Implementation` comment is missing, i.e.
+reopened for rework since it was last implemented. When the task has a plan,
+it is rendered after the `# Task` body. Read these flags and the rendered plan
+rather than fetching task comments directly.
 
 Pair this with `pdlc inspect WORK_ITEM`, whose default output is a compact
 index: read it first to shortlist which task numbers are worth fetching in
@@ -52,6 +57,7 @@ prompts) that want a file reference rather than inline content.
     isUI: false
     hasPlan: true
     hasImplementation: false
+    implementationInvalidated: false
     needsPlan: false
     ---
 
@@ -117,6 +123,7 @@ def _render_task(task: dict, preamble: str = "") -> str:
         "isUI": task["isUI"],
         "hasPlan": task["hasPlan"],
         "hasImplementation": task["hasImplementation"],
+        "implementationInvalidated": task["implementationInvalidated"],
         "needsPlan": task["needsPlan"],
         "prs": task["prs"],
     })

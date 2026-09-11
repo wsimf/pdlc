@@ -13,8 +13,8 @@ DESCRIPTION
     Renders one delivery task's own comment stream as a chronological
     timeline — plan, implementation, and invalidation, in the order they
     happened — so an agent can tell what state a task is really in without
-    cross-referencing `hasPlan`/`hasImplementation`/`needsPlan` against raw
-    comments itself.
+    cross-referencing `hasPlan`/`hasImplementation`/`implementationInvalidated`/
+    `needsPlan` against raw comments itself.
 
     Unlike `pdlc inspect timeline`, which only shows a parent record's
     `PDLC-*`-marked comments, a task's most important evidence — its

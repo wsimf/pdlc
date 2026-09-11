@@ -303,6 +303,18 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("not yet planned", result.stdout)
         self.assertNotIn("Judgment Required", result.stdout)
 
+    def test_implementation_invalidated_task_is_still_eligible(self):
+        # A PR stays attached across invalidation, so `hasImplementation` alone
+        # would wrongly hide the task; `implementationInvalidated` (comment
+        # missing while the PR is attached) is what re-offers it for rework.
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Rework me")
+        self._plan(60, 601)
+        self.register_prs(601, [40])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("### WORK-60-TASK-001 [CORE] Rework me", result.stdout)
+
     def test_task_filter_scopes_to_one_task(self):
         self._seed()
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] One")

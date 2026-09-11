@@ -87,15 +87,20 @@ class SkipInvalidateTests(FileBackendTest):
         self.seed_record(68, "Implementation", "Pending")
         self.seed_task(68, 681, "TASK-001", "CLOSED", "WORK-68-TASK-001 [CORE] one")
         self.seed_implementation_comment(68, 681, "Shipped the endpoint.")
+        self.register_prs(681, [900])
 
         before = self.invoke("inspect_task", 681).stdout
         self.assertIn("hasImplementation: true", before)
+        self.assertIn("implementationInvalidated: false", before)
 
         result = self.invoke("post_invalidate", 68, "Technical Plan", self.evidence_file())
         self.assertEqual(result.code, 0, result.stderr)
 
         after = self.invoke("inspect_task", 681).stdout
-        self.assertIn("hasImplementation: false", after)
+        # `hasImplementation` tracks the attached PR, which invalidation never
+        # touches; the comment deletion instead flips `implementationInvalidated`.
+        self.assertIn("hasImplementation: true", after)
+        self.assertIn("implementationInvalidated: true", after)
         self.assertIn("needsPlan: true", after)
 
         remaining = [json.loads(line) for line in self.task_comments_text(68, 681).splitlines()]
@@ -108,13 +113,15 @@ class SkipInvalidateTests(FileBackendTest):
         self.seed_task(72, 721, "TASK-001", "CLOSED", "WORK-72-TASK-001 [CORE] one")
         self.seed_plan_comment(72, 721, "Add the validation helper.")
         self.seed_implementation_comment(72, 721, "Shipped the endpoint.")
+        self.register_prs(721, [900])
 
         result = self.invoke("post_invalidate", 72, "Technical Plan", self.evidence_file())
         self.assertEqual(result.code, 0, result.stderr)
 
         after = self.invoke("inspect_task", 721).stdout
         self.assertIn("hasPlan: false", after)
-        self.assertIn("hasImplementation: false", after)
+        self.assertIn("hasImplementation: true", after)
+        self.assertIn("implementationInvalidated: true", after)
 
         remaining = [json.loads(line) for line in self.task_comments_text(72, 721).splitlines()]
         self.assertEqual(len(remaining), 1)
@@ -126,13 +133,15 @@ class SkipInvalidateTests(FileBackendTest):
         self.seed_task(73, 731, "TASK-001", "CLOSED", "WORK-73-TASK-001 [CORE] one")
         self.seed_plan_comment(73, 731, "Add the validation helper.")
         self.seed_implementation_comment(73, 731, "Shipped the endpoint.")
+        self.register_prs(731, [900])
 
         result = self.invoke("post_invalidate", 73, "Implementation", self.evidence_file())
         self.assertEqual(result.code, 0, result.stderr)
 
         after = self.invoke("inspect_task", 731).stdout
         self.assertIn("hasPlan: true", after)
-        self.assertIn("hasImplementation: false", after)
+        self.assertIn("hasImplementation: true", after)
+        self.assertIn("implementationInvalidated: true", after)
         self.assertIn("Add the validation helper.", self.task_comments_text(73, 731))
         self.assertNotIn("Shipped the endpoint.", self.task_comments_text(73, 731))
 
@@ -141,16 +150,34 @@ class SkipInvalidateTests(FileBackendTest):
         self.seed_task(74, 741, "TASK-001", "CLOSED", "WORK-74-TASK-001 [CORE] one")
         self.seed_implementation_comment(74, 741, "First attempt.")
         self.seed_implementation_comment(74, 741, "Reworked attempt.")
+        self.register_prs(741, [900])
 
         result = self.invoke("post_invalidate", 74, "Technical Plan", self.evidence_file())
         self.assertEqual(result.code, 0, result.stderr)
 
         after = self.invoke("inspect_task", 741).stdout
-        self.assertIn("hasImplementation: false", after)
+        self.assertIn("implementationInvalidated: true", after)
         self.assertIn("needsPlan: true", after)
         text = self.task_comments_text(74, 741)
         self.assertNotIn("First attempt.", text)
         self.assertNotIn("Reworked attempt.", text)
+
+    def test_needs_plan_tracks_plan_comment_regardless_of_implementation(self):
+        self.seed_record(75, "Implementation", "Pending")
+        self.seed_task(75, 751, "TASK-001", "OPEN", "WORK-75-TASK-001 [CORE] one")
+        self.seed_implementation_comment(75, 751, "Shipped the endpoint.")
+        self.register_prs(751, [900])
+
+        before = self.invoke("inspect_task", 751).stdout
+        self.assertIn("hasPlan: false", before)
+        self.assertIn("needsPlan: true", before)
+        self.assertIn("hasImplementation: true", before)
+        self.assertIn("implementationInvalidated: false", before)
+
+        self.seed_plan_comment(75, 751, "Add the validation helper.")
+        after = self.invoke("inspect_task", 751).stdout
+        self.assertIn("hasPlan: true", after)
+        self.assertIn("needsPlan: false", after)
 
     def test_task_timeline_shows_plan_and_implementation_before_invalidation(self):
         self.seed_record(69, "Implementation", "Pending")
