@@ -81,6 +81,29 @@ class InspectVerifyTests(FileBackendTest):
         self.assertIn("FR-1 holds", result.stdout.split("## Still valid", 1)[1])
         self.assertIn("Fixed the drift calculation", result.stdout)
 
+    def test_open_comments_reports_none_when_every_thread_is_resolved(self):
+        # The file code host has no live review-thread state, so this is the
+        # default for a file-backend scenario without mocking the code host.
+        self._seed_verification_record()
+        result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Open Comments\n\nNone.", result.stdout)
+
+    def test_open_comments_renders_unresolved_threads_grouped_by_pr(self):
+        self._seed_verification_record()
+        with mock.patch(
+            "pdlc.commands.inspect_verify.record_open_review_comments",
+            return_value=[{
+                "pr": 148, "author": "reviewer", "body": "fix the null case",
+                "url": "u2", "path": "src/cache.py", "line": 42,
+            }],
+        ):
+            result = self.invoke("inspect_verify", 50)
+        self.assertEqual(result.code, 0, result.stderr)
+        section = result.stdout.split("## Open Comments", 1)[1].split("# Timeline", 1)[0]
+        self.assertIn("PR #148:", section)
+        self.assertIn("@reviewer on src/cache.py:42 — fix the null case (u2)", section)
+
     def test_unmerged_ci_pending_prs_do_not_block_the_pass(self):
         # Merge is a completion bar, not a verification one: a stack is audited
         # before it lands, so an OPEN / PENDING PR must not stop this pass — it

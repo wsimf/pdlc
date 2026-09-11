@@ -731,6 +731,30 @@ class CodeHostTest(GitHubHostTest):
         view = next(call[0] for call in self.gh.calls if call[0][:2] == ["pr", "view"])
         self.assertNotIn("--repo", view)
 
+    def test_unresolved_review_comments_skips_resolved_threads(self) -> None:
+        self.gh.graphql(
+            "reviewThreads",
+            graphql_data({"repository": {"pullRequest": {"reviewThreads": {"nodes": [
+                {"isResolved": True, "comments": {"nodes": [{"body": "nit", "url": "u1", "path": "a.py", "line": 1, "author": {"login": "bot"}}]}},
+                {"isResolved": False, "comments": {"nodes": [{"body": "fix the null case", "url": "u2", "path": "src/cache.py", "line": 42, "author": {"login": "reviewer"}}]}},
+            ]}}}}),
+        )
+
+        comments = self.host.unresolved_review_comments(148)
+
+        self.assertEqual(comments, [{
+            "author": "reviewer", "body": "fix the null case", "url": "u2",
+            "path": "src/cache.py", "line": 42,
+        }])
+
+    def test_unresolved_review_comments_reports_none_for_a_clean_pr(self) -> None:
+        self.gh.graphql(
+            "reviewThreads",
+            graphql_data({"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}),
+        )
+
+        self.assertEqual(self.host.unresolved_review_comments(148), [])
+
 
 if __name__ == "__main__":
     unittest.main()

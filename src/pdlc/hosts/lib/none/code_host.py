@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest
+from pdlc.domain.records import PullRequest, ReviewComment
 
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.domain.lifecycle import PdlcError
@@ -35,3 +35,6 @@ class NoneCodeHost(CodeHost):
     def mark_pull_requests_ready(self, numbers: list[int]) -> None:
         if numbers:
             raise PdlcError("no code host is configured; cannot mark a pull request ready")
+
+    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+        return []

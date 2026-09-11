@@ -37,3 +37,17 @@ def record_pull_requests(ref: str, *, record: dict | None = None, tasks: list[di
     if {pr.get("number") for pr in resolved} != set(numbers):
         raise PdlcError("code host returned fewer pull requests than the registry; refusing to continue")
     return [validate_pull_request(pr) for pr in resolved]
+
+
+def record_open_review_comments(ref: str, *, record: dict | None = None, tasks: list[dict] | None = None) -> list[dict]:
+    """Every still-unresolved review-thread comment across the record's
+    registered pull requests (see `code_host.unresolved_review_comments`),
+    each stamped with its `pr` number, ascending by PR then host order.
+    Empty when no PR is registered or every thread is resolved."""
+    numbers = registered_pr_numbers(ref, record=record, tasks=tasks)
+    host = get_code_host()
+    comments = []
+    for number in numbers:
+        for comment in host.unresolved_review_comments(number):
+            comments.append({"pr": number, **comment})
+    return comments

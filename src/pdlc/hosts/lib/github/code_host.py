@@ -6,21 +6,49 @@ the work item and its delivery tasks (see `internal.pull_requests`), not by a
 delegates the stacked-task flow wholesale to the `gh stack` extension: `gh stack`
 owns the stack's order, bases, rebases, and which branches have landed. Nothing
 here re-derives that from remote branch listings or branch names.
+
+`unresolved_review_comments` reads live review-thread state via GraphQL —
+`isResolved` is not exposed by `gh pr view --json`, only by the review-threads
+connection, so this is the one query in the module that doesn't go through
+`run_gh_json`.
 """
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest
+from pdlc.domain.records import PullRequest, ReviewComment
 
 
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.hosts.lib.github.transport import (
     body_file,
+    owner_repository,
     repo_args,
     run_gh,
     run_gh_json,
+    run_graphql,
 )
 from pdlc.domain.lifecycle import PdlcError
+
+# Every review thread on the pull request, oldest first, with only its root
+# comment — later replies aren't fetched, since the thread's own `isResolved`
+# already carries the "is this settled" signal a reply would otherwise stand
+# in for.
+_REVIEW_THREADS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          comments(first: 1) {
+            nodes { body url path line author { login } }
+          }
+        }
+      }
+    }
+  }
+}
+"""
 
 _STACK_MISSING = (
     "the `gh stack` extension is required for stacked task pull requests — "
@@ -168,6 +196,27 @@ class GitHubCodeHost(CodeHost):
         # `gh pr ready` would otherwise reject.
         for number in numbers:
             run_gh(["pr", "ready", str(number), *repo_args()])
+
+    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+        owner, repository = owner_repository()
+        data = run_graphql(_REVIEW_THREADS_QUERY, owner=owner, repo=repository, number=int(pr_number))
+        threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+        comments = []
+        for thread in threads:
+            if thread.get("isResolved"):
+                continue
+            nodes = thread.get("comments", {}).get("nodes") or []
+            if not nodes:
+                continue
+            root = nodes[0]
+            comments.append({
+                "author": (root.get("author") or {}).get("login") or "unknown",
+                "body": root.get("body") or "",
+                "url": root.get("url"),
+                "path": root.get("path"),
+                "line": root.get("line"),
+            })
+        return comments
 
     @staticmethod
     def stack_pr_numbers() -> list[int]:

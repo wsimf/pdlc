@@ -11,7 +11,7 @@ work item and its tasks (see `internal.pull_requests`), not by this file.
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest
+from pdlc.domain.records import PullRequest, ReviewComment
 
 import json
 import os
@@ -72,3 +72,7 @@ class FileCodeHost(CodeHost):
         # `pull_requests.json` carries no live draft state to transition; a file
         # workflow scenario has nothing to mark ready.
         return None
+
+    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+        # `pull_requests.json` carries no live review-thread state either.
+        return []

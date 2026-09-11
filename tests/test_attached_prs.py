@@ -123,6 +123,22 @@ class RecordPullRequestsTests(FileBackendTest):
         prs = record_pull_requests("70")
         self.assertEqual([pr["number"] for pr in prs], [148])
 
+    def test_open_review_comments_are_stamped_with_their_pr_and_unregistered_prs_are_never_queried(self):
+        from unittest import mock
+        from pdlc.internal.pull_requests import record_open_review_comments
+
+        self.invoke("post_attach_pr", 701, 148)
+
+        def fake(pr_number):
+            self.assertEqual(pr_number, 148)  # #900 is registered on no task/record
+            return [{"author": "reviewer", "body": "fix this", "url": "u", "path": "a.py", "line": 1}]
+
+        with mock.patch("pdlc.internal.pull_requests.get_code_host") as get_host:
+            get_host.return_value.unresolved_review_comments = fake
+            comments = record_open_review_comments("70")
+
+        self.assertEqual(comments, [{"pr": 148, "author": "reviewer", "body": "fix this", "url": "u", "path": "a.py", "line": 1}])
+
 
 if __name__ == "__main__":
     unittest.main()
