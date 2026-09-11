@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Closes out a `Decision Required` gate in one call, once the driver has
-settled every open decision the reviewer raised.
+"""NAME
+    pdlc post decision - close a Decision Required gate from a resolution manifest
 
+USAGE
     pdlc post decision WORK_ITEM --manifest FILE [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Closes out a `Decision Required` gate in one call, once the driver has
+    settled every open decision the reviewer raised.
 
 Driver-only, like pdlc post approve / pdlc post invalidate: the scripts carry no
 identity check, so only the orchestrator runs this, and only on an explicit

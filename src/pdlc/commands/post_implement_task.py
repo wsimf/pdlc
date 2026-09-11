@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Records one delivery task's implementation as a `## Implementation` comment
-on the delivery task, and optionally closes it — the two things Step 5 of
-pdlc-implement does together, in one call.
+"""NAME
+    pdlc post implement-task - record one delivery task's implementation, optionally closing it
 
+USAGE
     pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|text:STR|- [--close] [--attachment PATH [--attachment-description TEXT]]
+
+FLAGS
+    --close    close the delivery task once its implementation is recorded
+
+DESCRIPTION
+    Records one delivery task's implementation as a `## Implementation` comment
+    on the delivery task, and optionally closes it — the two things Step 5 of
+    pdlc-implement does together, in one call.
 
 The implementation summary is a file path, or `text:<body>` for a short one.
 Cover what shipped, the files touched, which acceptance criteria the evidence

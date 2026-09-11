@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
-"""Returns a stage to Stale when upstream intent changed, without touching
-downstream artifacts — they stay in place but their evidence is now
-considered invalid until the owning stage reconciles them.
+"""NAME
+    pdlc post invalidate - return a stage to Stale when upstream intent changed
 
-The posted PDLC-INVALIDATED comment opens with a script-owned
-`Invalidated stage: <STAGE>` line before the caller's evidence, so the
-comment history — not just the current work-item state — records which stage
-each invalidation returned to Stale.
-
-Invalidating to Technical Plan or Implementation also reopens delivery tasks
-Implementation had already closed, so they are back in scope for re-planning
-or re-implementation; each reopened task gets its own PDLC-INVALIDATED
-comment. `--task` (repeatable) narrows this to specific task numbers; omitted,
-every closed task under the record is reopened. `--task` on any other target
-stage is rejected — those stages carry no per-task evidence to reopen.
-
+USAGE
     pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|- [--task TASK_NUMBER ...] [--attachment PATH [--attachment-description TEXT]]
+
+FLAGS
+    --task TASK_NUMBER (repeatable)    narrow task reopening to specific delivery tasks; only
+                                        valid when STAGE is Technical Plan or Implementation
+
+DESCRIPTION
+    Returns a stage to Stale when upstream intent changed, without touching
+    downstream artifacts — they stay in place but their evidence is now
+    considered invalid until the owning stage reconciles them.
+
+    The posted PDLC-INVALIDATED comment opens with a script-owned
+    `Invalidated stage: <STAGE>` line before the caller's evidence, so the
+    comment history — not just the current work-item state — records which stage
+    each invalidation returned to Stale.
+
+    Invalidating to Technical Plan or Implementation also reopens delivery tasks
+    Implementation had already closed, so they are back in scope for re-planning
+    or re-implementation; each reopened task gets its own PDLC-INVALIDATED
+    comment. `--task` (repeatable) narrows this to specific task numbers; omitted,
+    every closed task under the record is reopened. `--task` on any other target
+    stage is rejected — those stages carry no per-task evidence to reopen.
 """
 
 from __future__ import annotations

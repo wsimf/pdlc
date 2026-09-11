@@ -1,9 +1,12 @@
-"""Read-only: show one bounded page of work-item comments.
+"""NAME
+    pdlc inspect comments - read-only: show one bounded page of work-item comments
 
+USAGE
     pdlc inspect comments ISSUE [--page N]
 
-Pages contain 100 comments, newest first. The output includes the exact total
-and a ready-to-copy command whenever another page exists.
+DESCRIPTION
+    Pages contain 100 comments, newest first. The output includes the exact total
+    and a ready-to-copy command whenever another page exists.
 """
 from __future__ import annotations
 import argparse

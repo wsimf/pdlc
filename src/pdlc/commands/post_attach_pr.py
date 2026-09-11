@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Attach a pull request to a delivery task by hand.
+"""NAME
+    pdlc post attach-pr - attach a pull request to a delivery task by hand
 
+USAGE
     pdlc post attach-pr DELIVERY_TASK PR_NUMBER
 
-Records PR_NUMBER (a bare number or `#123`) in the delivery task's machine-owned
+DESCRIPTION
+    Records PR_NUMBER (a bare number or `#123`) in the delivery task's machine-owned
 metadata block — the list later stages read to know a task's pull requests
 explicitly, never inferring them from a `Closes #N` keyword or a branch name.
 Idempotent.

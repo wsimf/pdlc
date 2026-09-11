@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Human-only: tear down the local scaffolding for a completed work item.
+"""NAME
+    pdlc cleanup - human-only: tear down the local scaffolding for a completed work item
 
+USAGE
     pdlc cleanup WORKITEM [--yes]
 
-Resolves WORKITEM against the backend and refuses unless it is locked at
-Complete. Then removes the worktree at `<worktree.root>/<repo-name>/<WORKITEM>`
-and force-deletes its local branches — the `pdlc/record-<WORKITEM>` base branch
-and every `pdlc/<slug>/<task-id>` branch `gh stack` created. Remote branches and
-merged pull requests are left to GitHub.
+DESCRIPTION
+    Resolves WORKITEM against the backend and refuses unless it is locked at
+    Complete. Then removes the worktree at `<worktree.root>/<repo-name>/<WORKITEM>`
+    and force-deletes its local branches — the `pdlc/record-<WORKITEM>` base branch
+    and every `pdlc/<slug>/<task-id>` branch `gh stack` created. Remote branches and
+    merged pull requests are left to GitHub.
 
-This is the counterpart of `pdlc prepare`: local-only teardown, off the agent
-workflow, and absent from `pdlc --help`. It needs the backend only to confirm
-the work item is complete.
+    This is the counterpart of `pdlc prepare`: local-only teardown, off the agent
+    workflow, and absent from `pdlc --help`. It needs the backend only to confirm
+    the work item is complete.
 """
 
 from __future__ import annotations

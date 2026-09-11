@@ -55,6 +55,31 @@ The skills name no project-specific tool. A consuming repo routes each seam to i
 
 For Python syntax validation in this environment, use `PYTHONPYCACHEPREFIX=/tmp/pdlc-pycache python3 -m compileall -q src`; this proves compilation only, not GitHub, build, simulator, or runtime behavior.
 
+## Writing command help
+
+Every command's printed `--help` (its module docstring under `src/pdlc/commands/`) and the
+top-level `pdlc --help` (`_usage()` in `src/pdlc/cli.py`) follow the same section convention,
+adapted from `gh`'s help layout to pdlc's own read-only/mutating split:
+
+- The top-level `pdlc --help` is the only "parent with children" surface in the CLI — every
+  other command is a leaf with no sub-commands of its own. Its sections are `USAGE`,
+  `READ-ONLY COMMANDS` (setup, inspect*, next), `MUTATING COMMANDS` (post*), `FLAGS` (the
+  global `--repo`/`--project-number`/`--project-owner`/`--backend`/`--home` overrides),
+  `ARGUMENTS`, `EXAMPLES`, and `LEARN MORE`.
+- A leaf command's docstring never lists sub-commands: it has no `COMMANDS` section, only
+  whatever subset of `NAME`, `USAGE`, `DESCRIPTION`, `FLAGS`, and `EXAMPLES` applies. `NAME` is
+  one line, `pdlc <command> - <one-line summary>`. `USAGE` holds the invocation synopsis
+  line(s) that were previously embedded mid-paragraph. `DESCRIPTION` carries the full
+  behavioral prose — evidence formats, JSON shapes, gate semantics, sample output — moved
+  under the heading verbatim, never trimmed or summarized. `FLAGS` documents only that
+  command's own flags beyond `--attachment`/`--attachment-description`, which are common
+  enough to state once in the top-level help instead of repeating per command.
+- A command's docstring is its behavioral contract, not decorative help text (see "Skill and
+  sub-agent instructions" above) — restructuring it into sections must never delete or
+  paraphrase the contract prose, only relocate it.
+- Keep the top-level `_usage()` one-liner for a command in sync with that command's own
+  docstring whenever a flag or argument changes; a change to one without the other is a bug.
+
 ## Change hygiene
 
 Use `apply_patch` for edits. Keep Markdown sentences on one source line. Add comments only where they explain a contract, ownership boundary, or non-obvious constraint, and keep them current.

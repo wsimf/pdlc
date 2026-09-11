@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Read-only: Step 1 and Step 2 of pdlc-verify in one call, and the prep
+"""NAME
+    pdlc inspect verify - read-only: verification readiness and reuse analysis
+
+USAGE
+    pdlc inspect verify WORK_ITEM
+
+DESCRIPTION
+    Step 1 and Step 2 of pdlc-verify in one call, and the prep
 work for Step 4. Checks whether the Work Item is actually ready to audit
 right now, then — only if it is — gives a resuming verification pass the
 full picture it needs to avoid redoing settled work: every task and PR's
@@ -62,8 +69,6 @@ from the raw work item body itself.
    only ever lists fixed items.
 8. Deferred: findings recorded as deferred in the parent work item body's Open
    Questions section (`"Deferred — <finding>, accepted because <reason>"`).
-
-    pdlc inspect verify WORK_ITEM
 
     ## Readiness
 

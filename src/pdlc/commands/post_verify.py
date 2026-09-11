@@ -1,10 +1,26 @@
 #!/usr/bin/env python3
-"""Posts a durable "Verification Run Results" comment on a PDLC parent work item,
-stamped with the current UTC time and a structured REVIEW marker, files any
-deferred findings into the parent's Open Questions section, and moves the
-Verification gate to match the run's recommendation. Every run adds a new
-comment rather than editing a prior one, so the work item's comment history is
-the full, permanent verification log.
+"""NAME
+    pdlc post verify - post verification results and move the Verification gate
+
+USAGE
+    pdlc post verify WORK_ITEM REPORT_FILE|- --recommendation TEXT [--attachment PATH [--attachment-description TEXT]]
+        [--fixed FIXED_FILE|-] [--deferred DEFERRED_FILE|-]
+        [--decision DECISION_FILE|-] [--bounce STAGE]
+
+FLAGS
+    --recommendation TEXT    "Approval Required" | "Changes Required" | "Decision Required"
+    --fixed FIXED_FILE|-     one "description | commit" pair per line
+    --deferred DEFERRED_FILE|-  one plain reason per line
+    --decision DECISION_FILE|-  required with a Decision Required recommendation
+    --bounce STAGE           with Changes Required, return an upstream stage to Stale instead
+
+DESCRIPTION
+    Posts a durable "Verification Run Results" comment on a PDLC parent work item,
+    stamped with the current UTC time and a structured REVIEW marker, files any
+    deferred findings into the parent's Open Questions section, and moves the
+    Verification gate to match the run's recommendation. Every run adds a new
+    comment rather than editing a prior one, so the work item's comment history is
+    the full, permanent verification log.
 
 The caller hands over raw findings only — a plain description, and for fixed
 items the commit it was re-verified against — and makes no formatting
@@ -14,10 +30,6 @@ Questions deferral lines (the `Deferred — ` marker), and the Recommendation
 line. Deferred findings are filed into Open Questions only — never echoed
 into the comment itself; pdlc inspect verify is how a later pass reads
 both back, and owns parsing these same markers on the way in.
-
-    pdlc post verify WORK_ITEM REPORT_FILE|- --recommendation TEXT [--attachment PATH [--attachment-description TEXT]]
-        [--fixed FIXED_FILE|-] [--deferred DEFERRED_FILE|-]
-        [--decision DECISION_FILE|-] [--bounce STAGE]
 
 REPORT_FILE holds only the Claims Audit, User Journeys, UX, and Cumulative Review
 sections — Findings and Recommendation are assembled here. On an

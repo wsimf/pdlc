@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Lands the Technical Plan stage in a single call: guards the record's
-state, records each task's plan on its delivery task, and publishes the stage at
-Approval Required.
+"""NAME
+    pdlc post plan - land the Technical Plan stage
 
+USAGE
     pdlc post plan --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+
+FLAGS
+    --dry-run    validate and print the plan without landing it
+
+DESCRIPTION
+    Lands the Technical Plan stage in a single call: guards the record's
+    state, records each task's plan on its delivery task, and publishes the stage at
+    Approval Required.
 
 Technical Plan is reviewed before this script publishes it. To rework a landed
 plan, return it to Stale with pdlc post invalidate and re-run this script. A

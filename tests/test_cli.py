@@ -67,7 +67,8 @@ class CliTests(unittest.TestCase):
         output = io.StringIO()
         with patch.object(sys, "argv", ["pdlc"]), redirect_stdout(output):
             self.assertEqual(main(), 0)
-        self.assertIn("usage: pdlc", output.getvalue())
+        self.assertIn("USAGE", output.getvalue())
+        self.assertIn("pdlc [--repo", output.getvalue())
 
     def test_unknown_command_through_main_exits_one(self):
         err = io.StringIO()

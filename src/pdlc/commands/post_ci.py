@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Resolves an Implementation record parked at `CI Pending` against the live
-check state of its pull request(s).
+"""NAME
+    pdlc post ci - resolve CI Pending against live check state
 
+USAGE
     pdlc post ci WORK_ITEM
+
+DESCRIPTION
+    Resolves an Implementation record parked at `CI Pending` against the live
+    check state of its pull request(s).
 
   - checks still running          -> no change; reports "still running"
   - checks green / none tracked   -> Implementation / Approval Required

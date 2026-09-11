@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Read-only: Step 1-2 of pdlc-review in one call. Checks whether review is
-actually due right now, then — only if it is — names the exact artifact
-under review and the reviewer agent that owns it, so the agent never has to
-re-apply the Status→artifact→reviewer table by hand. Also flags a stage that
-reached Review Required but shouldn't have (Product/Verification never do;
-UI/Tasks/Technical Plan are reviewed locally before publication) and a stage
-listed in Skipped States, which pdlc post review refuses to review.
+"""NAME
+    pdlc inspect review - read-only: whether review is due and which artifact/reviewer agent
 
+USAGE
     pdlc inspect review WORK_ITEM
+
+DESCRIPTION
+    Step 1-2 of pdlc-review in one call. Checks whether review is
+    actually due right now, then — only if it is — names the exact artifact
+    under review and the reviewer agent that owns it, so the agent never has to
+    re-apply the Status→artifact→reviewer table by hand. Also flags a stage that
+    reached Review Required but shouldn't have (Product/Verification never do;
+    UI/Tasks/Technical Plan are reviewed locally before publication) and a stage
+    listed in Skipped States, which pdlc post review refuses to review.
 
     ## Readiness
 

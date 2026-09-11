@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Routes one work item's (Status, Gate State) to the next pdlc-* skill to run,
-using the work item's configured workflow policy.
+"""NAME
+    pdlc next - route one work item (or the queue) to the next pdlc-* skill
 
+USAGE
     pdlc next [--work-item N]        one item, or scan the queue for the
                                             next autonomous action
     pdlc next loop [--work-item N]   same, but retry with backoff while
                                             nothing is actionable before giving up
+
+DESCRIPTION
+    Routes one work item's (Status, Gate State) to the next pdlc-* skill to run,
+    using the work item's configured workflow policy.
 
 Output is a Markdown document: YAML front matter — id, work_item_number, title,
 current_status, action — followed by a one-line instruction. The

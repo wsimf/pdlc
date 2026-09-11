@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Register the top task pull request for the current branch, then complete the
-Implementation stage.
+"""NAME
+    pdlc post implement - register the current branch's PR and complete Implementation
 
+USAGE
     pdlc post implement WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Register the top task pull request for the current branch, then complete the
+    Implementation stage.
 
 The PR number is recorded on the record — later stages read the record's pull
 requests from that registry, not from a `Closes #N` keyword in the PR body.
