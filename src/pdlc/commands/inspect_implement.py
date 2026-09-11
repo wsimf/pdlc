@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Read-only: Step 1 and the mechanical half of Step 3 of pdlc-implement in one
-call. Resolves whether Implementation is due for a record and, if so, the single
-next delivery task to implement.
+"""NAME
+    pdlc inspect implement - read-only: whether Implementation is due and the next task to implement
 
+USAGE
     pdlc inspect implement WORK_ITEM [--task TASK-NNN | N] [--phase core|ui]
 
-`--task` restricts the scan to one delivery task (`TASK-004` or `4`); `--phase`
-restricts it to the CORE or UI half. The two cannot be combined.
+FLAGS
+    --task TASK-NNN|N    restrict the scan to one delivery task
+    --phase core|ui      restrict the scan to the CORE or UI half; cannot combine with --task
+
+DESCRIPTION
+    Step 1 and the mechanical half of Step 3 of pdlc-implement in one
+    call. Resolves whether Implementation is due for a record and, if so, the single
+    next delivery task to implement.
 
 `## Readiness` reports whether the stage is due (Status Implementation, gate
 Pending / Changes Required / Stale, not skipped). `## Next Task` names the first

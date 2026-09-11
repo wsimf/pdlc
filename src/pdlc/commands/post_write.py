@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Publishes the reviewed Product artifact for a new or existing PDLC record.
+"""NAME
+    pdlc post write - publish the reviewed Product artifact
 
+USAGE
     pdlc post write --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
     pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
 
-The supplied body contains exactly the three sections owned by Product:
+DESCRIPTION
+    The supplied body contains exactly the three sections owned by Product:
 `Product`, `Decisions`, and `Open Questions`. New records use it as their
 initial body. Existing records replace those sections in one body edit while
 preserving sections owned by later stages.

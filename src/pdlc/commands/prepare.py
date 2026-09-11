@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Human-only: scaffold a dedicated Git worktree for one work item.
+"""NAME
+    pdlc prepare - human-only: scaffold a dedicated Git worktree for one work item
 
+USAGE
     pdlc prepare WORKITEM [--from REF] [--yes]
 
-Creates `<worktree.root>/<repo-name>/<WORKITEM>` on a new `pdlc/record-<WORKITEM>`
+DESCRIPTION
+    Creates `<worktree.root>/<repo-name>/<WORKITEM>` on a new `pdlc/record-<WORKITEM>`
 branch, optionally runs the configured `worktree.init_script` in it, and prints
 the worktree path — and nothing else — on stdout, so the driver can:
 

@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
-"""Read-only: renders every PDLC evidence comment on a Work Item's parent
-work item as a chronological, stage-by-stage timeline — what each stage
-published, when, and by whom — so an agent can orient on the Work Item's
-history without reading every comment itself.
+"""NAME
+    pdlc inspect timeline - read-only: render evidence comments as a chronological timeline
 
-By default the full timeline is written to a file under the system temp
-directory and stdout carries only a compact index: one block per comment
-with its marker, local time, author, a one-line preview, and the line span
-to read from that file for the whole comment. A long history stays out of
-the context window while remaining one Read away.
-
+USAGE
     pdlc inspect timeline WORK_ITEM           # compact index + temp file
     pdlc inspect timeline WORK_ITEM --full    # whole timeline to stdout
+
+FLAGS
+    --full    print the whole timeline to stdout instead of a compact index + temp file
+
+DESCRIPTION
+    Renders every PDLC evidence comment on a Work Item's parent
+    work item as a chronological, stage-by-stage timeline — what each stage
+    published, when, and by whom — so an agent can orient on the Work Item's
+    history without reading every comment itself.
+
+    By default the full timeline is written to a file under the system temp
+    directory and stdout carries only a compact index: one block per comment
+    with its marker, local time, author, a one-line preview, and the line span
+    to read from that file for the whole comment. A long history stays out of
+    the context window while remaining one Read away.
 
     # Timeline — 2 evidence comment(s); full bodies in /tmp/pdlc-timeline-18.md
 

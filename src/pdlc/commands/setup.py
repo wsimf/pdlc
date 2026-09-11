@@ -1,4 +1,9 @@
-"""Interactive configuration wizard for ``pdlc``."""
+"""NAME
+    pdlc setup - interactive config wizard; writes .pdlc/config.toml
+
+USAGE
+    pdlc setup
+"""
 
 from __future__ import annotations
 

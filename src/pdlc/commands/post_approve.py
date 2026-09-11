@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Records explicit human approval of the current stage and advances the
-work item to the next stage's Pending. Refuses Verification — that
-transition is completion, handled by pdlc post complete instead. Only the
-orchestrator may call this, and only on an explicit human instruction — gh
-identity cannot distinguish a human from an agent acting on their behalf, so
-this is a procedural boundary, not an authentication check.
+"""NAME
+    pdlc post approve - record human approval and advance to the next stage
 
+USAGE
     pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Records explicit human approval of the current stage and advances the
+    work item to the next stage's Pending. Refuses Verification — that
+    transition is completion, handled by pdlc post complete instead. Only the
+    orchestrator may call this, and only on an explicit human instruction — gh
+    identity cannot distinguish a human from an agent acting on their behalf, so
+    this is a procedural boundary, not an authentication check.
 """
 
 from __future__ import annotations

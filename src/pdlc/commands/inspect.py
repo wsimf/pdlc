@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
-"""Read-only: renders a work item's metadata, task tree, linked pull requests,
-and routing decision for the pdlc skill's Orient mode.
+"""NAME
+    pdlc inspect - read-only: work-item overview, task tree, PRs, and routing decision
+
+USAGE
+    pdlc inspect ISSUE_NUMBER
+    pdlc inspect ISSUE_NUMBER --full
+    pdlc inspect ISSUE_NUMBER --file
+
+FLAGS
+    --full    print the complete inspection on stdout instead of a compact index
+    --file    print the complete inspection's temp-file path instead of a compact index
+
+DESCRIPTION
+    Renders a work item's metadata, task tree, linked pull requests,
+    and routing decision for the pdlc skill's Orient mode.
 
 Sections are ordered front matter, `# Work Item`, `## Attachments`,
 `## User Comments`, `# Tasks`, `# Due Next`.
@@ -11,12 +24,7 @@ no `PDLC-*` marker — human or outside-bot discussion — oldest first; one com
 fetch feeds both the full and compact renders.
 
 By default the complete inspection is written to a file under the system temp
-directory and stdout carries a compact index. Use `--full` for the complete
-inspection on stdout, or `--file` to print the complete inspection's path.
-
-    pdlc inspect ISSUE_NUMBER
-    pdlc inspect ISSUE_NUMBER --full
-    pdlc inspect ISSUE_NUMBER --file
+directory and stdout carries a compact index.
 
 Always includes a `# Tasks` section: every delivery task as its own YAML
 front-matter block (number, title, completed, isUI, hasPlan,

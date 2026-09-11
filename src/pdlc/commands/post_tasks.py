@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
-"""Lands one pdlc-tasks stage in a single call: guards the record's state,
-validates the artifact against the parent's own requirements, lands it,
-and publishes the stage at Approval Required.
+"""NAME
+    pdlc post tasks - land the UI or Tasks stage
+
+USAGE
+    pdlc post tasks --work-item N --stage UI    --body FILE     --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+
+FLAGS
+    --dry-run    validate and print the plan without landing it
+
+DESCRIPTION
+    Lands one pdlc-tasks stage in a single call: guards the record's state,
+    validates the artifact against the parent's own requirements, lands it,
+    and publishes the stage at Approval Required.
 
 UI and Tasks are reviewed before they are published — pdlc-tasks runs that
 review on the local files, so what lands is already reviewed and
@@ -13,9 +24,6 @@ pdlc post invalidate. A record still at `<stage> / Approval Required` is
 re-authored in place: a non-dry-run call resets the stage to Stale itself (no
 comment — the artifact never settled at Approved, and the re-land's own evidence
 records the change) and re-lands the reviewed artifact.
-
-    pdlc post tasks --work-item N --stage UI    --body FILE     --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
-    pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 Everything is validated before anything is written, so a manifest with a
 typo'd requirement or a dependency cycle fails without having touched the

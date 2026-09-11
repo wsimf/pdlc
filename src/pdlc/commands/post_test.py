@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Complete the Testing stage and submit it for review.
+"""NAME
+    pdlc post test - complete the Testing stage and submit it for review
 
-Resolves the current branch's PR — the top task PR in the stack — since the
-coverage is committed on that same branch and rides that PR, registers it on the record, persists the
-requirement-to-source traceability map verbatim into the evidence under a
-`## Traceability` heading so the independent reviewer audits the exact
-artifact the stage produced, and sets `Review Required` — all in one step.
-
+USAGE
     pdlc post test WORK_ITEM EVIDENCE_FILE|- --traceability FILE|- [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Resolves the current branch's PR — the top task PR in the stack — since the
+    coverage is committed on that same branch and rides that PR, registers it on the record, persists the
+    requirement-to-source traceability map verbatim into the evidence under a
+    `## Traceability` heading so the independent reviewer audits the exact
+    artifact the stage produced, and sets `Review Required` — all in one step.
 """
 
 from __future__ import annotations

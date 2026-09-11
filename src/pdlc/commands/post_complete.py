@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Final transition: only from Verification / Approval Required, only on
-explicit human instruction, and only once `completion_blockers` is empty —
-the same policy pdlc inspect complete reports. This is the one call that
-closes a record: it validates the structured completion evidence, posts it,
-locks Status/Gate/Lifecycle to Complete/Approved/Completed, and blanks the
-now-settled `## Open Questions` section (its real disposition lives in the
-evidence). It never otherwise edits the parent body. Only the orchestrator
-may call this — gh identity cannot distinguish a human from an agent acting
-on their behalf, so this is a procedural boundary, not an authentication check.
+"""NAME
+    pdlc post complete - final transition: lock a verified record to Complete
 
+USAGE
     pdlc post complete WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Final transition: only from Verification / Approval Required, only on
+    explicit human instruction, and only once `completion_blockers` is empty —
+    the same policy pdlc inspect complete reports. This is the one call that
+    closes a record: it validates the structured completion evidence, posts it,
+    locks Status/Gate/Lifecycle to Complete/Approved/Completed, and blanks the
+    now-settled `## Open Questions` section (its real disposition lives in the
+    evidence). It never otherwise edits the parent body. Only the orchestrator
+    may call this — gh identity cannot distinguish a human from an agent acting
+    on their behalf, so this is a procedural boundary, not an authentication check.
 """
 
 from __future__ import annotations

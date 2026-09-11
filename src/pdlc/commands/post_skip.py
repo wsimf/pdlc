@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
-"""Declares one or more lifecycle stages as skipped ahead of time, recorded in
-the work item's "Skipped States" text field as a comma-separated list. Always
-posts a durable PDLC-SKIPPED evidence comment naming the actor and the
-skipped stage(s); --justification appends the reason. Does not itself change
-Status/Gate State/Lifecycle — pdlc next consults this field when a
-skipped stage is reached. Only the orchestrator may call this, and only on an
-explicit human instruction, same as pdlc post approve/pdlc post complete: a skip
-carries the same weight as an approval and must not be requestable by an
-unattended agent — this is a procedural boundary, not an authentication
-check, since gh identity cannot tell a human from an agent acting on their
-behalf.
+"""NAME
+    pdlc post skip - declare one or more lifecycle stages as skipped ahead of time
 
+USAGE
     pdlc post skip --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT] [--attachment PATH [--attachment-description TEXT]]
+
+FLAGS
+    --justification TEXT    reason appended to the PDLC-SKIPPED evidence comment
+
+DESCRIPTION
+    Declares one or more lifecycle stages as skipped ahead of time, recorded in
+    the work item's "Skipped States" text field as a comma-separated list. Always
+    posts a durable PDLC-SKIPPED evidence comment naming the actor and the
+    skipped stage(s). Does not itself change
+    Status/Gate State/Lifecycle — pdlc next consults this field when a
+    skipped stage is reached. Only the orchestrator may call this, and only on an
+    explicit human instruction, same as pdlc post approve/pdlc post complete: a skip
+    carries the same weight as an approval and must not be requestable by an
+    unattended agent — this is a procedural boundary, not an authentication
+    check, since gh identity cannot tell a human from an agent acting on their
+    behalf.
 """
 
 from __future__ import annotations

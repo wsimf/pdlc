@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Records an independent reviewer's read-only verdict as PDLC-REVIEW with
-script-owned YAML-shaped metadata followed by Findings.
-A reviewer may set Changes Required, Approval Required, or Decision Required —
-never Approved.
+"""NAME
+    pdlc post review - record an independent reviewer's verdict
 
+USAGE
     pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
+
+DESCRIPTION
+    Records an independent reviewer's read-only verdict as PDLC-REVIEW with
+    script-owned YAML-shaped metadata followed by Findings.
+    A reviewer may set Changes Required, Approval Required, or Decision Required —
+    never Approved.
 
 `decision-required` is for a finding the owning skill cannot mechanically
 reconcile — one that needs a product, architecture, UX, or scope call from the

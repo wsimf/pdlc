@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Read-only: Step 1 of pdlc-complete in one call. Checks whether the Work
-Item is actually ready to lock right now, then — only if it is — gives the
-mechanical facts a completion pass needs: which delivery tasks are open,
-which linked PRs aren't both merged and green, which live Open Questions the
-completion evidence must disposition, and whether the evidence in
-the latest Verification `PDLC-REVIEW` comment still holds against current source
-(the same staleness check pdlc inspect verify's reuse pass runs, applied
-here at lock time instead of audit time). The agent supplies judgment only
-where the data is genuinely ambiguous — is an open task's deferral durable,
-is unfinished work small enough to note and continue; every mechanical fact
-is resolved here, never by the agent querying the work-item store or `git` itself.
+"""NAME
+    pdlc inspect complete - read-only: completion readiness check for a work item
 
+USAGE
     pdlc inspect complete WORK_ITEM
+
+DESCRIPTION
+    Step 1 of pdlc-complete in one call. Checks whether the Work
+    Item is actually ready to lock right now, then — only if it is — gives the
+    mechanical facts a completion pass needs: which delivery tasks are open,
+    which linked PRs aren't both merged and green, which live Open Questions the
+    completion evidence must disposition, and whether the evidence in
+    the latest Verification `PDLC-REVIEW` comment still holds against current source
+    (the same staleness check pdlc inspect verify's reuse pass runs, applied
+    here at lock time instead of audit time). The agent supplies judgment only
+    where the data is genuinely ambiguous — is an open task's deferral durable,
+    is unfinished work small enough to note and continue; every mechanical fact
+    is resolved here, never by the agent querying the work-item store or `git` itself.
 
     ## Readiness
 

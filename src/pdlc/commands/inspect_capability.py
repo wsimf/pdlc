@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Read-only: resolve the project's PDLC capability routing so a calling skill
-can paste the result straight into a sub-agent brief.
+"""NAME
+    pdlc inspect capability - read-only: resolve the project's PDLC capability routing
 
-A project declares which specialist skill or sub-agent handles each PDLC seam
-in the ``[agents]`` and ``[skills]`` tables of ``.pdlc/config.toml``. The
-skills never hardcode a tool name; they ask here and inject the answer.
-
+USAGE
     pdlc inspect capability                 # dump every slot and its resolution
     pdlc inspect capability build-run       # one line, ready to paste
 
-For an ``agents`` slot the output is just the sub-agent name to dispatch to
-(``general-purpose`` when the slot is unset). For a ``skills`` slot the output
-is an instruction: invoke the configured skill first, or — when the slot is
-unset — the fallback that tells the agent to handle that seam inline.
+DESCRIPTION
+    Resolve the project's PDLC capability routing so a calling skill can paste
+    the result straight into a sub-agent brief.
+
+    A project declares which specialist skill or sub-agent handles each PDLC seam
+    in the ``[agents]`` and ``[skills]`` tables of ``.pdlc/config.toml``. The
+    skills never hardcode a tool name; they ask here and inject the answer.
+
+    For an ``agents`` slot the output is just the sub-agent name to dispatch to
+    (``general-purpose`` when the slot is unset). For a ``skills`` slot the output
+    is an instruction: invoke the configured skill first, or — when the slot is
+    unset — the fallback that tells the agent to handle that seam inline.
 """
 
 from __future__ import annotations
