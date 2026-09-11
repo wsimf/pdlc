@@ -451,13 +451,12 @@ def _timeline_preview(comment: dict, limit: int = 140) -> str:
     return ""
 
 
-# The full chronological timeline text, plus a per-entry index giving each
-# entry's 1-based inclusive line span within that text. `timeline_markdown`
-# is this text; `timeline_compact` writes it to a file and prints the index.
-def timeline_parts(comments: list[dict]) -> tuple[str, list[dict]]:
-    tagged = marked_comments(comments)
+# Shared renderer for `timeline_parts` and `task_timeline_parts`: `tagged` is
+# already the chronological, marker-tagged subset of `comments` each caller
+# wants shown; only the "nothing to show" / "N skipped" wording differs.
+def _render_timeline(tagged: list[dict], comments: list[dict], empty_message: str, skipped_suffix: str) -> tuple[str, list[dict]]:
     if not tagged:
-        return "No PDLC evidence comments found\n", []
+        return empty_message, []
 
     lines = ["# Timeline", ""]
     index = []
@@ -477,9 +476,20 @@ def timeline_parts(comments: list[dict]) -> tuple[str, list[dict]]:
 
     skipped = len(comments) - len(tagged)
     if skipped:
-        lines += ["", "---", "", f"{skipped} comment(s) without a PDLC marker were skipped."]
+        lines += ["", "---", "", f"{skipped} {skipped_suffix}"]
 
     return "\n".join(lines) + "\n", index
+
+
+# The full chronological timeline text, plus a per-entry index giving each
+# entry's 1-based inclusive line span within that text. `timeline_markdown`
+# is this text; `timeline_compact` writes it to a file and prints the index.
+def timeline_parts(comments: list[dict]) -> tuple[str, list[dict]]:
+    return _render_timeline(
+        marked_comments(comments), comments,
+        "No PDLC evidence comments found\n",
+        "comment(s) without a PDLC marker were skipped.",
+    )
 
 
 # Renders every PDLC evidence comment as a chronological, stage-by-stage
@@ -488,16 +498,11 @@ def timeline_markdown(comments: list[dict]) -> str:
     return timeline_parts(comments)[0]
 
 
-# One block per evidence comment — marker, localised time, author, a
-# one-line preview, and the line span to read from `file_path` (where the
-# caller has already written `timeline_markdown`'s full text) for the whole
-# comment. Keeps a long history out of stdout while staying navigable.
-def timeline_compact(comments: list[dict], file_path: str) -> str:
-    _, index = timeline_parts(comments)
+def _timeline_compact(index: list[dict], file_path: str, empty_message: str, unit: str) -> str:
     if not index:
-        return "No PDLC evidence comments found\n"
+        return empty_message
 
-    out = [f"# Timeline — {len(index)} evidence comment(s); full bodies in {file_path}", ""]
+    out = [f"# Timeline — {len(index)} {unit}(s); full bodies in {file_path}", ""]
     for entry in index:
         out.append(f"## {entry['marker']} — {entry['when']} (@{entry['author']})")
         if entry["preview"]:
@@ -505,11 +510,63 @@ def timeline_compact(comments: list[dict], file_path: str) -> str:
         out.append(f"   Read lines {entry['start']}-{entry['end']} in {file_path} for the full comment.")
         out.append("")
 
-    skipped = len(comments) - len(index)
-    if skipped:
-        out.append(f"{skipped} comment(s) without a PDLC marker were skipped.")
-
     return "\n".join(out).rstrip("\n") + "\n"
+
+
+# One block per evidence comment — marker, localised time, author, a
+# one-line preview, and the line span to read from `file_path` (where the
+# caller has already written `timeline_markdown`'s full text) for the whole
+# comment. Keeps a long history out of stdout while staying navigable.
+def timeline_compact(comments: list[dict], file_path: str) -> str:
+    _, index = timeline_parts(comments)
+    return _timeline_compact(index, file_path, "No PDLC evidence comments found\n", "evidence comment")
+
+
+# A delivery task's own comment stream mixes `PDLC-*`-marked comments (e.g.
+# `PDLC-INVALIDATED`, posted when a task is reopened) with unmarked
+# `## Technical Plan` / `## Implementation` evidence comments that carry no
+# marker at all — and, once invalidation has edited one of those in place
+# (see `pdlc post invalidate`), a comment whose first line reads
+# `Invalidated stage: ...` instead of the heading. A task timeline has to
+# recognise all three shapes, tagged PLAN/IMPLEMENTATION/its real marker, or
+# the plan-and-implementation half of a task's history goes missing.
+def _task_timeline_tag(comment: dict) -> str | None:
+    match = MARKER_PREFIX.match(comment["body"])
+    if match and match.group(1) in MARKERS:
+        return match.group(1)
+    first_line = next((line.strip() for line in (comment["body"] or "").splitlines() if line.strip()), "")
+    if first_line == PLAN_COMMENT_HEADING:
+        return "PLAN"
+    if first_line == IMPLEMENTATION_COMMENT_HEADING:
+        return "IMPLEMENTATION"
+    if _INVALIDATED_STAGE_LINE.match(first_line):
+        return "INVALIDATED"
+    return None
+
+
+# Every comment on a task worth showing in its timeline, each tagged with
+# PLAN/IMPLEMENTATION/its real `PDLC-*` marker, oldest first.
+def task_evidence_comments(comments: list[dict]) -> list[dict]:
+    tagged = [{**comment, "marker": tag} for comment in comments if (tag := _task_timeline_tag(comment))]
+    tagged.sort(key=lambda comment: comment["createdAt"])
+    return tagged
+
+
+def task_timeline_parts(comments: list[dict]) -> tuple[str, list[dict]]:
+    return _render_timeline(
+        task_evidence_comments(comments), comments,
+        "No task evidence comments found\n",
+        "comment(s) without task evidence were skipped.",
+    )
+
+
+def task_timeline_markdown(comments: list[dict]) -> str:
+    return task_timeline_parts(comments)[0]
+
+
+def task_timeline_compact(comments: list[dict], file_path: str) -> str:
+    _, index = task_timeline_parts(comments)
+    return _timeline_compact(index, file_path, "No task evidence comments found\n", "evidence entry")
 
 
 # Rework-loop detection -------------------------------------------------

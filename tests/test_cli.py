@@ -45,6 +45,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(_resolve(["inspect", "timeline", "9"])[0], "pdlc.commands.inspect_timeline")
         self.assertEqual(_resolve(["next"])[0], "pdlc.commands.next")
 
+    def test_resolves_a_three_word_command(self):
+        module, arguments = _resolve(["inspect", "task", "timeline", "641"])
+        self.assertEqual(module, "pdlc.commands.inspect_task_timeline")
+        self.assertEqual(arguments, ["641"])
+        self.assertEqual(_resolve(["inspect", "task", "641"])[0], "pdlc.commands.inspect_task")
+
     def test_supports_exec_alias(self):
         module, _ = _resolve(["exec", "post", "complete"])
         self.assertEqual(module, "pdlc.commands.post_complete")

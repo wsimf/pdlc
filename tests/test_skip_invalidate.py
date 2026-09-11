@@ -101,3 +101,38 @@ class SkipInvalidateTests(FileBackendTest):
         comment = json.loads(self.task_comments_text(68, 681).splitlines()[0])
         self.assertTrue(comment["body"].startswith("Invalidated stage: Technical Plan"))
         self.assertIn("Shipped the endpoint.", comment["body"])
+
+    def test_task_timeline_shows_plan_and_implementation_before_invalidation(self):
+        self.seed_record(69, "Implementation", "Pending")
+        self.seed_task(69, 691, "TASK-001", "OPEN", "WORK-69-TASK-001 [CORE] one")
+        self.seed_implementation_comment(69, 691, "Shipped the endpoint.")
+
+        full = self.invoke("inspect_task_timeline", 691, "--full")
+        self.assertEqual(full.code, 0, full.stderr)
+        self.assertIn("## IMPLEMENTATION", full.stdout)
+        self.assertIn("Shipped the endpoint.", full.stdout)
+
+        compact = self.invoke("inspect_task_timeline", 691)
+        self.assertEqual(compact.code, 0, compact.stderr)
+        self.assertIn("## IMPLEMENTATION", compact.stdout)
+
+    def test_task_timeline_shows_invalidation_after_reopen_with_no_evidence_left_dangling(self):
+        self.seed_record(70, "Implementation", "Pending")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] one")
+        self.seed_implementation_comment(70, 701, "Shipped the endpoint.")
+
+        result = self.invoke("post_invalidate", 70, "Technical Plan", self.evidence_file())
+        self.assertEqual(result.code, 0, result.stderr)
+
+        full = self.invoke("inspect_task_timeline", 701, "--full")
+        self.assertEqual(full.code, 0, full.stderr)
+        self.assertNotIn("## IMPLEMENTATION", full.stdout)
+        self.assertEqual(full.stdout.count("## INVALIDATED"), 2)
+        self.assertLess(full.stdout.index("Shipped the endpoint."), full.stdout.index("Reopened for rework."))
+
+    def test_task_timeline_reports_no_evidence(self):
+        self.seed_record(71, "Implementation", "Pending")
+        self.seed_task(71, 711, "TASK-001", "OPEN", "WORK-71-TASK-001 [CORE] one")
+        result = self.invoke("inspect_task_timeline", 711, "--full")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("No task evidence comments found", result.stdout)
