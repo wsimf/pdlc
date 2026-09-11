@@ -358,6 +358,21 @@ class SubIssueReadTest(GitHubHostTest):
         )
         self.assertIn("--body-file", args)
 
+    def test_edit_comment_patches_the_parsed_comment_id(self) -> None:
+        self.gh.api("issues/comments/1", response="")
+
+        github_issues.edit_comment("https://github.com/wsimf/pdlc/issues/3#issuecomment-1", "updated plan")
+
+        args, _ = next(
+            (call for call in self.gh.calls if call[0][:2] == ["api", "--method"])
+        )
+        self.assertIn("repos/wsimf/pdlc/issues/comments/1", args)
+        self.assertIn("PATCH", args)
+
+    def test_edit_comment_rejects_an_unparseable_url(self) -> None:
+        with self.assertRaisesRegex(PdlcError, "cannot parse a GitHub comment id"):
+            github_issues.edit_comment("https://github.com/wsimf/pdlc/issues/3", "updated plan")
+
 
 class SubIssueUpsertTest(GitHubHostTest):
     def test_tasks_by_number_batches_issue_lookups(self) -> None:

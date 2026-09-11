@@ -163,6 +163,13 @@ def post_comment(ref: str, body: str, marker: str | None = None) -> str:
     return get_backend().post_comment(str(ref), compose_comment(marker, body))
 
 
+def edit_comment(ref: str, comment_ref: str, body: str, marker: str | None = None) -> str:
+    """Replace an existing comment's body in place, addressed by the
+    reference `post_comment` returned for it. Same marker composition as
+    `post_comment`."""
+    return get_backend().edit_comment(str(ref), comment_ref, compose_comment(marker, body))
+
+
 def post_blocker(ref: str, body: str, marker: str | None = None) -> str:
     """Post a blocking review decision through the backend's blocker channel.
     Same body/marker composition as post_comment; the backend decides how

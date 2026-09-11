@@ -93,7 +93,11 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         task_dir = self.records_dir() / str(issue) / "tasks" / str(task_number)
         self.assertIn("## Scope", (task_dir / "body.md").read_text())
-        self.assertIn("Technical Plan", (task_dir / "comments.jsonl").read_text())
+        plan_comments = (task_dir / "comments.jsonl").read_text()
+        self.assertIn("Technical Plan", plan_comments)
+        # The re-land above replaced the existing plan comment in place rather
+        # than appending a second one.
+        self.assertEqual(plan_comments.count("## Technical Plan"), 1)
 
         # --- Implementation ---
         impl = self.write_file("impl.md", "## Implementation\n\nShipped. FR-1 covered.\n")
