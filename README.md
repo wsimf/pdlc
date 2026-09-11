@@ -161,6 +161,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
 | `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
+| `[code_host] pr_title_format` | unset | Optional format string for each task PR title when `pdlc post implement-task` submits the stack. Placeholders: `{task.title}` (the delivery task's title, with its `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the parent's bare number), `{work.type}` (`feature`/`bug`). Unset uses the bare stripped task title; the `[CORE]`/`[UI]` tag is dropped either way. |
 | `[attachment_host] name` | `file` | Attachment host: `file` or `none`. |
 | `[runtime] home` | `.pdlc` | Local file-backend and attachment storage root (see also `PDLC_HOME`). |
 | `[runtime] actor` | `local` | Actor name recorded by the file backend. |
@@ -203,6 +204,7 @@ assigned_to = "@me"          # optional; scope the queue scan to your work items
 [code_host]
 name = "github"
 pr_attachment = "Fixes {work.number}"   # optional; first line of each task PR body
+pr_title_format = "[{work.number}] {task.title}"   # optional; each task PR title
 
 [backend.github]
 repository = "OWNER/REPOSITORY"

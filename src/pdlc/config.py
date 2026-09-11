@@ -34,6 +34,7 @@ CONFIG_FIELDS = {
     ("backend.azure", "assigned_to"): "azure_assigned_to",
     ("code_host", "name"): "code_host",
     ("code_host", "pr_attachment"): "pr_attachment",
+    ("code_host", "pr_title_format"): "pr_title_format",
     ("attachment_host", "name"): "attachment_host",
     ("runtime", "home"): "home",
     ("runtime", "actor"): "actor",
@@ -105,6 +106,12 @@ class Config:
     # Optional line appended to each task PR body at `pdlc post implement-task`;
     # `{work.number}` resolves to the parent work item's bare number.
     pr_attachment: str | None = None
+    # Optional format string for each task PR title at `pdlc post implement-task`.
+    # Placeholders: `{task.title}` (the delivery task's title, with its
+    # `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}`
+    # (e.g. `TASK-001`), `{work.number}` (the parent's bare number), and
+    # `{work.type}` (`feature`/`bug`). Unset uses the bare stripped task title.
+    pr_title_format: str | None = None
     home: str | None = None
     actor: str | None = None
     ref_label: str | None = None

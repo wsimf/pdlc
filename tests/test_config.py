@@ -105,6 +105,14 @@ class ConfigTests(unittest.TestCase):
         config = load_config(nested)
         self.assertEqual(config.pr_attachment, "Fixes {work.number}")
 
+    def test_pr_title_format_is_read_from_the_code_host_table(self):
+        nested = self.make_repo(
+            '[backend]\nname = "file"\n'
+            '[code_host]\nname = "github"\npr_title_format = "[{work.number}] {task.title}"\n'
+        )
+        config = load_config(nested)
+        self.assertEqual(config.pr_title_format, "[{work.number}] {task.title}")
+
     def test_config_file_supports_toml_types(self):
         nested = self.make_repo(
             '[backend]\nname = "file"\n'
