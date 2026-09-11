@@ -9,6 +9,7 @@ from __future__ import annotations
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
+    edit_comment,
     is_stage_skipped,
     item_skipped_states,
     item_status,
@@ -100,6 +101,17 @@ def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) ->
         number = str(task["number"])
         reopen_task(number)
         post_comment(number, f"Invalidated stage: {target_stage}\n\nReopened for rework.\n", "INVALIDATED")
+
+        # Reopening alone leaves the task's own `## Implementation` comment in
+        # place, so `hasImplementation`/`needsPlan` would never reflect the
+        # reopen: edit that comment in place to drop the heading line, the same
+        # match `has_implementation_comment` uses, so the task reads as
+        # unimplemented again while keeping the superseded content on record.
+        implementation_comment_url = task.get("implementationCommentUrl")
+        if implementation_comment_url:
+            original = task.get("implementationComment") or ""
+            edit_comment(number, implementation_comment_url, f"Invalidated stage: {target_stage}\n\n{original}")
+
         reopened.append(number)
     return reopened
 

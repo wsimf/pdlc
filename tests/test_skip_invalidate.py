@@ -1,6 +1,8 @@
 """`pdlc post skip`, `pdlc post invalidate`, and the skip cascade `pdlc next`
 applies when a declared stage arrives."""
 
+import json
+
 from _support import FileBackendTest
 
 
@@ -80,3 +82,22 @@ class SkipInvalidateTests(FileBackendTest):
         self.assertEqual(result.code, 1)
         self.assertIn("--task only applies", result.stderr)
         self.assertEqual(self.task_meta(67, 671)["state"], "CLOSED")
+
+    def test_invalidate_clears_reopened_task_implementation_evidence(self):
+        self.seed_record(68, "Implementation", "Pending")
+        self.seed_task(68, 681, "TASK-001", "CLOSED", "WORK-68-TASK-001 [CORE] one")
+        self.seed_implementation_comment(68, 681, "Shipped the endpoint.")
+
+        before = self.invoke("inspect_task", 681).stdout
+        self.assertIn("hasImplementation: true", before)
+
+        result = self.invoke("post_invalidate", 68, "Technical Plan", self.evidence_file())
+        self.assertEqual(result.code, 0, result.stderr)
+
+        after = self.invoke("inspect_task", 681).stdout
+        self.assertIn("hasImplementation: false", after)
+        self.assertIn("needsPlan: true", after)
+
+        comment = json.loads(self.task_comments_text(68, 681).splitlines()[0])
+        self.assertTrue(comment["body"].startswith("Invalidated stage: Technical Plan"))
+        self.assertIn("Shipped the endpoint.", comment["body"])

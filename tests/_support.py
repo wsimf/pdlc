@@ -189,6 +189,20 @@ class FileBackendTest(unittest.TestCase):
         )
         return directory
 
+    def seed_implementation_comment(self, record: int, task_number: int, body: str) -> None:
+        """Write a `## Implementation` comment directly onto a seeded task's
+        log, matching the file backend's own append shape, so a test can seed
+        pre-existing implementation evidence without exercising the full
+        `pdlc post implement-task` path."""
+        path = self.records_dir() / str(record) / "tasks" / str(task_number) / "comments.jsonl"
+        comment = {
+            "body": f"## Implementation\n\n{body}",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "url": "file://x#comment-1",
+            "author": {"login": "tester"},
+        }
+        path.write_text(json.dumps(comment) + "\n")
+
     def seed_prs(self, record: int, pull_requests: list[dict], *, register: bool = True) -> None:
         path = self.records_dir() / str(record) / "pull_requests.json"
         path.write_text(json.dumps(pull_requests))

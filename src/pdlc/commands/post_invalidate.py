@@ -25,6 +25,13 @@ DESCRIPTION
     comment. `--task` (repeatable) narrows this to specific task numbers; omitted,
     every closed task under the record is reopened. `--task` on any other target
     stage is rejected — those stages carry no per-task evidence to reopen.
+
+    Reopening a task also edits its existing `## Implementation` comment in
+    place, prefixing it with `Invalidated stage: <STAGE>` so the heading no
+    longer opens the comment. This clears `hasImplementation`/sets `needsPlan`
+    back to true for that task without deleting the superseded evidence —
+    without it, a reopened task would still read as implemented and stay out
+    of scope for both `pdlc post plan` and `pdlc post implement-task`.
 """
 
 from __future__ import annotations

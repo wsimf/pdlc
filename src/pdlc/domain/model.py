@@ -243,7 +243,9 @@ def task_title(task: dict) -> str:
 # interpreting bodies and comments themselves.
 def classify_task(task: dict) -> dict:
     comments = task.get("comments") or []
-    plan_comment_object = latest_heading_comment_object(task.get("commentObjects") or [], PLAN_COMMENT_HEADING)
+    comment_objects = task.get("commentObjects") or []
+    plan_comment_object = latest_heading_comment_object(comment_objects, PLAN_COMMENT_HEADING)
+    implementation_comment_object = latest_heading_comment_object(comment_objects, IMPLEMENTATION_COMMENT_HEADING)
     has_implementation = has_implementation_comment(comments)
     return {
         **task,
@@ -253,6 +255,11 @@ def classify_task(task: dict) -> dict:
         # The existing plan comment's reference, so a re-plan can replace it in
         # place instead of appending a second `## Technical Plan` comment.
         "planCommentUrl": (plan_comment_object or {}).get("url"),
+        "implementationComment": (implementation_comment_object or {}).get("body"),
+        # The existing implementation comment's reference, so invalidation can
+        # edit it in place to strip the `## Implementation` heading rather than
+        # leaving it in place forever counting toward `hasImplementation`.
+        "implementationCommentUrl": (implementation_comment_object or {}).get("url"),
         "needsPlan": task["state"] == "OPEN" and not has_implementation,
         "isUI": task_title(task).startswith(UI_TAG),
         # Attached pull requests come from the backend, which owns how they are
