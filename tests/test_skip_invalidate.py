@@ -39,3 +39,44 @@ class SkipInvalidateTests(FileBackendTest):
         self.assertEqual(result.front_matter("action"), "pdlc-implement")
         self.assertEqual(self.fields(63)["Status"], "Implementation")
         self.assertIn("PDLC-SKIPPED", self.comments_text(63))
+
+    def test_invalidate_to_technical_plan_reopens_every_closed_task_by_default(self):
+        self.seed_record(64, "Implementation", "Pending")
+        self.seed_task(64, 641, "TASK-001", "CLOSED", "WORK-64-TASK-001 [CORE] one")
+        self.seed_task(64, 642, "TASK-002", "OPEN", "WORK-64-TASK-002 [CORE] two")
+        result = self.invoke("post_invalidate", 64, "Technical Plan", self.evidence_file())
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.task_meta(64, 641)["state"], "OPEN")
+        self.assertEqual(self.task_meta(64, 642)["state"], "OPEN")
+        self.assertIn("Invalidated stage: Technical Plan", self.task_comments_text(64, 641))
+
+    def test_invalidate_task_flag_narrows_reopening_to_named_tasks(self):
+        self.seed_record(65, "Implementation", "Pending")
+        self.seed_task(65, 651, "TASK-001", "CLOSED", "WORK-65-TASK-001 [CORE] one")
+        self.seed_task(65, 652, "TASK-002", "CLOSED", "WORK-65-TASK-002 [CORE] two")
+        result = self.invoke(
+            "post_invalidate", 65, "Technical Plan", self.evidence_file(), "--task", 651,
+        )
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.task_meta(65, 651)["state"], "OPEN")
+        self.assertEqual(self.task_meta(65, 652)["state"], "CLOSED")
+
+    def test_invalidate_task_flag_rejects_an_unknown_task(self):
+        self.seed_record(66, "Implementation", "Pending")
+        self.seed_task(66, 661, "TASK-001", "CLOSED", "WORK-66-TASK-001 [CORE] one")
+        result = self.invoke(
+            "post_invalidate", 66, "Technical Plan", self.evidence_file(), "--task", 999,
+        )
+        self.assertEqual(result.code, 1)
+        self.assertIn("unknown delivery task", result.stderr)
+        self.assertEqual(self.task_meta(66, 661)["state"], "CLOSED")
+
+    def test_invalidate_task_flag_rejected_for_a_non_task_scoped_stage(self):
+        self.seed_record(67, "Implementation", "Pending")
+        self.seed_task(67, 671, "TASK-001", "CLOSED", "WORK-67-TASK-001 [CORE] one")
+        result = self.invoke(
+            "post_invalidate", 67, "Tasks", self.evidence_file(), "--task", 671,
+        )
+        self.assertEqual(result.code, 1)
+        self.assertIn("--task only applies", result.stderr)
+        self.assertEqual(self.task_meta(67, 671)["state"], "CLOSED")

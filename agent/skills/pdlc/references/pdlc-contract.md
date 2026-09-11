@@ -170,7 +170,7 @@ comment body only:
 - `PDLC-COMPLETE`
 - `PDLC-APPROVED` — a driver approved a stage (`pdlc post approve`)
 - `PDLC-AUTOAPPROVED` — the `Implementation`/`Testing` approval gate was cleared with no human step on a churning record (the CI gate, `pdlc post review`)
-- `PDLC-INVALIDATED` — a driver returned a settled stage to `Stale` with `pdlc post invalidate`; the comment opens with a script-owned `Invalidated stage: <stage>` line. It does not count as a Verification rework loop. (A pre-publication stage re-authored in place from `Approval Required` posts no such comment — it is a bare gate reset.)
+- `PDLC-INVALIDATED` — a driver returned a settled stage to `Stale` with `pdlc post invalidate`; the comment opens with a script-owned `Invalidated stage: <stage>` line. It does not count as a Verification rework loop. (A pre-publication stage re-authored in place from `Approval Required` posts no such comment — it is a bare gate reset.) Invalidating to `Technical Plan` or `Implementation` also reopens delivery tasks Implementation had already closed — every closed task by default, or only the tasks named by repeated `--task TASK_NUMBER` — so each is back in scope for planning/implementation; every reopened task gets its own `PDLC-INVALIDATED` comment on the task thread. `--task` is rejected for any other target stage, since they carry no per-task evidence to reopen.
 - `PDLC-SKIPPED` — a stage declared skipped, or auto-advanced past (`pdlc post skip`, `pdlc next`)
 - `PDLC-DECISION`
 - `PDLC-RESOLUTION`

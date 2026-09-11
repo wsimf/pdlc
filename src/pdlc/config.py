@@ -31,6 +31,7 @@ CONFIG_FIELDS = {
     ("backend.azure", "project"): "azure_project",
     ("backend.azure", "record_type"): "azure_record_type",
     ("backend.azure", "closed_state"): "azure_closed_state",
+    ("backend.azure", "open_state"): "azure_open_state",
     ("backend.azure", "assigned_to"): "azure_assigned_to",
     ("code_host", "name"): "code_host",
     ("code_host", "pr_attachment"): "pr_attachment",
@@ -119,6 +120,7 @@ class Config:
     azure_project: str | None = None
     azure_record_type: str | None = None
     azure_closed_state: str | None = None
+    azure_open_state: str | None = None
     azure_assigned_to: str | None = None
     max_attempts: int = 5
     initial_delay_seconds: int = 60

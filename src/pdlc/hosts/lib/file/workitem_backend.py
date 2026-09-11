@@ -306,6 +306,13 @@ class FileWorkItemBackend(WorkItemBackend):
         meta["state"] = "CLOSED"
         _write_meta(path, meta)
 
+    @single_writer
+    def reopen_task(self, task_ref: str) -> None:
+        path = self._task_dir(task_ref)
+        meta = _read_meta(path)
+        meta["state"] = "OPEN"
+        _write_meta(path, meta)
+
     def task_pr_numbers(self, ref: str) -> list[int]:
         return sorted({number for path in self._task_dirs(ref) for number in _read_meta(path).get("prs", [])})
 

@@ -81,7 +81,7 @@ def _usage() -> str:
         "  post approve WI EVIDENCE               human approval, advance to next stage (driver-only)\n"
         "  post complete WI EVIDENCE              final lock to Complete (driver-only)\n"
         "  post skip WI STAGE                     mark stages skipped ahead of time (driver-only)\n"
-        "  post invalidate WI STAGE EVIDENCE      return a stage to Stale after upstream change\n"
+        "  post invalidate WI STAGE EVIDENCE [--task N ...]  return a stage to Stale after upstream change\n"
         "  post attach-pr TASK PR#                manually link a PR to a task\n"
         "\nMost post stage/gate commands also take --attachment PATH [--attachment-description TEXT].\n"
         "\nExamples:\n"

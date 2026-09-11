@@ -28,6 +28,7 @@ from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
 
 DEFAULT_RECORD_TYPE = "Product Backlog Item"
 DEFAULT_CLOSED_STATE = "Done"
+DEFAULT_OPEN_STATE = "To Do"
 
 # A delivery task's comments have no batch API, so a record with N tasks needs
 # N reads, each paying `az devops invoke`'s ~1.3s of resource discovery. Every
@@ -50,6 +51,10 @@ def _record_type() -> str:
 
 def _closed_state() -> str:
     return get_config().azure_closed_state or DEFAULT_CLOSED_STATE
+
+
+def _open_state() -> str:
+    return get_config().azure_open_state or DEFAULT_OPEN_STATE
 
 
 def _assigned_to() -> str | None:
@@ -300,6 +305,9 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     def close_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_closed_state())
+
+    def reopen_task(self, task_ref: str) -> None:
+        azure.update(azure.numeric(task_ref), state=_open_state())
 
     def task_pr_numbers(self, ref: str) -> list[int]:
         items = azure.children(self._record_id(ref), ("System.Id", azure.PRS_FIELD))
