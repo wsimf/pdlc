@@ -495,6 +495,22 @@ class CommentTest(AzureHostTest):
         AzureWorkItemBackend().post_blocker("7", "PDLC-DECISION\n\npick one")
         self.assertEqual(self.az.body_of("devops", "invoke"), {"text": "PDLC-DECISION\n\npick one"})
 
+    def test_editing_a_comment_patches_the_parsed_discussion_id(self):
+        self.az.invoke("wit", "comments", response={"id": 42})
+        reference = AzureWorkItemBackend().edit_comment(
+            "7", f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7?discussionId=42", "updated plan"
+        )
+
+        self.assertEqual(self.az.body_of("devops", "invoke"), {"text": "updated plan"})
+        args = self.az.calls[0]
+        self.assertEqual(args[args.index("--http-method") + 1], "PATCH")
+        self.assertIn("commentId=42", " ".join(args))
+        self.assertEqual(reference, f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7?discussionId=42")
+
+    def test_editing_a_comment_rejects_an_unparseable_reference(self):
+        with self.assertRaisesRegex(PdlcError, "cannot parse an Azure comment id"):
+            AzureWorkItemBackend().edit_comment("7", f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7", "updated plan")
+
 
 class CreationAndIdentityTest(AzureHostTest):
     def test_creating_a_record_sets_body_and_slug_in_the_create_call(self):

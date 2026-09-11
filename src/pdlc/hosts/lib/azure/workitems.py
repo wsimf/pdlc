@@ -19,6 +19,7 @@ value in its error, which is surfaced unchanged.
 from __future__ import annotations
 
 import html
+import re
 
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.hosts.lib.azure.transport import (
@@ -292,3 +293,22 @@ def post_comment(item_id: int | str, body: str) -> str:
     ) or {}
     identifier = comment.get("id")
     return f"{item_url(item_id)}?discussionId={identifier}" if identifier else item_url(item_id)
+
+
+_DISCUSSION_ID_PATTERN = re.compile(r"discussionId=(\d+)")
+
+
+def edit_comment(item_id: int | str, comment_ref: str, body: str) -> str:
+    """Replace an existing comment's text in place, addressed by the
+    `?discussionId=` reference `post_comment` returned for it."""
+    match = _DISCUSSION_ID_PATTERN.search(comment_ref)
+    if not match:
+        raise PdlcError(f"cannot parse an Azure comment id from: {comment_ref}")
+    _, project = azure_config()
+    az_invoke(
+        "wit", "comments",
+        route_parameters={"project": project, "workItemId": str(item_id), "commentId": match.group(1)},
+        query_parameters={"format": "markdown"},
+        http_method="PATCH", body={"text": body},
+    )
+    return f"{item_url(item_id)}?discussionId={match.group(1)}"

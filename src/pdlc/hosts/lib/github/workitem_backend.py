@@ -76,6 +76,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def post_comment(self, ref: str, body: str) -> str:
         return github_issues.post_comment(str(ref), body)
 
+    def edit_comment(self, ref: str, comment_ref: str, body: str) -> str:
+        return github_issues.edit_comment(comment_ref, body)
+
     def post_blocker(self, ref: str, body: str) -> str:
         # No dedicated blocker surface on GitHub yet — the PDLC-DECISION marker
         # and the Decision Required gate carry the signal. Revisit with a pinned

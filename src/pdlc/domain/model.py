@@ -176,6 +176,21 @@ def latest_plan_comment(comments: list[str]) -> str | None:
     return latest_heading_comment(comments, PLAN_COMMENT_HEADING)
 
 
+# Same match as `latest_heading_comment`, but over comment objects rather than
+# bare bodies, so a caller that needs to replace the comment (not just read
+# it) gets back the reference (`url`) to address it by.
+def latest_heading_comment_object(comments: list[dict], heading: str) -> dict | None:
+    latest: dict | None = None
+    for comment in comments:
+        body = comment.get("body") if isinstance(comment, dict) else str(comment)
+        for line in (body or "").splitlines():
+            if line.strip():
+                if line.strip() == heading:
+                    latest = comment
+                break
+    return latest
+
+
 def has_implementation_comment(comments: list[str]) -> bool:
     return latest_heading_comment(comments, IMPLEMENTATION_COMMENT_HEADING) is not None
 
@@ -228,13 +243,16 @@ def task_title(task: dict) -> str:
 # interpreting bodies and comments themselves.
 def classify_task(task: dict) -> dict:
     comments = task.get("comments") or []
-    plan_comment = latest_plan_comment(comments)
+    plan_comment_object = latest_heading_comment_object(task.get("commentObjects") or [], PLAN_COMMENT_HEADING)
     has_implementation = has_implementation_comment(comments)
     return {
         **task,
-        "hasPlan": plan_comment is not None,
+        "hasPlan": plan_comment_object is not None,
         "hasImplementation": has_implementation,
-        "planComment": plan_comment,
+        "planComment": (plan_comment_object or {}).get("body"),
+        # The existing plan comment's reference, so a re-plan can replace it in
+        # place instead of appending a second `## Technical Plan` comment.
+        "planCommentUrl": (plan_comment_object or {}).get("url"),
         "needsPlan": task["state"] == "OPEN" and not has_implementation,
         "isUI": task_title(task).startswith(UI_TAG),
         # Attached pull requests come from the backend, which owns how they are

@@ -100,6 +100,14 @@ class WorkItemBackend(ABC):
         marker prefix. Returns a reference to the created comment."""
 
     @abstractmethod
+    def edit_comment(self, ref: str, comment_ref: str, body: str) -> str:
+        """Replace an existing comment's body in place, addressed by the
+        reference `post_comment` returned for it (or a comment's own `url`).
+        Used to re-land a stage's own evidence comment (a re-authored
+        Technical Plan) without leaving the superseded text behind. Returns a
+        reference to the edited comment."""
+
+    @abstractmethod
     def post_blocker(self, ref: str, body: str) -> str:
         """Record a blocking review decision the driver must resolve before the
         record can move. The `Decision Required` gate is the machine-readable

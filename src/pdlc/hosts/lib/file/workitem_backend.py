@@ -17,7 +17,8 @@ child directories under `tasks/`.
 The store mirrors GitHub closely enough that the `pdlc-*` scripts and the
 `workitem` facade cannot tell the two apart: records and tasks share one
 number space, tasks keep a stable `WORK-<n>-TASK-NNN` identity, and comments
-are never edited in place.
+are append-only except for `edit_comment`, which rewrites one entry in place
+by its `#comment-N` reference.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, 
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -214,6 +216,20 @@ class FileWorkItemBackend(WorkItemBackend):
     @single_writer
     def post_comment(self, ref: str, body: str) -> str:
         return _append_comment(self._entity_dir(ref), body, self.current_actor())
+
+    @single_writer
+    def edit_comment(self, ref: str, comment_ref: str, body: str) -> str:
+        path = self._entity_dir(ref)
+        comments = _read_comments(path)
+        match = re.search(r"#comment-(\d+)$", comment_ref)
+        if not match:
+            raise PdlcError(f"cannot parse a comment id from: {comment_ref}")
+        index = int(match.group(1)) - 1
+        if not 0 <= index < len(comments):
+            raise PdlcError(f"no such comment: {comment_ref}")
+        comments[index] = {**comments[index], "body": body}
+        atomic_write(path / "comments.jsonl", "".join(json.dumps(entry) + "\n" for entry in comments))
+        return comment_ref
 
     @single_writer
     def post_blocker(self, ref: str, body: str) -> str:

@@ -7,6 +7,7 @@ in `pdlc.domain.model`. Everything here is reached only through
 
 from __future__ import annotations
 
+import re
 
 from pdlc.hosts.lib.github.transport import (
     body_file,
@@ -282,6 +283,25 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
 def post_comment(issue: str, body: str) -> str:
     with body_file(body) as body_path:
         return run_gh(["issue", "comment", str(issue), *repo_args(), "--body-file", body_path])
+
+
+_COMMENT_ID_PATTERN = re.compile(r"#issuecomment-(\d+)$")
+
+
+def edit_comment(comment_url: str, body: str) -> str:
+    """Replace an existing issue comment's body in place, addressed by the
+    `html_url` `post_comment`/`comments_for_issue` returned for it."""
+    match = _COMMENT_ID_PATTERN.search(comment_url)
+    if not match:
+        raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
+    owner, repository = owner_repository()
+    with body_file(body) as body_path:
+        run_gh([
+            "api", "--method", "PATCH",
+            f"repos/{owner}/{repository}/issues/comments/{match.group(1)}",
+            "-f", f"body=@{body_path}",
+        ])
+    return comment_url
 
 
 def comments_for_issue(issue: str) -> list[dict]:

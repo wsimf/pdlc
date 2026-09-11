@@ -6,8 +6,10 @@ Approval Required.
     pdlc post plan --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 Technical Plan is reviewed before this script publishes it. To rework a landed
-plan, return it to Stale with pdlc post invalidate and re-run this script;
-pdlc-inspect then reports the latest plan for each task. A record still at
+plan, return it to Stale with pdlc post invalidate and re-run this script. A
+task that already carries a `## Technical Plan` comment has that comment
+replaced in place rather than getting a second one, so pdlc-inspect and the
+task thread only ever show one current plan per task. A record still at
 `Technical Plan / Approval Required` is re-authored in place: a non-dry-run call
 resets the stage to Stale itself (no comment — the plan never settled at
 Approved, and the re-land's own evidence records the change) and re-lands the
@@ -37,6 +39,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.internal.workitem import (
     PLAN_COMMENT_HEADING,
+    edit_comment,
     is_stage_skipped,
     item_gate,
     item_status,
@@ -211,7 +214,11 @@ def main(argv: list[str] | None = None) -> int:
         for entry in replacements:
             task = tree_by_id[entry["id"]]
             body = f"{PLAN_COMMENT_HEADING}\n\n{entry['planText'].strip()}\n"
-            post_comment(str(task["number"]), body)
+            existing = task.get("planCommentUrl")
+            if existing:
+                edit_comment(str(task["number"]), existing, body)
+            else:
+                post_comment(str(task["number"]), body)
             results.append({"taskId": entry["id"], "number": task["number"]})
 
         summary = (

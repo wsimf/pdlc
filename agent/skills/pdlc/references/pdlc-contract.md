@@ -186,7 +186,9 @@ note are each a plain comment on the delivery task whose first non-empty line is
 `## Implementation` heading when the supplied summary omits it), and
 `pdlc-inspect` derives the
 `hasPlan` / `hasImplementation` flags (and renders the plan) from those
-headings. The parent's `Technical Plan` / `PDLC-IMPLEMENTATION` markers still
+headings. Unlike other evidence, a task's `## Technical Plan` comment is not
+append-only: a re-plan replaces it in place, so a task never carries more than
+one. The parent's `Technical Plan` / `PDLC-IMPLEMENTATION` markers still
 belong to the respective *stage* publication evidence.
 
 Every script that posts evidence takes the body as a file path, or as
