@@ -3,7 +3,8 @@
 work for Step 4. Checks whether the Work Item is actually ready to audit
 right now, then — only if it is — gives a resuming verification pass the
 full picture it needs to avoid redoing settled work: every task and PR's
-raw completion state, the evidence timeline, which journeys and UX still
+raw completion state, any still-unresolved PR review comment, the evidence
+timeline, which journeys and UX still
 need a fresh `user-journey-reviewer` pass and their full text ready to
 copy, what still holds from the last pass, what's gone stale, what's
 already fixed, and what's already deferred. The agent supplies judgment
@@ -31,11 +32,16 @@ from the raw work item body itself.
    are listed too, but only as diff-base context: merge is a completion bar,
    not a verification one, so an unmerged or CI-pending stack does not block
    this pass.
-3. Timeline: every PDLC evidence comment, rendered exactly as
+3. Open Comments: every still-unresolved review-thread comment across the
+   registered PR stack, live off the code host — never inferred from PDLC's
+   own evidence. Not a blocker here, the same as an unmerged PR in Task
+   Completion: whether a thread is in scope, needs a fix, or can be waived is
+   a judgment call left to the caller.
+4. Timeline: every PDLC evidence comment, rendered exactly as
    `pdlc inspect timeline` does by default — full bodies written to a temp
    file, a compact per-comment index inline so a long history stays out of
    context.
-4. Journeys to review: not applicable when no task is tagged `isUI`. Else,
+5. Journeys to review: not applicable when no task is tagged `isUI`. Else,
    every `UJ-*` journey block from the parent's own `UI` section that is
    either new since the last verification pass or was marked stale by the
    reuse check below, copied in full — ready to paste straight into the
@@ -43,7 +49,7 @@ from the raw work item body itself.
    journey up from just its id. Plus whether UX itself needs a fresh pass.
    Empty when every journey and UX are still valid, telling the agent to
    skip the dispatch entirely rather than deciding that itself.
-5. Reuse: every item in the latest Verification `PDLC-REVIEW` comment's Claims
+6. Reuse: every item in the latest Verification `PDLC-REVIEW` comment's Claims
    Audit, User Journeys, UX, and Cumulative Review sections carries a
    `(Verified @ <commit>)` marker. Since a delivery task is exactly one
    commit touching only its own files, that commit's own diff *is* the
@@ -51,10 +57,10 @@ from the raw work item body itself.
    `git diff-tree --no-commit-id --name-only -r <commit>` to find its
    files, then `git log <commit>..HEAD -- <files>` to see if anything's
    touched them since. The agent never runs or reads git itself.
-6. Fixed: bullets listed under a `### Findings` heading in any past
+7. Fixed: bullets listed under a `### Findings` heading in any past
    Verification `PDLC-REVIEW` comment — every one is fixed, since that section
    only ever lists fixed items.
-7. Deferred: findings recorded as deferred in the parent work item body's Open
+8. Deferred: findings recorded as deferred in the parent work item body's Open
    Questions section (`"Deferred — <finding>, accepted because <reason>"`).
 
     pdlc inspect verify WORK_ITEM
@@ -77,6 +83,11 @@ from the raw work item body itself.
     merges after a clean pass. Use them to pick the Step 5 diff base, not as a blocker:
 
     - #148 OPEN checks: PENDING
+
+    ## Open Comments
+
+    PR #148:
+    - @reviewer on src/cache.py:42 — this drops the lock before the write completes (https://github.com/acme/repo/pull/148#discussion_r1)
 
     # Timeline — 3 evidence comment(s); full bodies in /tmp/pdlc-timeline-50.md
 
@@ -138,7 +149,15 @@ Task Completion reads
     All tasks closed with their implementation recorded.
 
 when there's no task to flag (an unmerged-PR list may still follow as diff-base
-context). Journeys to review reads
+context). Open Comments reads
+
+    ## Open Comments
+
+    None.
+
+when every review thread on the registered PR stack is resolved (or none is
+registered — nothing distinguishes the two, since neither is a finding).
+Journeys to review reads
 
     ## Journeys to review
 
@@ -154,7 +173,7 @@ when nothing needs a fresh pass. Still valid / Stale are omitted when the
 latest verification comment has no `(Verified @ ...)` items to check.
 Fixed by previous runs and Deferred read `None` when there's nothing for
 them, or with no verification run yet at all, everything after Readiness,
-Task Completion, Timeline, and Journeys to review is just:
+Task Completion, Open Comments, Timeline, and Journeys to review is just:
 
     No verification step found
 """
@@ -170,7 +189,7 @@ from pdlc.domain.evidence import parse_verification_report
 from pdlc.internal.reporting import older_comments_notice
 
 
-from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.vcs import stale_commits
 from pdlc.domain.lifecycle import PdlcError
@@ -381,6 +400,28 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
     return sections
 
 
+# Live review-thread state off the registered PR stack, not evidence PDLC
+# itself recorded — this is the same "not a blocker, context to judge" shape
+# as the pending-PR note in Task Completion. Nothing here resolves a thread
+# or decides it's in scope; that judgment stays with the caller.
+def _open_comments_section(open_comments: list[dict]) -> list[str]:
+    if not open_comments:
+        return ["## Open Comments", "", "None."]
+
+    sections = ["## Open Comments", ""]
+    by_pr: dict[int, list[dict]] = {}
+    for comment in open_comments:
+        by_pr.setdefault(comment["pr"], []).append(comment)
+
+    for number in sorted(by_pr):
+        sections.append(f"PR #{number}:")
+        for comment in by_pr[number]:
+            where = f" on {comment['path']}:{comment['line']}" if comment.get("path") else ""
+            sections.append(f"- @{comment['author']}{where} — {comment['body']} ({comment['url']})")
+        sections.append("")
+    return sections[:-1] if sections[-1] == "" else sections
+
+
 def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool, str]:
     """The readiness verdict, and the one sentence explaining it.
 
@@ -462,6 +503,7 @@ def inspect(issue: str) -> str:
     comments = comments_for_issue(issue)
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
+    sections += ["", *_open_comments_section(record_open_review_comments(issue, record=item, tasks=tasks))]
     sections += ["", _timeline_block(issue, comments)]
 
     verification_comments = verification_evidence_comments(issue, comments=comments)

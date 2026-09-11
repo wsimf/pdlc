@@ -11,7 +11,7 @@ rather than asserting anything.
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest
+from pdlc.domain.records import PullRequest, ReviewComment
 
 from abc import ABC, abstractmethod
 
@@ -65,6 +65,16 @@ class CodeHost(ABC):
         evidence rather than the stack mechanism's auto-generated summary. A
         host with no stacked-PR mechanism raises PdlcError, matching
         ``submit_task_stack``; the checkpoint path never reaches it there."""
+
+    @abstractmethod
+    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+        """Every review-thread comment on this pull request that is still
+        unresolved on the host, oldest first: one entry per thread — its root
+        comment only, not later replies — as
+        {author, body, url, path, line}. A host with no review-thread concept
+        (or no live review state, e.g. a local file record) returns []; this
+        is a review-feedback signal, not a registry, so it never raises for
+        "none found"."""
 
     @abstractmethod
     def mark_pull_requests_ready(self, numbers: list[int]) -> None:

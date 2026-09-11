@@ -87,6 +87,14 @@ class PullRequest(TypedDict):
     files: NotRequired[list[str]]
 
 
+class ReviewComment(TypedDict):
+    author: str
+    body: str
+    url: str | None
+    path: str | None
+    line: int | None
+
+
 def _object(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PdlcError(f"{label} must be an object")
