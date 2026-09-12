@@ -23,7 +23,7 @@ plan never settled at Approved, and the re-land's own evidence records the
 change) and lands back at Approval Required, so it requires a fresh
 independent review before the next approval.
 
-`--dry-run` prints a markdown report instead of JSON:
+`--dry-run` prints a markdown report:
 
     ## Technical Plan (dry run)
 

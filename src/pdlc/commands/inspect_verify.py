@@ -21,7 +21,7 @@ never by the agent querying the work-item store or `git`, or re-deriving it
 from the raw work item body itself.
 
 1. Readiness: resolves the Work Item's `Status`/`Gate State` and applies the
-   same table pdlc-verify's Step 1 used to apply by hand. Not `Status: Verification`, or a `Gate State` other than `Pending`
+   same table pdlc-verify's Step 1 applies. Not `Status: Verification`, or a `Gate State` other than `Pending`
    / `Changes Required` / `Stale`, stops right here with why — nothing below
    is computed, since none of it matters if this pass shouldn't be running.
    The one exception is `Approval Required`: that gate means a clean pass is
