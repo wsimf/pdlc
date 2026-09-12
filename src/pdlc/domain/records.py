@@ -50,10 +50,9 @@ class Task(TypedDict):
     commentsMeta: NotRequired[dict[str, Any]]
     hasPlan: NotRequired[bool]
     hasImplementation: NotRequired[bool]
+    implementationInvalidated: NotRequired[bool]
     planComment: NotRequired[str | None]
     planCommentUrl: NotRequired[str | None]
-    implementationComment: NotRequired[str | None]
-    implementationCommentUrl: NotRequired[str | None]
     needsPlan: NotRequired[bool]
     isUI: NotRequired[bool]
 

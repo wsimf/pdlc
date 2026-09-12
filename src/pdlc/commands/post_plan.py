@@ -32,8 +32,8 @@ is recorded as its own artifact on the task, so scope, non-goals,
 dependencies, coverage, and acceptance criteria stay exactly as the Tasks
 stage authored them.
 
-A pass may plan a subset of tasks, as long as every open, unimplemented task
-ends up with a plan (counting plans already recorded).
+A pass may plan a subset of tasks, as long as every open task ends up with a
+plan (counting plans already recorded).
 """
 
 from __future__ import annotations
@@ -66,9 +66,12 @@ from pdlc.domain.workflow import Event
 def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
     known = [task["taskId"] for task in tree if task.get("taskId") is not None]
     targeted = [entry["id"] for entry in replacements]
+    # Scope is every OPEN task, not just unplanned ones: a targeted task already
+    # carrying a plan is a legitimate re-land-in-place, not an error, so
+    # eligibility is checked on state alone here, not on `needsPlan`.
     untouched = [
         task for task in tree
-        if task.get("needsPlan") and task.get("taskId") not in targeted
+        if task.get("state") == "OPEN" and task.get("taskId") not in targeted
     ]
 
     errors: list[str] = []
@@ -90,8 +93,8 @@ def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
 
     for task in tree:
         task_id = task.get("taskId")
-        if task_id is not None and task_id in targeted and not task.get("needsPlan"):
-            errors.append(f"{task_id} is closed or already implemented; it is not in scope for planning")
+        if task_id is not None and task_id in targeted and task.get("state") != "OPEN":
+            errors.append(f"{task_id} is closed; it is not in scope for planning")
 
     left_unplanned = [task["taskId"] for task in untouched if not task.get("hasPlan")]
     if left_unplanned:

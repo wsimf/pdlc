@@ -340,7 +340,7 @@ def _journeys_to_review_section(tasks: list[dict], body: str, reuse_items: list[
 
 
 # Every check here is a mechanical fact off task_tree / the code host's pull
-# requests — closed, hasImplementation (implementation recorded for the task), merged,
+# requests — closed, hasImplementation (a pull request is attached), merged,
 # checks. None of it is a judgment call; what's a judgment call is
 # whether an open task's deferral is genuine, which is why that part is
 # handed to the agent as candidate Open Questions lines rather than decided

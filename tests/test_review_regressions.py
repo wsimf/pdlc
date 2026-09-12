@@ -29,7 +29,8 @@ class ReviewRegressionTests(unittest.TestCase):
         # The truncated-comment notice must reach the reader where the plan is now
         # rendered — `inspect task`, which pulls the plan from the task's comments.
         task = {"number": 1, "taskId": "TASK-001", "title": "Task", "url": "", "state": "OPEN", "isUI": False,
-                "hasPlan": True, "hasImplementation": False, "needsPlan": False, "prs": [], "body": "b",
+                "hasPlan": True, "hasImplementation": False, "implementationInvalidated": False, "needsPlan": False,
+                "prs": [], "body": "b",
                 "planComment": "plan", "commentObjects": [], "comments": [{}] * 100, "commentsMeta": {"totalCount": 101}}
         with patch("pdlc.commands.inspect_task.get_capabilities") as caps:
             caps.return_value.agent.return_value = "general-purpose"

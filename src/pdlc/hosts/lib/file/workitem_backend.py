@@ -17,8 +17,11 @@ child directories under `tasks/`.
 The store mirrors GitHub closely enough that the `pdlc-*` scripts and the
 `workitem` facade cannot tell the two apart: records and tasks share one
 number space, tasks keep a stable `WORK-<n>-TASK-NNN` identity, and comments
-are append-only except for `edit_comment`, which rewrites one entry in place
-by its `#comment-N` reference.
+are append-only except for `edit_comment`, which rewrites one entry in place,
+and `delete_comment`, which removes it outright — both addressed by a
+comment's own `#comment-N` `url`, where `N` is a monotonic id (`meta.json`'s
+`commentSeq`) that is never reused, not the comment's current position, so a
+reference stays valid even after an earlier comment is deleted.
 """
 
 from __future__ import annotations
@@ -27,7 +30,6 @@ from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, 
 
 import json
 import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -221,15 +223,18 @@ class FileWorkItemBackend(WorkItemBackend):
     def edit_comment(self, ref: str, comment_ref: str, body: str) -> str:
         path = self._entity_dir(ref)
         comments = _read_comments(path)
-        match = re.search(r"#comment-(\d+)$", comment_ref)
-        if not match:
-            raise PdlcError(f"cannot parse a comment id from: {comment_ref}")
-        index = int(match.group(1)) - 1
-        if not 0 <= index < len(comments):
-            raise PdlcError(f"no such comment: {comment_ref}")
+        index = _comment_index(comments, comment_ref)
         comments[index] = {**comments[index], "body": body}
         atomic_write(path / "comments.jsonl", "".join(json.dumps(entry) + "\n" for entry in comments))
         return comment_ref
+
+    @single_writer
+    def delete_comment(self, ref: str, comment_ref: str) -> None:
+        path = self._entity_dir(ref)
+        comments = _read_comments(path)
+        index = _comment_index(comments, comment_ref)
+        del comments[index]
+        atomic_write(path / "comments.jsonl", "".join(json.dumps(entry) + "\n" for entry in comments))
 
     @single_writer
     def post_blocker(self, ref: str, body: str) -> str:
@@ -387,7 +392,24 @@ def _read_comments(path: Path) -> list[dict]:
 def _append_comment(path: Path, body: str, actor: str) -> str:
     log = path / "comments.jsonl"
     existing = _read_comments(path)
-    url = f"{_read_meta(path).get('url', '')}#comment-{len(existing) + 1}"
+    # The id is a monotonic counter persisted in meta.json, not the current
+    # list length: once a comment is deleted, the list shrinks, but the next
+    # id must still never collide with one a live comment's stored `url`
+    # already carries.
+    meta = _read_meta(path)
+    next_id = int(meta.get("commentSeq") or 0) + 1
+    _write_meta(path, {**meta, "commentSeq": next_id})
+    url = f"{meta.get('url', '')}#comment-{next_id}"
     comment = {"body": body, "createdAt": _now(), "url": url, "author": {"login": actor}}
     atomic_write(log, "".join(json.dumps(entry) + "\n" for entry in [*existing, comment]))
     return url
+
+
+# Comments are addressed by their own stored `url`, not by array position:
+# once `delete_comment` can remove an entry, position drifts for everything
+# appended after it, so a reference must resolve by identity, not index.
+def _comment_index(comments: list[dict], comment_ref: str) -> int:
+    for index, comment in enumerate(comments):
+        if comment.get("url") == comment_ref:
+            return index
+    raise PdlcError(f"no such comment: {comment_ref}")

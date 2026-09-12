@@ -9,7 +9,10 @@ from __future__ import annotations
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
-    edit_comment,
+    IMPLEMENTATION_COMMENT_HEADING,
+    PLAN_COMMENT_HEADING,
+    delete_comment,
+    heading_comment_objects,
     is_stage_skipped,
     item_skipped_states,
     item_status,
@@ -82,7 +85,8 @@ def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) ->
 
 def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) -> list[str]:
     """Reopen closed delivery tasks so they are back in scope for the
-    invalidated stage's own gate (e.g. `needsPlan`). `task_refs` narrows the
+    invalidated stage's own gate (`needsPlan` for Technical Plan,
+    `implementationInvalidated` for Implementation). `task_refs` narrows the
     scope to specific tasks; omitted, every closed task under the record is
     reopened. Returns the numbers actually reopened."""
     tasks = subissues_for(issue)
@@ -102,15 +106,24 @@ def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) ->
         reopen_task(number)
         post_comment(number, f"Invalidated stage: {target_stage}\n\nReopened for rework.\n", "INVALIDATED")
 
-        # Reopening alone leaves the task's own `## Implementation` comment in
-        # place, so `hasImplementation`/`needsPlan` would never reflect the
-        # reopen: edit that comment in place to drop the heading line, the same
-        # match `has_implementation_comment` uses, so the task reads as
-        # unimplemented again while keeping the superseded content on record.
-        implementation_comment_url = task.get("implementationCommentUrl")
-        if implementation_comment_url:
-            original = task.get("implementationComment") or ""
-            edit_comment(number, implementation_comment_url, f"Invalidated stage: {target_stage}\n\n{original}")
+        # Reopening alone leaves the task's own `## Implementation`/`## Technical
+        # Plan` comments in place, so `implementationInvalidated`/`needsPlan`
+        # would never reflect the reopen: delete the stale evidence outright
+        # rather than editing it, so the task reads as needing rework again with
+        # no superseded noise left behind. `hasImplementation` itself stays true
+        # (it tracks the attached PR, which this never touches); deleting the
+        # `## Implementation` comment instead flips `implementationInvalidated`.
+        # Every matching comment is retired, not just the newest, so a task
+        # implemented more than once does not stay permanently blocked. Deleted
+        # newest-first so the file backend's positional references to the
+        # remaining, earlier comments stay valid.
+        headings = [IMPLEMENTATION_COMMENT_HEADING]
+        if target_stage == "Technical Plan":
+            headings.append(PLAN_COMMENT_HEADING)
+        comment_objects = task.get("commentObjects") or []
+        for heading in headings:
+            for comment in reversed(heading_comment_objects(comment_objects, heading)):
+                delete_comment(number, comment["url"])
 
         reopened.append(number)
     return reopened

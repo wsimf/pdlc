@@ -72,7 +72,7 @@ def completion_blockers(
         listed = ", ".join(f"#{task['number']}" for task in closed_no_impl)
         blockers.append(Blocker(
             "closed-without-implementation",
-            f"Closed tasks with no '## Implementation' evidence: {listed}",
+            f"Closed tasks with no implementation pull request attached: {listed}",
         ))
 
     unsettled_prs = [

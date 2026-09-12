@@ -18,6 +18,7 @@ from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     classify_task,
     compose_comment,
     due_next,
+    heading_comment_objects,
     is_stage_skipped,
     item_gate,
     item_issue,
@@ -170,6 +171,12 @@ def edit_comment(ref: str, comment_ref: str, body: str, marker: str | None = Non
     reference `post_comment` returned for it. Same marker composition as
     `post_comment`."""
     return get_backend().edit_comment(str(ref), comment_ref, compose_comment(marker, body))
+
+
+def delete_comment(ref: str, comment_ref: str) -> None:
+    """Permanently remove an existing comment, addressed by the reference
+    `post_comment` returned for it."""
+    get_backend().delete_comment(str(ref), comment_ref)
 
 
 def post_blocker(ref: str, body: str, marker: str | None = None) -> str:

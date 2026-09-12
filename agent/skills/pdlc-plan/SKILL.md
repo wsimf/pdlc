@@ -44,9 +44,9 @@ Technical Plan accepts only `Pending`, `Stale`, or `Approval Required` (with a d
 
 ## Step 3: Read the task tree
 
-Step 1's `# Tasks` section carries the whole tree, classified: `hasPlan`, `hasImplementation` (the delivery task carries a `## Implementation` comment), `needsPlan` (open and unimplemented — this pass's scope). `pdlc post plan` enforces the same flags at land time.
+Step 1's `# Tasks` section carries the whole tree, classified: `hasPlan` (the delivery task carries a `## Technical Plan` comment), `hasImplementation` (a pull request is attached), `needsPlan` (open and no plan comment — this pass's scope). `pdlc post plan` enforces the same flags at land time.
 
-A tree with no tasks at all stops the pass before any dispatch — report exactly rather than planning around it. An already-implemented task (`hasImplementation`) is simply out of scope for planning; `pdlc post plan` refuses a manifest that targets one.
+A tree with no tasks at all stops the pass before any dispatch — report exactly rather than planning around it. An already-planned task (`hasPlan`, so `needsPlan` is false) is simply out of scope for planning; `pdlc post plan` refuses a manifest that targets one.
 
 Fetch the full body for every `needsPlan` task, and any task being reconciled:
 
@@ -114,7 +114,7 @@ Never set `Approved` or continue into Implementation. Planning that reveals appr
 ## Checklist
 
 - [ ] Resolved with `pdlc inspect`; `Status` is `Technical Plan`, gate was `Pending`, `Stale`, or `Approval Required` with a driver change request this turn
-- [ ] Read the classified task tree; no already-implemented task (`hasImplementation`) is in the planning scope
+- [ ] Read the classified task tree; no already-planned task (`hasPlan`) is in the planning scope
 - [ ] The driver's follow-up reached the sub-agent unparaphrased
 - [ ] Each plan returned as heading-free content; the task's own scope and criteria were never retyped
 - [ ] `--dry-run` clean; every finding went back to the sub-agent, never patched by hand

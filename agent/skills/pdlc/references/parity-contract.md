@@ -70,8 +70,9 @@ anything is written, not asserted by the agent that wrote the breakdown.
 - A task closes once its commit is on its stacked PR, its `task`-depth
   `pdlc-implementation-reviewer` pass returned `Approval Required`, and a
   `## Implementation` comment records the outcome. The comment carries no PDLC
-  marker; the human-authored task body is not rewritten; `pdlc-inspect` derives
-  `hasImplementation` from it.
+  marker; the human-authored task body is not rewritten. `pdlc-inspect` derives
+  `hasImplementation` from the task's attached pull request, not this comment;
+  `implementationInvalidated` is what tracks whether this comment is present.
 - A record's pull requests are the ones registered on it and on its tasks — by
   `pdlc post implement-task`, `pdlc post attach-pr`, `pdlc post implement`, or
   `pdlc post test`. Nothing is inferred from a `Closes #N` keyword or a branch

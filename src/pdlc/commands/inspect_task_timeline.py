@@ -13,18 +13,22 @@ DESCRIPTION
     Renders one delivery task's own comment stream as a chronological
     timeline — plan, implementation, and invalidation, in the order they
     happened — so an agent can tell what state a task is really in without
-    cross-referencing `hasPlan`/`hasImplementation`/`needsPlan` against raw
-    comments itself.
+    cross-referencing `hasPlan`/`hasImplementation`/`implementationInvalidated`/
+    `needsPlan` against raw comments itself.
 
     Unlike `pdlc inspect timeline`, which only shows a parent record's
     `PDLC-*`-marked comments, a task's most important evidence — its
     `## Technical Plan` and `## Implementation` comments — carries no marker
-    at all, so this renders three kinds of entry: real `PDLC-*` markers (e.g.
-    `PDLC-INVALIDATED`, posted when the task is reopened), synthetic `PLAN`/
-    `IMPLEMENTATION` entries for the unmarked evidence comments, and a
-    synthetic `INVALIDATED` entry for an evidence comment `pdlc post
-    invalidate` has since edited in place (its heading replaced with
-    `Invalidated stage: <STAGE>`).
+    at all, so this renders two kinds of entry: real `PDLC-*` markers (e.g.
+    `PDLC-INVALIDATED`, posted when the task is reopened) and synthetic
+    `PLAN`/`IMPLEMENTATION` entries for the unmarked evidence comments.
+
+    `pdlc post invalidate` deletes a reopened task's stale `## Technical
+    Plan`/`## Implementation` comments outright rather than editing them in
+    place, so they leave no `INVALIDATED` entry of their own — once a task is
+    reopened, its earlier `PLAN`/`IMPLEMENTATION` entries are gone from this
+    timeline too, and only the reopen's own `PDLC-INVALIDATED` entry (plus any
+    evidence posted since) remains.
 
     By default the full timeline is written to a file under the system temp
     directory and stdout carries only a compact index: one block per entry

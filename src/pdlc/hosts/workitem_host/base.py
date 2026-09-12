@@ -108,6 +108,13 @@ class WorkItemBackend(ABC):
         reference to the edited comment."""
 
     @abstractmethod
+    def delete_comment(self, ref: str, comment_ref: str) -> None:
+        """Permanently remove an existing comment, addressed by the same
+        reference `edit_comment` accepts. Used when invalidation should
+        retire stale task evidence outright rather than leave a superseded
+        body on record."""
+
+    @abstractmethod
     def post_blocker(self, ref: str, body: str) -> str:
         """Record a blocking review decision the driver must resolve before the
         record can move. The `Decision Required` gate is the machine-readable
@@ -137,7 +144,7 @@ class WorkItemBackend(ABC):
     def reopen_task(self, task_ref: str) -> None:
         """Return a closed task to OPEN. Used to undo a task's Implementation
         closure when a driver invalidates Technical Plan or Implementation
-        back onto it, so the task is in scope for `needsPlan` again."""
+        back onto it, so the task is back in scope for rework."""
 
     def task_pr_numbers(self, ref: str) -> list[int]:
         """Registered task PRs; adapters may avoid loading task bodies/comments."""
