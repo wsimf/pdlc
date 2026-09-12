@@ -129,8 +129,7 @@ def completion_blockers(
             + "; ".join(stale_rows),
         ))
 
-    # Open Questions are no longer reconciled into the parent body at
-    # completion; the completion evidence disposes of each live entry as
+    # Completion evidence disposes of each live Open Questions entry as
     # Resolved or Deferred, and the mutator blanks the section afterwards.
     # Nothing to check until that evidence exists (inspection runs first).
     if evidence_body is not None:
