@@ -38,7 +38,7 @@ A controller failure — API error, malformed work item state, ambiguous identit
 
 | `action` | What to do |
 |---|---|
-| a `pdlc-*` skill name | Invoke that skill for `work_item_number`. Continue to Step 3. |
+| a `pdlc-*` skill name | Spawn one lightweight handling agent in the background using [`references/handling-agent.prompt.md`](references/handling-agent.prompt.md), passing the action and `work_item_number`; wait for its output, then continue to Step 3. |
 | `pdlc-post-ci` | An `Implementation / CI Pending` record whose checks have settled. Run `pdlc post ci <work_item_number>` — it sets `Approval Required` (green) or `Changes Required` (red, with a `PDLC-IMPLEMENTATION` note). Report the outcome, then Step 3. Do not invoke a skill for this action. |
 | `human-input` | Product authoring or re-authoring needs an interactive driver. **Stop**, tell the driver which record needs `pdlc-write`. |
 | `human-approval` | Record is at `Approval Required`. **Stop**, tell the driver which record and stage (`current_status`) awaits them. |
@@ -46,7 +46,7 @@ A controller failure — API error, malformed work item state, ambiguous identit
 | `blocked` | Work item state, work type, or pipeline is malformed, unsupported, or unavailable. **Stop**, report `current_status` and the controller's reason exactly. |
 | `none` | Nothing actionable; scan exhausted. **Stop**, report the `attempts` count and that the script should be re-invoked later. |
 
-Invoke the named skill with just `work_item_number` — it resolves the record with `pdlc inspect` itself, and reads `pdlc inspect timeline <work-item>` when it needs the evidence trail (reviewer findings, recorded approvals). Never reconstruct context from the title or re-derive the stage yourself. `pdlc post ci` is the exception: it is not a skill — run the command named in the row and report its JSON.
+For a `pdlc-*` action, fill [`references/handling-agent.prompt.md`](references/handling-agent.prompt.md) with the returned action and `work_item_number`, spawn exactly one lightweight handling agent in the background, and wait for its output. The handling agent invokes the named skill with just `work_item_number`; that skill resolves the record with `pdlc inspect` itself, and reads `pdlc inspect timeline <work-item>` when it needs the evidence trail (reviewer findings, recorded approvals). Never reconstruct context from the title or re-derive the stage yourself. `pdlc post ci` is the exception: it is not a skill — run the command named in the row and report its JSON.
 
 A `CI Pending` record whose checks are still running comes back as `none` (reason names the record) so the loop backs off and re-polls, exactly as for an empty queue — you never dispatch anything for it until `pdlc next` returns `pdlc-post-ci`.
 
@@ -88,7 +88,7 @@ Defaults: five attempts, 60s initial delay, 15-minute cap. Override with the `[w
 
 - [ ] Asked the controller rather than deciding the next action yourself
 - [ ] `action` was a `pdlc-*` skill name (or `pdlc-post-ci`) before dispatching; otherwise stopped
-- [ ] Invoked the named skill with the work item number and let it inspect the record itself, or ran `pdlc post ci` for a `pdlc-post-ci` action
+- [ ] Spawned one background handling agent from `references/handling-agent.prompt.md`, waited for its output, and let it invoke the named skill with the work item number, or ran `pdlc post ci` for a `pdlc-post-ci` action
 - [ ] Stopped on `human-input`, `human-approval`, `human-decision`, `blocked`, `none`, or any controller error
 - [ ] Re-polled the controller after every clean pass rather than chaining a predicted next action
 - [ ] Stopped on the first stop condition, including a pass that made no forward progress

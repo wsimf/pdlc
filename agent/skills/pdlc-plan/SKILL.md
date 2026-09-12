@@ -4,17 +4,11 @@ description: "Use when asked to plan, spike, validate architecture, or prepare i
 argument-hint: "Parent work item number to plan"
 ---
 
-# Plan implementation
+# Tech Planning for PDLC work item
 
 This skill confirms one PDLC record is due for planning, dispatches `pdlc-tech-planner`, has the returned plans independently reviewed, then hands them to `pdlc post plan` to validate, publish, and stop at `Approval Required`.
 
 Review happens before publication, on the local task bodies — publishing rewrites every planned task in place, so a review afterwards would rewrite them all again on every finding.
-
-When planning produces local files, or the driver supplied local files in
-this prompt, pass each one to `pdlc post plan` as
-`--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
-for multiple files; a description applies only to the immediately preceding
-file. See [PDLC attachments](../pdlc/references/attachments.md).
 
 Read `../pdlc/references/parity-contract.md` before dispatching.
 
@@ -22,7 +16,7 @@ Read `../pdlc/references/parity-contract.md` before dispatching.
 
 Require an exact parent work item number. Check the current conversation for an unambiguous one before asking; never infer it from the branch, recent files, open PRs, or history alone.
 
-The driver may give a specific follow-up ("re-spike TASK-003", "the last plan was wrong about the tile cache"). Carry it forward verbatim to the sub-agent.
+The driver may give a specific follow-up ("re-spike TASK-003", "the last plan was wrong about the cache"). Carry it forward verbatim to the sub-agent.
 
 ---
 
@@ -32,11 +26,21 @@ The driver may give a specific follow-up ("re-spike TASK-003", "the last plan wa
 pdlc inspect WORK_ITEM
 ```
 
-Returns the work item, raw work item body, and the classified task tree Step 3 reads. `pdlc post plan` resolves the item itself. No item or an ambiguous match is a hard stop.
+Returns the work item, raw work item body, and all sub tasks to implement.
 
-Read `# Due Next` rather than re-deriving whether planning is due. Require `pdlc-plan` as the owner; anything else stops here — report `Due Next` verbatim and name the actual owner. Never plan ahead of the active stage because tasks already exist.
+Read `# Due Next`. Require `TechnicalPlan` as the the current stage; anything else stops here and reports what's next. Never invoke or continue planning if the work item is not ready for technical planning.
 
 ## Step 2: Handle the gate
+
+`Pending` (first pass), `Stale` (upstream intent changed, or a landed plan sent back for reconciliation): Continue to Step 3
+
+`Review Required`
+
+`Decision Required`
+
+`Approval Required`
+
+`Approved`
 
 `Pending` (first pass) and `Stale` (upstream intent changed, or a landed plan sent back for reconciliation) reach this step directly. `Approval Required` also reaches it **only** when the driver has asked this turn to change the plan: `pdlc post plan` resets Technical Plan to Stale itself on landing (gate reset only, no comment — the re-land's own evidence records the change). An `Approval Required` record with no such request is awaiting the driver's approval — report that and stop.
 
