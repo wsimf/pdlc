@@ -126,19 +126,40 @@ class PostPlanValidationTests(FileBackendTest):
     def test_only_the_unplanned_task_is_targeted(self):
         result = self._dry_run([{"id": "TASK-001", "plan": self.plan_body}])
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertEqual(result.json["targeted"], ["TASK-001"])
-        self.assertEqual(result.json["alreadyPlanned"], ["TASK-002"])
+        self.assertEqual(result.front_matter("Verdict"), "Pass")
+        self.assertEqual(result.front_matter("Targeted"), "TASK-001")
+        self.assertEqual(result.front_matter("Already planned"), "TASK-002")
+        self.assertIn("## Warnings", result.stdout)
+        self.assertIn("None.", result.stdout)
 
     def test_empty_plan_file_is_rejected(self):
         empty = self.write_file("empty.md", "\n")
         result = self._dry_run([{"id": "TASK-001", "plan": empty}])
         self.assertEqual(result.code, 1)
-        self.assertIn("the plan file for TASK-001 is empty", result.stderr)
+        self.assertEqual(result.front_matter("Verdict"), "Fail")
+        self.assertIn("the plan file for TASK-001 is empty", result.stdout)
 
     def test_unknown_task_is_rejected(self):
         result = self._dry_run([{"id": "TASK-404", "plan": self.plan_body}])
         self.assertEqual(result.code, 1)
-        self.assertIn("no such task on this record: TASK-404", result.stderr)
+        self.assertEqual(result.front_matter("Verdict"), "Fail")
+        self.assertIn("no such task on this record: TASK-404", result.stdout)
+
+    def test_approval_required_dry_run_warns_instead_of_blocking(self):
+        self.seed_record(41, "Technical Plan", "Approval Required")
+        self.seed_task(41, 411, "TASK-001", "OPEN", "WORK-41-TASK-001 One")
+        result = self.invoke(
+            "post_plan", "--work-item", 41,
+            "--manifest", self.write_file("pm41.json", json.dumps(
+                [{"id": "TASK-001", "plan": self.plan_body}]
+            )),
+            "--dry-run",
+        )
+        self.assertEqual(result.code, 0, result.stdout)
+        self.assertEqual(result.front_matter("Verdict"), "Pass")
+        self.assertIn("Approval Required", result.stdout)
+        self.assertIn("overwrite", result.stdout)
+        self.assertEqual(self.fields(41)["Gate State"], "Approval Required")
 
 
 class PostWriteReconstructionTests(FileBackendTest):

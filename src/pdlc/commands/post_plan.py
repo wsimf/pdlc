@@ -6,22 +6,53 @@ USAGE
     pdlc post plan --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --dry-run    validate and print the plan without landing it
+    --dry-run    validate the plan and print a markdown report without landing it
 
 DESCRIPTION
     Lands the Technical Plan stage in a single call: guards the record's
     state, records each task's plan on its delivery task, and publishes the stage at
     Approval Required.
 
-Technical Plan is reviewed before this script publishes it. To rework a landed
-plan, return it to Stale with pdlc post invalidate and re-run this script. A
-task that already carries a `## Technical Plan` comment has that comment
-replaced in place rather than getting a second one, so pdlc-inspect and the
-task thread only ever show one current plan per task. A record still at
-`Technical Plan / Approval Required` is re-authored in place: a non-dry-run call
-resets the stage to Stale itself (no comment — the plan never settled at
-Approved, and the re-land's own evidence records the change) and re-lands the
-reviewed plans.
+Technical Plan is reviewed before this script publishes it. A task that
+already carries a `## Technical Plan` comment has that comment replaced in
+place rather than getting a second one, so pdlc-inspect and the task thread
+only ever show one current plan per task. A record still at `Technical Plan /
+Approval Required` is re-authored in place: a non-dry-run call overwrites the
+existing plan comments with the new content (no invalidation comment — the
+plan never settled at Approved, and the re-land's own evidence records the
+change) and lands back at Approval Required, so it requires a fresh
+independent review before the next approval.
+
+`--dry-run` prints a markdown report instead of JSON:
+
+    ## Technical Plan (dry run)
+
+    Verdict: Pass
+    Stage: Technical Plan
+    Targeted: TASK-003
+    Already planned: TASK-001, TASK-002
+    Attachments: 0
+
+    ## Passed Validations
+
+    - <one bullet per check that passed>
+
+    ## Failed Validations
+
+    None.
+
+    ## Warnings
+
+    None.
+
+Verdict is `Fail` and exits 1 if any check failed, with its specific errors
+listed under Failed Validations instead of Passed Validations. When the
+record is at `Technical Plan / Approval Required`, Warnings instead reads:
+"This record is at Approval Required. Running this for real will overwrite
+the existing plan in place with the new content. Only proceed if that's the
+driver's intention — confirm with the user first if it isn't already clear
+from the conversation." Dry run never mutates the record regardless of gate
+state.
 
 The manifest is a JSON array naming the tasks this pass plans:
 
@@ -74,39 +105,81 @@ def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
         if task.get("state") == "OPEN" and task.get("taskId") not in targeted
     ]
 
-    errors: list[str] = []
-
-    for task in tree:
-        if task.get("taskId") is None:
-            errors.append(f"delivery task #{task['number']} carries no stable task identity")
-
-    for task_id in duplicates(targeted):
-        errors.append(f"duplicate manifest entry: {task_id}")
-
-    for task_id in targeted:
-        if task_id not in known:
-            errors.append(f"no such task on this record: {task_id}")
-
-    for entry in replacements:
-        if not entry["planText"].strip():
-            errors.append(f"the plan file for {entry['id']} is empty")
-
-    for task in tree:
-        task_id = task.get("taskId")
-        if task_id is not None and task_id in targeted and task.get("state") != "OPEN":
-            errors.append(f"{task_id} is closed; it is not in scope for planning")
-
     left_unplanned = [task["taskId"] for task in untouched if not task.get("hasPlan")]
-    if left_unplanned:
-        errors.append(f"these tasks would be left unplanned: {', '.join(left_unplanned)}")
 
+    # Each check is named so dry-run can report which validations passed
+    # alongside which failed, rather than only surfacing failures.
+    checks = [
+        ("every delivery task carries a stable task identity", [
+            f"delivery task #{task['number']} carries no stable task identity"
+            for task in tree if task.get("taskId") is None
+        ]),
+        ("no duplicate manifest entries", [
+            f"duplicate manifest entry: {task_id}" for task_id in duplicates(targeted)
+        ]),
+        ("every manifest entry matches a task on this record", [
+            f"no such task on this record: {task_id}" for task_id in targeted if task_id not in known
+        ]),
+        ("no empty plan files", [
+            f"the plan file for {entry['id']} is empty"
+            for entry in replacements if not entry["planText"].strip()
+        ]),
+        ("no targeted task is closed", [
+            f"{task['taskId']} is closed; it is not in scope for planning"
+            for task in tree
+            if task.get("taskId") is not None and task["taskId"] in targeted and task.get("state") != "OPEN"
+        ]),
+        ("every open task ends up with a plan", (
+            [f"these tasks would be left unplanned: {', '.join(left_unplanned)}"] if left_unplanned else []
+        )),
+    ]
+
+    errors = [error for _, group in checks for error in group]
     already_planned = [task["taskId"] for task in untouched if task.get("hasPlan")]
 
     return {
         "targeted": targeted,
         "alreadyPlanned": already_planned,
         "errors": errors,
+        "checks": checks,
     }
+
+
+def _render_dry_run(gate: str, plan: dict, attachment_count: int) -> str:
+    passed = [label for label, group in plan["checks"] if not group]
+    failed = [error for _, group in plan["checks"] for error in group]
+    verdict = "Fail" if failed else "Pass"
+
+    lines = [
+        "## Technical Plan (dry run)",
+        "",
+        f"Verdict: {verdict}",
+        "Stage: Technical Plan",
+        f"Targeted: {', '.join(plan['targeted']) if plan['targeted'] else 'None'}",
+        f"Already planned: {', '.join(plan['alreadyPlanned']) if plan['alreadyPlanned'] else 'None'}",
+        f"Attachments: {attachment_count}",
+        "",
+        "## Passed Validations",
+        "",
+        "\n".join(f"- {label}" for label in passed) if passed else "None.",
+        "",
+        "## Failed Validations",
+        "",
+        "\n".join(f"- {error}" for error in failed) if failed else "None.",
+        "",
+        "## Warnings",
+        "",
+    ]
+    if gate == "Approval Required":
+        lines.append(
+            "- This record is at Approval Required. Running this for real will overwrite "
+            "the existing plan in place with the new content. Only proceed if that's the "
+            "driver's intention — confirm with the user first if it isn't already clear "
+            "from the conversation."
+        )
+    else:
+        lines.append("None.")
+    return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,29 +224,17 @@ def main(argv: list[str] | None = None) -> int:
             raise PdlcError(f"cannot land Technical Plan: the record is at {stage}")
         if gate in ("Pending", "Stale"):
             pass
-        elif gate == "Approval Required" and not args.dry_run:
-            # Defer this mutation until the complete manifest has validated.
-            # Invalid plans must leave the approval gate untouched.
-            pass
         elif gate == "Approval Required":
-            raise PdlcError(f"Technical Plan is at {gate}; return it to Stale with pdlc post invalidate before re-planning it")
+            # Defer this mutation until the complete manifest has validated.
+            # Invalid plans must leave the approval gate untouched. A dry run
+            # never reaches the mutation at all, so it is safe to preview here.
+            pass
         elif gate in ("Review Required", "Changes Required"):
             raise PdlcError(f"Technical Plan is at {gate}, which no path in this flow produces for it; report it rather than landing over it")
         else:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, "Technical Plan"):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
-        state = state_for_item(record, pipeline)
-        if gate == "Approval Required" and not args.dry_run:
-            try:
-                state = pipeline.next_state(state, Event.REAUTHORED)
-            except ValueError as error:
-                raise PdlcError(str(error)) from None
-        try:
-            target = pipeline.next_state(state, Event.PUBLISHED)
-        except ValueError as error:
-            raise PdlcError(str(error)) from None
-
         tree = task_tree(args.work_item)
         if not tree:
             raise PdlcError("no delivery tasks: the Tasks stage produced nothing to plan against")
@@ -199,26 +260,26 @@ def main(argv: list[str] | None = None) -> int:
 
         plan = build_plan(tree, replacements)
 
+        if args.dry_run:
+            sys.stdout.write(_render_dry_run(gate, plan, len(attachment_inputs)))
+            return 1 if plan["errors"] else 0
+
         if plan["errors"]:
             print("pdlc: the plan does not fit the task tree it plans against:", file=sys.stderr)
             for error in plan["errors"]:
                 print(f"  - {error}", file=sys.stderr)
             return 1
 
-        if args.dry_run:
-            print(json.dumps({
-                "dryRun": True,
-                "stage": "Technical Plan",
-                "targeted": plan["targeted"],
-                "alreadyPlanned": plan["alreadyPlanned"],
-                "attachmentCount": len(attachment_inputs),
-            }))
-            return 0
-
         assert evidence_body is not None
 
         if gate == "Approval Required":
             reauthor_invalidate_stage(record, "Technical Plan", pipeline)
+
+        state = state_for_item(record, pipeline)
+        try:
+            target = pipeline.next_state(state, Event.PUBLISHED)
+        except ValueError as error:
+            raise PdlcError(str(error)) from None
 
         attachments = save_attachments(args.work_item, attachment_inputs)
         results = []
