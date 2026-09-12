@@ -296,10 +296,12 @@ def edit_comment(comment_url: str, body: str) -> str:
         raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
     owner, repository = owner_repository()
     with body_file(body) as body_path:
+        # `-f` (`--raw-field`) takes `@path` as a literal string; only `-F`
+        # (`--field`) reads the file it names.
         run_gh([
             "api", "--method", "PATCH",
             f"repos/{owner}/{repository}/issues/comments/{match.group(1)}",
-            "-f", f"body=@{body_path}",
+            "-F", f"body=@{body_path}",
         ])
     return comment_url
 

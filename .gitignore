@@ -6,3 +6,4 @@ build/
 *.egg-info/
 .coverage
 .pdlc/
+tests/live/live_config.toml

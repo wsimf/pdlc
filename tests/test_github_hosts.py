@@ -368,6 +368,8 @@ class SubIssueReadTest(GitHubHostTest):
         )
         self.assertIn("repos/wsimf/pdlc/issues/comments/1", args)
         self.assertIn("PATCH", args)
+        # `-f` takes `@path` as a literal string; only `-F` reads the file.
+        self.assertIn("-F", args)
 
     def test_edit_comment_rejects_an_unparseable_url(self) -> None:
         with self.assertRaisesRegex(PdlcError, "cannot parse a GitHub comment id"):
