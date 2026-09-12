@@ -23,7 +23,7 @@ was still in flight. This script then reconciles it immediately against the live
 check state (advancing to `Approval Required` if CI is already green, dropping to
 `Changes Required` with a PDLC-IMPLEMENTATION note if already red) and otherwise
 leaves it at `CI Pending` for pdlc post ci / the loop to resolve when CI
-finishes. Every other stage lands `Approval Required` as before — except a
+finishes. Every other stage lands `Approval Required` — except a
 clean Testing review on a record that has already been reworked within the churn
 cap, which skips the human approval step (PDLC-AUTOAPPROVED) and lands on
 Verification / Pending. See internal/churn_gate.py.
