@@ -32,11 +32,12 @@ TASK_SCOPED_STAGES = ("Technical Plan", "Implementation")
 
 
 def reauthor_invalidate_stage(record: dict, stage: str, pipeline: Pipeline) -> None:
-    """Silently return a pre-publication stage from Approval Required to Stale so
-    its owning skill can re-land a reviewed artifact in the same call.
+    """Silently return a pre-publication stage from Review Required or Approval
+    Required to Stale so its owning skill can re-land a reviewed artifact in the
+    same call.
 
-    Used only by pdlc post write / pdlc post tasks / pdlc post plan when
-    the driver asks for a change before the stage's approval gate has cleared.
+    Used only by pdlc post write / pdlc post tasks / pdlc post plan when a
+    published artifact is re-landed before the stage's approval gate has cleared.
     No comment is posted: the re-land's own `PDLC-PRODUCT` / `PDLC-TASKS` /
     `PDLC-PLAN` evidence records the change, and the stage never settled at
     `Approved`, so there is nothing to invalidate — only a gate reset. Nothing

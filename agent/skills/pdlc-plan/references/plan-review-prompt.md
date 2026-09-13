@@ -1,6 +1,6 @@
 # Plan-reviewer dispatch prompt
 
-`pdlc-plan` Step 6 fills the placeholders below and spawns `pdlc-plan-reviewer`
+`pdlc-plan` Review fills the placeholders below and spawns `pdlc-plan-reviewer`
 with the result, before any plan is landed. Read-only: it returns findings and a
 verdict, and changes nothing.
 

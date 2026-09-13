@@ -50,6 +50,7 @@ from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.workitem import (
@@ -146,6 +147,8 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     gate = item_gate(parent)
     if status == pipeline.terminal_stage:
         raise PdlcError("the parent work item is Complete and locked")
+    if gate == "Decision Required":
+        raise PdlcError(decision_required_message(status))
     if status != "Implementation" or due_next(parent).get("action") != "pdlc-implement":
         raise PdlcError(f"implementation is not active: parent is at {status} / {gate}")
     if not task.get("hasPlan"):

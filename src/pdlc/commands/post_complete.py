@@ -34,7 +34,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.domain.completion import completion_blockers
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import resolve_text, print_help, wants_help
-from pdlc.domain.workflow import Event
+from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.vcs import stale_verification_rows
 from pdlc.internal.workitem import (
     comments_for_issue,
@@ -70,6 +70,8 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
 
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)
+    if item_gate(record) == "Decision Required":
+        raise PdlcError(decision_required_message(item_status(record)))
     body = record.get("issueBody") or ""
     comments = comments_for_issue(issue)
 

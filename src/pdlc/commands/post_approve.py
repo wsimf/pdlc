@@ -29,7 +29,7 @@ import sys
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
-from pdlc.domain.workflow import Event
+from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.workitem import (
     current_actor,
     is_stage_skipped,
@@ -47,6 +47,8 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     pipeline, state = workflow_for_item(record)
     stage = item_status(record)
 
+    if item_gate(record) == "Decision Required":
+        raise PdlcError(decision_required_message(stage))
     if item_gate(record) != "Approval Required":
         raise PdlcError("approval requires Gate State = Approval Required")
     if is_stage_skipped(record, stage):

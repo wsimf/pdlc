@@ -7,6 +7,8 @@ import unittest
 from pdlc.commands.post_write import product_fragments
 from pdlc.domain.completion import completion_blockers
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, Lifecycle, State
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
@@ -95,6 +97,28 @@ class RoutingTableTests(unittest.TestCase):
         due = due_next({"Status": "Implementation", "Gate State": "Decision Required", "Skipped States": ""})
         self.assertEqual(due["action"], "human-decision")
         self.assertFalse(due["autonomous"])
+
+    def test_only_resolution_or_invalidation_leaves_decision_required(self):
+        state = State("Technical Plan", Gate.DECISION_REQUIRED, Lifecycle.PLANNING)
+        for event in (Event.PUBLISHED, Event.REAUTHORED, Event.APPROVED, Event.SKIPPED):
+            with self.subTest(event=event):
+                with self.assertRaisesRegex(ValueError, "pdlc guide decisions"):
+                    FEATURE_PIPELINE.next_state(state, event)
+        resolved = FEATURE_PIPELINE.next_state(state, Event.DECISION_RESOLVED)
+        self.assertEqual(resolved.gate, Gate.CHANGES_REQUIRED)
+        invalidated = FEATURE_PIPELINE.next_state(state, Event.INVALIDATED, requested_target="Tasks")
+        self.assertEqual((invalidated.stage, invalidated.gate), ("Tasks", Gate.STALE))
+
+    def test_reauthor_stages_re_land_from_review_required(self):
+        for stage in ("Product", "UI", "Tasks", "Technical Plan"):
+            with self.subTest(stage=stage):
+                state = State(stage, Gate.REVIEW_REQUIRED, Lifecycle.PLANNING)
+                reset = FEATURE_PIPELINE.next_state(state, Event.REAUTHORED)
+                self.assertEqual(reset.gate, Gate.STALE)
+        with self.assertRaises(ValueError):
+            FEATURE_PIPELINE.next_state(
+                State("Implementation", Gate.REVIEW_REQUIRED, Lifecycle.PLANNING), Event.REAUTHORED,
+            )
 
     def test_ci_pending_is_autonomous(self):
         due = due_next({"Status": "Implementation", "Gate State": "CI Pending", "Skipped States": ""})

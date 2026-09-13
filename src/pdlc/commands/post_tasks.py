@@ -25,14 +25,17 @@ DESCRIPTION
 
 UI and Tasks are reviewed before they are published — pdlc-tasks runs that
 review on the local files, so what lands is already reviewed and
-needs only the driver's approval. Neither stage ever enters Review Required,
-and since pdlc post review is the only thing that sets Changes Required, neither
-reaches that either: their gate set is Pending, Stale, Approval Required,
-Approved. A landed artifact is reworked by returning it to Stale with
-pdlc post invalidate. A record still at `<stage> / Approval Required` is
-re-authored in place: a non-dry-run call resets the stage to Stale itself (no
-comment — the artifact never settled at Approved, and the re-land's own evidence
-records the change) and re-lands the reviewed artifact.
+needs only the driver's approval. The stage lands from Pending, Stale, or
+Changes Required (where a resolved decision parks it). A record at
+`<stage> / Review Required` (published without its local review) or
+`<stage> / Approval Required` (a driver change request) is re-authored in
+place: a non-dry-run call resets the stage to Stale itself (no comment — the
+artifact never settled at Approved, and the re-land's own evidence records the
+change) and re-lands the reviewed artifact. A dry run at Approval Required is
+refused; return the stage to Stale with pdlc post invalidate first. Decision
+Required is refused with a pointer to `pdlc guide decisions`; any other gate
+is refused. An approved artifact is reworked by returning it to Stale with
+pdlc post invalidate.
 
 Everything is validated before anything is written, so a manifest with a
 typo'd requirement or a dependency cycle fails without having touched the
@@ -89,7 +92,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
-from pdlc.domain.workflow import Event, Pipeline, State
+from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
 from pdlc.domain.task_plan import build_plan, declared_identifiers, resolve_task_ids, tagged_title
 FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
@@ -298,16 +301,20 @@ def main(argv: list[str] | None = None) -> int:
 
         if current_stage != args.stage:
             raise PdlcError(f"cannot land {args.stage}: the record is at {current_stage}")
-        if gate in ("Pending", "Stale"):
+        # Changes Required lands exactly like Stale: a resolved decision parks
+        # the stage there, and the re-authored artifact publishes from it.
+        if gate in ("Pending", "Stale", "Changes Required"):
             pass
-        elif gate == "Approval Required" and not args.dry_run:
+        elif gate in ("Review Required", "Approval Required") and not args.dry_run:
             # Defer this mutation until the complete artifact has validated.
-            # Invalid manifests must leave the approval gate untouched.
+            # Invalid manifests must leave the published gate untouched.
+            pass
+        elif gate == "Review Required":
             pass
         elif gate == "Approval Required":
             raise PdlcError(f"{args.stage} is at {gate}; return it to Stale with pdlc post invalidate before re-authoring it")
-        elif gate in ("Review Required", "Changes Required"):
-            raise PdlcError(f"{args.stage} is at {gate}, which no path in this flow produces for {args.stage}; report it rather than landing over it")
+        elif gate == "Decision Required":
+            raise PdlcError(decision_required_message(args.stage))
         else:
             raise PdlcError(f"cannot land {args.stage} from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, args.stage):
@@ -315,7 +322,8 @@ def main(argv: list[str] | None = None) -> int:
         state = state_for_item(record, pipeline)
         # Reauthoring is validated against the existing record first, but its
         # publication transition is the same as publishing from Stale.
-        if gate == "Approval Required" and not args.dry_run:
+        reauthor = gate in ("Review Required", "Approval Required")
+        if reauthor:
             state = pipeline.next_state(state, Event.REAUTHORED)
         try:
             target = pipeline.next_state(state, Event.PUBLISHED)
@@ -325,10 +333,10 @@ def main(argv: list[str] | None = None) -> int:
         parent_body = record.get("issueBody") or ""
 
         if args.stage == "UI":
-            context = PublicationContext(record, pipeline, gate == "Approval Required")
+            context = PublicationContext(record, pipeline, reauthor and not args.dry_run)
             land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, target, context)
         else:
-            context = PublicationContext(record, pipeline, gate == "Approval Required")
+            context = PublicationContext(record, pipeline, reauthor and not args.dry_run)
             land_tasks(args.work_item, item, manifest_path, evidence_body, args.dry_run, parent_body, attachment_inputs, target, context)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

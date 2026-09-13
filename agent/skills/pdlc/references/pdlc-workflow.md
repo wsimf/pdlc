@@ -116,18 +116,19 @@ flowchart TD
 
 Every `Status` stage carries the same `Gate State` shape, transitioned by a
 fixed script and actor. Most stages depart from it. `Product`, `UI`, `Tasks`,
-and `Technical Plan` are reviewed **before** publication, so they land straight
-at `Approval Required` and never hold `Review Required` — and because
-`pdlc post review` is the only thing that sets `Changes Required`, they never
-hold that either. Their gate set is `Pending`, `Stale`, `Approval Required`,
-`Approved`, and a landed artifact is reworked by returning it to `Stale`.
-When the driver asks for a change while one of these stages is still at
-`Approval Required`, its own land script (`pdlc post write` /
-`pdlc post tasks` / `pdlc post plan`) resets the gate to `Stale` itself
-and re-lands the reviewed artifact in the same call. No `PDLC-INVALIDATED`
-comment: the artifact never settled at `Approved`, so there is nothing to
-invalidate, and the re-land's own stage evidence records the change. Nothing
-about it feeds the rework/churn count.
+and `Technical Plan` are reviewed **before** publication, so their land script
+(`pdlc post write` / `pdlc post tasks` / `pdlc post plan`) publishes straight
+to `Approval Required`. It lands from `Pending`, `Stale`, and
+`Changes Required` (where a resolved decision parks the stage). From
+`Review Required` (an artifact published without its local review, e.g.
+edited outside PDLC) or `Approval Required` (a driver change request), it
+resets the gate to `Stale` itself and re-lands the reviewed artifact in the
+same call. No `PDLC-INVALIDATED` comment: the artifact never settled at
+`Approved`, so there is nothing to invalidate, and the re-land's own stage
+evidence records the change. Nothing about it feeds the rework/churn count.
+A landed, approved artifact is reworked by returning it to `Stale`. At
+`Decision Required` every `pdlc post` command except `pdlc post decision` and
+`pdlc post invalidate` refuses and points at `pdlc guide decisions`.
 `Testing` keeps the full post-publication review shape; `Implementation` stays
 `Pending` across multiple task loops before its first `Review Required`;
 `Verification` skips `Review Required` entirely.
@@ -161,10 +162,11 @@ stateDiagram-v2
         P_Pending --> P_Approval : pdlc post write — pdlc-write (human)
         P_Changes --> P_Approval : pdlc post write — pdlc-write (human)
         P_Stale --> P_Approval : pdlc post write — pdlc-write (human)
+        P_Review --> P_Approval : pdlc post write — re-land after reviewing (gate reset to Stale first, no comment)
         P_Approval --> P_Approval : pdlc post write — driver change request (gate reset to Stale first, no comment)
     }
     note left of Product
-        Product has no Review Required state: pdlc-write
+        Product is reviewed before publication: pdlc-write
         drafts and has the specification reviewed locally
         before anything is written to the work item store.
     end note
@@ -174,10 +176,12 @@ stateDiagram-v2
         [*] --> U_Pending
         U_Pending --> U_Approval : pdlc post tasks — pdlc-tasks
         U_Stale --> U_Approval : pdlc post tasks — pdlc-tasks
+        U_Changes --> U_Approval : pdlc post tasks — pdlc-tasks, after a resolved decision
+        U_Review --> U_Approval : pdlc post tasks — re-land after reviewing (gate reset to Stale first, no comment)
         U_Approval --> U_Approval : pdlc post tasks — driver change request (gate reset to Stale first, no comment)
     }
     note left of UI
-        UI and Tasks have no Review Required state: pdlc-tasks
+        UI and Tasks are reviewed before publication: pdlc-tasks
         has pdlc-tasks-reviewer review the manifest and files
         before pdlc post tasks writes anything to the work item store.
     end note
@@ -187,6 +191,8 @@ stateDiagram-v2
         [*] --> T_Pending
         T_Pending --> T_Approval : pdlc post tasks — pdlc-tasks
         T_Stale --> T_Approval : pdlc post tasks — pdlc-tasks
+        T_Changes --> T_Approval : pdlc post tasks — pdlc-tasks, after a resolved decision
+        T_Review --> T_Approval : pdlc post tasks — re-land after reviewing (gate reset to Stale first, no comment)
         T_Approval --> T_Approval : pdlc post tasks — driver change request (gate reset to Stale first, no comment)
     }
     Tasks --> TechnicalPlan : pdlc post approve — human
@@ -195,10 +201,12 @@ stateDiagram-v2
         [*] --> TP_Pending
         TP_Pending --> TP_Approval : pdlc post plan — pdlc-plan
         TP_Stale --> TP_Approval : pdlc post plan — pdlc-plan
+        TP_Changes --> TP_Approval : pdlc post plan — pdlc-plan, after a resolved decision
+        TP_Review --> TP_Approval : pdlc post plan — re-land after reviewing (gate reset to Stale first, no comment)
         TP_Approval --> TP_Approval : pdlc post plan — driver change request (gate reset to Stale first, no comment)
     }
     note left of TechnicalPlan
-        Technical Plan has no Review Required state:
+        Technical Plan is reviewed before publication:
         pdlc-plan has pdlc-plan-reviewer review the rebuilt
         task bodies before pdlc post plan writes any of them.
     end note

@@ -205,6 +205,20 @@ class InvalidationPolicy:
 
 
 _WORK_GATES = (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE)
+# A stage that re-authors in place may re-land from either gate a published
+# artifact waits at: review (published without its local review) or approval.
+_REAUTHOR_GATES = (Gate.REVIEW_REQUIRED, Gate.APPROVAL_REQUIRED)
+# Only the driver's resolution or an invalidation may leave Decision Required.
+_DECISION_EXITS = (Event.DECISION_RESOLVED, Event.INVALIDATED)
+
+
+def decision_required_message(stage: str) -> str:
+    """The refusal every command gives for work attempted at Decision Required."""
+    return (
+        f"{stage} is at Decision Required: the driver must resolve the recorded "
+        "decision before this work can continue. Read `pdlc guide decisions` "
+        "for how to resolve it."
+    )
 
 
 @dataclass(frozen=True)
@@ -489,6 +503,8 @@ class Pipeline:
         if outcome is not None and not isinstance(outcome, Outcome):
             raise TypeError("next_state outcome must be an Outcome")
         stage = self._require_source(state, event)
+        if state.gate == Gate.DECISION_REQUIRED and event not in _DECISION_EXITS:
+            raise ValueError(decision_required_message(state.stage))
         self._validate_event_outcome(event, outcome)
         overridden = self._override(state, event, outcome, requested_target)
         if overridden is not None:
@@ -548,7 +564,7 @@ class Pipeline:
             target = self._next_name(stage.name)
             return State(target, Gate.PENDING, self._lifecycle_for(target))
         if event == Event.REAUTHORED:
-            if state.gate != Gate.APPROVAL_REQUIRED or not stage.reauthor_in_place:
+            if state.gate not in _REAUTHOR_GATES or not stage.reauthor_in_place:
                 raise ValueError(f"reauthor is not allowed from {state.stage} / {state.gate.value}")
             return State(stage.name, Gate.STALE, state.lifecycle)
         if event == Event.DECISION_RESOLVED:

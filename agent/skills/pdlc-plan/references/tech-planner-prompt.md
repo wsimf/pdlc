@@ -1,7 +1,7 @@
 # Technical-planner dispatch prompt
 
-`pdlc-plan` Step 4 fills the placeholders below and spawns `pdlc-tech-planner`
-once with the result. This is also the dispatch you return to in Step 6 with
+`pdlc-plan` Author fills the placeholders below and spawns `pdlc-tech-planner`
+once with the result. This is also the dispatch you return to in Review with
 reviewer findings — keep it addressable.
 
 ---
@@ -33,6 +33,10 @@ Return the plans and manifest to the calling `pdlc-plan` skill.
   criteria>
   Existing plan (reconciliation only): `<prior `## Technical Plan` text, or
   "none">`
+
+## Recorded evidence
+
+`<for Stale or Changes Required: the # Due Next evidence verbatim, or "none">`
 
 ## Driver follow-up
 

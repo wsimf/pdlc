@@ -247,10 +247,12 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertIn("implementation is not active", result.stderr)
 
     def test_blocking_gates_are_rejected_before_stack_submission(self):
-        for gate in ("Review Required", "Approval Required", "Decision Required", "CI Pending"):
+        for gate in ("Review Required", "Approval Required", "CI Pending"):
             with self.subTest(gate=gate):
                 result = self._assert_rejected_before_stack(gate=gate)
                 self.assertIn("implementation is not active", result.stderr)
+        result = self._assert_rejected_before_stack(gate="Decision Required")
+        self.assertIn("pdlc guide decisions", result.stderr)
 
     def test_skipped_implementation_is_rejected_before_stack_submission(self):
         result = self._assert_rejected_before_stack(skipped="Implementation")
