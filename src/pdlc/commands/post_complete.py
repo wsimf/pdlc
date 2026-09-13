@@ -5,16 +5,22 @@
 USAGE
     pdlc post complete WORK_ITEM EVIDENCE_FILE|- [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --attachment PATH (repeatable)      attach a local file's contents to the completion evidence
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
-    Final transition: only from Verification / Approval Required, only on
-    explicit human instruction, and only once `completion_blockers` is empty —
-    the same policy pdlc inspect complete reports. This is the one call that
-    closes a record: it validates the structured completion evidence, posts it,
-    locks Status/Gate/Lifecycle to Complete/Approved/Completed, and blanks the
-    now-settled `## Open Questions` section (its real disposition lives in the
-    evidence). It never otherwise edits the parent body. Only the orchestrator
-    may call this — gh identity cannot distinguish a human from an agent acting
-    on their behalf, so this is a procedural boundary, not an authentication check.
+    Locks a verified record to Complete: validates the structured completion
+    evidence, posts it, locks Status/Gate/Lifecycle to
+    Complete/Approved/Completed, and blanks the now-settled `## Open
+    Questions` section (its real disposition lives in the evidence). It
+    never otherwise edits the parent body.
+
+    This is a final transition: only from Verification / Approval Required,
+    only on explicit human instruction, and only once completion blockers
+    are empty. Only the orchestrator may call this — this is a procedural
+    boundary, not an authentication check, since identity cannot
+    distinguish a human from an agent acting on their behalf.
 """
 
 from __future__ import annotations

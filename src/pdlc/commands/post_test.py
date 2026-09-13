@@ -5,12 +5,15 @@
 USAGE
     pdlc post test WORK_ITEM EVIDENCE_FILE|- --traceability FILE|- [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --traceability FILE|-               required; the requirement-to-source traceability map
+    --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
-    Resolves the current branch's PR — the top task PR in the stack — since the
-    coverage is committed on that same branch and rides that PR, registers it on the record, persists the
-    requirement-to-source traceability map verbatim into the evidence under a
-    `## Traceability` heading so the independent reviewer audits the exact
-    artifact the stage produced, and sets `Review Required` — all in one step.
+    Resolves the current branch's top task PR, registers it on the record,
+    persists the requirement-to-source traceability map verbatim into the
+    evidence under a `## Traceability` heading, and sets `Review Required`.
 """
 
 from __future__ import annotations

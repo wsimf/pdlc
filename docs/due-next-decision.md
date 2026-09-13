@@ -10,7 +10,7 @@ See `stage-ownership.md` for the underlying status/action/owner matrix; this fil
 - **Approval Required**: `→ human — pdlc post approve` (or `pdlc post complete` at the Verification completion boundary), plus a reauthor-in-place note for the stages where it applies (Product, UI, Tasks, Technical Plan).
 - **Approved, stray CI Pending on a non-CI-gated stage, and Verification's stray Review Required (all heal the same lightweight way)**: a short reason line, then `Call \`pdlc next {ITEM_ID}\` to continue this work item.`
 - **Decision Required (Product, UI, Tasks, Technical Plan, Verification)**: `Due next: Stage.DecisionRequired → This work item is pending user decision.` plus an `### Evidence` section inlining the newest PDLC-DECISION comment, or the "unable to parse" fallback prose when none is found — same evidence-lookup shape as Changes Required/Stale.
-- **Implementation/Testing/Verification CI Pending (genuinely CI-gated, not healed)**: `→ pdlc post ci — record...` plus the read-only resolve-ci.md orientation line.
+- **Implementation/Testing/Verification CI Pending (genuinely CI-gated, not healed)**: `→ pdlc post ci — record...` plus the read-only `pdlc guide resolve-ci` orientation line.
 - **Review Required (Implementation, Testing only)**: `→ pdlc-review`. Verification has no persisted review policy, so its Review Required is a heal instead (see above).
 - **Complete (every gate)**: a single fixed message, `This work item has been completed.`, regardless of which gate the record carries.
 

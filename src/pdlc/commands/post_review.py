@@ -5,6 +5,10 @@
 USAGE
     pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --attachment PATH (repeatable)      attach a local file's contents to the review comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
     Records an independent reviewer's read-only verdict as PDLC-REVIEW with
     script-owned YAML-shaped metadata followed by Findings.

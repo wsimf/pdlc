@@ -8,13 +8,13 @@ argument-hint: "Parent work item number to review"
 
 This skill does not review anything itself. It reads one PDLC record's active stage, dispatches that stage's specialized reviewer agent with the depth and scope spelled out, and records the outcome it recommends. Each reviewer agent owns its own stage's entire review procedure, is strictly read-only, never detects its own scope, and never changes work item state.
 
-Read `../pdlc/references/parity-contract.md` before dispatching. This skill records `Changes Required` or `Approval Required`; it never sets `Approved`, which requires an explicit human instruction and belongs to the driver.
+Read `pdlc guide contract` before dispatching. This skill records `Changes Required` or `Approval Required`; it never sets `Approved`, which requires an explicit human instruction and belongs to the driver.
 
 When a reviewer produces local files, or the driver supplied local files in
 this prompt, pass each one to `pdlc post review` as
 `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH`
 for multiple files; a description applies only to the immediately preceding
-file. See [PDLC attachments](../pdlc/references/attachments.md).
+file. See `pdlc guide attachments`.
 
 ## Required input
 
@@ -69,9 +69,9 @@ The reviewer returns exactly one of three verdicts — pass the matching outcome
 
 `decision-required` is for a finding the owning skill cannot mechanically reconcile — it needs a product, architecture, UX, or scope call from the driver. The reviewer's report must carry a `## Decision Required` section (the question, the options, its recommendation, what it blocks, why it is not mechanical); `pdlc post review` refuses the outcome without one. It posts the report through the backend's blocker channel under a `PDLC-DECISION` marker, sets `Gate State = Decision Required`, and the autonomous loop stops on it immediately — no reconciliation passes are attempted. Do not downgrade a `Decision Required` verdict to `changes-required` to keep the loop moving.
 
-The script posts the evidence and sets the gate in one step. It stamps `PDLC-REVIEW` plus a delimited metadata block containing the active `stage`, normalized `verdict`, and nullable `bounce` / `loop`, then places the supplied body under `## Findings`; supply body only, without a marker. Use a file path in place of `-` for long findings.
+The script posts the evidence and sets the gate in one step. It stamps `PDLC-REVIEW` plus a delimited metadata block containing the active `stage`, normalized `verdict`, and nullable `bounce` / `loop`, then places the supplied body under `## Findings`; supply body only, without a marker.
 
-**Implementation only:** a clean `approval-required` verdict lands `CI Pending`, not `Approval Required` — the reviewer judged the code without waiting on the registered PR stack's CI. `pdlc post review` then reconciles it in the same call against the live checks (advancing to `Approval Required` if CI is already green, dropping to `Changes Required` with a `PDLC-REVIEW` note naming the failed checks if already red), and otherwise leaves it at `CI Pending` for `pdlc post ci` / the loop to resolve when CI finishes. Follow `pdlc post ci`'s Markdown instruction after reconciliation: inspect the work item after a pass or failure, or retry the command later while CI is pending. Testing lands `Approval Required` straight from review — unless the record has 1–3 recorded Verification bounces in its named rework loop, in which case the script skips the human step (`gateState` like `Verification / Pending`, `autoApproved: true`, a `PDLC-AUTOAPPROVED` comment) per `../pdlc/references/parity-contract.md`.
+**Implementation only:** a clean `approval-required` verdict lands `CI Pending`, not `Approval Required` — the reviewer judged the code without waiting on the registered PR stack's CI. `pdlc post review` then reconciles it in the same call against the live checks (advancing to `Approval Required` if CI is already green, dropping to `Changes Required` with a `PDLC-REVIEW` note naming the failed checks if already red), and otherwise leaves it at `CI Pending` for `pdlc post ci` / the loop to resolve when CI finishes. Follow `pdlc post ci`'s Markdown instruction after reconciliation: inspect the work item after a pass or failure, or retry the command later while CI is pending. Testing lands `Approval Required` straight from review — unless the record has 1–3 recorded Verification bounces in its named rework loop, in which case the script skips the human step (`gateState` like `Verification / Pending`, `autoApproved: true`, a `PDLC-AUTOAPPROVED` comment) per `pdlc guide contract`.
 
 If recording fails, keep the reviewer's report and surface the exact failure rather than losing its outcome.
 
@@ -83,7 +83,7 @@ Record only the reviewer's durable outcome: actionable findings with their evide
 - **`Decision Required`** — stop. Tell the driver the record is parked at `Decision Required`, point them at the `PDLC-DECISION` comment, and relay the `## Decision Required` block. Name no reconciliation owner. When the driver is ready to resolve it, run `pdlc guide decisions` (`pdlc post decision` lands a manifest of per-decision outcomes — answered or deferred into their own work item) — nothing proceeds until then.
 - **`Approval Required`** — tell the driver it awaits their explicit approval before the record can advance.
 - **auto-approved** (`autoApproved: true`, `gateState` already the next stage's `Pending`) — a Testing review on a record with 1–3 recorded Verification bounces in its named rework loop; report that the human step was skipped and the loop continues.
-- **`CI Pending`** (Implementation, CI not yet settled) — stop. Tell the driver the implementation review passed and the record advances on its own once the registered PR stack's CI finishes: green → `Approval Required` (awaiting their approval), red → `Changes Required` (back to `pdlc-implement`). The loop handles this; `references/resolve-ci.md` covers a manual continue.
+- **`CI Pending`** (Implementation, CI not yet settled) — stop. Tell the driver the implementation review passed and the record advances on its own once the registered PR stack's CI finishes: green → `Approval Required` (awaiting their approval), red → `Changes Required` (back to `pdlc-implement`). The loop handles this; `pdlc guide resolve-ci` covers a manual continue.
 
 Re-run at the **same scope** after reconciliation — the same depth, for an Implementation review. If a `Changes Required` finding survives two reconciliations, stop and put it to the driver as a decision rather than looping a third time.
 

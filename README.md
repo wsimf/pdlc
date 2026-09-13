@@ -334,4 +334,4 @@ Every slot is optional; omit both tables and the workflow still runs with the fa
 | `test-authoring` | skill | `pdlc-test-writer` | agent follows the existing test suite's conventions |
 | `test-framework` | skill | `pdlc-test-writer` (reference only) | omitted |
 
-Inspect the current wiring with `pdlc inspect capability` (every slot) or `pdlc inspect capability <slot>` (one paste-ready line). Full contract: `agent/skills/pdlc/references/capabilities.md`.
+Inspect the current wiring with `pdlc inspect capability` (every slot) or `pdlc inspect capability <slot>` (one paste-ready line). Full contract: `pdlc guide capabilities`.

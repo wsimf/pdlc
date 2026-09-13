@@ -10,9 +10,9 @@ argument-hint: "Parent work item number to implement"
 
 This skill writes no code and reviews none of its own work — it dispatches both and records the outcome. It never sets a gate to `Approved`, never authors acceptance tests, and never continues into Testing; those belong to `pdlc-review` and `pdlc-test`. The sub-agents it dispatches to know nothing about the PDLC pipeline, so every brief it builds must stand on its own.
 
-If the lifecycle rules are not already clear to you, read `../pdlc/references/parity-contract.md` before dispatching.
+If the lifecycle rules are not already clear to you, read `pdlc guide contract` before dispatching.
 
-When implementation or validation produces local files, or the driver supplied local files in this prompt, pass each one to the relevant `pdlc post implement-*` command as `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH` for multiple files; a description applies only to the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
+When implementation or validation produces local files, or the driver supplied local files in this prompt, pass each one to the relevant `pdlc post implement-*` command as `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH` for multiple files; a description applies only to the immediately preceding file. See `pdlc guide attachments`.
 
 ---
 

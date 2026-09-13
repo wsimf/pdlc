@@ -5,6 +5,10 @@
 USAGE
     pdlc post implement WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
     Register the top task pull request for the current branch, then complete the
     Implementation stage.

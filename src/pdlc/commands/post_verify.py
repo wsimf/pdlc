@@ -8,11 +8,13 @@ USAGE
         [--decision DECISION_FILE|-] [--bounce STAGE]
 
 FLAGS
-    --recommendation TEXT    "Approval Required" | "Changes Required" | "Decision Required"
-    --fixed FIXED_FILE|-     one "description | commit" pair per line
-    --deferred DEFERRED_FILE|-  one plain reason per line
-    --decision DECISION_FILE|-  required with a Decision Required recommendation
-    --bounce STAGE           with Changes Required, return an upstream stage to Stale instead
+    --recommendation TEXT                 required; "Approval Required" | "Changes Required" | "Decision Required"
+    --fixed FIXED_FILE|-                  one "description | commit" pair per line
+    --deferred DEFERRED_FILE|-            one plain reason per line
+    --decision DECISION_FILE|-            required with a Decision Required recommendation
+    --bounce STAGE                        with Changes Required, return an upstream stage to Stale instead
+    --attachment PATH (repeatable)        attach a local file's contents to the verification comment
+    --attachment-description TEXT         description for the --attachment immediately before it
 
 DESCRIPTION
     Posts a durable "Verification Run Results" comment on a PDLC parent work item,

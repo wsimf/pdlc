@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 This skill decides nothing about the work itself. It asks the controller what is next, hands the returned instruction to the specialist skill named in it, and repeats until a human is required. Routing lives in the controller; the work lives in the specialists — you are the orchestrator.
 
-Read `references/loop-contract.md` for the retry contract, and `../pdlc/references/parity-contract.md` before dispatching.
+Read `references/loop-contract.md` for the retry contract, and `pdlc guide contract` before dispatching.
 
 ## Required input
 

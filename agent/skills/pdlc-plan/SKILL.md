@@ -10,7 +10,7 @@ This skill confirms one PDLC record is due for planning, dispatches `pdlc-tech-p
 
 Review happens before publication, on the local task bodies — publishing rewrites every planned task in place, so a review afterwards would rewrite them all again on every finding.
 
-Read `../pdlc/references/parity-contract.md` before dispatching.
+Read `pdlc guide contract` before dispatching.
 
 ## Required input
 

@@ -8,13 +8,13 @@ argument-hint: "Parent work item number to test"
 
 This skill does not write or run tests itself. It reads one PDLC record's **whole** implemented scope and verifies acceptance coverage across the feature as a unit — every in-scope requirement and user journey, end to end. Per-task unit coverage is already committed by `pdlc-implement` on each task's branch as that task lands; this stage is the feature-level acceptance pass on top of the completed task PR stack, not a re-run of per-task testing. It works out from task Results and touched source exactly which requirements and seams still need acceptance coverage, dispatches `pdlc-test-writer` once with a self-contained brief, and publishes the stage at `Review Required`. The test writer commits its coverage on the current branch — the top task branch in the stack — so the top task PR carries the acceptance suite.
 
-Read `../pdlc/references/parity-contract.md` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
+Read `pdlc guide contract` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
 
 When testing produces local files such as screenshots — including any the
 driver supplied in this prompt — pass each one to `pdlc post test` as
 `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
+the immediately preceding file. See `pdlc guide attachments`.
 
 ## Required input
 

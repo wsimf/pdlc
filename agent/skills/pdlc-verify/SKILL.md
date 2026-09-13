@@ -10,13 +10,13 @@ Prove the Work Item is done rather than assuming it: audit claims against real s
 
 This skill may touch production source or tests when resolving an approved finding. `pdlc-complete`, which runs after this reports clean, does not.
 
-Read `../pdlc/references/parity-contract.md` before starting.
+Read `pdlc guide contract` before starting.
 
 When verification produces local files, or the driver supplied local files
 in this prompt, pass each one to `pdlc post verify` as
 `--attachment PATH [--attachment-description TEXT]`. Repeat
 `--attachment PATH` for multiple files; a description applies only to the
-immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
+immediately preceding file. See `pdlc guide attachments`.
 
 ## Required input
 

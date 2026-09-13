@@ -9,12 +9,19 @@ USAGE
         pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --dry-run    validate and print the plan without landing it
+    --work-item N                        required; the work item's number
+    --stage UI|Tasks                     required; which stage this call lands
+    --body FILE                          required with --stage UI; the `## UI` section's content
+    --manifest FILE                      required with --stage Tasks; JSON array of delivery tasks
+    --evidence FILE|-                    required unless --dry-run; the review evidence body
+    --dry-run                            validate and print the plan without landing it
+    --attachment PATH (repeatable)       attach a local file's contents to the evidence comment
+    --attachment-description TEXT        description for the --attachment immediately before it
 
 DESCRIPTION
-    Lands one pdlc-tasks stage in a single call: guards the record's state,
-    validates the artifact against the parent's own requirements, lands it,
-    and publishes the stage at Approval Required.
+    Lands the UI or Tasks stage: validates the artifact against the
+    parent's own requirements, lands it, and publishes the stage at
+    Approval Required.
 
 UI and Tasks are reviewed before they are published — pdlc-tasks runs that
 review on the local files, so what lands is already reviewed and

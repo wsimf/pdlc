@@ -70,7 +70,7 @@ _BOOL_FIELDS = ("no_sleep", "debug")
 # project can point the workflow at its own toolchain without the skills
 # hardcoding any tool name. `agents` slots fall back to `general-purpose`;
 # `skills` slots fall back to the stage doing the work inline (see
-# `agent/skills/pdlc/references/capabilities.md` for the per-slot contract).
+# `pdlc guide capabilities` for the per-slot contract).
 CAPABILITY_SLOTS: dict[str, tuple[str, ...]] = {
     "agents": ("core-implementer", "ui-implementer"),
     "skills": (

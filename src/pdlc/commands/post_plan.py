@@ -6,12 +6,16 @@ USAGE
     pdlc post plan --work-item N --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --dry-run    validate the plan and print a markdown report without landing it
+    --work-item N                        required; the work item's number
+    --manifest FILE                      required; JSON array of per-task technical plans
+    --evidence FILE|-                    required unless --dry-run; the review evidence body
+    --dry-run                            validate the plan and print a markdown report without landing it
+    --attachment PATH (repeatable)       attach a local file's contents to the evidence comment
+    --attachment-description TEXT        description for the --attachment immediately before it
 
 DESCRIPTION
-    Lands the Technical Plan stage in a single call: guards the record's
-    state, records each task's plan on its delivery task, and publishes the stage at
-    Approval Required.
+    Lands the Technical Plan stage: records each task's plan on its
+    delivery task and publishes the stage at Approval Required.
 
 Technical Plan is reviewed before this script publishes it. A task that
 already carries a `## Technical Plan` comment has that comment replaced in

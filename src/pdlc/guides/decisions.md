@@ -10,7 +10,7 @@ Run:
 pdlc inspect <WORK_ITEM>
 ```
 
-Continue only when `Gate State` is `Decision Required` or `# Due Next` routes to `human-decision`. Otherwise report the actual state and stop; this manual does not apply.
+Continue only when `Gate State` is `Decision Required`. Otherwise report the actual state and stop; this manual does not apply.
 
 ## Step 1: Collect every open decision
 
@@ -74,13 +74,20 @@ Build one JSON manifest with one entry per open decision:
 
 ```json
 [
-  { "decision": "<reviewer's question>",
+  {
+    "decision": "<reviewer's question>",
     "answer": "<driver's choice with verbatim intent>",
     "rationale": "<driver's rationale>",
-    "affects": "<task or section that now carries it>" },
-  { "decision": "<reviewer's question>",
-    "defer": { "title": "<short title>", "slug": "<kebab-slug>",
-               "body": "/tmp/pdlc-deferred-<slug>.md" } }
+    "affects": "<task or section that now carries it>"
+  },
+  {
+    "decision": "<reviewer's question>",
+    "defer": {
+      "title": "<short title>",
+      "slug": "<kebab-slug>",
+      "body": "/tmp/pdlc-deferred-<slug>.md"
+    }
+  }
 ]
 ```
 

@@ -5,6 +5,11 @@
 USAGE
     pdlc post decision WORK_ITEM --manifest FILE [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --manifest FILE                     required; JSON array of decision resolutions, see below
+    --attachment PATH (repeatable)      attach a local file's contents to the resolution comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
     Closes out a `Decision Required` gate in one call, once the driver has
     settled every open decision the reviewer raised.

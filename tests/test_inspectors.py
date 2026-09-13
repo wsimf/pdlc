@@ -53,7 +53,7 @@ class InspectTests(FileBackendTest):
     def test_due_next_ci_pending_hint_only_fires_for_a_ci_gated_stage(self):
         self.seed_record(23, "Product", "CI Pending")
         out = self.invoke("inspect", 23, "--full").stdout
-        self.assertNotIn("resolve-ci.md", out)
+        self.assertNotIn("resolve-ci", out)
         self.assertIn("pdlc next", out)
 
     def test_inspect_task_renders_one_task(self):

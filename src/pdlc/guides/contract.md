@@ -136,7 +136,7 @@ The loop stops on any human action, blocked state, controller error, specialist 
 
 Evidence comments are append-only unless a command's contract explicitly replaces one artifact in place.
 Commands stamp markers; agents supply evidence bodies without markers.
-The command resolves an evidence body from a file, `text:<body>`, or stdin and refuses unknown paths, empty content, and bodies that already begin with a `PDLC-*` marker.
+The command resolves an evidence body from a file path or `text:<body>` and refuses unknown paths, empty content, and bodies that already begin with a `PDLC-*` marker.
 Every evidence body should identify its scope, result, relevant links, actor or source, and unresolved risks.
 
 Valid markers are:

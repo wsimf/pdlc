@@ -15,4 +15,4 @@
 
 A stage owner prepares only its own section; the commands re-read the record and update it without overwriting approved upstream work. `UI not required` is still an artifact — it goes through review and human approval like any other.
 
-Every evidence comment opens with a marker identifying its stage, and covers actor, timestamp, scope, work item/PR links, result, and unresolved risk. **The commands stamp the marker** — every evidence file you prepare holds the body only, and one that already carries a marker is refused. The vocabulary lives in `references/pdlc-contract.md`; you never need to type it.
+Every evidence comment opens with a marker identifying its stage, and covers actor, timestamp, scope, work item/PR links, result, and unresolved risk. **The commands stamp the marker** — every evidence file you prepare holds the body only, and one that already carries a marker is refused. The vocabulary lives in `pdlc guide contract`; you never need to type it.
