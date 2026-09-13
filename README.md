@@ -27,7 +27,7 @@ The work-item store is the system of record. Local files are temporary inputs; t
 - **Orient** on any work item: `pdlc inspect <work-item>` returns metadata, the classified task tree, linked-PR check rollup, and the routing decision for what is due next.
 - **Drive** the queue: `pdlc next` routes one item (or scans the whole queue) to the next stage skill; `pdlc next loop` retries with backoff until something is actionable.
 - **Advance** stages with the `pdlc post *` commands — each one performs a single authorized transition and records its evidence.
-- **Inspect** progress read-only with `pdlc inspect timeline`, `pdlc inspect comments --page N`, and per-stage readiness checks (`inspect implement`, `inspect test`, `inspect verify`, `inspect complete`).
+- **Inspect** progress read-only with `pdlc inspect timeline`, `pdlc inspect changes`, `pdlc inspect comments --page N`, and per-stage readiness checks (`inspect implement`, `inspect test`, `inspect verify`, `inspect complete`).
 - **Route seams to your toolchain.** A consuming repo maps each capability slot (implementer, reviewer, test author, …) to its own skill or sub-agent through `.pdlc/config.toml`; unset slots fall back to a general-purpose agent, so the skills name no project-specific tool.
 
 Run `pdlc --help` for the full command list. Run `pdlc guide guide` for the general guide or `pdlc guide decisions` for the decision-resolution workflow.

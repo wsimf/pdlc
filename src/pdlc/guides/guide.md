@@ -24,6 +24,7 @@ Resolve before acting.
 | Orient on one work item | `pdlc inspect <WORK_ITEM>` |
 | Read the complete current specification | `pdlc inspect <WORK_ITEM> --full` |
 | Read stage evidence history | `pdlc inspect timeline <WORK_ITEM>` |
+| List the change requests a stage has not yet addressed | `pdlc inspect changes <WORK_ITEM> [--stage STAGE]` |
 | Read one delivery task | `pdlc inspect task <DELIVERY_TASK>` |
 | Find what is due next | `pdlc next --work-item <WORK_ITEM>` |
 | Resolve a configured specialist | `pdlc inspect capability [SLOT]` |

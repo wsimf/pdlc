@@ -43,6 +43,7 @@ class CliTests(unittest.TestCase):
     def test_resolves_single_and_two_word_commands(self):
         self.assertEqual(_resolve(["inspect", "9"])[0], "pdlc.commands.inspect")
         self.assertEqual(_resolve(["inspect", "timeline", "9"])[0], "pdlc.commands.inspect_timeline")
+        self.assertEqual(_resolve(["inspect", "changes", "9"])[0], "pdlc.commands.inspect_changes")
         self.assertEqual(_resolve(["next"])[0], "pdlc.commands.next")
 
     def test_resolves_a_three_word_command(self):

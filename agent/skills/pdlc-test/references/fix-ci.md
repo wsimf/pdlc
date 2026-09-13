@@ -1,0 +1,34 @@
+# Fix red CI at Testing
+
+Follow this when `pdlc inspect changes WORK_ITEM` lists a CI failure, or a Verification bounce for a red check. The acceptance suite rides on the top task PR, and the whole stack's CI gates this stage, so a red check comes either from the coverage or from production code beneath it. This skill fixes only coverage.
+
+## Read the failure
+
+A CI failure names the red pull requests and their rollup state, such as `#149 (FAILURE)`, not the checks. For each red PR, list its failing checks and read their logs on the code host; on GitHub, `gh pr checks PR` names them and `gh run view RUN_ID --log-failed` prints the failure. `pdlc inspect test WORK_ITEM` maps each PR to its task.
+
+A stacked PR's CI runs over every commit below it, so one cause turns its own PR and every PR above it red. Group the red checks by cause, and trace each to the commit that introduced it: an acceptance-coverage commit on the top task branch, or a task's production commit.
+
+This step is complete when every red check has a cause, a log excerpt, and the commit behind it.
+
+## Classify each cause
+
+- **Coverage**: an acceptance test, its fixture, or its harness is wrong: it asserts behaviour the requirements never promised, or fails for a reason inside the test. Fix it in the next step.
+- **Defect**: production code breaks an in-scope requirement, or a check fails on a lower task's PR. Production source belongs to Implementation. Report the check, its log excerpt, and the owning task to the driver, name `pdlc post invalidate WORK_ITEM Implementation --task TASK_NUMBER` as the route, and stop.
+- **Flake**: it fails with no code cause, such as a runner outage, a timeout, a cancellation, or a test that passes on rerun. Rerun the failed jobs (`gh run rerun RUN_ID --failed`). Green needs no commit; red again on the same error is a coverage or defect cause.
+- **Upstream**: it fails on the base branch too. Report the check, its log excerpt, and the base-branch run to the driver, and stop.
+
+This step is complete when every cause is labelled coverage, defect, flake, or upstream, and a defect or upstream cause has stopped the run.
+
+## Fix coverage
+
+The current branch must be the top task branch the Testing PR tracks, since `pdlc post test` resolves the PR from it; on any other branch, report and stop.
+
+Dispatch `pdlc-test-writer` once for every coverage cause, building the prompt from [`test-writer-prompt.md`](test-writer-prompt.md): the `## Traceability` map from the latest `PDLC-TESTING` evidence, each check name, and its log excerpt as the findings. It commits and pushes on the current branch.
+
+This step is complete when its report is in and its fix commits are pushed and inspected.
+
+## Publish
+
+Watch the red PRs to a result (`gh pr checks PR --watch`). Publish only when all of them are green; red again is another pass through this file, and a third red on the same cause goes to the driver.
+
+Run Step 6 with the same traceability map, updated only where coverage changed, and evidence naming each red check, its cause, and its fix commit or green rerun. This path is complete when the stage lands at `Review Required`.

@@ -147,7 +147,9 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         result = self.invoke("post_invalidate", issue, "UI", invalidation)
         self.assertEqual(result.code, 0, result.stderr)
         output = self.inspect_due(issue, "UI.Stale", "pdlc-tasks", text="invalidated")
-        self.assertIn("The journey needs a clearer empty state.", output)
+        self.assertIn("1 open change request for UI: Invalidation.", output)
+        changes = self.invoke("inspect_changes", issue)
+        self.assertIn("The journey needs a clearer empty state.", changes.stdout)
         self.next_action(issue, "pdlc-tasks")
 
     def test_automated_review_findings_route_back_to_implementation(self):
