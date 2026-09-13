@@ -35,7 +35,7 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
   approval (`pdlc post approve`).
 
 - **Red** (`FAILURE` / `ERROR` / …) — run the same command. It posts a
-  `PDLC-IMPLEMENTATION` note naming the failed checks and sets
+  `PDLC-REVIEW` note naming the failed checks and sets
   `Implementation / Changes Required`.
   On the next "continue", invoke `pdlc-implement` — it reads the note, fixes the checks on the affected task PR, and re-publishes for review.
 

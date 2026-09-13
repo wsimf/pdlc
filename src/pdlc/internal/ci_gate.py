@@ -1,22 +1,18 @@
-"""The `Implementation / CI Pending` gate.
+"""The `CI Pending` gate for a CI-gated stage (Implementation, Testing, Verification).
 
-A clean implementation review lands `CI Pending` rather than `Approval Required`:
-the reviewer judged the code while the registered PR stack's CI was still in flight, and
+A clean review of a CI-gated stage lands `CI Pending` rather than `Approval Required`:
+the reviewer judged the work while the registered PR stack's CI was still in flight, and
 the only thing left is the check outcome. This module reads that outcome from
 the code host and reconciles the gate — green (or no checks tracked) advances to
-`Approval Required`, red posts a `PDLC-IMPLEMENTATION` note and drops to
-`Changes Required`. It is mechanical: it records an external fact and makes no
-judgement, so the autonomous loop resolves it unattended.
+`Approval Required`, red posts a `PDLC-REVIEW` note with the failed checks and
+drops to `Changes Required`. It is mechanical: it records an external fact and
+makes no judgement, so the autonomous loop resolves it unattended.
 
 On green, a record that has already been reworked within the churn cap skips the
-human approval step entirely (see churn_gate) and lands on Testing / Pending.
+human approval step entirely (see churn_gate) and lands on the next stage's Pending.
 """
 
 from __future__ import annotations
-
-import os
-import tempfile
-from pathlib import Path
 
 from pdlc.internal.churn_gate import autoapprove_stage
 from pdlc.internal.pull_requests import record_pull_requests
@@ -58,9 +54,10 @@ def peek_ci_state(issue: str) -> str:
 
 
 def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State) -> dict:
-    """Reconcile an `Implementation / CI Pending` record against live CI.
+    """Reconcile a CI-gated stage's `CI Pending` record against live CI.
     Caller has already confirmed the gate; this only reads the outcome and
     moves the gate."""
+    stage = pipeline.stage(source.stage)
     state, pull_requests = ci_state(issue)
 
     if state == "pending":
@@ -74,23 +71,18 @@ def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State)
             if (pr.get("checks") or "") in _RED
         )
         body = (
-            "CI checks failed on the implementation pull request(s) after the implementation "
-            f"review was approved: {failed}.\n\n"
-            "Implementation returns to Changes Required. pdlc-implement inspects the failing "
-            "checks, fixes them on the implementation pull request(s), and re-publishes for review."
+            f"CI check has failed on the {stage.name.lower()} pull request(s) after the "
+            f"{stage.name.lower()} review was approved.\n\n"
+            f"Failed checks: {failed}.\n\n"
+            f"{stage.name} returns to Changes Required. Inspect the work item for the "
+            "next actions and investigate the failed checks before re-publishing for review."
         )
-        descriptor, name = tempfile.mkstemp()
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(body)
-        try:
-            post_comment(str(issue), name, "IMPLEMENTATION")
-        finally:
-            Path(name).unlink(missing_ok=True)
+        post_comment(str(issue), body, "REVIEW")
         target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_FAILED)
         set_gate(record["id"], target.gate.value)
         return {"state": "red", "changed": True, "gateState": target.gate.value, "failed": failed}
 
-    # A demonstrably-reworked record clears the Implementation approval gate
+    # A demonstrably-reworked record clears the stage's approval gate
     # with no human step, landing straight on the next stage's Pending.
     target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PASSED)
     landed = autoapprove_stage(issue, record, pipeline, target)

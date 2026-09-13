@@ -57,9 +57,34 @@ def _open_state() -> str:
     return get_config().azure_open_state or DEFAULT_OPEN_STATE
 
 
+# Delivery tasks (`Task`) commonly use a different state vocabulary than the
+# record's own work-item type; an unset task override falls back to the
+# work-item state name.
+def _task_closed_state() -> str:
+    return get_config().azure_task_closed_state or _closed_state()
+
+
+def _task_open_state() -> str:
+    return get_config().azure_task_open_state or _open_state()
+
+
+def _task_in_progress_state() -> str | None:
+    return get_config().azure_task_in_progress_state
+
+
 def _assigned_to() -> str | None:
     """The optional `[backend.azure] assigned_to` queue-scan filter."""
     return get_config().azure_assigned_to
+
+
+def _assignee() -> str:
+    """Who a newly created record or task is assigned to: the configured
+    `assigned_to` identity, or the signed-in account if that is unset or the
+    `@me` macro — `@me` only resolves in a WIQL filter, not a field write."""
+    configured = (_assigned_to() or "").strip()
+    if configured and configured.casefold() != "@me":
+        return configured
+    return run_az(["account", "show", "--query", "user.name", "-o", "tsv"]).strip()
 
 
 def _gather(read: Callable[[T], R], items: Iterable[T]) -> list[R]:
@@ -227,7 +252,7 @@ class AzureWorkItemBackend(WorkItemBackend):
             "number": number,
             "title": title,
             "url": azure.item_url(number),
-            "state": "CLOSED" if state in {_closed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
+            "state": "CLOSED" if state in {_task_closed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
             "body": _text(fields, azure.DESCRIPTION_FIELD),
             "comments": [comment.get("text") or "" for comment in comments],
             "commentObjects": [_comment_view(comment) for comment in comments],
@@ -293,6 +318,7 @@ class AzureWorkItemBackend(WorkItemBackend):
         else:
             created = azure.create(azure.TASK_TYPE, full_title, {
                 azure.DESCRIPTION_FIELD: body_text,
+                azure.ASSIGNED_TO_FIELD: _assignee(),
             })
             number = int(created["id"])
             azure.add_parent(number, parent_id)
@@ -307,10 +333,10 @@ class AzureWorkItemBackend(WorkItemBackend):
         }
 
     def close_task(self, task_ref: str) -> None:
-        azure.update(azure.numeric(task_ref), state=_closed_state())
+        azure.update(azure.numeric(task_ref), state=_task_closed_state())
 
     def reopen_task(self, task_ref: str) -> None:
-        azure.update(azure.numeric(task_ref), state=_open_state())
+        azure.update(azure.numeric(task_ref), state=_task_open_state())
 
     def task_pr_numbers(self, ref: str) -> list[int]:
         items = azure.children(self._record_id(ref), ("System.Id", azure.PRS_FIELD))
@@ -343,6 +369,7 @@ class AzureWorkItemBackend(WorkItemBackend):
         item = azure.create(_record_type(), title, {
             azure.DESCRIPTION_FIELD: body,
             azure.SLUG_FIELD: slug,
+            azure.ASSIGNED_TO_FIELD: _assignee(),
         })
         number = int(item["id"])
         return {"id": str(number), "number": number, "url": azure.item_url(number)}

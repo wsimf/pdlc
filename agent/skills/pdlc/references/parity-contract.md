@@ -1,159 +1,140 @@
-# PDLC delivery contract
+# PDLC workflow contract
 
-PDLC stores its lifecycle state in a parent work item, its work item fields,
-delivery tasks, pull requests, and evidence comments.
+## Purpose
 
-## Intake and orientation
+PDLC moves one product change from an agreed problem to verified completion.
+This document gives agents the minimum contract needed to use the `pdlc` CLI safely.
+It describes observable states, stage ownership, command boundaries, and evidence expectations.
+It does not describe the CLI implementation, storage format, provider API, branch strategy, or internal helpers.
 
-- Resolve the record's normalized `workType` before interpreting `Status` or `Gate State`. Missing type means legacy Feature compatibility; unknown types and unavailable pipelines stop as blocked.
-- A new item requires an explicit feature idea. `pdlc-write` creates the
-  parent work item, but only after its drafted product specification passes
-  review, so no PDLC work item exists without one.
-- Product work routes to `human-input`; an autonomous queue may surface it as a human stop but never dispatches `pdlc-write`.
-- Existing work requires an exact work item number. The `pdlc` skill's Orient mode
-  is read-only: inspect the full parent work item, work item fields, delivery tasks,
-  linked PRs, current source, relevant Git history, and dirty worktree state,
-  then report and stop. It never advances a stage.
-- Source and Git history are authoritative over stale work item prose. Never infer
-  review, approval, completion, or task evidence from prose or checkboxes.
+## Source of truth
 
-## Artifact ownership
+Use `pdlc inspect <work-item>` before acting.
+It resolves the work item, selected workflow, current stage and gate, delivery tasks, registered pull requests, and `# Due Next`.
 
-| Stage | Canonical artifact |
+Use `pdlc next` when the controller needs to choose work from the queue.
+Follow the returned action and owner exactly; do not infer the next action from a title, branch, checkbox, comment, or familiar stage sequence.
+
+Use `pdlc inspect timeline <work-item>` when the evidence history affects the decision.
+Use `pdlc inspect task <delivery-task>` when the task summary does not answer a scope, dependency, acceptance, or HITL/AFK question.
+
+An exact work-item number is required for existing work.
+An unknown work type, unavailable workflow, ambiguous match, malformed state, missing required data, or backend error is a blocker.
+
+## Work item and stage ownership
+
+The parent work item carries the current product intent, decisions, open questions, phase artifacts, and durable evidence.
+Delivery tasks carry their own scope, requirements, dependencies, acceptance criteria, plans, implementation links, and task evidence.
+Pull requests carry code and test changes and are linked to the relevant task or parent through PDLC commands.
+
+| Stage | Agent-owned result |
 |---|---|
-| Product | Parent `Product` section through Open Questions |
-| UI | Parent `UI` section, including UI applicability and `UJ-*` journeys |
-| Tasks | Stable `WORK-NNN-TASK-NNN` delivery tasks |
-| Technical Plan | A `## Technical Plan` comment on every incomplete delivery task |
-| Implementation | One stacked PR per task (production code + that task's unit coverage) and a `## Implementation` comment on each task |
-| Testing | Whole-feature acceptance coverage commits and requirement-to-source traceability evidence |
-| Verification | Parent `Verification` section and structured Verification `PDLC-REVIEW` report |
+| Product | Problem, goals, requirements, constraints, non-goals, success measures, decisions, and open questions. |
+| UI | UI behavior, accessibility, states, and user journeys, or an explicit decision that UI is not required. |
+| Tasks | Stable delivery tasks with requirement coverage, dependencies, acceptance criteria, and HITL/AFK classification. |
+| Technical Plan | A plan for every delivery task that will be implemented. |
+| Implementation | Production changes, task-level unit coverage, implementation evidence, and linked pull requests. |
+| Testing | Whole-feature acceptance coverage, requirement traceability, and test evidence. |
+| Verification | Current-source claims, runtime and UX checks where applicable, review findings, and completion recommendation. |
 
-UI applicability is always explicit. `UI not required` still receives review
-and human approval. Each task must cover at least one FR/C, every UI task must
-cover one UJ, and each UJ must be covered by at least one UI task. These are
-checked by `pdlc post tasks` against the parent record's own identifiers before
-anything is written, not asserted by the agent that wrote the breakdown.
+Each stage owner changes only its own artifact and preserves approved upstream intent.
 
-## Tasks, planning, and implementation
+## Workflow state
 
-- Tasks contain scope, non-goals, dependencies, FR/C/UJ coverage, HITL/AFK,
-  acceptance criteria, risks, and required evidence.
-- Task creation is idempotent by stable ID. Reruns update the same task.
-- Every incomplete task must have a `## Technical Plan` comment on its
-  delivery task before implementation. It carries no PDLC marker; `pdlc-inspect`
-  derives `hasPlan` from it and renders it. The human-authored task body is
-  never touched by planning or implementation — a re-planned task gets a fresh
-  comment and the latest one wins. A task's attached pull requests are not kept
-  in its body: the backend stores them however it can (GitHub in a machine-owned block it strips before any caller sees the body, Azure Boards in a `Custom.PdlcPrs` field on the work item, the file backend in a `prs` property) and reports them back as `prs`.
-- HITL tasks require recorded human approval before dispatch.
-- `pdlc-implement` implements **one** task per invocation and then stops; the
-  autonomous loop (or the driver) re-invokes it for the next while the parent
-  sits at `Implementation / Pending`.
-- Each task owns one branch, `pdlc/<slug>/task-NNN`. The `gh stack` extension
-  owns the stack itself — its order, each branch's base, its rebases, and which
-  members have landed. PDLC contributes two facts and no more: the branch name,
-  derived from the task identity, and the stack entry point, which is the
-  previous implemented task's registered pull request. `pdlc-implement` puts the
-  branch on the stack with `gh stack init` or `gh stack checkout <pr> && gh stack
-  add`, and `pdlc post implement-task` submits the stack, leaving one pull
-  request per branch. Nothing infers a base branch, lists remote branches, or
-  asks whether a predecessor's branch still exists; agents never `git push`,
-  `git rebase`, or open PRs by hand. Task PRs stay draft while the stack is
-  built; `pdlc post implement` marks every open one ready for review as the
-  record enters phase review, and a later bounce that republishes leaves the
-  already-ready PRs untouched.
-- Implementation ships each task's production code **and its unit coverage** on
-  the task branch — `pdlc-implement` dispatches `pdlc-test-writer` scoped to the
-  single task after the task review passes. Whole-feature acceptance coverage is
-  the Testing stage.
-- A task closes once its commit is on its stacked PR, its `task`-depth
-  `pdlc-implementation-reviewer` pass returned `Approval Required`, and a
-  `## Implementation` comment records the outcome. The comment carries no PDLC
-  marker; the human-authored task body is not rewritten. `pdlc-inspect` derives
-  `hasImplementation` from the task's attached pull request, not this comment;
-  `implementationInvalidated` is what tracks whether this comment is present.
-- A record's pull requests are the ones registered on it and on its tasks — by
-  `pdlc post implement-task`, `pdlc post attach-pr`, `pdlc post implement`, or
-  `pdlc post test`. Nothing is inferred from a `Closes #N` keyword or a branch
-  name; gates read only the registry.
-- Per-task closure does not gate on CI. The registered PRs' required checks are
-  confirmed green in aggregate once every delivery task is closed, before the
-  Implementation stage publishes.
-- The parent remains `Implementation / Pending` until every task is complete.
-- Stacked PRs are mandatory: every invocation implements one task and registers its task branch's pull request before closing the task.
+The active stage is the `Status` returned by the selected workflow.
+The active gate is the `Gate State`:
 
-## Reviews, approval, and reconciliation
+`Pending | Review Required | Changes Required | Decision Required | CI Pending | Approval Required | Approved | Stale`
 
-- An Implementation review carries a depth of `pass`, `task`, or `full`; every
-  other stage's reviewer covers the whole artifact. The reviewer is read-only;
-  controller records `Changes Required`, `Decision Required`, or
-  `Approval Required`.
-- The Implementation reviewer does not wait for CI — it judges the code while
-  the task PR stack's checks are still in flight. A clean verdict lands
-  `CI Pending`, not `Approval Required`; `pdlc post ci` then reconciles that gate
-  against the live check rollup across every PR in the stack (all green, or no
-  checks configured → `Approval Required`; any red → `Changes Required` with a
-  `PDLC-IMPLEMENTATION` note). It is mechanical and the autonomous loop resolves
-  it with no human step. Testing is unchanged.
-- `Decision Required` is for a finding the owning skill cannot mechanically
-  reconcile — one turning on a product, architecture, UX, safety, or scope call.
-  It is raised by an `Implementation` or `Testing` reviewer, or by the
-  `Verification` audit itself (`pdlc post verify --recommendation "Decision
-  Required" --decision`). It carries a `## Decision Required` block, posts under
-  `PDLC-DECISION`, sets `Gate State = Decision Required`, and stops the
-  autonomous loop immediately with no reconciliation passes. The driver resolves
-  it through `decision-resolver-workflow.md` — `pdlc post decision` lands a
-  manifest of per-decision outcomes (answered, or deferred into its own
-  `Product / Pending` work item) and moves the gate to `Changes Required`,
-  routing back to the stage owner (`pdlc-implement`, `pdlc-test`, or
-  `pdlc-verify`); a decision that invalidates approved upstream intent goes
-  through `pdlc post invalidate` instead. Nothing else proceeds meanwhile.
-- `pdlc-implement` additionally runs a `task`-depth `pdlc-implementation-reviewer`
-  pass on every task before it is checkpointed onto its stacked PR — a shallow
-  acceptance-criteria and code-level check, recorded in the task's
-  `## Implementation` note. This does not move a gate and does not replace the
-  stage-level review at `Review Required`.
-- Re-run at the same scope after reconciliation. Stop for a human decision when a
-  `Changes Required` finding survives two reconciliations, or immediately when a
-  reviewer returns `Decision Required`.
-- Human approval requires the named active stage at `Approval Required`, an
-  unchanged reviewed artifact, settled upstream stages, an explicit human
-  instruction in this turn (the commands carry no identity check), and a
-  durable `PDLC-APPROVED` comment.
-- One exception to the human instruction: on a record with one to three Verification bounces in the named rework loop, the script that would park it at `Implementation` or `Testing` `Approval Required` — the CI gate on green CI, `pdlc post review` on a clean Testing review — advances straight past the gate instead, posting a `PDLC-AUTOAPPROVED` comment and landing the record on the next stage's `Pending`. The reviewed artifact is still clean and upstream still settled; only the human step is dropped while the record iterates. Past three loops, and for `Verification` always, the human instruction is still required. A `Verification` `Changes Required` run may itself bounce `Implementation` or `Testing` back to `Stale` (`pdlc post verify --bounce STAGE`) with no driver step, which is what advances the loop count.
-- An override must explicitly name the stage and the request to skip review.
-  It cannot approve Pending or bypass unapproved upstream work. Record every
-  waived finding or stale-artifact risk in parent Open Questions.
+The selected workflow determines valid transitions, skipped stages, invalidation, rework limits, and completion requirements.
+The Feature workflow currently runs `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`.
+Other workflow types may use different policies.
 
-## Invalidation and verification
+`# Due Next` is the authoritative routing result.
+It names the current action, owner, reason, and any human boundary.
 
-When an artifact changes, return its stage to `Stale`; retain downstream
-artifacts and mark their evidence stale rather than deleting it:
+## Stage lifecycle
 
-| Changed stage | Downstream evidence to invalidate |
-|---|---|
-| Product | UI, Tasks, Technical Plan, Implementation |
-| UI | Tasks, Technical Plan, Implementation |
-| Tasks | Technical Plan, Implementation |
-| Technical Plan | Implementation, Testing |
-| Implementation | Testing, Verification |
-| Testing | Verification |
+The usual shape is:
 
-Verification reconciles every task Result and constraint against current
-source, requirement-to-test traceability, user journeys, rendered UX when
-applicable, and cumulative review. Every evidence row links the exact
-commit or PR checked. Findings are fixed and re-verified or explicitly deferred
-in Open Questions; a clean report is never written while a finding is open.
+`Pending / Changes Required / Stale → stage work → Review Required → review → Approval Required → human approval → workflow-selected next state`
 
-## Completion
+The workflow may produce a different valid result for a skip, decision, CI outcome, invalidation, or approved rework loop.
+Agents report and follow that result instead of predicting it.
 
-Complete only after every stage is approved, every task is complete, linked PRs
-and checks are settled, and Verification is clean. The verified record is not
-edited at completion: `pdlc post complete` validates one structured evidence
-body (shipped scope, verification reference, delivery decisions, a
-Resolved/Deferred disposition for every live Open Question, limitations, skipped
-stages), posts it, locks the record, and blanks the settled `## Open Questions`
-section to a pointer. A substantive change to any verified section bounces to its
-owning stage; completed work items are locked, and new scope starts a new parent
-work item.
+### Product and pre-publication stages
+
+Product authoring is interactive and routes to `pdlc-write`.
+In the Feature workflow, Product, UI, Tasks, and Technical Plan land at `Approval Required`.
+Changing one before approval re-enters its owning authoring command and returns it to `Stale` for rework.
+
+### Delivery tasks
+
+Task identity is stable across reruns.
+Complete one eligible delivery task per implementation pass, then let the controller select the next one.
+Every task that will be implemented needs a current plan and implementation evidence.
+Use the configured task and implementation commands to create or update task artifacts and pull-request links.
+
+The parent remains in `Implementation / Pending` while delivery tasks remain incomplete.
+
+### Review and CI
+
+`Review Required` means the stage artifact is ready for the configured independent review.
+The review records `Approval Required`, `Changes Required`, or `Decision Required`.
+
+For a CI-gated stage, a clean implementation review may land `CI Pending` while registered pull-request checks run.
+Run `pdlc post ci <work-item>` when the controller says CI has settled.
+
+- Pending checks leave the record at `CI Pending`.
+- Passing checks normally move the current stage to `Approval Required`.
+- The selected rework policy may bypass that approval and move to the next stage's `Pending`.
+- Failing checks move the current stage to `Changes Required` and record the failed checks as `PDLC-REVIEW` evidence.
+
+### Decisions
+
+`Decision Required` stops autonomous work.
+The driver resolves each recorded question with `pdlc post decision`, either answering it or deferring it into separately tracked Product work.
+Nothing else proceeds until the decision outcome is recorded.
+
+### Human gates
+
+The driver explicitly approves, skips, invalidates, resolves decisions, and completes work.
+Use `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, `pdlc post decision`, and `pdlc post complete` only when the driver has authorized that exact action.
+`Approved` and `Complete` are not inferred from prose, reviews, checkboxes, or agent recommendations.
+
+## Invalidation and rework
+
+When an approved artifact changes, the selected workflow returns that stage to `Stale` and identifies downstream evidence that must be revalidated.
+Preserve the downstream artifacts until the owning workflow or command replaces or invalidates them.
+
+Verification may return an upstream delivery stage to `Stale` when its configured rework path is used.
+The selected workflow decides whether a later clean review can bypass human approval and how many iterations are allowed.
+
+## Evidence
+
+Evidence comments explain what happened and why, while machine state says where the record is now.
+Commands add the marker; agents provide the body without a marker.
+
+Use these marker names when reading evidence:
+
+`PDLC-PRODUCT`, `PDLC-UI`, `PDLC-TASKS`, `PDLC-PLAN`, `PDLC-IMPLEMENTATION`, `PDLC-TESTING`, `PDLC-REVIEW`, `PDLC-COMPLETE`, `PDLC-APPROVED`, `PDLC-AUTOAPPROVED`, `PDLC-INVALIDATED`, `PDLC-SKIPPED`, `PDLC-DECISION`, and `PDLC-RESOLUTION`.
+
+`pdlc inspect` uses the relevant evidence for `Changes Required`, `Stale`, and `Decision Required` to explain the gate.
+If required evidence cannot be identified, stop and report the gap.
+
+Task-level `Technical Plan` and `Implementation` evidence is read from the delivery task and follows its command contract.
+
+## Verification and completion
+
+Verification checks the implemented result against current source, requirements, acceptance coverage, relevant journeys, UX, and recorded decisions.
+Every claim must identify the source or commit checked, and every finding must be fixed, re-verified, or explicitly deferred.
+
+Complete only when the selected workflow reports readiness: required stages are settled, delivery tasks are complete, registered pull requests and checks satisfy policy, and Verification is clean.
+`Complete` is terminal; new scope starts a new parent work item.
+
+## Repeatability and blockers
+
+Prefer rerunning the named CLI command when its contract says the operation is safe to retry.
+Reruns update the same identified record or task rather than creating a duplicate.
+Pending external checks may be polled again without changing state.
+Treat invalid transitions, ambiguous identity, missing fields, rate limits, backend failures, and stale or contradictory evidence as blockers.

@@ -39,7 +39,8 @@ from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.workitem import is_stage_skipped, resolve_item
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
-from pdlc.domain.workflow import PIPELINES, Pipeline
+from pdlc.domain.workflow import Pipeline
+from pdlc.domain.workflows.pipeline import PIPELINES
 
 
 def _readiness(item: dict, pipeline: Pipeline) -> tuple[bool, str]:

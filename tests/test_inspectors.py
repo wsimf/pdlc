@@ -35,6 +35,27 @@ class InspectTests(FileBackendTest):
         result = self.invoke("inspect", 20, "--full")
         self.assertIn("The shell ships", result.stdout)
 
+    def test_due_next_verification_approved_gate_is_curated(self):
+        # Verification is fully curated like every other stage now, so its
+        # Approved gate renders the same plain heal text the rest use, not
+        # the generic `pdlc continue — self-heals to X` fallback.
+        self.seed_record(21, "Verification", "Approved")
+        out = self.invoke("inspect", 21, "--full").stdout
+        self.assertIn("Due next: Verification.Approved → This work item has been approved to continue.", out)
+        self.assertIn("Call `pdlc next 21` to continue this work item.", out)
+
+    def test_due_next_verification_decision_required_gate_is_curated(self):
+        self.seed_record(22, "Verification", "Decision Required")
+        out = self.invoke("inspect", 22, "--full").stdout
+        self.assertIn("Due next: Verification.DecisionRequired → This work item is pending user decision.", out)
+        self.assertIn("pdlc inspect timeline", out)
+
+    def test_due_next_ci_pending_hint_only_fires_for_a_ci_gated_stage(self):
+        self.seed_record(23, "Product", "CI Pending")
+        out = self.invoke("inspect", 23, "--full").stdout
+        self.assertNotIn("resolve-ci.md", out)
+        self.assertIn("pdlc next", out)
+
     def test_inspect_task_renders_one_task(self):
         result = self.invoke("inspect_task", 201)
         self.assertEqual(result.code, 0, result.stderr)

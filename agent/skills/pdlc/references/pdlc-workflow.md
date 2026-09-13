@@ -22,7 +22,7 @@ flowchart TD
     Next -->|Pending / Stale / Changes Required| Owner
     Next -->|"Product, any gate"| HumanInput["human-input<br/>autonomous loop stops,<br/>asks the driver to run pdlc-write"]
     Next -->|Review Required| Review["pdlc-review<br/>independent reviewer"]
-    Next -->|Decision Required| Decision["human-decision<br/>decision-resolver-workflow"]
+    Next -->|Decision Required| Decision["human-decision<br/>pdlc guide decisions"]
     Next -->|CI Pending| CIWait["autonomous loop backs off<br/>while checks run;<br/>driver may run pdlc post ci"]
     Next -->|Approval Required| Human["Human approval required"]
     Next -->|"Skipped stage (Skipped States)"| SkipCascade["pdlc next auto-advances<br/>Pending / Changes / Stale straight to<br/>the next stage's Pending<br/>PDLC-SKIPPED, no specialist or reviewer"]
@@ -133,7 +133,7 @@ about it feeds the rework/churn count.
 `Verification` skips `Review Required` entirely.
 
 `Implementation` has one extra gate: a clean stage review lands `CI Pending`, not `Approval Required`, because the reviewer judges the code without waiting on the registered PR stack's CI.
-`pdlc post ci` then reconciles `CI Pending` against the live check rollup — green (or no checks configured) → `Approval Required`, red → `Changes Required` with a `PDLC-IMPLEMENTATION` note.
+`pdlc post ci` then reconciles `CI Pending` against the live check rollup — green (or no checks configured) → `Approval Required`, red → `Changes Required` with a `PDLC-REVIEW` note naming the failed checks.
 It is mechanical, carries no identity check, and the autonomous loop runs it unattended once checks finish; while they run, `pdlc next` reports the record as no work so the loop backs off.
 `Testing` still lands `Approval Required` straight from review.
 
@@ -146,7 +146,7 @@ product, architecture, UX, safety, or scope call from the driver, and
 (`pdlc post verify --recommendation "Decision Required" --decision`). That
 gate stops the autonomous loop with no reconciliation attempt;
 `pdlc next` routes it to `human-decision`. The driver clears it through
-`references/decision-resolver-workflow.md`: `pdlc post decision` lands a
+`pdlc guide decisions`: `pdlc post decision` lands a
 manifest of per-decision outcomes — each answered, or deferred into its own
 `Product / Pending` work item — and moves the gate to `Changes Required`,
 routing back to the stage owner. A decision that changes approved upstream
@@ -214,7 +214,7 @@ stateDiagram-v2
         I_Review --> I_Decision : pdlc post review — pdlc-review (reviewer), finding needs the driver
         I_Review --> I_CIPending : pdlc post review — pdlc-review (reviewer), clean review does not wait for CI
         I_CIPending --> I_Approval : pdlc post ci — CI green, or no checks configured
-        I_CIPending --> I_Changes : pdlc post ci — CI red, PDLC-IMPLEMENTATION note
+        I_CIPending --> I_Changes : pdlc post ci — CI red, PDLC-REVIEW note
         I_Decision --> I_Changes : pdlc post decision --manifest — driver (each decision answered or deferred to its own work item)
     }
     Implementation --> Testing : pdlc post approve — human

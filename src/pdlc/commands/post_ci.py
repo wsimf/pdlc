@@ -6,22 +6,25 @@ USAGE
     pdlc post ci WORK_ITEM
 
 DESCRIPTION
-    Resolves an Implementation record parked at `CI Pending` against the live
-    check state of its pull request(s).
+    Resolves a CI-gated stage's record (Implementation, Testing, Verification)
+    parked at `CI Pending` against the live check state of its pull request(s).
 
   - checks still running          -> no change; reports "still running"
-  - checks green / none tracked   -> Implementation / Approval Required
-  - checks red                    -> posts a PDLC-IMPLEMENTATION note and
-                                     Implementation / Changes Required
+  - checks green / none tracked   -> Stage / Approval Required
+  - checks red                    -> posts a note under the stage's own
+                                     marker and Stage / Changes Required
 
 Mechanical: it records an external fact, makes no judgement, and carries no
 identity check. The autonomous loop runs it once CI finishes; a driver may run
 it directly when resuming a CI-Pending record. It refuses any other gate.
+
+The command prints Markdown instructions: retry this command while CI is
+pending, inspect the work item after a pass, and inspect it for the next
+actions after a failure.
 """
 
 from __future__ import annotations
 
-import json
 import sys
 
 
@@ -41,6 +44,37 @@ def post_ci(issue: str) -> dict:
     return {"workItem": int(issue), "itemId": record["id"], "stage": state.stage, **result}
 
 
+def render_result(issue: str, result: dict) -> str:
+    """Render the mechanical CI outcome as instructions for the next agent."""
+    state = result["state"]
+    stage = result["stage"]
+    if state == "pending":
+        return (
+            "## CI Pending\n\n"
+            f"CI is still pending for the {stage} pull request(s).\n\n"
+            f"Call `pdlc post ci {issue}` again after some time."
+        )
+    if state == "red":
+        failed = result.get("failed", "the registered pull request checks")
+        return (
+            "## CI Failed\n\n"
+            f"CI failed for the {stage} pull request(s).\n\n"
+            f"Failed checks: {failed}.\n\n"
+            f"Run `pdlc inspect {issue}` for the next actions."
+        )
+    if state == "untracked":
+        return (
+            "## CI Not Tracked\n\n"
+            f"No CI checks are configured for the {stage} pull request(s).\n\n"
+            f"Run `pdlc inspect {issue}` to get the next action."
+        )
+    return (
+        "## CI Passed\n\n"
+        f"CI passed for the {stage} pull request(s).\n\n"
+        f"Run `pdlc inspect {issue}` to get the next action."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     command_args = list(sys.argv[1:] if argv is None else argv)
     args = command_args
@@ -57,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
 
-    print(json.dumps(result))
+    print(render_result(args[0], result))
     return 0
 
 

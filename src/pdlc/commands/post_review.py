@@ -17,16 +17,17 @@ driver. It halts the autonomous loop immediately (no reconciliation passes) and
 posts the evidence through the backend's blocker channel under a PDLC-DECISION
 marker. The evidence body must carry a `## Decision Required` section.
 
-A clean `approval-required` review of the Implementation stage lands `CI Pending`,
-not `Approval Required`: the reviewer judged the code while the registered PR stack's CI
-was still in flight. This script then reconciles it immediately against the live
+A clean `approval-required` review of a CI-gated stage (Implementation, Testing) lands
+`CI Pending`, not `Approval Required`: the reviewer judged the work while the registered PR
+stack's CI was still in flight. This script then reconciles it immediately against the live
 check state (advancing to `Approval Required` if CI is already green, dropping to
-`Changes Required` with a PDLC-IMPLEMENTATION note if already red) and otherwise
+`Changes Required` with a note under the stage's own marker if already red) and otherwise
 leaves it at `CI Pending` for pdlc post ci / the loop to resolve when CI
-finishes. Every other stage lands `Approval Required` — except a
-clean Testing review on a record that has already been reworked within the churn
-cap, which skips the human approval step (PDLC-AUTOAPPROVED) and lands on
-Verification / Pending. See internal/churn_gate.py.
+finishes. Every other stage lands `Approval Required` directly. Whichever way a stage lands
+there — a non-CI-gated stage's direct landing, or a CI-gated stage's reconciliation once CI
+settles — a record already reworked within its named rework loop's churn cap skips the human
+approval step (PDLC-AUTOAPPROVED) and lands on the next stage's Pending instead. See
+internal/churn_gate.py.
 """
 
 from __future__ import annotations
@@ -42,7 +43,8 @@ from pdlc.internal.workitem import is_stage_skipped, item_for_issue, item_status
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, print_help, resolve_text, wants_help
-from pdlc.domain.workflow import Event, Gate, Outcome
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, Outcome
 
 REVIEW_OUTCOMES = {
     "changes-required": Outcome.FINDINGS,
@@ -85,9 +87,10 @@ def review(issue: str, outcome: str, evidence: str, attachment_inputs: list[dict
     if outcome == "decision-required":
         post_blocker(issue, body, "DECISION")
 
-    # A demonstrably-reworked Testing stage clears its approval gate with no
-    # human step, landing straight on Verification / Pending. Implementation's
-    # equivalent is handled downstream by the CI gate.
+    # A demonstrably-reworked non-CI-gated stage clears its approval gate with
+    # no human step, landing straight on the next stage's Pending. A CI-gated
+    # stage's equivalent is handled downstream by the CI gate, which runs the
+    # same churn check once CI settles (see `ci_pending` below).
     landed = None
     if target.gate == Gate.APPROVAL_REQUIRED:
         landed = autoapprove_stage(issue, record, pipeline, target)
@@ -104,6 +107,8 @@ def review(issue: str, outcome: str, evidence: str, attachment_inputs: list[dict
         ci = resolve_ci_gate(issue, record, pipeline, target)
         result["gateState"] = ci["gateState"]
         result["ci"] = ci
+        if ci.get("autoApproved"):
+            result["autoApproved"] = True
 
     return result
 

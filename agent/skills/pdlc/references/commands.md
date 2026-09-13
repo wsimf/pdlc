@@ -2,6 +2,10 @@
 
 Only `pdlc post ...` commands mutate the PDLC work item store. Specialists prepare artifacts and evidence; the commands publish them.
 
+`pdlc guide [SUBCOMMAND]` prints `guides/SUBCOMMAND.md` as Markdown, defaulting to `guides/guide.md`, so an agent can load the relevant operational contract from the installed CLI without locating repository files.
+
+The decision-resolution guide is available with `pdlc guide decisions`.
+
 `pdlc post` commands also accept repeated local attachment inputs in the form
 `--attachment PATH [--attachment-description TEXT]`. They store files under
 `.pdlc/<work-item-number>/attachments/` and never publish attachment metadata
@@ -9,6 +13,7 @@ to the work item store.
 
 | Script | Purpose | Who may run it |
 |---|---|---|
+| `pdlc guide [SUBCOMMAND]` | Print the bundled `guides/SUBCOMMAND.md` guide, defaulting to `guides/guide.md`. Missing guides fail with `No guide found for SUBCOMMAND`. | Anyone — read-only. |
 | `pdlc inspect` | Resolve a work item to its state, classified delivery task tree, compact linked-PR summary, full-body temp-file pointer, and routing decision (`Due Next`), read-only even through a skip cascade. Use `--full` for the complete inspection on stdout. | Anyone — read-only. |
 | `pdlc inspect task` | Render one or more delivery tasks in full, front matter plus body. | Anyone — read-only. |
 | `pdlc inspect timeline` | Render every evidence comment on a work item as a chronological, marker-stripped timeline (compact index by default, `--full` for the whole thing on stdout). | Anyone — read-only. |
@@ -27,7 +32,7 @@ to the work item store.
 | `pdlc post attach-pr` | Attach a pull-request number to a delivery task so later stages read the task's PRs explicitly. Idempotent. | `pdlc-implement`, or a driver. |
 | `pdlc post test` | Resolve the current branch's PR and register it on the record, append the `--traceability` map under `## Traceability`, post Testing evidence, and set `Review Required`. | `pdlc-test`. |
 | `pdlc post review` | Record a structured `PDLC-REVIEW` with `Changes Required`, `Decision Required`, or `Pass`. A clean Implementation review lands `CI Pending` and is reconciled against the PR checks in the same call. A clean Testing review on a record with 1–3 recorded Verification rework bounces skips the human step (`PDLC-AUTOAPPROVED`) and lands `Verification / Pending`. | `pdlc-review`. |
-| `pdlc post ci` | Reconcile an `Implementation / CI Pending` record against its registered PRs' live check rollup: green (or no checks) → `Approval Required` (or, on a record reworked 1–3 times, straight to `Testing / Pending` with `PDLC-AUTOAPPROVED`), red → `Changes Required` with a `PDLC-IMPLEMENTATION` note, still running → no change. Mechanical, no identity check. | The autonomous loop, or a driver resuming a `CI Pending` record. |
+| `pdlc post ci` | Reconcile an `Implementation / CI Pending` record against its registered PRs' live check rollup: green (or no checks) → `Approval Required` (or, on a record reworked 1–3 times, straight to `Testing / Pending` with `PDLC-AUTOAPPROVED`), red → `Changes Required` with a `PDLC-REVIEW` note naming the failed checks, still running → no change. Mechanical, no identity check. | The autonomous loop, or a driver resuming a `CI Pending` record. |
 | `pdlc post decision` | Close an `Implementation`, `Testing`, or `Verification` `Decision Required` gate from a manifest of per-decision outcomes: create a `Product / Pending` work item for each deferral, post every outcome under one `PDLC-RESOLUTION` comment, and set `Changes Required`. | Driver instruction only. |
 | `pdlc post verify` | Post a structured Verification `PDLC-REVIEW`, file deferrals into Open Questions, and set the gate from `--recommendation` (`Approval Required` / `Changes Required` / `Decision Required`, the last requiring a `--decision` file of `## Decision Required` blocks posted under `PDLC-DECISION`). With `--bounce STAGE` a `Changes Required` review records `bounce` and `loop` metadata and returns that upstream stage to `Stale`, no driver step. | `pdlc-verify`. |
 | `pdlc post approve` | Record human approval, advance to the next stage. | Driver instruction only. |

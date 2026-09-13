@@ -16,70 +16,70 @@ DESCRIPTION
     whichever tasks a caller actually needs in full, rather than every task on
     the record.
 
-`hasPlan` reflects that this task has a `## Technical Plan` comment; `needsPlan`
-tracks that directly. `hasImplementation` reflects that a pull request is
-attached to the task — it survives invalidation, since invalidation only
-deletes evidence comments, not the PR. `implementationInvalidated` is true when
-a PR is attached but the task's `## Implementation` comment is missing, i.e.
-reopened for rework since it was last implemented. When the task has a plan,
-it is rendered after the `# Task` body. Read these flags and the rendered plan
-rather than fetching task comments directly.
+    `hasPlan` reflects that this task has a `## Technical Plan` comment; `needsPlan`
+    tracks that directly. `hasImplementation` reflects that a pull request is
+    attached to the task — it survives invalidation, since invalidation only
+    deletes evidence comments, not the PR. `implementationInvalidated` is true when
+    a PR is attached but the task's `## Implementation` comment is missing, i.e.
+    reopened for rework since it was last implemented. When the task has a plan,
+    it is rendered after the `# Task` body. Read these flags and the rendered plan
+    rather than fetching task comments directly.
 
-Pair this with `pdlc inspect WORK_ITEM`, whose default output is a compact
-index: read it first to shortlist which task numbers are worth fetching in
-full, then pass those numbers here. Use `pdlc inspect --full` when the full
-work item body is needed inline.
+    Pair this with `pdlc inspect WORK_ITEM`, whose default output is a compact
+    index: read it first to shortlist which task numbers are worth fetching in
+    full, then pass those numbers here. Use `pdlc inspect --full` when the full
+    work item body is needed inline.
 
-Each task ends with an `## Agent` section naming the implementer sub-agent the
-project routes that task to, resolved from its own `isUI` against the `[agents]`
-capability slots (`ui-implementer` / `core-implementer`, both falling back to
-`general-purpose`). It is a routing fact, not an instruction to dispatch — only
-`pdlc-implement` acts on it.
+    Each task ends with an `## Agent` section naming the implementer sub-agent the
+    project routes that task to, resolved from its own `isUI` against the `[agents]`
+    capability slots (`ui-implementer` / `core-implementer`, both falling back to
+    `general-purpose`). It is a routing fact, not an instruction to dispatch — only
+    `pdlc-implement` acts on it.
 
-The parent Work Item's local attachments are rendered once, between the first
-task's front matter and its `# Task` body. Each task then carries its own
-`## User Comments` — the comments on that task that carry no `PDLC-*` marker and
-do not open with the task's `## Technical Plan` / `## Implementation` evidence
-headings, i.e. human discussion only; the plan and implementation render through
-their own sections below. Parent-level discussion lives in
-`pdlc inspect WORK_ITEM`, not here.
+    The parent Work Item's local attachments are rendered once, between the first
+    task's front matter and its `# Task` body. Each task then carries its own
+    `## User Comments` — the comments on that task that carry no `PDLC-*` marker and
+    do not open with the task's `## Technical Plan` / `## Implementation` evidence
+    headings, i.e. human discussion only; the plan and implementation render through
+    their own sections below. Parent-level discussion lives in
+    `pdlc inspect WORK_ITEM`, not here.
 
---file writes the rendered markdown to {TEMPDIR}/{repo}-task-{numbers}.md
-instead of stdout, and prints that path — for callers (e.g. subagent
-prompts) that want a file reference rather than inline content.
+    --file writes the rendered markdown to {TEMPDIR}/{repo}-task-{numbers}.md
+    instead of stdout, and prints that path — for callers (e.g. subagent
+    prompts) that want a file reference rather than inline content.
 
-    ---
-    number: 45
-    title: "WORK-42-TASK-001 [CORE] Add foo"
-    url: "..."
-    state: OPEN
-    taskId: TASK-001
-    isUI: false
-    hasPlan: true
-    hasImplementation: false
-    implementationInvalidated: false
-    needsPlan: false
-    ---
+        ---
+        number: 45
+        title: "WORK-42-TASK-001 [CORE] Add foo"
+        url: "..."
+        state: OPEN
+        taskId: TASK-001
+        isUI: false
+        hasPlan: true
+        hasImplementation: false
+        implementationInvalidated: false
+        needsPlan: false
+        ---
 
-    ## Attachments
+        ## Attachments
 
-    ...the parent Work Item's attachments, on the first task only...
+        ...the parent Work Item's attachments, on the first task only...
 
-    ## User Comments
+        ## User Comments
 
-    ...this task's own unmarked comments, or "None"...
+        ...this task's own unmarked comments, or "None"...
 
-    # Task
+        # Task
 
-    ...raw markdown...
+        ...raw markdown...
 
-    ## Technical Plan
+        ## Technical Plan
 
-    ...the task's plan, when it has one...
+        ...the task's plan, when it has one...
 
-    ## Agent
+        ## Agent
 
-    my-ui-implementer — the project's implementer for a [UI] task.
+        my-ui-implementer — the project's implementer for a [UI] task.
 """
 
 from __future__ import annotations
@@ -94,6 +94,7 @@ from pdlc.config import get_capabilities
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, user_comments_markdown
+from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number
 
@@ -158,7 +159,10 @@ def render(numbers: list[str]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     command_args = list(sys.argv[1:] if argv is None else argv)
-    parser = argparse.ArgumentParser(description="Inspect one or more PDLC delivery tasks")
+    if wants_help(command_args):
+        print_help(__doc__)
+        return 0
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("numbers", nargs="+", metavar="DELIVERY_TASK")
     parser.add_argument(
         "--file", action="store_true",

@@ -2,12 +2,9 @@ import unittest
 from dataclasses import replace
 
 from pdlc.internal.inputs import wants_help
+from pdlc.domain.stages import Action, Gate
 from pdlc.domain.workflow import (
-    FEATURE_PIPELINE,
-    PIPELINE_REGISTRY,
-    Action,
     Event,
-    Gate,
     Lifecycle,
     Outcome,
     REQUESTED_TARGET,
@@ -15,6 +12,8 @@ from pdlc.domain.workflow import (
     TransitionOverride,
     WorkType,
 )
+from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 
 class LifecycleTests(unittest.TestCase):
@@ -116,6 +115,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
         self.assertTrue(self.pipeline.stage("Verification").accepts_verification)
         self.assertEqual(self.pipeline.rework_policy.autoapprove_stages, ("Implementation", "Testing"))
         self.assertEqual(self.pipeline.rework_policy.max_iterations, 3)
+        self.assertEqual(self.pipeline.stage("Product").review.target.agent, "pdlc-product-reviewer")
         self.assertEqual(self.pipeline.stage("UI").review.target.agent, "pdlc-tasks-reviewer")
         self.assertEqual(self.pipeline.stage("Tasks").review.target.artifact, "The delivery tasks")
         self.assertEqual(self.pipeline.stage("Technical Plan").review.target.agent, "pdlc-plan-reviewer")
@@ -144,25 +144,28 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
             self.pipeline.next_state(self.state("Verification", Gate.PENDING), Event.PUBLISHED)
 
     def test_review_outcome_matrix(self):
-        expected_clean = {"Implementation": Gate.CI_PENDING, "Testing": Gate.APPROVAL_REQUIRED}
+        expected_clean = {
+            "Product": Gate.APPROVAL_REQUIRED, "UI": Gate.APPROVAL_REQUIRED, "Tasks": Gate.APPROVAL_REQUIRED,
+            "Technical Plan": Gate.APPROVAL_REQUIRED, "Implementation": Gate.CI_PENDING, "Testing": Gate.CI_PENDING,
+        }
         for stage, clean_gate in expected_clean.items():
             source = self.state(stage, Gate.REVIEW_REQUIRED)
             self.assertEqual(self.pipeline.next_state(source, Event.REVIEWED, Outcome.CLEAN).gate, clean_gate)
             self.assertEqual(self.pipeline.next_state(source, Event.REVIEWED, Outcome.FINDINGS).gate, Gate.CHANGES_REQUIRED)
             self.assertEqual(self.pipeline.next_state(source, Event.REVIEWED, Outcome.DECISION).gate, Gate.DECISION_REQUIRED)
         with self.assertRaises(ValueError):
-            self.pipeline.next_state(self.state("UI", Gate.REVIEW_REQUIRED), Event.REVIEWED, Outcome.CLEAN)
-        self.assertEqual(self.pipeline.route(self.state("UI", Gate.REVIEW_REQUIRED)).action, Action.BLOCKED)
+            self.pipeline.next_state(self.state("Verification", Gate.REVIEW_REQUIRED), Event.REVIEWED, Outcome.CLEAN)
+        self.assertEqual(self.pipeline.route(self.state("Verification", Gate.REVIEW_REQUIRED)).action, Action.BLOCKED)
 
     def test_ci_outcome_matrix(self):
-        source = self.state("Implementation", Gate.CI_PENDING)
-        self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PASSED).gate, Gate.APPROVAL_REQUIRED)
-        self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_FAILED).gate, Gate.CHANGES_REQUIRED)
-        self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PENDING), source)
+        for stage in ("Implementation", "Testing"):
+            source = self.state(stage, Gate.CI_PENDING)
+            self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PASSED).gate, Gate.APPROVAL_REQUIRED)
+            self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_FAILED).gate, Gate.CHANGES_REQUIRED)
+            self.assertEqual(self.pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PENDING), source)
         with self.assertRaises(ValueError):
-            self.pipeline.next_state(self.state("Testing", Gate.CI_PENDING), Event.CI_RECONCILED, Outcome.CHECKS_PASSED)
-        self.assertEqual(self.pipeline.route(self.state("Testing", Gate.CI_PENDING)).action, Action.BLOCKED)
-        self.assertEqual(self.pipeline.route(self.state("Testing", Gate.CI_PENDING)).action, Action.BLOCKED)
+            self.pipeline.next_state(self.state("Product", Gate.CI_PENDING), Event.CI_RECONCILED, Outcome.CHECKS_PASSED)
+        self.assertEqual(self.pipeline.route(self.state("Product", Gate.CI_PENDING)).action, Action.BLOCKED)
 
     def test_approval_skip_decision_and_autoapproval_matrix(self):
         approvals = {
@@ -193,13 +196,13 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.pipeline.next_state(self.state("Verification", Gate.APPROVAL_REQUIRED), Event.AUTOAPPROVED)
         self.assertFalse(self.pipeline.can_autoapprove("Verification", 1))
-        for stage in ("Implementation", "Testing", "Verification"):
+        for stage in ("Product", "Implementation", "Testing", "Verification"):
             self.assertEqual(self.pipeline.next_state(self.state(stage, Gate.DECISION_REQUIRED), Event.DECISION_RESOLVED).gate, Gate.CHANGES_REQUIRED)
-        self.assertEqual(self.pipeline.route(self.state("Product", Gate.DECISION_REQUIRED)).action, Action.BLOCKED)
+        self.assertEqual(self.pipeline.route(self.state("Product", Gate.DECISION_REQUIRED)).action, Action.HUMAN_DECISION)
 
     def test_verification_outcomes_bounces_and_completion(self):
         source = self.state("Verification", Gate.PENDING)
-        self.assertEqual(self.pipeline.next_state(source, Event.VERIFIED, Outcome.CLEAN).gate, Gate.APPROVAL_REQUIRED)
+        self.assertEqual(self.pipeline.next_state(source, Event.VERIFIED, Outcome.CLEAN).gate, Gate.CI_PENDING)
         self.assertEqual(self.pipeline.next_state(source, Event.VERIFIED, Outcome.FINDINGS).gate, Gate.CHANGES_REQUIRED)
         self.assertEqual(self.pipeline.next_state(source, Event.VERIFIED, Outcome.DECISION).gate, Gate.DECISION_REQUIRED)
         bounce = self.pipeline.next_state(self.state("Verification", Gate.APPROVAL_REQUIRED), Event.BOUNCED, requested_target="Implementation")
@@ -242,7 +245,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
         self.assertEqual(self.pipeline.route(State("Bogus", Gate.PENDING)).action, Action.BLOCKED)
         self.assertEqual(
             self.pipeline.transition(self.state("Testing", Gate.REVIEW_REQUIRED), Event.REVIEWED, Outcome.CLEAN).gate,
-            Gate.APPROVAL_REQUIRED,
+            Gate.CI_PENDING,
         )
 
     def test_malformed_persisted_states_are_blocked(self):

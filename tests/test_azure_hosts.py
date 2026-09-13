@@ -12,6 +12,7 @@ from pdlc.config import Config, ConfigurationError
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.azure.workitems import (
+    ASSIGNED_TO_FIELD,
     DESCRIPTION_FIELD,
     GATE_FIELD,
     LIFECYCLE_FIELD,
@@ -381,6 +382,10 @@ class UpsertTaskTest(AzureHostTest):
         link = next(args for args in self.az.calls if args[:4] == ["boards", "work-item", "relation", "add"])
         self.assertEqual(link[link.index("--relation-type") + 1], "parent")
         self.assertEqual(link[link.index("--target-id") + 1], "7")
+        self.assertIn(
+            {"op": "add", "path": f"/fields/{ASSIGNED_TO_FIELD}", "value": "probe@example.com"},
+            self.az.body_of("devops", "invoke"),
+        )
 
     def test_the_task_title_carries_the_parents_number_not_its_slug(self):
         # `upsert_tasks` is reachable by slug; the stable identity must still
@@ -524,8 +529,8 @@ class CreationAndIdentityTest(AzureHostTest):
         created = AzureWorkItemBackend().create("Retry failed uploads", "## Product\n\nBody.\n", "retry-uploads")
 
         # A work item is on its board the moment it exists — no equivalent of
-        # GitHub's separate `project item-add`.
-        self.assertEqual(len(self.az.calls), 1)
+        # GitHub's separate `project item-add`, beyond the assignee lookup.
+        self.assertEqual(len(self.az.calls), 2)
         self.assertEqual(created, {
             "id": "7", "number": 7,
             "url": f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7",
@@ -534,7 +539,8 @@ class CreationAndIdentityTest(AzureHostTest):
         self.assertIn({"op": "add", "path": f"/fields/{DESCRIPTION_FIELD}", "value": "## Product\n\nBody.\n"}, operations)
         self.assertIn({"op": "add", "path": f"/fields/{SLUG_FIELD}", "value": "retry-uploads"}, operations)
         self.assertIn({"op": "add", "path": f"/fields/{TITLE_FIELD}", "value": "Retry failed uploads"}, operations)
-        args = self.az.calls[0]
+        self.assertIn({"op": "add", "path": f"/fields/{ASSIGNED_TO_FIELD}", "value": "probe@example.com"}, operations)
+        args = self.az.calls_matching("devops", "invoke")[0]
         self.assertEqual(args[args.index("--route-parameters") + 2], "type=Product Backlog Item")
 
     def test_a_created_description_is_marked_as_markdown(self):
@@ -553,7 +559,7 @@ class CreationAndIdentityTest(AzureHostTest):
         # resource requires.
         self.az.invoke("wit", "workitems", response=work_item(7))
         AzureWorkItemBackend().create("Retry", "body", "retry")
-        args = self.az.calls[0]
+        args = self.az.calls_matching("devops", "invoke")[0]
         self.assertEqual(args[args.index("--api-version") + 1], "7.1")
         self.assertEqual(args[args.index("--media-type") + 1], "application/json-patch+json")
         self.assertEqual(args[args.index("--http-method") + 1], "POST")
@@ -574,6 +580,23 @@ class CreationAndIdentityTest(AzureHostTest):
 
     def test_ref_label_is_the_azure_project(self):
         self.assertEqual(AzureWorkItemBackend().ref_label(), PROJECT)
+
+    def test_a_new_record_is_assigned_to_the_configured_identity(self):
+        self.configure(azure_assigned_to="owner@acme.test")
+        self.az.invoke("wit", "workitems", response=work_item(7))
+        AzureWorkItemBackend().create("Retry", "body", "retry")
+        operations = self.az.body_of("devops", "invoke")
+        self.assertIn({"op": "add", "path": f"/fields/{ASSIGNED_TO_FIELD}", "value": "owner@acme.test"}, operations)
+
+    def test_at_me_resolves_to_the_signed_in_account_for_assignment(self):
+        # `@me` only resolves in a WIQL filter; a field write needs the real
+        # identity, so `@me` falls back to `current_actor()` just like unset.
+        self.configure(azure_assigned_to="@me")
+        self.az.az("account", "show", response="dev@acme.test\n")
+        self.az.invoke("wit", "workitems", response=work_item(7))
+        AzureWorkItemBackend().create("Retry", "body", "retry")
+        operations = self.az.body_of("devops", "invoke")
+        self.assertIn({"op": "add", "path": f"/fields/{ASSIGNED_TO_FIELD}", "value": "dev@acme.test"}, operations)
 
 
 class AzureConfigurationTest(unittest.TestCase):

@@ -32,6 +32,9 @@ CONFIG_FIELDS = {
     ("backend.azure", "record_type"): "azure_record_type",
     ("backend.azure", "closed_state"): "azure_closed_state",
     ("backend.azure", "open_state"): "azure_open_state",
+    ("backend.azure", "task_closed_state"): "azure_task_closed_state",
+    ("backend.azure", "task_open_state"): "azure_task_open_state",
+    ("backend.azure", "task_in_progress_state"): "azure_task_in_progress_state",
     ("backend.azure", "assigned_to"): "azure_assigned_to",
     ("code_host", "name"): "code_host",
     ("code_host", "pr_attachment"): "pr_attachment",
@@ -121,6 +124,13 @@ class Config:
     azure_record_type: str | None = None
     azure_closed_state: str | None = None
     azure_open_state: str | None = None
+    # Delivery tasks (`Task`) commonly use a different state vocabulary than
+    # the record's own work-item type; unset falls back to `azure_closed_state`
+    # / `azure_open_state`. `azure_task_in_progress_state` has no work-item
+    # equivalent to fall back to, so it stays `None` unless set.
+    azure_task_closed_state: str | None = None
+    azure_task_open_state: str | None = None
+    azure_task_in_progress_state: str | None = None
     azure_assigned_to: str | None = None
     max_attempts: int = 5
     initial_delay_seconds: int = 60

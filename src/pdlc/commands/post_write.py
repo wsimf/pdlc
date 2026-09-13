@@ -46,7 +46,9 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
-from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, State, WorkType
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, State, WorkType
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")

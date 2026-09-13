@@ -51,6 +51,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(arguments, ["641"])
         self.assertEqual(_resolve(["inspect", "task", "641"])[0], "pdlc.commands.inspect_task")
 
+    def test_resolves_doctor(self):
+        self.assertEqual(_resolve(["doctor"])[0], "pdlc.commands.doctor")
+
+    def test_resolves_guide(self):
+        self.assertEqual(_resolve(["guide"])[0], "pdlc.commands.guide")
+
     def test_supports_exec_alias(self):
         module, _ = _resolve(["exec", "post", "complete"])
         self.assertEqual(module, "pdlc.commands.post_complete")
