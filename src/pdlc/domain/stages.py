@@ -61,7 +61,6 @@ class ReviewPolicy:
 
     target: ReviewerTarget | None = None
     clean_gate: Gate = Gate.APPROVAL_REQUIRED
-    independent: bool = True
 
 
 @dataclass(frozen=True)

@@ -60,7 +60,7 @@ def _readiness(item: dict, pipeline: Pipeline) -> tuple[bool, str]:
         review = pipeline.stage(status).review
     except ValueError:
         return False, f"Not ready: no reviewer target for Status {status!r}."
-    if review is None or not review.independent or review.target is None:
+    if review is None or review.target is None:
         return False, f"Not ready: {status} never reaches Review Required — something published without going through its owning skill's local review."
 
     if is_stage_skipped(item, status):

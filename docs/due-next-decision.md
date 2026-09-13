@@ -12,8 +12,7 @@ See `stage-ownership.md` for the underlying status/action/owner matrix; this fil
 - **Decision Required (Product, UI, Tasks, Technical Plan, Verification)**: `Due next: Stage.DecisionRequired → This work item is pending user decision.` plus an `### Evidence` section inlining the newest PDLC-DECISION comment, or the "unable to parse" fallback prose when none is found — same evidence-lookup shape as Changes Required/Stale.
 - **Implementation/Testing/Verification CI Pending (genuinely CI-gated, not healed)**: `→ pdlc post ci — record...` plus the read-only resolve-ci.md orientation line.
 - **Review Required (Implementation, Testing only)**: `→ pdlc-review`. Verification has no persisted review policy, so its Review Required is a heal instead (see above).
-- **Structurally invalid with no heal target (Complete only, beyond Approved)**: `→ blocked — <validate_state error>`.
-- **Complete**: `Approved` → `none — record is Complete`; every other gate → `blocked — invalid terminal workflow state...`.
+- **Complete (every gate)**: a single fixed message, `This work item has been completed.`, regardless of which gate the record carries.
 
 Note: the reason line is just `reason.capitalize()` applied to a lowercase source string, so proper nouns and acronyms inside longer reasons render lowercase mid-sentence (e.g. `Ui or task artifact is due.`, `the registered pr stack's ci outcome`). Pre-existing cosmetic behavior, not introduced by the due-next changes.
 
@@ -115,7 +114,8 @@ Call `pdlc next {ITEM_ID}` to continue this work item.
 
 Due next: Product.ApprovalRequired → This work item is pending user approval.
 Explicit user approval is required. You are not able to continue autonomously.
-Ask the user to approve, or if the approval has been provided call `pdlc post approve`.
+Ask the user to approve.
+If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.
 Use `pdlc post approve --help` for more information about arguments to pass.
 ```
 
@@ -254,7 +254,8 @@ Call `pdlc next {ITEM_ID}` to continue this work item.
 
 Due next: UI.ApprovalRequired → This work item is pending user approval.
 Explicit user approval is required. You are not able to continue autonomously.
-Ask the user to approve, or if the approval has been provided call `pdlc post approve`.
+Ask the user to approve.
+If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.
 Use `pdlc post approve --help` for more information about arguments to pass.
 ```
 
@@ -395,7 +396,8 @@ Call `pdlc next {ITEM_ID}` to continue this work item.
 
 Due next: Tasks.ApprovalRequired → This work item is pending user approval.
 Explicit user approval is required. You are not able to continue autonomously.
-Ask the user to approve, or if the approval has been provided call `pdlc post approve`.
+Ask the user to approve.
+If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.
 Use `pdlc post approve --help` for more information about arguments to pass.
 ```
 
@@ -554,7 +556,8 @@ Call `pdlc next {ITEM_ID}` to continue this work item.
 
 Due next: TechnicalPlan.ApprovalRequired → This work item is pending user approval.
 Explicit user approval is required. You are not able to continue autonomously.
-Ask the user to approve, or if the approval has been provided call `pdlc post approve`.
+Ask the user to approve.
+If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.
 Use `pdlc post approve --help` for more information about arguments to pass.
 ```
 
@@ -1123,66 +1126,12 @@ item is no longer able to continue autonomously.
 
 ## Complete
 
-### Complete / Pending
+Every gate at this stage — Pending, Review Required, Changes Required, Decision
+Required, CI Pending, Approval Required, Approved, Stale — renders the same
+fixed text; nothing is due next once a record is terminal.
+
 ```
 # Due Next
 
-Due next: Complete.Pending → blocked — invalid terminal workflow state: Complete / Pending / Completed
-Invalid terminal workflow state: complete / pending / completed.
-```
-
-### Complete / Review Required
-```
-# Due Next
-
-Due next: Complete.ReviewRequired → blocked — invalid terminal workflow state: Complete / Review Required / Completed
-Invalid terminal workflow state: complete / review required / completed.
-```
-
-### Complete / Changes Required
-```
-# Due Next
-
-Due next: Complete.ChangesRequired → blocked — invalid terminal workflow state: Complete / Changes Required / Completed
-Invalid terminal workflow state: complete / changes required / completed.
-```
-
-### Complete / Decision Required
-```
-# Due Next
-
-Due next: Complete.DecisionRequired → blocked — invalid terminal workflow state: Complete / Decision Required / Completed
-Invalid terminal workflow state: complete / decision required / completed.
-```
-
-### Complete / CI Pending
-```
-# Due Next
-
-Due next: Complete.CIPending → blocked — invalid terminal workflow state: Complete / CI Pending / Completed
-Invalid terminal workflow state: complete / ci pending / completed.
-```
-
-### Complete / Approval Required
-```
-# Due Next
-
-Due next: Complete.ApprovalRequired → blocked — invalid terminal workflow state: Complete / Approval Required / Completed
-Invalid terminal workflow state: complete / approval required / completed.
-```
-
-### Complete / Approved
-```
-# Due Next
-
-Due next: Complete.Approved → none — record is Complete
-Complete.
-```
-
-### Complete / Stale
-```
-# Due Next
-
-Due next: Complete.Stale → blocked — invalid terminal workflow state: Complete / Stale / Completed
-Invalid terminal workflow state: complete / stale / completed.
+This work item has been completed.
 ```

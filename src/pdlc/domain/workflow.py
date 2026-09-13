@@ -256,9 +256,7 @@ class Pipeline:
                 raise ValueError(f"terminal stage carries active policy: {stage.name}")
             if not stage.terminal and stage.skill is None:
                 raise ValueError(f"active stage has no skill: {stage.name}")
-            if stage.ci_gated and not stage.accepts_verification and (
-                stage.review is None or not stage.review.independent
-            ):
+            if stage.ci_gated and not stage.accepts_verification and stage.review is None:
                 raise ValueError(f"CI-gated stage requires independent review or verification: {stage.name}")
         keys: set[tuple[str, Gate, Event, Outcome | None]] = set()
         for override in self.overrides:
@@ -376,14 +374,11 @@ class Pipeline:
             raise ValueError(f"active stage cannot have Completed lifecycle: {state.stage}")
         if state.gate in _WORK_GATES and stage.action is None:
             raise ValueError(f"stage has no work action: {state.stage}")
-        if state.gate == Gate.REVIEW_REQUIRED and (stage.review is None or not stage.review.independent):
+        if state.gate == Gate.REVIEW_REQUIRED and stage.review is None:
             raise ValueError(f"stage does not support persisted independent review: {state.stage}")
         if state.gate == Gate.CI_PENDING and not stage.ci_gated:
             raise ValueError(f"stage is not CI-gated: {state.stage}")
-        if state.gate == Gate.DECISION_REQUIRED and not (
-            stage.accepts_verification
-            or (stage.review is not None and stage.review.independent)
-        ):
+        if state.gate == Gate.DECISION_REQUIRED and not (stage.accepts_verification or stage.review is not None):
             raise ValueError(f"stage does not support decisions: {state.stage}")
         if state.gate == Gate.APPROVED:
             raise ValueError(f"active stage cannot remain Approved: {state.stage}")
@@ -428,7 +423,7 @@ class Pipeline:
                 return None
             return State(stage.name, stage.result_gate, state.lifecycle)
 
-        if state.gate == Gate.REVIEW_REQUIRED and (stage.review is None or not stage.review.independent):
+        if state.gate == Gate.REVIEW_REQUIRED and stage.review is None:
             return State(stage.name, Gate.APPROVAL_REQUIRED, state.lifecycle)
 
         return None
@@ -506,7 +501,7 @@ class Pipeline:
                 raise ValueError(f"publish requires a work gate from {state.stage}")
             return State(stage.name, stage.result_gate, state.lifecycle)
         if event == Event.REVIEWED:
-            if state.gate != Gate.REVIEW_REQUIRED or stage.review is None or not stage.review.independent:
+            if state.gate != Gate.REVIEW_REQUIRED or stage.review is None:
                 raise ValueError(f"review requires Review Required from {state.stage}")
             if outcome == Outcome.CLEAN:
                 gate = Gate.CI_PENDING if stage.ci_gated else stage.review.clean_gate

@@ -128,9 +128,10 @@ Required and Stale do (see `_EVIDENCE_MARKERS`), so this form is currently
 unreachable there too.
 
 Product, UI, Tasks, Technical Plan, Implementation, Testing, and Verification
-all carry curated, per-gate text (see `_STAGE_DUE_NEXT`); only the terminal
-`Complete` stage still falls back to the generic `blocked — invalid terminal
-workflow state...` form, since a terminal stage can never heal.
+all carry curated, per-gate text (see `_STAGE_DUE_NEXT`); the terminal
+`Complete` stage instead always renders one fixed message — "This work item
+has been completed." — regardless of its gate, since nothing is due next once
+a record is terminal.
 """
 
 from __future__ import annotations
@@ -156,10 +157,6 @@ from pdlc.domain.workflows.stages import (
     UI_STAGE,
     VERIFICATION_STAGE,
 )
-
-
-def _due_next_owner(due: dict) -> str:
-    return due.get("owner", due["action"])
 
 
 # Product, UI, and Tasks are the independently-reviewable stages whose Due
@@ -201,7 +198,8 @@ _PRODUCT_DUE_NEXT: dict[str, str] = {
     "Approval Required": (
         "Due next: Product.ApprovalRequired → This work item is pending user approval.\n"
         "Explicit user approval is required. You are not able to continue autonomously.\n"
-        "Ask the user to approve, or if the approval has been provided call `pdlc post approve`.\n"
+        "Ask the user to approve.\n"
+        "If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.\n"
         "Use `pdlc post approve --help` for more information about arguments to pass."
     ),
     "Approved": (
@@ -249,7 +247,8 @@ _UI_DUE_NEXT: dict[str, str] = {
     "Approval Required": (
         "Due next: UI.ApprovalRequired → This work item is pending user approval.\n"
         "Explicit user approval is required. You are not able to continue autonomously.\n"
-        "Ask the user to approve, or if the approval has been provided call `pdlc post approve`.\n"
+        "Ask the user to approve.\n"
+        "If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.\n"
         "Use `pdlc post approve --help` for more information about arguments to pass."
     ),
     "Approved": (
@@ -299,7 +298,8 @@ _TASKS_DUE_NEXT: dict[str, str] = {
     "Approval Required": (
         "Due next: Tasks.ApprovalRequired → This work item is pending user approval.\n"
         "Explicit user approval is required. You are not able to continue autonomously.\n"
-        "Ask the user to approve, or if the approval has been provided call `pdlc post approve`.\n"
+        "Ask the user to approve.\n"
+        "If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.\n"
         "Use `pdlc post approve --help` for more information about arguments to pass."
     ),
     "Approved": (
@@ -347,7 +347,8 @@ _TECHNICAL_PLAN_DUE_NEXT: dict[str, str] = {
     "Approval Required": (
         "Due next: TechnicalPlan.ApprovalRequired → This work item is pending user approval.\n"
         "Explicit user approval is required. You are not able to continue autonomously.\n"
-        "Ask the user to approve, or if the approval has been provided call `pdlc post approve`.\n"
+        "Ask the user to approve.\n"
+        "If user requests changes, follow the re-author procedure specified in the skill, or if approves call `pdlc post approve`.\n"
         "Use `pdlc post approve --help` for more information about arguments to pass."
     ),
     "Approved": (
@@ -660,6 +661,8 @@ _TESTABLE_SCOPE_BLOCK = (
 def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> str:
     due = due_next(item)
     item_id = item_issue(item)
+    if due["status"] == "Complete":
+        return "# Due Next\n\nThis work item has been completed."
     stage_due_next = _STAGE_DUE_NEXT.get(due["status"])
     if stage_due_next is not None and due["gate"] in stage_due_next:
         skill = _STAGE_SKILL.get(due["status"], "")
@@ -694,33 +697,13 @@ def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> st
         body = default_body if next_task_block is None else default_body + "\n\n" + next_task_block
         body += "\n\n" + evidence_block
         return ("# Due Next\n\n" + body).replace("{ITEM_ID}", item_id)
-    lines = []
-    if due["skipped_through"]:
-        lines.append(f"Skipped through: {', '.join(due['skipped_through'])} (declared in Skipped States)")
-    lines.append(f"Due next: {due['state']} → {_due_next_owner(due)}")
-    lines.append(due["reason"].capitalize() + ".")
-    if due["gate"] == "Approval Required" and due.get("reauthor_in_place"):
-        lines.append(
-            "A driver request to change this artifact re-enters its owning skill "
-            "(pdlc-write / pdlc-tasks / pdlc-plan): the land script returns the "
-            "stage to Stale itself and re-lands the reviewed artifact in one step."
-        )
-    if due["action"] == "pdlc-post-ci":
-        lines.append(
-            "Orientation is read-only: report the pullRequests checks state above and, on continue, "
-            "follow references/resolve-ci.md."
-        )
-    if due["action"] == "human-decision":
-        lines.append(
-            "Read `pdlc inspect timeline` to find the reviewer's open PDLC-DECISION comment and "
-            "explain the decision to the user in plain terms — they may not have followed the "
-            "review that raised it. If no open PDLC-DECISION is found, explain that an earlier "
-            "agent halted here waiting on a decision, then ask whether the current state is fine "
-            "as-is. If the user is happy with it, close the gate with `pdlc post decision` using "
-            "an answer of \"User decided no changes needed here. Continue.\" for the open decision "
-            "— resolution always lands on Changes Required, so act on that gate next."
-        )
-    return "# Due Next\n\n" + "\n".join(lines)
+    # Reachable only for a status/gate combination `due_next()` cannot parse or
+    # heal (a malformed or unsupported work item state) — every real stage
+    # name curates all eight gates above, and Complete returns early.
+    return (
+        f"# Due Next\n\nDue next: {due['state']} → {due.get('owner', due['action'])}\n"
+        f"{due['reason'].capitalize()}."
+    )
 
 
 def _task_front_matter(task: dict) -> str:
