@@ -189,7 +189,7 @@ class AzureRecoveryTests(unittest.TestCase):
     }
 
     def test_link_failure_retry_recovers_the_same_task(self):
-        with patch("pdlc.hosts.lib.azure.workitem_backend.azure.tasks_with_identity", side_effect=[[], [self.candidate]]), patch("pdlc.hosts.lib.azure.workitem_backend.azure.create", return_value={"id": 8}) as create, patch("pdlc.hosts.lib.azure.workitem_backend.azure.add_parent", side_effect=[PdlcError("link failed"), None]) as link, patch("pdlc.hosts.lib.azure.workitem_backend.azure.item_url", return_value="url"):
+        with patch("pdlc.hosts.lib.azure.workitem_backend.azure.tasks_with_identity", side_effect=[[], [self.candidate]]), patch("pdlc.hosts.lib.azure.workitem_backend.azure.create", return_value={"id": 8}) as create, patch("pdlc.hosts.lib.azure.workitem_backend.azure.add_parent", side_effect=[PdlcError("link failed"), None]) as link, patch("pdlc.hosts.lib.azure.workitem_backend.azure.item_url", return_value="url"), patch("pdlc.hosts.lib.azure.workitem_backend._assignee", return_value="probe@example.com"):
             backend = AzureWorkItemBackend()
             with self.assertRaisesRegex(PdlcError, "link failed"):
                 backend._upsert(7, self.task, None)
