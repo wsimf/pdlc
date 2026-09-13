@@ -30,7 +30,7 @@ The work-item store is the system of record. Local files are temporary inputs; t
 - **Inspect** progress read-only with `pdlc inspect timeline`, `pdlc inspect comments --page N`, and per-stage readiness checks (`inspect implement`, `inspect test`, `inspect verify`, `inspect complete`).
 - **Route seams to your toolchain.** A consuming repo maps each capability slot (implementer, reviewer, test author, …) to its own skill or sub-agent through `.pdlc/config.toml`; unset slots fall back to a general-purpose agent, so the skills name no project-specific tool.
 
-Run `pdlc --help` for the full command list.
+Run `pdlc --help` for the full command list. Run `pdlc guide guide` for the general guide or `pdlc guide decisions` for the decision-resolution workflow.
 
 ## Installation
 
@@ -157,8 +157,11 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
 | `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
 | `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
-| `[backend.azure] closed_state` | `Done` | Work-item state a delivery task is closed into. `Closed` is always recognized as terminal regardless of this setting. |
-| `[backend.azure] open_state` | `To Do` | Work-item state a delivery task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
+| `[backend.azure] closed_state` | `Done` | Work-item state name. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
+| `[backend.azure] open_state` | `To Do` | Work-item state name. Falls back for `task_open_state` when that is unset. |
+| `[backend.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
+| `[backend.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
+| `[backend.azure] task_in_progress_state` | unset | Optional. No work-item fallback — set explicitly if your process has an in-progress `Task` state you want recorded. |
 | `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
 | `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
@@ -331,4 +334,4 @@ Every slot is optional; omit both tables and the workflow still runs with the fa
 | `test-authoring` | skill | `pdlc-test-writer` | agent follows the existing test suite's conventions |
 | `test-framework` | skill | `pdlc-test-writer` (reference only) | omitted |
 
-Inspect the current wiring with `pdlc inspect capability` (every slot) or `pdlc inspect capability <slot>` (one paste-ready line). Full contract: `agent/skills/pdlc/references/capabilities.md`.
+Inspect the current wiring with `pdlc inspect capability` (every slot) or `pdlc inspect capability <slot>` (one paste-ready line). Full contract: `pdlc guide capabilities`.

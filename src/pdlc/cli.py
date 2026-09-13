@@ -11,6 +11,8 @@ from pdlc.internal.inputs import wants_help
 
 
 COMMANDS = {
+    ("doctor",): "pdlc.commands.doctor",
+    ("guide",): "pdlc.commands.guide",
     ("setup",): "pdlc.commands.setup",
     # Human-only worktree scaffolding / teardown; deliberately omitted from
     # `_usage()` and the agent workflow. `prepare` is local Git only; `cleanup`
@@ -29,6 +31,7 @@ COMMANDS = {
     ("inspect", "capability"): "pdlc.commands.inspect_capability",
     ("inspect", "review"): "pdlc.commands.inspect_review",
     ("next",): "pdlc.commands.next",
+    ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
     ("post", "attach-pr"): "pdlc.commands.post_attach_pr",
     ("post", "ci"): "pdlc.commands.post_ci",
@@ -57,6 +60,8 @@ def _usage() -> str:
         "  Run `pdlc COMMAND --help` for a command's own usage, flags, and behavioral contract.\n"
         "\nREAD-ONLY COMMANDS\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
+        "  doctor                      inspect config, derived values, and all validation results\n"
+        "  guide                       print a bundled Markdown guide for PDLC agents\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
         "  inspect task WI [TASK...]   full text and flags for specific delivery tasks\n"
         "  inspect task timeline TASK  one delivery task's plan/implementation/invalidation history\n"
@@ -71,6 +76,7 @@ def _usage() -> str:
         "  next [--work-item N]        route one item (or scan the queue) to the next pdlc-* skill\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"
+        "  continue WI                            self-heal a stray Approved/CI Pending gate; errors otherwise\n"
         "  post write                             publish the Product artifact\n"
         "  post tasks                             land a UI or Tasks stage\n"
         "  post plan                              land the Technical Plan\n"
@@ -149,11 +155,19 @@ def _dispatch(raw_arguments: list[str]) -> int:
         return 0
     try:
         arguments, overrides = _options(raw_arguments)
-        config = load_config(overrides=overrides)
         module_name, command_arguments = _resolve(arguments)
+        if module_name == "pdlc.commands.doctor":
+            module = importlib.import_module(module_name)
+            return int(module.main(argv=command_arguments, overrides=overrides))
+        if module_name == "pdlc.commands.guide":
+            module = importlib.import_module(module_name)
+            return int(module.main(argv=command_arguments))
+        config = load_config(overrides=overrides)
         # setup runs the wizard; capability routing is local and needs no backend.
         local_only = {
             "pdlc.commands.setup",
+            "pdlc.commands.doctor",
+            "pdlc.commands.guide",
             "pdlc.commands.inspect_capability",
             "pdlc.commands.prepare",
         }

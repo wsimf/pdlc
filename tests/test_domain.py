@@ -6,7 +6,7 @@ import unittest
 
 from pdlc.commands.post_write import product_fragments
 from pdlc.domain.completion import completion_blockers
-from pdlc.domain.workflow import FEATURE_PIPELINE
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
@@ -101,6 +101,215 @@ class RoutingTableTests(unittest.TestCase):
         self.assertEqual(due["action"], "pdlc-post-ci")
         self.assertTrue(due["autonomous"])
         self.assertNotIn("next_state", due)
+
+    def test_stray_approved_gate_reports_as_self_healable_not_blocked(self):
+        due = due_next({"Status": "Technical Plan", "Gate State": "Approved", "Skipped States": ""})
+        self.assertEqual(due["action"], "pdlc-continue")
+        self.assertTrue(due["autonomous"])
+        self.assertEqual(due["state"], "TechnicalPlan.Approved")
+        self.assertIn("Implementation.Pending", due["owner"])
+        self.assertIn("Implementation.Pending", due["reason"])
+
+    def test_ci_pending_on_a_non_ci_gated_stage_reports_as_self_healable(self):
+        due = due_next({"Status": "Product", "Gate State": "CI Pending", "Skipped States": ""})
+        self.assertEqual(due["action"], "pdlc-continue")
+        self.assertIn("Product.ApprovalRequired", due["owner"])
+
+    def test_verification_is_ci_gated_like_implementation_and_testing(self):
+        due = due_next({"Status": "Verification", "Gate State": "CI Pending", "Skipped States": ""})
+        self.assertEqual(due["action"], "pdlc-post-ci")
+        self.assertTrue(due["autonomous"])
+
+    def test_verification_review_required_is_a_stray_state_that_heals(self):
+        due = due_next({"Status": "Verification", "Gate State": "Review Required", "Skipped States": ""})
+        self.assertEqual(due["action"], "pdlc-continue")
+        self.assertIn("Verification.ApprovalRequired", due["owner"])
+
+
+# The full 8 stages x 8 gates matrix, so a change to routing or self-heal
+# behavior for any one combination fails a test naming exactly that cell
+# rather than surfacing indirectly somewhere else. "blocked" covers both
+# structurally invalid combinations with no single correct fix, and (for
+# Complete) any gate other than the one valid terminal state.
+_STAGES = (
+    "Product", "UI", "Tasks", "Technical Plan", "Implementation",
+    "Testing", "Verification", "Complete",
+)
+_GATES = (
+    "Pending", "Review Required", "Changes Required", "Decision Required",
+    "CI Pending", "Approval Required", "Approved", "Stale",
+)
+
+def _pending(stage: str) -> str:
+    return f"{stage.replace(' ', '')}.Pending"
+
+
+def _heal(source_notation: str, target_notation: str) -> dict:
+    return {
+        "action": "pdlc-continue",
+        "reason": f"{source_notation} is a stray state; pdlc continue heals it to {target_notation}",
+        "owner": f"pdlc continue — self-heals to {target_notation}",
+    }
+
+
+_APPROVAL_REQUIRED_REASON = "explicit human approval is required"
+_DECISION_REQUIRED_REASON = "a reviewer raised a blocking decision that only the user can resolve"
+_DECISION_REQUIRED_OWNER = "human — resolve the blocking review decision (see the last PDLC-DECISION comment)"
+_REVIEW_REQUIRED_REASON = "review is due"
+
+# (stage, gate) -> {action, reason, owner}, each exactly what `due_next()`
+# reports. Every cell not listed here is expected to be blocked (checked
+# generically below, not by pinning each validate_state error string).
+_EXPECTED: dict[tuple[str, str], dict[str, str]] = {
+    ("Product", "Pending"): {
+        "action": "human-input", "owner": "human — invoke pdlc-write interactively",
+        "reason": "product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously",
+    },
+    ("Product", "Changes Required"): {
+        "action": "human-input", "owner": "human — invoke pdlc-write interactively",
+        "reason": "product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously",
+    },
+    ("Product", "Stale"): {
+        "action": "human-input", "owner": "human — invoke pdlc-write interactively",
+        "reason": "product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously",
+    },
+    ("Product", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("Product", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Product", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Product", "CI Pending"): _heal("Product.CIPending", "Product.ApprovalRequired"),
+    ("Product", "Approved"): _heal("Product.Approved", _pending("UI")),
+
+    ("UI", "Pending"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("UI", "Changes Required"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("UI", "Stale"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("UI", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("UI", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("UI", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("UI", "CI Pending"): _heal("UI.CIPending", "UI.ApprovalRequired"),
+    ("UI", "Approved"): _heal("UI.Approved", _pending("Tasks")),
+
+    ("Tasks", "Pending"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("Tasks", "Changes Required"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("Tasks", "Stale"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
+    ("Tasks", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("Tasks", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Tasks", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Tasks", "CI Pending"): _heal("Tasks.CIPending", "Tasks.ApprovalRequired"),
+    ("Tasks", "Approved"): _heal("Tasks.Approved", _pending("Technical Plan")),
+
+    ("Technical Plan", "Pending"): {"action": "pdlc-plan", "owner": "pdlc-plan", "reason": "technical plan is due"},
+    ("Technical Plan", "Changes Required"): {"action": "pdlc-plan", "owner": "pdlc-plan", "reason": "technical plan is due"},
+    ("Technical Plan", "Stale"): {"action": "pdlc-plan", "owner": "pdlc-plan", "reason": "technical plan is due"},
+    ("Technical Plan", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("Technical Plan", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Technical Plan", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Technical Plan", "CI Pending"): _heal("TechnicalPlan.CIPending", "TechnicalPlan.ApprovalRequired"),
+    ("Technical Plan", "Approved"): _heal("TechnicalPlan.Approved", _pending("Implementation")),
+
+    ("Implementation", "Pending"): {
+        "action": "pdlc-implement", "owner": "pdlc-implement", "reason": "next eligible delivery task is due",
+    },
+    ("Implementation", "Changes Required"): {
+        "action": "pdlc-implement", "owner": "pdlc-implement", "reason": "next eligible delivery task is due",
+    },
+    ("Implementation", "Stale"): {
+        "action": "pdlc-implement", "owner": "pdlc-implement", "reason": "next eligible delivery task is due",
+    },
+    ("Implementation", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("Implementation", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Implementation", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Implementation", "CI Pending"): {
+        "action": "pdlc-post-ci", "owner": "pdlc post ci — record the registered PR stack's CI outcome",
+        "reason": "the implementation review passed; the registered PR stack's CI outcome must be recorded",
+    },
+    ("Implementation", "Approved"): _heal("Implementation.Approved", _pending("Testing")),
+
+    ("Testing", "Pending"): {"action": "pdlc-test", "owner": "pdlc-test", "reason": "acceptance coverage is due"},
+    ("Testing", "Changes Required"): {"action": "pdlc-test", "owner": "pdlc-test", "reason": "acceptance coverage is due"},
+    ("Testing", "Stale"): {"action": "pdlc-test", "owner": "pdlc-test", "reason": "acceptance coverage is due"},
+    ("Testing", "Review Required"): {
+        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+    },
+    ("Testing", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Testing", "Approval Required"): {
+        "action": "human-approval", "owner": "human — pdlc post approve", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Testing", "CI Pending"): {
+        "action": "pdlc-post-ci", "owner": "pdlc post ci — record the registered PR stack's CI outcome",
+        "reason": "the testing review passed; the registered PR stack's CI outcome must be recorded",
+    },
+    ("Testing", "Approved"): _heal("Testing.Approved", _pending("Verification")),
+
+    ("Verification", "Pending"): {"action": "pdlc-verify", "owner": "pdlc-verify", "reason": "verification is due"},
+    ("Verification", "Changes Required"): {"action": "pdlc-verify", "owner": "pdlc-verify", "reason": "verification is due"},
+    ("Verification", "Stale"): {"action": "pdlc-verify", "owner": "pdlc-verify", "reason": "verification is due"},
+    # No persisted review policy at this stage, so a stray Review Required
+    # heals straight to Approval Required instead of dispatching a reviewer.
+    ("Verification", "Review Required"): _heal("Verification.ReviewRequired", "Verification.ApprovalRequired"),
+    ("Verification", "Decision Required"): {
+        "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
+    },
+    ("Verification", "CI Pending"): {
+        "action": "pdlc-post-ci", "owner": "pdlc post ci — record the registered PR stack's CI outcome",
+        "reason": "the verification review passed; the registered PR stack's CI outcome must be recorded",
+    },
+    ("Verification", "Approval Required"): {
+        # Verification/Approval Required is the completion boundary — approval
+        # routes to `pdlc post complete`, not the generic `pdlc post approve`.
+        "action": "human-approval", "owner": "human — pdlc post complete", "reason": _APPROVAL_REQUIRED_REASON,
+    },
+    ("Verification", "Approved"): _heal("Verification.Approved", "Complete.Approved"),
+
+    ("Complete", "Approved"): {"action": "none", "owner": "none — record is Complete", "reason": "complete"},
+}
+
+
+class DueNextMatrixTests(unittest.TestCase):
+    def test_every_stage_and_gate_combination_routes_as_expected(self):
+        for stage in _STAGES:
+            for gate in _GATES:
+                expected = _EXPECTED.get((stage, gate))
+                with self.subTest(stage=stage, gate=gate):
+                    due = due_next({"Status": stage, "Gate State": gate, "Skipped States": ""})
+                    if expected is None:
+                        self.assertEqual(due["action"], "blocked", due)
+                        self.assertTrue(due["owner"].startswith("blocked — "), due)
+                        continue
+                    self.assertEqual(due["action"], expected["action"], due)
+                    self.assertEqual(due["owner"], expected["owner"], due)
+                    self.assertEqual(due["reason"], expected["reason"], due)
 
 
 class UserCommentsTests(unittest.TestCase):

@@ -86,7 +86,9 @@ class FakeAz:
         with self._lock:
             self.calls.append(args)
             self.bodies.append(self._read_body(args))
-            for route in self._routes:
+            # Last registered wins, so a test-specific route can override a
+            # base-class default (e.g. `AzureHostTest`'s `account show` stub).
+            for route in reversed(self._routes):
                 if route.match(args):
                     route.calls.append(args)
                     response = route.response
@@ -170,6 +172,10 @@ class AzureHostTest(unittest.TestCase):
             azure_project=PROJECT,
         ))
         self.addCleanup(self._restore_env)
+        # `current_actor()` and new-item assignment both resolve the signed-in
+        # identity this way; give every test a default so only assignment
+        # tests need to care about the value.
+        self.az.az("account", "show", response="probe@example.com")
 
     def configure(self, **fields: object) -> None:
         set_config(**fields)

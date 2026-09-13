@@ -14,9 +14,9 @@ When completion evidence includes local files — including any the driver
 supplied in this prompt — pass each one to `pdlc post complete` as
 `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
+the immediately preceding file. See `pdlc guide attachments`.
 
-Read `../pdlc/references/parity-contract.md` before checking readiness.
+Read `pdlc guide contract` before checking readiness.
 
 ## Required input
 

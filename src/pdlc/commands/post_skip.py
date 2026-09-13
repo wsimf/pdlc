@@ -6,20 +6,25 @@ USAGE
     pdlc post skip --work-item WORK_ITEM --state STATE[,STATE...] [--justification TEXT] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --justification TEXT    reason appended to the PDLC-SKIPPED evidence comment
+    --work-item WORK_ITEM                 required; the work item's number
+    --state STATE[,STATE...]              required; one or more lifecycle stages to mark skipped
+    --justification TEXT                  reason appended to the PDLC-SKIPPED evidence comment
+    --attachment PATH (repeatable)        attach a local file's contents to the PDLC-SKIPPED comment
+    --attachment-description TEXT         description for the --attachment immediately before it
 
 DESCRIPTION
-    Declares one or more lifecycle stages as skipped ahead of time, recorded in
-    the work item's "Skipped States" text field as a comma-separated list. Always
-    posts a durable PDLC-SKIPPED evidence comment naming the actor and the
-    skipped stage(s). Does not itself change
-    Status/Gate State/Lifecycle — pdlc next consults this field when a
-    skipped stage is reached. Only the orchestrator may call this, and only on an
-    explicit human instruction, same as pdlc post approve/pdlc post complete: a skip
-    carries the same weight as an approval and must not be requestable by an
-    unattended agent — this is a procedural boundary, not an authentication
-    check, since gh identity cannot tell a human from an agent acting on their
-    behalf.
+    Declares one or more lifecycle stages as skipped ahead of time, recorded
+    in the work item's "Skipped States" text field as a comma-separated
+    list. Always posts a durable PDLC-SKIPPED evidence comment naming the
+    actor and the skipped stage(s). Does not itself change Status/Gate
+    State/Lifecycle.
+
+    A skip is consulted later, when that stage is reached. Only the
+    orchestrator may call this, and only on an explicit human instruction —
+    a skip carries the same weight as an approval and must not be
+    requestable by an unattended agent. This is a procedural boundary, not
+    an authentication check, since identity cannot tell a human from an
+    agent acting on their behalf.
 """
 
 from __future__ import annotations

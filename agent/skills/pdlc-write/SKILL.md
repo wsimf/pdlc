@@ -6,7 +6,7 @@ argument-hint: "Fresh feature idea, or work item number to reconcile"
 
 # Write product specification
 
-Author product specifications that are clear, actionable, and suitable for implementation. Read `../pdlc/references/parity-contract.md`. This skill owns a PDLC Work Item's `Product`, `Decisions`, and `Open Questions` sections and nothing else.
+Author product specifications that are clear, actionable, and suitable for implementation. Read `pdlc guide contract`. This skill owns a PDLC Work Item's `Product`, `Decisions`, and `Open Questions` sections and nothing else.
 
 Section format, numbering, and writing rules: [references/product-spec-format.md](references/product-spec-format.md). Read it before Step 1.
 
@@ -14,7 +14,7 @@ When the artifact includes local files such as mockups — including any the
 driver supplied in this prompt — pass each one to `pdlc post write` as
 `--attachment PATH [--attachment-description TEXT]`.
 Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See [PDLC attachments](../pdlc/references/attachments.md).
+the immediately preceding file. See `pdlc guide attachments`.
 
 ## Philosophy: the work item is a spec, not a log
 

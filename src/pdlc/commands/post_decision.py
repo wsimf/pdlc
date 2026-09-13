@@ -5,6 +5,11 @@
 USAGE
     pdlc post decision WORK_ITEM --manifest FILE [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --manifest FILE                     required; JSON array of decision resolutions, see below
+    --attachment PATH (repeatable)      attach a local file's contents to the resolution comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
     Closes out a `Decision Required` gate in one call, once the driver has
     settled every open decision the reviewer raised.
@@ -47,7 +52,9 @@ from pathlib import Path
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.internal.inputs import load_json_array, print_help, require_file, wants_help
-from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, Lifecycle, WorkType
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, Lifecycle, WorkType
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 from pdlc.internal.workitem import (
     append_to_section,
     create_work_item,

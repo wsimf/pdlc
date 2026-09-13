@@ -8,11 +8,13 @@ USAGE
         [--decision DECISION_FILE|-] [--bounce STAGE]
 
 FLAGS
-    --recommendation TEXT    "Approval Required" | "Changes Required" | "Decision Required"
-    --fixed FIXED_FILE|-     one "description | commit" pair per line
-    --deferred DEFERRED_FILE|-  one plain reason per line
-    --decision DECISION_FILE|-  required with a Decision Required recommendation
-    --bounce STAGE           with Changes Required, return an upstream stage to Stale instead
+    --recommendation TEXT                 required; "Approval Required" | "Changes Required" | "Decision Required"
+    --fixed FIXED_FILE|-                  one "description | commit" pair per line
+    --deferred DEFERRED_FILE|-            one plain reason per line
+    --decision DECISION_FILE|-            required with a Decision Required recommendation
+    --bounce STAGE                        with Changes Required, return an upstream stage to Stale instead
+    --attachment PATH (repeatable)        attach a local file's contents to the verification comment
+    --attachment-description TEXT         description for the --attachment immediately before it
 
 DESCRIPTION
     Posts a durable "Verification Run Results" comment on a PDLC parent work item,
@@ -127,11 +129,12 @@ from pdlc.internal.workitem import (
     workflow_for_item,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.internal.ci_gate import resolve_ci_gate
 from pdlc.internal.invalidation import bounce_stage
 from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import is_stdin, resolve_text, print_help, wants_help
-from pdlc.domain.workflow import Event, Outcome
+from pdlc.domain.workflow import Event, Gate, Outcome
 
 RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
 DECISION_HEADING = "## Decision Required"
@@ -266,8 +269,20 @@ def post_verify(
                 "gateState": bounced.gate.value, "bouncedTo": bounced.stage, "attachments": attachments}
 
     set_gate(record["id"], target.gate.value)
+    result = {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": target.gate.value, "attachments": attachments}
 
-    return {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": target.gate.value, "attachments": attachments}
+    # A clean run is CI-gated, same as Implementation/Testing: it parks at CI
+    # Pending rather than Approval Required. Resolving it here immediately
+    # (rather than requiring a separate `pdlc post ci` call) matches those
+    # stages' own review commands — if checks already settled by verify time
+    # this advances straight through; if not, it stays parked until a driver
+    # or the autonomous loop runs `pdlc post ci`.
+    if target.gate == Gate.CI_PENDING:
+        ci = resolve_ci_gate(issue, record, pipeline, target)
+        result["gateState"] = ci["gateState"]
+        result["ci"] = ci
+
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

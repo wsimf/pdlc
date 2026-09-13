@@ -20,11 +20,16 @@ decision is all this script hands over.
 `action` is a pdlc-* skill name, `pdlc-post-ci` (run the script, then re-poll),
 or `human-input` / `human-approval` / `human-decision` / `blocked` / `none`.
 
-One routing side effect mutates the record before the decision is returned, the
-same way for a single --work-item lookup or a queue scan:
+Two routing side effects mutate the record before the decision is returned,
+the same way for a single --work-item lookup or a queue scan:
 
   - skip cascade: a stage listed in "Skipped States" is bypassed with a
     PDLC-SKIPPED comment and the state advanced past it.
+  - self-heal: a stage/gate combination no pdlc command ever writes, but that
+    has exactly one sane reading, is corrected rather than reported as
+    blocked — see `pipeline.heal()` and `pdlc continue --help` for the exact
+    cases (a stray Approved gate, or CI Pending on a stage that isn't
+    CI-gated). `pdlc continue` exposes this same correction standalone.
 
 Churn-gated auto-approval of the Implementation/Testing approval gates is not
 done here — the script that writes each gate (lib/ci_gate.py, pdlc post review)
@@ -45,7 +50,9 @@ from pdlc.internal.ci_gate import peek_ci_state
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help
 from pdlc.domain.model import blocked_reason
-from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, Lifecycle, Pipeline, State
+from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
 from pdlc.internal.reporting import yaml_front_matter
 from pdlc.internal.workitem import (
     is_stage_skipped,
@@ -56,6 +63,7 @@ from pdlc.internal.workitem import (
     queue_items,
     resolve_item,
     set_state,
+    write_healed_state,
 )
 
 
@@ -91,8 +99,18 @@ def _advance_past_skips(item: dict, pipeline: Pipeline) -> dict:
         status = item_status(item)
         gate = item_gate(item)
         lifecycle = item.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
+
         try:
             state = State.parse(status, gate, lifecycle)
+        except ValueError:
+            break
+
+        healed = pipeline.heal(state)
+        if healed is not None:
+            item = write_healed_state(item, item_issue(item), state, healed)
+            continue
+
+        try:
             pipeline.validate_state(state)
         except ValueError:
             break

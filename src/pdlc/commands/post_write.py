@@ -8,11 +8,23 @@ USAGE
     - if updating an existing record's Product section:
         pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --title TITLE                       required when creating a new record
+    --slug SLUG                         required when creating a new record
+    --work-item WORK_ITEM               required when updating an existing record
+    --evidence FILE|-                   required; the review evidence body
+    --body FILE                         required; the Product/Decisions/Open Questions content
+    --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
-    The supplied body contains exactly the three sections owned by Product:
+    Publishes the Product artifact: creates a new record, or replaces an
+existing record's Product section in one body edit while preserving
+sections owned by later stages.
+
+The supplied body contains exactly the three sections owned by Product:
 `Product`, `Decisions`, and `Open Questions`. New records use it as their
-initial body. Existing records replace those sections in one body edit while
-preserving sections owned by later stages.
+initial body.
 
 An existing record already at `Product / Approval Required` is re-authored in
 place: the script resets Product to Stale itself (no comment — the spec never
@@ -46,7 +58,9 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
-from pdlc.domain.workflow import Event, FEATURE_PIPELINE, Gate, State, WorkType
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Event, State, WorkType
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")

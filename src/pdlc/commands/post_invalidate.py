@@ -6,8 +6,10 @@ USAGE
     pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|- [--task TASK_NUMBER ...] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --task TASK_NUMBER (repeatable)    narrow task reopening to specific delivery tasks; only
-                                        valid when STAGE is Technical Plan or Implementation
+    --task TASK_NUMBER (repeatable)      narrow task reopening to specific delivery tasks; only
+                                          valid when STAGE is Technical Plan or Implementation
+    --attachment PATH (repeatable)       attach a local file's contents to the invalidation comment
+    --attachment-description TEXT        description for the --attachment immediately before it
 
 DESCRIPTION
     Returns a stage to Stale when upstream intent changed, without touching

@@ -5,13 +5,19 @@
 USAGE
     pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
+FLAGS
+    --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
+    --attachment-description TEXT       description for the --attachment immediately before it
+
 DESCRIPTION
     Records explicit human approval of the current stage and advances the
-    work item to the next stage's Pending. Refuses Verification — that
-    transition is completion, handled by pdlc post complete instead. Only the
-    orchestrator may call this, and only on an explicit human instruction — gh
-    identity cannot distinguish a human from an agent acting on their behalf, so
-    this is a procedural boundary, not an authentication check.
+    work item to the next stage's Pending.
+
+    Refuses Verification, since that transition is completion instead. Only
+    the orchestrator may call this, and only on an explicit human
+    instruction — this is a procedural boundary, not an authentication
+    check, since identity cannot distinguish a human from an agent acting
+    on their behalf.
 """
 
 from __future__ import annotations

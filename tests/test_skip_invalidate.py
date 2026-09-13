@@ -42,6 +42,52 @@ class SkipInvalidateTests(FileBackendTest):
         self.assertEqual(self.fields(63)["Status"], "Implementation")
         self.assertIn("PDLC-SKIPPED", self.comments_text(63))
 
+    def test_next_heals_a_stray_approved_gate_on_an_active_stage(self):
+        self.seed_record(76, "Technical Plan", "Approved")
+        result = self.next("--work-item", 76)
+        self.assertEqual(result.front_matter("action"), "pdlc-implement")
+        self.assertEqual(self.fields(76)["Status"], "Implementation")
+        self.assertEqual(self.fields(76)["Gate State"], "Pending")
+        self.assertIn("PDLC-APPROVED", self.comments_text(76))
+
+    def test_next_heals_a_stray_approved_gate_at_the_completion_boundary(self):
+        self.seed_record(77, "Verification", "Approved")
+        result = self.next("--work-item", 77)
+        self.assertEqual(result.front_matter("action"), "none")
+        self.assertEqual(self.fields(77)["Status"], "Complete")
+        self.assertEqual(self.fields(77)["Gate State"], "Approved")
+        self.assertEqual(self.fields(77)["Lifecycle"], "Completed")
+        self.assertIn("PDLC-APPROVED", self.comments_text(77))
+
+    def test_next_heals_ci_pending_on_a_stage_that_is_not_ci_gated(self):
+        self.seed_record(78, "UI", "CI Pending")
+        result = self.next("--work-item", 78)
+        self.assertEqual(result.front_matter("action"), "human-approval")
+        self.assertEqual(self.fields(78)["Status"], "UI")
+        self.assertEqual(self.fields(78)["Gate State"], "Approval Required")
+        text = self.comments_text(78)
+        self.assertIn("CIPending", text)
+        self.assertNotIn("PDLC-APPROVED", text)
+
+    def test_continue_heals_a_stray_approved_gate(self):
+        self.seed_record(79, "Technical Plan", "Approved")
+        result = self.invoke("continue_", 79)
+        self.assertEqual(result.code, 0, result.stderr)
+        body = json.loads(result.stdout)
+        self.assertEqual(body, {
+            "healed": True, "work_item": 79,
+            "from": "TechnicalPlan.Approved", "to": "Implementation.Pending",
+        })
+        self.assertEqual(self.fields(79)["Status"], "Implementation")
+        self.assertEqual(self.fields(79)["Gate State"], "Pending")
+
+    def test_continue_refuses_a_state_with_nothing_to_heal(self):
+        self.seed_record(80, "Technical Plan", "Pending")
+        result = self.invoke("continue_", 80)
+        self.assertEqual(result.code, 1)
+        self.assertIn("not a self-healable state", result.stderr)
+        self.assertEqual(self.fields(80)["Gate State"], "Pending")
+
     def test_invalidate_to_technical_plan_reopens_every_closed_task_by_default(self):
         self.seed_record(64, "Implementation", "Pending")
         self.seed_task(64, 641, "TASK-001", "CLOSED", "WORK-64-TASK-001 [CORE] one")

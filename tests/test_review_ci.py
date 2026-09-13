@@ -93,16 +93,27 @@ class CiPendingGateTests(FileBackendTest):
         self.green_pr(26, number=148, checks="SUCCESS")
         self.assertEqual(self.next("--work-item", 26).front_matter("action"), "pdlc-post-ci")
         green = self.invoke("post_ci", 26)
-        self.assertEqual(green.json["gateState"], "Approval Required")
-        self.assertEqual(green.json["state"], "green")
+        self.assertIn("## CI Passed", green.stdout)
+        self.assertIn("CI passed", green.stdout)
+        self.assertIn("pdlc inspect 26", green.stdout)
         self.assertEqual(self.next("--work-item", 26).front_matter("action"), "human-approval")
+
+    def test_pending_ci_prints_retry_instruction(self):
+        self.seed_record(26, "Implementation", "CI Pending")
+        self.green_pr(26, number=148, checks="PENDING")
+        result = self.invoke("post_ci", 26)
+        self.assertIn("## CI Pending", result.stdout)
+        self.assertIn("CI is still pending", result.stdout)
+        self.assertIn("pdlc post ci 26", result.stdout)
+        self.assertEqual(self.fields(26)["Gate State"], "CI Pending")
 
     def test_red_ci_at_review_time_drops_to_changes_required(self):
         self.seed_record(27, "Implementation", "Review Required")
         self.green_pr(27, number=149, checks="FAILURE")
         result = self.invoke("post_review", 27, "approval-required", self.evidence_file())
         self.assertEqual(result.json["gateState"], "Changes Required")
-        self.assertIn("PDLC-IMPLEMENTATION", self.comments_text(27))
+        self.assertIn("PDLC-REVIEW", self.comments_text(27))
+        self.assertIn("Failed checks: #149 (FAILURE)", self.comments_text(27))
         self.assertEqual(self.next("--work-item", 27).front_matter("action"), "pdlc-implement")
 
     def test_post_ci_refuses_a_record_not_at_ci_pending(self):
@@ -110,6 +121,19 @@ class CiPendingGateTests(FileBackendTest):
         result = self.invoke("post_ci", 27)
         self.assertEqual(result.code, 1)
         self.assertIn("requires Gate State = CI Pending", result.stderr)
+
+    def test_failed_ci_prints_inspection_instruction(self):
+        self.seed_record(27, "Implementation", "CI Pending")
+        self.green_pr(27, number=149, checks="FAILURE")
+        result = self.invoke("post_ci", 27)
+        self.assertIn("## CI Failed", result.stdout)
+        self.assertIn("CI failed", result.stdout)
+        self.assertIn("Failed checks: #149 (FAILURE)", result.stdout)
+        self.assertIn("pdlc inspect 27", result.stdout)
+        self.assertIn("PDLC-REVIEW", self.comments_text(27))
+        self.assertIn("CI check has failed", self.comments_text(27))
+        self.assertIn("Failed checks: #149 (FAILURE)", self.comments_text(27))
+        self.assertIn("Failed checks: #149 (FAILURE)", self.invoke("inspect", 27, "--full").stdout)
 
     def test_no_linked_pr_advances_straight_through(self):
         self.seed_record(28, "Implementation", "Review Required")
@@ -121,15 +145,15 @@ class ChurnGateTests(FileBackendTest):
     def test_first_pass_green_ci_stops_at_approval_required(self):
         self.seed_record(63, "Implementation", "CI Pending")
         self.green_pr(63)
-        self.assertEqual(self.invoke("post_ci", 63).json["gateState"], "Approval Required")
+        self.assertIn("## CI Passed", self.invoke("post_ci", 63).stdout)
 
     def test_one_loopback_green_ci_skips_the_human_step(self):
         self.seed_record(64, "Implementation", "CI Pending")
         self.green_pr(64)
         self.add_rework_review(64)
         result = self.invoke("post_ci", 64)
-        self.assertEqual(result.json["gateState"], "Testing / Pending")
-        self.assertTrue(result.json["autoApproved"])
+        self.assertIn("## CI Passed", result.stdout)
+        self.assertIn("pdlc inspect 64", result.stdout)
         self.assertEqual(self.fields(64)["Status"], "Testing")
         self.assertIn("PDLC-AUTOAPPROVED", self.comments_text(64))
         self.assertEqual(self.next("--work-item", 64).front_matter("action"), "pdlc-test")
@@ -148,10 +172,10 @@ class ChurnGateTests(FileBackendTest):
         self.green_pr(66)
         for _ in range(4):
             self.add_rework_review(66)
-        self.assertEqual(self.invoke("post_ci", 66).json["gateState"], "Approval Required")
+        self.assertIn("## CI Passed", self.invoke("post_ci", 66).stdout)
 
     def test_driver_invalidation_does_not_count_as_a_rework_loop(self):
         self.seed_record(73, "Implementation", "CI Pending")
         self.green_pr(73)
         self.add_invalidation(73)
-        self.assertEqual(self.invoke("post_ci", 73).json["gateState"], "Approval Required")
+        self.assertIn("## CI Passed", self.invoke("post_ci", 73).stdout)

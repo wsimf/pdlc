@@ -11,7 +11,8 @@ from unittest.mock import patch
 
 from pdlc.cli import _usage
 from pdlc.commands import cleanup
-from pdlc.domain.workflow import Gate, Lifecycle
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Lifecycle
 
 
 def _state(stage="Complete", lifecycle=Lifecycle.COMPLETED):

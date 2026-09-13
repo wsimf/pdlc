@@ -1,14 +1,10 @@
 import unittest
 
-from pdlc.domain.workflow import (
-    BUG_PIPELINE,
-    FEATURE_PIPELINE,
-    Gate,
-    InvalidationPolicy,
-    PIPELINE_REGISTRY,
-    State,
-    WorkType,
-)
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import InvalidationPolicy, State, WorkType
+from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
+from pdlc.domain.workflows.workflow_bug import BUG_PIPELINE
+from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 
 class WorkflowPolicyTests(unittest.TestCase):

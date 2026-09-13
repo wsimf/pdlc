@@ -27,11 +27,13 @@ When changing a lifecycle command or its evidence contract, inspect the matching
 
 Skill and sub-agent instructions describe the CLI as a contract, never as an implementation. State the command's expected outcome — the state it leaves behind, the fields it returns, what a failure does or does not touch — so the agent can verify it. Do not narrate the steps the script runs internally to get there; those are free to change without touching a single skill.
 
+Skills, sub-agents, and `src/pdlc/guides/` pass command input as a file path or `text:<body>`, never as `-` for stdin, so every documented invocation works the same across shells and platforms. The CLI still accepts `-` as a convenience for humans, and command `--help` keeps documenting it.
+
 ## PDLC workflow
 
 The fixed lifecycle is `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`. Gate state controls whether work is pending, under review, awaiting approval, blocked on CI, stale, or complete.
 
-For lifecycle behavior, read `agent/skills/pdlc/references/pdlc-contract.md` and `agent/skills/pdlc/references/parity-contract.md` first. For a work-item orientation, use the read-only `agent/skills/pdlc/SKILL.md`; for queue execution, use `agent/skills/pdlc-loop/SKILL.md`; for a stage, use that stage's `SKILL.md` and only its triggered references.
+For lifecycle behavior, read `pdlc guide contract` first. For a work-item orientation, use the read-only `agent/skills/pdlc/SKILL.md`; for queue execution, use `agent/skills/pdlc-loop/SKILL.md`; for a stage, use that stage's `SKILL.md` and only its triggered references.
 
 Use the controller and owning skill for routing. Work-item state, evidence markers, task identity, PR linkage, and completion readiness are machine-checked; do not infer them from prose, branch names, checkboxes, or recent files.
 
@@ -51,7 +53,7 @@ git diff --check
 
 For local workflow scenarios set `[backend] name = "file"` in `.pdlc/config.toml` and point `PDLC_HOME` at a temporary directory. The default work-item backend is GitHub; the file backend persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-host selection follows `[code_host] name`, and attachments follow `[attachment_host] name`. Only `PDLC_HOME`, `PDLC_REPOSITORY`, and `PDLC_DEBUG` are read from the environment; every other setting is a config-file key.
 
-The skills name no project-specific tool. A consuming repo routes each seam to its own specialist skill or sub-agent through the `[agents]` and `[skills]` tables of `.pdlc/config.toml`, read back by `pdlc inspect capability`; an unset slot falls back to `general-purpose` or an inline seam. The slot contract lives in `agent/skills/pdlc/references/capabilities.md`.
+The skills name no project-specific tool. A consuming repo routes each seam to its own specialist skill or sub-agent through the `[agents]` and `[skills]` tables of `.pdlc/config.toml`, read back by `pdlc inspect capability`; an unset slot falls back to `general-purpose` or an inline seam. The slot contract lives in `pdlc guide capabilities`.
 
 For Python syntax validation in this environment, use `PYTHONPYCACHEPREFIX=/tmp/pdlc-pycache python3 -m compileall -q src`; this proves compilation only, not GitHub, build, simulator, or runtime behavior.
 
@@ -76,9 +78,15 @@ adapted from `gh`'s help layout to pdlc's own read-only/mutating split:
   indented invocation — so an agent can tell which form applies without reading the whole
   `DESCRIPTION`. `DESCRIPTION` carries the full
   behavioral prose — evidence formats, JSON shapes, gate semantics, sample output — moved
-  under the heading verbatim, never trimmed or summarized. `FLAGS` documents only that
-  command's own flags beyond `--attachment`/`--attachment-description`, which are common
-  enough to state once in the top-level help instead of repeating per command.
+  under the heading verbatim, never trimmed or summarized — except its opening paragraph,
+  which states only what the command does: no internal mechanics ("how"), no naming other
+  pdlc commands/stages, no assuming familiarity with the wider PDLC lifecycle. Mechanics,
+  rationale, and cross-references belong in the paragraphs after it. `FLAGS` lists every flag the
+  command accepts — positional arguments stay in `USAGE` only — one line per flag naming its
+  input type (`TEXT`, `FILE|-`, a fixed set of literals, `action="store_true"`, repeatable)
+  and what it does; this holds even for `--attachment`/`--attachment-description`, which are
+  otherwise documented once in the top-level help. `USAGE` stays the synopsis; it is never
+  trimmed to compensate for `FLAGS` spelling things out.
 - A command's docstring is its behavioral contract, not decorative help text (see "Skill and
   sub-agent instructions" above) — restructuring it into sections must never delete or
   paraphrase the contract prose, only relocate it.

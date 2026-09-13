@@ -1,9 +1,12 @@
 """Pure, typed workflow policy.
 
-The Feature pipeline is deliberately an ordered spine. Ordinary movement is
-derived from that spine and stage policy; only exceptional edges (such as a
-Verification bounce) are declared explicitly. This module performs no host
-I/O and is safe to use from both read-only routing and mutating commands.
+The generic transition engine (`State`, `Pipeline`, and their supporting
+policies) is deliberately pipeline-agnostic: ordinary movement is derived
+from a pipeline's ordered spine and per-stage policy; only exceptional edges
+(such as a Verification bounce) are declared explicitly. This module performs
+no host I/O and is safe to use from both read-only routing and mutating
+commands. A specific pipeline's stage data (e.g. the Feature pipeline) lives
+in its own module under `domain/workflows/` (e.g. `workflow_feature.py`).
 """
 
 from __future__ import annotations
@@ -13,23 +16,14 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from pdlc.domain.stages import Action, Gate, Stage
+
 REQUESTED_TARGET = "$requested"
 
 
 class WorkType(StrEnum):
     FEATURE = "feature"
     BUG = "bug"
-
-
-class Gate(StrEnum):
-    PENDING = "Pending"
-    REVIEW_REQUIRED = "Review Required"
-    CHANGES_REQUIRED = "Changes Required"
-    DECISION_REQUIRED = "Decision Required"
-    CI_PENDING = "CI Pending"
-    APPROVAL_REQUIRED = "Approval Required"
-    APPROVED = "Approved"
-    STALE = "Stale"
 
 
 class Lifecycle(StrEnum):
@@ -62,21 +56,6 @@ class Outcome(StrEnum):
     CHECKS_PENDING = "checks-pending"
 
 
-class Action(StrEnum):
-    NONE = "none"
-    BLOCKED = "blocked"
-    HUMAN_INPUT = "human-input"
-    HUMAN_APPROVAL = "human-approval"
-    HUMAN_DECISION = "human-decision"
-    REVIEW = "pdlc-review"
-    CI = "pdlc-post-ci"
-    TASKS = "pdlc-tasks"
-    PLAN = "pdlc-plan"
-    IMPLEMENT = "pdlc-implement"
-    TEST = "pdlc-test"
-    VERIFY = "pdlc-verify"
-
-
 @dataclass(frozen=True)
 class State:
     """The complete persisted workflow state used as a transition source."""
@@ -101,46 +80,6 @@ class State:
     @property
     def notation(self) -> str:
         return f"{self.stage.replace(' ', '')}.{self.gate.value.replace(' ', '')}"
-
-
-@dataclass(frozen=True)
-class ReviewerTarget:
-    """The artifact and specialist that own an independent review."""
-
-    artifact: str
-    agent: str
-
-    @property
-    def reviewer(self) -> str:
-        return self.agent
-
-
-@dataclass(frozen=True)
-class ReviewPolicy:
-    """Review behavior for a stage that requires an independent review."""
-
-    target: ReviewerTarget | None = None
-    clean_gate: Gate = Gate.APPROVAL_REQUIRED
-    permits_decision: bool = True
-    independent: bool = True
-
-
-@dataclass(frozen=True)
-class Stage:
-    """Policy attached to one stage in a pipeline."""
-
-    name: str
-    marker: str | None
-    action: Action | None
-    autonomous: bool
-    result_gate: Gate | None
-    reason: str = ""
-    review: ReviewPolicy | None = None
-    ci_gated: bool = False
-    skippable: bool = True
-    reauthor_in_place: bool = False
-    accepts_verification: bool = False
-    terminal: bool = False
 
 
 @dataclass(frozen=True)
@@ -312,10 +251,13 @@ class Pipeline:
                 or stage.skippable
                 or stage.reauthor_in_place
                 or stage.accepts_verification
+                or stage.skill is not None
             ):
                 raise ValueError(f"terminal stage carries active policy: {stage.name}")
-            if stage.ci_gated and (stage.review is None or not stage.review.independent):
-                raise ValueError(f"CI-gated stage requires independent review: {stage.name}")
+            if not stage.terminal and stage.skill is None:
+                raise ValueError(f"active stage has no skill: {stage.name}")
+            if stage.ci_gated and not stage.accepts_verification and stage.review is None:
+                raise ValueError(f"CI-gated stage requires independent review or verification: {stage.name}")
         keys: set[tuple[str, Gate, Event, Outcome | None]] = set()
         for override in self.overrides:
             if not isinstance(override.source_gate, Gate) or not isinstance(override.target_gate, Gate):
@@ -432,18 +374,59 @@ class Pipeline:
             raise ValueError(f"active stage cannot have Completed lifecycle: {state.stage}")
         if state.gate in _WORK_GATES and stage.action is None:
             raise ValueError(f"stage has no work action: {state.stage}")
-        if state.gate == Gate.REVIEW_REQUIRED and (stage.review is None or not stage.review.independent):
+        if state.gate == Gate.REVIEW_REQUIRED and stage.review is None:
             raise ValueError(f"stage does not support persisted independent review: {state.stage}")
         if state.gate == Gate.CI_PENDING and not stage.ci_gated:
             raise ValueError(f"stage is not CI-gated: {state.stage}")
-        if state.gate == Gate.DECISION_REQUIRED and not (
-            stage.accepts_verification
-            or (stage.review is not None and stage.review.independent and stage.review.permits_decision)
-        ):
+        if state.gate == Gate.DECISION_REQUIRED and not (stage.accepts_verification or stage.review is not None):
             raise ValueError(f"stage does not support decisions: {state.stage}")
         if state.gate == Gate.APPROVED:
             raise ValueError(f"active stage cannot remain Approved: {state.stage}")
         return stage
+
+    def heal(self, state: State) -> State | None:
+        """Correct a persisted state that no pdlc command ever writes but that
+        has exactly one sane reading, or return None when `state` is either
+        already valid or invalid with no single correct target.
+
+        - Approved on a non-terminal stage: no pdlc command ever leaves a gate
+          there (Approved is reserved for the terminal stage), so it can only
+          mean the stage was just approved. Replays that approval — to the
+          completion boundary's own Event.COMPLETED write when the stage is
+          the completion boundary, otherwise to the next stage's Pending.
+        - CI Pending on a stage that isn't CI-gated: that stage's own work
+          never depends on CI, so its outcome is irrelevant — advance
+          straight to the stage's own result gate, ignoring red/green.
+        - Review Required on a stage with no independent review policy: no
+          pdlc command ever persists that gate there since there is nothing
+          to dispatch a reviewer for, so it can only mean review was skipped
+          entirely — advance straight to Approval Required.
+        """
+        try:
+            stage = self.stage(state.stage)
+        except ValueError:
+            return None
+        if stage.terminal:
+            return None
+
+        if state.gate == Gate.APPROVED:
+            source = State(state.stage, Gate.APPROVAL_REQUIRED, state.lifecycle)
+            if self.completion_policy is not None and self.completion_policy.is_boundary(source):
+                return self.next_state(source, Event.COMPLETED)
+            try:
+                return self.next_state(source, Event.APPROVED)
+            except ValueError:
+                return None
+
+        if state.gate == Gate.CI_PENDING and not stage.ci_gated:
+            if stage.result_gate is None:
+                return None
+            return State(stage.name, stage.result_gate, state.lifecycle)
+
+        if state.gate == Gate.REVIEW_REQUIRED and stage.review is None:
+            return State(stage.name, Gate.APPROVAL_REQUIRED, state.lifecycle)
+
+        return None
 
     def route(self, state: State) -> Route:
         """Resolve the next action without predicting its outcome."""
@@ -458,7 +441,7 @@ class Pipeline:
         if gate == Gate.DECISION_REQUIRED:
             return Route(Action.HUMAN_DECISION, False, "a reviewer raised a blocking decision that only the user can resolve")
         if gate == Gate.CI_PENDING:
-            return Route(Action.CI, True, "the implementation review passed; the registered PR stack's CI outcome must be recorded")
+            return Route(Action.CI, True, f"the {stage.name.lower()} review passed; the registered PR stack's CI outcome must be recorded")
         if gate == Gate.APPROVAL_REQUIRED:
             return Route(Action.HUMAN_APPROVAL, False, "explicit human approval is required")
         if gate == Gate.REVIEW_REQUIRED:
@@ -518,13 +501,13 @@ class Pipeline:
                 raise ValueError(f"publish requires a work gate from {state.stage}")
             return State(stage.name, stage.result_gate, state.lifecycle)
         if event == Event.REVIEWED:
-            if state.gate != Gate.REVIEW_REQUIRED or stage.review is None or not stage.review.independent:
+            if state.gate != Gate.REVIEW_REQUIRED or stage.review is None:
                 raise ValueError(f"review requires Review Required from {state.stage}")
             if outcome == Outcome.CLEAN:
                 gate = Gate.CI_PENDING if stage.ci_gated else stage.review.clean_gate
             elif outcome == Outcome.FINDINGS:
                 gate = Gate.CHANGES_REQUIRED
-            elif outcome == Outcome.DECISION and stage.review.permits_decision:
+            elif outcome == Outcome.DECISION:
                 gate = Gate.DECISION_REQUIRED
             else:
                 raise ValueError(f"invalid review outcome from {state.stage}: {outcome}")
@@ -543,7 +526,8 @@ class Pipeline:
             if not stage.accepts_verification or state.gate not in _WORK_GATES:
                 raise ValueError(f"verification requires a work gate from {state.stage}")
             if outcome == Outcome.CLEAN:
-                return State(stage.name, Gate.APPROVAL_REQUIRED, state.lifecycle)
+                gate = Gate.CI_PENDING if stage.ci_gated else Gate.APPROVAL_REQUIRED
+                return State(stage.name, gate, state.lifecycle)
             if outcome == Outcome.FINDINGS:
                 return State(stage.name, Gate.CHANGES_REQUIRED, state.lifecycle)
             if outcome == Outcome.DECISION:
@@ -657,165 +641,6 @@ class Pipeline:
         return self.next_state(state, event, outcome, requested_target)
 
 
-def _feature_stages() -> tuple[Stage, ...]:
-    return (
-        Stage(
-            name="Product",
-            marker="PRODUCT",
-            action=Action.HUMAN_INPUT,
-            autonomous=False,
-            result_gate=Gate.APPROVAL_REQUIRED,
-            reason="product artifact is due; the driver must invoke pdlc-write interactively",
-            skippable=False,
-            reauthor_in_place=True,
-        ),
-        Stage(
-            name="UI",
-            marker="UI",
-            action=Action.TASKS,
-            autonomous=True,
-            result_gate=Gate.APPROVAL_REQUIRED,
-            reason="UI or task artifact is due",
-            review=ReviewPolicy(
-                ReviewerTarget("The parent's UI section and its UJ-* journeys", "pdlc-tasks-reviewer"),
-                independent=False,
-            ),
-            reauthor_in_place=True,
-        ),
-        Stage(
-            name="Tasks",
-            marker="TASKS",
-            action=Action.TASKS,
-            autonomous=True,
-            result_gate=Gate.APPROVAL_REQUIRED,
-            reason="UI or task artifact is due",
-            review=ReviewPolicy(
-                ReviewerTarget("The delivery tasks", "pdlc-tasks-reviewer"),
-                independent=False,
-            ),
-            reauthor_in_place=True,
-        ),
-        Stage(
-            name="Technical Plan",
-            marker="PLAN",
-            action=Action.PLAN,
-            autonomous=True,
-            result_gate=Gate.APPROVAL_REQUIRED,
-            reason="technical plan is due",
-            review=ReviewPolicy(
-                ReviewerTarget("The Technical Plan on each incomplete task", "pdlc-plan-reviewer"),
-                independent=False,
-            ),
-            reauthor_in_place=True,
-        ),
-        Stage(
-            name="Implementation",
-            marker="IMPLEMENTATION",
-            action=Action.IMPLEMENT,
-            autonomous=True,
-            result_gate=Gate.REVIEW_REQUIRED,
-            reason="next eligible delivery task is due",
-            review=ReviewPolicy(
-                ReviewerTarget("Production PRs and each task's implementation", "pdlc-implementation-reviewer"),
-            ),
-            ci_gated=True,
-        ),
-        Stage(
-            name="Testing",
-            marker="TESTING",
-            action=Action.TEST,
-            autonomous=True,
-            result_gate=Gate.REVIEW_REQUIRED,
-            reason="acceptance coverage is due",
-            review=ReviewPolicy(
-                ReviewerTarget("Test PRs, coverage, and requirement traceability", "pdlc-testing-reviewer"),
-            ),
-        ),
-        Stage(
-            name="Verification",
-            marker="REVIEW",
-            action=Action.VERIFY,
-            autonomous=True,
-            result_gate=None,
-            reason="verification is due",
-            accepts_verification=True,
-        ),
-        Stage(
-            name="Complete",
-            marker=None,
-            action=None,
-            autonomous=False,
-            result_gate=None,
-            skippable=False,
-            terminal=True,
-        ),
-    )
-
-
-_FEATURE_STAGES = _feature_stages()
-_FEATURE_ACTIVE_STAGES = tuple(stage.name for stage in _FEATURE_STAGES if not stage.terminal)
-
-_FEATURE_COMPLETION_POLICY = CompletionPolicy(
-    boundary_stage="Verification",
-    boundary_gate=Gate.APPROVAL_REQUIRED,
-    required_stage_evidence=(
-        "Product",
-        "UI",
-        "Tasks",
-        "Technical Plan",
-        "Implementation",
-        "Testing",
-    ),
-    require_stage_settlement=True,
-    require_tasks_closed=True,
-    require_task_implementation=True,
-    require_prs_merged=True,
-    require_checks_green=True,
-    verification_parser="parse_verification_report",
-)
-
-_FEATURE_INVALIDATION_POLICY = InvalidationPolicy(
-    evidence_dependencies={
-        "Product": ("UI", "Tasks", "Technical Plan", "Implementation", "Testing", "Verification"),
-        "UI": ("Tasks", "Technical Plan", "Implementation", "Testing", "Verification"),
-        "Tasks": ("Technical Plan", "Implementation", "Testing", "Verification"),
-        "Technical Plan": ("Implementation", "Testing", "Verification"),
-        "Implementation": ("Testing", "Verification"),
-        "Testing": ("Verification",),
-        "Verification": (),
-    },
-    reentry_targets={
-        "Product": ("Product",),
-        "UI": ("Product", "UI"),
-        "Tasks": ("Product", "UI", "Tasks"),
-        "Technical Plan": ("Product", "UI", "Tasks", "Technical Plan"),
-        "Implementation": ("Product", "UI", "Tasks", "Technical Plan", "Implementation"),
-        "Testing": ("Product", "UI", "Tasks", "Technical Plan", "Implementation", "Testing"),
-        "Verification": ("Implementation", "Testing"),
-    },
-)
-
-FEATURE_PIPELINE = Pipeline(
-    work_type=WorkType.FEATURE,
-    stages=_FEATURE_STAGES,
-    overrides=(
-        TransitionOverride("Verification", Gate.PENDING, Event.SKIPPED, "Verification", Gate.APPROVAL_REQUIRED),
-        TransitionOverride("Verification", Gate.CHANGES_REQUIRED, Event.SKIPPED, "Verification", Gate.APPROVAL_REQUIRED),
-        TransitionOverride("Verification", Gate.STALE, Event.SKIPPED, "Verification", Gate.APPROVAL_REQUIRED),
-        TransitionOverride("Verification", Gate.CHANGES_REQUIRED, Event.BOUNCED, REQUESTED_TARGET, Gate.STALE, Lifecycle.PLANNING, loop="delivery-rework"),
-        TransitionOverride("Verification", Gate.APPROVAL_REQUIRED, Event.BOUNCED, REQUESTED_TARGET, Gate.STALE, Lifecycle.PLANNING, loop="delivery-rework"),
-    ),
-    completion_policy=_FEATURE_COMPLETION_POLICY,
-    invalidation_policy=_FEATURE_INVALIDATION_POLICY,
-    rework_policy=ReworkPolicy("delivery-rework", 3, ("Implementation", "Testing"), "Verification"),
-)
-
-# The Bug vocabulary and evidence contract are intentionally not guessed from
-# Feature. Keeping a registered unavailable entry makes resolution explicit
-# while the real Bug pipeline is designed.
-BUG_PIPELINE = Pipeline(work_type=WorkType.BUG, stages=(), available=False)
-
-
 class PipelineRegistry:
     """Registry for resolving a policy by work type."""
 
@@ -838,7 +663,3 @@ class PipelineRegistry:
     def for_record(self, record: Mapping[str, Any]) -> Pipeline:
         raw = record.get("workType") or record.get("Work Type") or record.get("work_type")
         return self.for_work_type(raw or WorkType.FEATURE)
-
-
-PIPELINE_REGISTRY = PipelineRegistry({WorkType.FEATURE: FEATURE_PIPELINE, WorkType.BUG: BUG_PIPELINE})
-PIPELINES = PIPELINE_REGISTRY

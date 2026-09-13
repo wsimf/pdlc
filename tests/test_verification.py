@@ -16,12 +16,32 @@ def _clean_report(sha: str) -> str:
 
 
 class VerificationTests(FileBackendTest):
-    def test_clean_run_lands_approval_required_directly(self):
+    def test_clean_run_with_no_linked_pr_advances_straight_through(self):
+        # Verification is CI-gated like Implementation/Testing, but with no
+        # registered PR there is nothing to wait on ("untracked"), so a clean
+        # run still lands on Approval Required immediately.
         self.seed_record(67, "Verification", "Pending")
         report = self.write_file("report.md", _clean_report(self.head_sha()))
         result = self.invoke("post_verify", 67, report, "--recommendation", "Approval Required")
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.state(67), ("Verification", "Approval Required"))
+
+    def test_clean_run_parks_at_ci_pending_while_checks_run(self):
+        self.seed_record(68, "Verification", "Pending")
+        self.green_pr(68, number=148, checks="PENDING")
+        report = self.write_file("report.md", _clean_report(self.head_sha()))
+        result = self.invoke("post_verify", 68, report, "--recommendation", "Approval Required")
+        self.assertEqual(result.json["gateState"], "CI Pending")
+        self.assertEqual(self.next("--work-item", 68).front_matter("action"), "none")
+        self.assertIn("CI is still running", self.next("--work-item", 68).stdout)
+
+    def test_red_ci_after_a_clean_verification_drops_to_changes_required(self):
+        self.seed_record(69, "Verification", "Pending")
+        self.green_pr(69, number=149, checks="FAILURE")
+        report = self.write_file("report.md", _clean_report(self.head_sha()))
+        result = self.invoke("post_verify", 69, report, "--recommendation", "Approval Required")
+        self.assertEqual(result.json["gateState"], "Changes Required")
+        self.assertIn("CI check has failed", self.comments_text(69))
 
     def test_verification_approval_is_never_auto_advanced(self):
         self.seed_record(67, "Verification", "Pending")

@@ -15,7 +15,9 @@ from datetime import datetime
 
 from pdlc.domain.evidence import ReviewVerdict, parse_review
 from pdlc.domain.lifecycle import MARKERS, PdlcError, require_marker
-from pdlc.domain.workflow import Event, Gate, Lifecycle, PIPELINE_REGISTRY, Pipeline, State
+from pdlc.domain.stages import Action, Gate
+from pdlc.domain.workflow import Event, Lifecycle, Pipeline, State
+from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
 
 # Work-item field names and the gate vocabulary
 
@@ -108,6 +110,22 @@ def _blocked_due(item: dict, reason: str = "missing or unsupported work item sta
     }
 
 
+# A state Pipeline.heal() recognizes: not something any pdlc command writes,
+# but with exactly one sane correction, so reported as directly actionable
+# (via `pdlc continue`) rather than blocked.
+def _healable_due(state: State, target: State) -> dict:
+    return {
+        "status": state.stage,
+        "gate": state.gate.value,
+        "skipped_through": [],
+        "action": Action.CONTINUE.value,
+        "autonomous": True,
+        "reason": f"{state.notation} is a stray state; pdlc continue heals it to {target.notation}",
+        "state": state.notation,
+        "owner": f"pdlc continue — self-heals to {target.notation}",
+    }
+
+
 # Read-only routing view: looks ahead through consecutive declared-skipped
 # stages the same way the mutating skip cascade does, but never posts a comment
 # or writes state.
@@ -115,8 +133,15 @@ def due_next(item: dict) -> dict:
     try:
         pipeline = PIPELINE_REGISTRY.for_record(item)
         state = _workflow_state(item, pipeline, item_status(item), item_gate(item))
+    except (TypeError, ValueError) as error:
+        return _blocked_due(item, str(error))
+
+    try:
         pipeline.validate_state(state)
     except (TypeError, ValueError) as error:
+        healed = pipeline.heal(state)
+        if healed is not None:
+            return _healable_due(state, healed)
         return _blocked_due(item, str(error))
 
     skipped_through: list[str] = []
@@ -128,10 +153,11 @@ def due_next(item: dict) -> dict:
         except (TypeError, ValueError):
             return _blocked_due(item)
 
+    stage = pipeline.stage(state.stage)
     route = pipeline.route(state)
     owner = route.action.value
     if route.action.value == "human-input":
-        owner = "human — invoke pdlc-write interactively"
+        owner = f"human — invoke {stage.skill} interactively"
     elif route.action.value == "human-approval":
         completion = pipeline.completion_policy
         owner = "human — pdlc post complete" if completion is not None and completion.is_boundary(state) else "human — pdlc post approve"
@@ -152,7 +178,8 @@ def due_next(item: dict) -> dict:
         "reason": route.reason,
         "state": state.notation,
         "owner": owner,
-        "reauthor_in_place": pipeline.stage(state.stage).reauthor_in_place,
+        "reauthor_in_place": stage.reauthor_in_place,
+        "skill": stage.skill,
     }
 
 
@@ -379,6 +406,36 @@ def find_marked_comments(comments: list[dict], marker: str) -> list[dict]:
     return matches
 
 
+# The most recent comment carrying any of `markers`, tagged with which one
+# matched, or None if none of them appear at all.
+def latest_marked_comment(comments: list[dict], markers: tuple[str, ...]) -> dict | None:
+    candidates = [
+        {**comment, "marker": marker}
+        for marker in markers
+        for comment in find_marked_comments(comments, marker)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda comment: comment["createdAt"])
+
+
+# A marked comment's human-authored text: the `PDLC-*` stamp always, and a
+# `PDLC-REVIEW` comment's script-owned `stage`/`verdict`/`bounce`/`loop`
+# metadata block too, since the gate the caller is already at implies the
+# verdict.
+def evidence_comment_text(comment: dict) -> str:
+    body = MARKER_LINE.sub("", comment["body"], count=1)
+    if comment.get("marker") == "REVIEW":
+        lines = body.splitlines()
+        if lines and lines[0] == "---":
+            try:
+                closing = lines.index("---", 1)
+                body = "\n".join(lines[closing + 1:])
+            except ValueError:
+                pass
+    return body.strip()
+
+
 def verification_evidence_comments(comments: list[dict]) -> list[dict]:
     """Structured review evidence whose script-owned stage is Verification."""
     matches = []
@@ -438,7 +495,7 @@ def user_comments_markdown(comments: list[dict], *, exclude_headings: tuple[str,
     lines = ["## User Comments"]
     for comment in plain:
         author = (comment.get("author") or {}).get("login", "unknown")
-        when = _timeline_formatted_at(comment["createdAt"])
+        when = timeline_formatted_at(comment["createdAt"])
         body = comment["body"].strip()
         lines += ["", f"### @{author} — {when}", comment["url"], "", body]
     return "\n".join(lines)
@@ -446,14 +503,14 @@ def user_comments_markdown(comments: list[dict], *, exclude_headings: tuple[str,
 
 # Localised to the machine's own time zone — the timeline is read
 # interactively, not compared across machines.
-def _timeline_formatted_at(created_at: str) -> str:
+def timeline_formatted_at(created_at: str) -> str:
     stamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     return f"{stamp.astimezone():%Y-%m-%d %H:%M %Z}".strip()
 
 
 def _timeline_entry(comment: dict) -> str:
     author = (comment.get("author") or {}).get("login", "unknown")
-    when = _timeline_formatted_at(comment["createdAt"])
+    when = timeline_formatted_at(comment["createdAt"])
     body = MARKER_LINE.sub("", comment["body"], count=1).strip()
     return f"## {comment['marker']} — {when} (@{author})\n{comment['url']}\n\n{body}"
 
@@ -485,7 +542,7 @@ def _render_timeline(tagged: list[dict], comments: list[dict], empty_message: st
         lines.extend(_timeline_entry(comment).split("\n"))
         index.append({
             "marker": comment["marker"],
-            "when": _timeline_formatted_at(comment["createdAt"]),
+            "when": timeline_formatted_at(comment["createdAt"]),
             "author": (comment.get("author") or {}).get("login", "unknown"),
             "preview": _timeline_preview(comment),
             "start": start,

@@ -9,7 +9,9 @@ backend and a swap is one env var.
 from __future__ import annotations
 
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.workflow import Lifecycle, PIPELINES, Pipeline, State, WorkType
+from pdlc.domain.stages import Gate
+from pdlc.domain.workflow import Lifecycle, Pipeline, State, WorkType
+from pdlc.domain.workflows.pipeline import PIPELINES
 from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     CORE_TAG,
     IMPLEMENTATION_COMMENT_HEADING,
@@ -88,6 +90,20 @@ def queue_items() -> list[QueueItemSummary]:
 
 def set_state(item_id: str, status: str, gate: str, lifecycle: str) -> None:
     get_backend().set_state(item_id, status, gate, lifecycle)
+
+
+# Writes a `pipeline.heal()` correction: a comment explaining the correction
+# (reusing the APPROVED marker when healing a stray Approved gate, since that
+# is exactly the evidence a real approval would have left) and the healed
+# state. Shared by `pdlc next`'s self-heal side effect and `pdlc continue`.
+def write_healed_state(item: dict, issue: str, source: State, target: State) -> dict:
+    marker = "APPROVED" if source.gate == Gate.APPROVED else None
+    post_comment(issue, f"{source.notation} was found directly; healed to {target.notation}.", marker)
+    set_state(item["id"], target.stage, target.gate.value, target.lifecycle.value)
+    item["Status"] = target.stage
+    item["Gate State"] = target.gate.value
+    item["Lifecycle"] = target.lifecycle.value
+    return item
 
 
 def set_gate(item_id: str, gate: str) -> None:

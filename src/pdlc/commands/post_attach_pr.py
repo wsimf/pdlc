@@ -6,14 +6,14 @@ USAGE
     pdlc post attach-pr DELIVERY_TASK PR_NUMBER
 
 DESCRIPTION
-    Records PR_NUMBER (a bare number or `#123`) in the delivery task's machine-owned
-metadata block — the list later stages read to know a task's pull requests
-explicitly, never inferring them from a `Closes #N` keyword or a branch name.
-Idempotent.
+    Records PR_NUMBER (a bare number or `#123`) on the delivery task's
+    pull-request list. Idempotent.
 
-`pdlc post implement-task` registers the task's PR for
-you; reach for this only to attach a PR it did not create or to repair a missing
-link. DELIVERY_TASK must be a work item with WORK-NNN-TASK-NNN identity.
+This is the list later stages read for a task's pull requests, rather than
+inferring them from a `Closes #N` keyword or a branch name. `pdlc post
+implement-task` registers the task's PR for you; reach for this only to
+attach a PR it did not create or to repair a missing link. DELIVERY_TASK
+must be a work item with WORK-NNN-TASK-NNN identity.
 
     {"task": 47, "prs": [148]}
 """

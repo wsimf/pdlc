@@ -465,7 +465,7 @@ def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool
     if gate == "Decision Required":
         return False, (
             "Not ready: parked at Decision Required — a finding needs a driver call. "
-            "The driver clears it via references/decision-resolver-workflow.md "
+            "The driver clears it via `pdlc guide decisions` "
             "(pdlc post decision), which returns it to Changes Required for a re-verify."
         )
 
