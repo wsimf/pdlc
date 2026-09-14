@@ -178,6 +178,8 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertTrue(completed.json["completed"])
         self.assertEqual(self.fields(issue)["Status"], "Complete")
         self.assertEqual(self.meta(issue)["state"], "CLOSED")
+        # The fixture PR reports no head commit, so its branch is never deleted.
+        self.assertEqual(completed.json["branches"]["deleted"], [])
         self.assertIn("see the completion comment", self.body(issue))
 
         # The evidence log is append-only: one comment per stage, none rewritten.

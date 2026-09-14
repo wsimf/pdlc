@@ -20,6 +20,14 @@ DESCRIPTION
     configured `[backend.azure] closed_state` (default `Done`) written to
     the work item's own state.
 
+    Once the record is locked and closed, it prunes local branches on a
+    best-effort basis: each merged PR's local branch is force-deleted only
+    when its tip still equals the PR's head commit. If HEAD is on such a
+    branch and the working tree is clean, it first switches to the local
+    default branch, or detaches at the remote default when that branch is
+    checked out elsewhere. Only local branches are touched; a branch that
+    cannot be deleted is reported, never fatal.
+
     This is a final transition: only from Verification / Approval Required,
     only on explicit human instruction, and only once completion blockers
     are empty. Only the orchestrator may call this — this is a procedural
@@ -67,7 +75,11 @@ list, or a lone `- None` when there is nothing to record. For example:
 
     - None
 
-On success the command prints JSON with `completed: true`.
+On success the command prints JSON with `completed: true` and a
+`branches` object: `deleted` (branch names) and `skipped` (`{branch,
+reason}` with reason `missing`, `sha-unknown`, `sha-mismatch`,
+`dirty-tree`, `switch-failed`, `checked-out-elsewhere`, `delete-failed`,
+or `git-unavailable`).
 """
 
 from __future__ import annotations
@@ -83,6 +95,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.vcs import stale_verification_rows
+from pdlc.internal.worktree import prune_merged_branches
 from pdlc.internal.workitem import (
     comments_for_issue,
     close_record,
@@ -127,12 +140,13 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     verification_body = verification_comments[-1]["body"] if verification_comments else None
 
     tasks = task_tree(issue)
+    pull_requests = record_pull_requests(issue, record=record, tasks=tasks)
     blockers = completion_blockers(
         pipeline=pipeline,
         status=item_status(record),
         gate=item_gate(record),
         tasks=tasks,
-        pull_requests=record_pull_requests(issue, record=record, tasks=tasks),
+        pull_requests=pull_requests,
         timeline_markers=[comment["marker"] for comment in marked_comments(issue, comments=comments)],
         skipped_states=item_skipped_states(record),
         verification_body=verification_body,
@@ -155,8 +169,12 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
     update_section(issue, "Open Questions", OPEN_QUESTIONS_SETTLED)
     close_record(issue)
+    branches = prune_merged_branches(pull_requests)
 
-    return {"completed": True, "itemId": record["id"], "work_item": int(issue), "attachments": attachments}
+    return {
+        "completed": True, "itemId": record["id"], "work_item": int(issue),
+        "attachments": attachments, "branches": branches,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

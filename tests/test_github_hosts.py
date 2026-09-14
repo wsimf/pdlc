@@ -662,6 +662,13 @@ class CodeHostTest(GitHubHostTest):
         with self.assertRaisesRegex(PdlcError, "registered pull request #9"):
             self.host.pull_requests_by_number([5, 9, 4])
 
+    def test_pr_dict_carries_the_head_commit(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _pr_dict
+        base = {"number": 5, "title": "t", "url": "u", "state": "MERGED", "isDraft": False,
+                "headRefName": "feat", "mergedAt": "2026-01-01T00:00:00Z", "statusCheckRollup": []}
+        self.assertEqual(_pr_dict({**base, "headRefOid": "abc123"})["headSha"], "abc123")
+        self.assertEqual(_pr_dict(base)["headSha"], "")
+
     def test_checks_state_handles_check_runs_and_status_contexts(self) -> None:
         from pdlc.hosts.lib.github.code_host import _checks_state
         self.assertEqual(_checks_state({"statusCheckRollup": []}), "NONE")

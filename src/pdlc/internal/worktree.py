@@ -1,4 +1,6 @@
-"""Local-Git plumbing for the human-only ``pdlc prepare`` command.
+"""Local-Git plumbing for the human-only ``pdlc prepare`` / ``pdlc cleanup``
+commands, and the best-effort merged-branch pruning ``pdlc post complete``
+runs.
 
 ``prepare`` scaffolds a dedicated Git worktree for one work item so an agent
 can run the PDLC loop in it without disturbing the driver's main checkout. The
@@ -10,7 +12,9 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.trace import record_external_call
@@ -158,3 +162,80 @@ def remove_worktree(path: Path) -> None:
 def delete_branch(branch: str) -> None:
     if branch_exists(branch):
         _git(["branch", "-D", branch])
+
+
+# --- merged branch pruning (pdlc post complete) ---
+
+def _checked_out_branches() -> set[str]:
+    """Every branch checked out in any worktree of this repo."""
+    listing = _git(["worktree", "list", "--porcelain"])
+    return {line.removeprefix("branch refs/heads/") for line in listing.splitlines() if line.startswith("branch refs/heads/")}
+
+
+def _leave_branch() -> None:
+    """Move HEAD off the current branch so it can be deleted: onto the local
+    default branch when it is free, else detached at the default base ref
+    (the local default is usually checked out in the driver's main tree)."""
+    base = default_base_ref()
+    local = base.split("/", 1)[1] if "/" in base else ""
+    if local and branch_exists(local):
+        try:
+            _git(["switch", "--quiet", local])
+            return
+        except PdlcError:
+            pass
+    _git(["switch", "--quiet", "--detach", base])
+
+
+def prune_merged_branches(pull_requests: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Best-effort: force-delete the local branch of every merged PR (a
+    `PullRequest` dict) whose tip still equals the PR's head commit, so
+    nothing unmerged is lost. When HEAD is on one of those branches and the
+    tree is clean, it is moved off first.
+    Local only — no fetch, push, or remote delete — and never raises; each
+    branch not deleted is reported with a reason.
+
+    Returns {"deleted": [branch], "skipped": [{"branch", "reason"}]}."""
+    deleted: list[str] = []
+    skipped: list[dict[str, str]] = []
+    merged = {pr["branch"]: pr.get("headSha") or "" for pr in pull_requests if pr["state"] == "MERGED" and pr["branch"]}
+    try:
+        _git(["rev-parse", "--git-dir"])
+        eligible: list[str] = []
+        for branch, sha in merged.items():
+            if not branch_exists(branch):
+                skipped.append({"branch": branch, "reason": "missing"})
+            elif not sha:
+                skipped.append({"branch": branch, "reason": "sha-unknown"})
+            elif _git(["rev-parse", f"refs/heads/{branch}"]) != sha:
+                skipped.append({"branch": branch, "reason": "sha-mismatch"})
+            else:
+                eligible.append(branch)
+
+        current = _git(["branch", "--show-current"])
+        if current in eligible:
+            if _git(["status", "--porcelain"]):
+                eligible.remove(current)
+                skipped.append({"branch": current, "reason": "dirty-tree"})
+            else:
+                try:
+                    _leave_branch()
+                except PdlcError:
+                    eligible.remove(current)
+                    skipped.append({"branch": current, "reason": "switch-failed"})
+
+        checked_out = _checked_out_branches()
+        for branch in eligible:
+            if branch in checked_out:
+                skipped.append({"branch": branch, "reason": "checked-out-elsewhere"})
+                continue
+            try:
+                _git(["branch", "-D", branch])
+                deleted.append(branch)
+            except PdlcError:
+                skipped.append({"branch": branch, "reason": "delete-failed"})
+    except (PdlcError, OSError):
+        # Not a Git checkout, or git itself is unavailable: nothing more to do.
+        done = set(deleted) | {entry["branch"] for entry in skipped}
+        skipped.extend({"branch": branch, "reason": "git-unavailable"} for branch in merged if branch not in done)
+    return {"deleted": deleted, "skipped": skipped}

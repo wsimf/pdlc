@@ -86,6 +86,10 @@ class PullRequest(TypedDict):
     branch: str
     mergedAt: str | None
     checks: str
+    # The head commit the host last saw; lets a merged PR's local branch be
+    # deleted only when it holds nothing the PR did not. Empty or absent when
+    # the host does not report it.
+    headSha: NotRequired[str]
     files: NotRequired[list[str]]
 
 

@@ -55,7 +55,7 @@ _STACK_MISSING = (
     "install it with `gh extension install github/gh-stack`"
 )
 
-_PR_FIELDS = "number,title,url,state,isDraft,headRefName,mergedAt,statusCheckRollup"
+_PR_FIELDS = "number,title,url,state,isDraft,headRefName,headRefOid,mergedAt,statusCheckRollup"
 
 # gh/GraphQL phrasings that mean "this PR number or branch has no pull request",
 # as opposed to auth expiry, rate limiting, or a network failure — which must
@@ -120,6 +120,7 @@ def _pr_dict(pr: dict) -> dict:
         "branch": pr["headRefName"],
         "mergedAt": pr["mergedAt"],
         "checks": _checks_state(pr),
+        "headSha": pr.get("headRefOid") or "",
     }
 
 
