@@ -9,11 +9,13 @@ here re-derives that from remote branch listings or branch names.
 
 `unresolved_review_comments` reads live review-thread state via GraphQL —
 `isResolved` is not exposed by `gh pr view --json`, only by the review-threads
-connection, so this is the one query in the module that doesn't go through
-`run_gh_json`.
+connection. `pull_requests_by_number` reads every registered PR in one aliased
+GraphQL query, so a record's N pull requests cost one round trip, not N.
 """
 
 from __future__ import annotations
+
+import re
 
 from pdlc.domain.records import PullRequest, ReviewComment
 
@@ -57,15 +59,45 @@ _STACK_MISSING = (
 
 _PR_FIELDS = "number,title,url,state,isDraft,headRefName,headRefOid,mergedAt,statusCheckRollup"
 
+# The GraphQL selection behind `_PR_FIELDS`: the head commit's check rollup
+# carries the same CheckRun (`status`/`conclusion`) and StatusContext (`state`)
+# entries `gh pr view --json statusCheckRollup` lists, so `_checks_state` reads
+# either source unchanged.
+_PR_SELECTION = """
+number title url state isDraft headRefName headRefOid mergedAt
+commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) {
+  pageInfo { hasNextPage }
+  nodes { ... on CheckRun { status conclusion } ... on StatusContext { state } }
+} } } } }
+"""
+
 # gh/GraphQL phrasings that mean "this PR number or branch has no pull request",
 # as opposed to auth expiry, rate limiting, or a network failure — which must
 # propagate so a transient error is never read as "PR not registered".
 _PR_NOT_FOUND = ("could not resolve to a pullrequest", "no pull requests found", "no pull request found")
 
+# A batched query fails as a whole when one alias misses; GraphQL names that
+# alias's number in the error, which `gh` passes through on stderr.
+_MISSING_PR_NUMBER = re.compile(r"could not resolve to a pullrequest with the number of (\d+)", re.IGNORECASE)
+
 
 def _is_pr_not_found(error: PdlcError) -> bool:
     message = str(error).lower()
     return any(phrase in message for phrase in _PR_NOT_FOUND)
+
+
+def _graphql_rollup(pull_request: dict) -> list[dict] | None:
+    """The head commit's check contexts in `gh pr view` shape, `[]` when the
+    commit has no rollup, or None when more than one page of contexts exists
+    and only `gh pr view`'s own pagination can see them all."""
+    commits = (pull_request.get("commits") or {}).get("nodes") or []
+    rollup = (commits[0].get("commit") or {}).get("statusCheckRollup") if commits else None
+    if rollup is None:
+        return []
+    contexts = rollup.get("contexts") or {}
+    if (contexts.get("pageInfo") or {}).get("hasNextPage"):
+        return None
+    return list(contexts.get("nodes") or [])
 
 
 def _checks_state(pull_request: dict) -> str:
@@ -140,16 +172,40 @@ class GitHubCodeHost(CodeHost):
         return _pr_dict(pull_request)
 
     def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
+        if not numbers:
+            return []
+        owner, repository = owner_repository()
+        selections = "\n".join(
+            f"pr{index}: pullRequest(number: {int(number)}) {{ {_PR_SELECTION} }}"
+            for index, number in enumerate(numbers)
+        )
+        query = f"query($owner: String!, $repo: String!) {{ repository(owner: $owner, name: $repo) {{\n{selections}\n}} }}"
+        try:
+            data = run_graphql(query, owner=owner, repo=repository)["data"]["repository"]
+        except PdlcError as error:
+            if _is_pr_not_found(error):
+                match = _MISSING_PR_NUMBER.search(str(error))
+                missing = f"#{match.group(1)}" if match else "among " + ", ".join(f"#{number}" for number in numbers)
+                raise PdlcError(f"registered pull request {missing} could not be found") from error
+            raise PdlcError(f"could not resolve pull requests {', '.join(f'#{number}' for number in numbers)}: {error}") from error
         resolved = []
-        for number in numbers:
-            try:
-                pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
-            except PdlcError as error:
-                if _is_pr_not_found(error):
-                    raise PdlcError(f"registered pull request #{number} could not be found") from error
-                raise PdlcError(f"could not resolve pull request #{number}: {error}") from error
-            resolved.append(_pr_dict(pr))
+        for index, number in enumerate(numbers):
+            pr = data.get(f"pr{index}")
+            if pr is None:
+                raise PdlcError(f"registered pull request #{number} could not be found")
+            rollup = _graphql_rollup(pr)
+            resolved.append(_pr_dict({**pr, "statusCheckRollup": rollup}) if rollup is not None else self._pull_request_view(number))
         return resolved
+
+    @staticmethod
+    def _pull_request_view(number: int) -> PullRequest:
+        try:
+            pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
+        except PdlcError as error:
+            if _is_pr_not_found(error):
+                raise PdlcError(f"registered pull request #{number} could not be found") from error
+            raise PdlcError(f"could not resolve pull request #{number}: {error}") from error
+        return _pr_dict(pr)
 
     def pull_request_files(self, pr_number: str | int) -> list[str]:
         data = run_gh_json(["pr", "view", str(pr_number), *repo_args(), "--json", "files"])

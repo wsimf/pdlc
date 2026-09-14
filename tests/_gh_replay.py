@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import unittest
 import unittest.mock
 from typing import Any, Callable
@@ -112,6 +113,32 @@ class FakeGh:
 def graphql_data(payload: dict) -> dict:
     """Wrap a GraphQL ``data`` body the way ``gh api graphql`` returns it."""
     return {"data": payload}
+
+
+_PR_ALIAS = re.compile(r"(pr\d+): pullRequest\(number: (\d+)\)")
+
+
+def pull_request_node(number: int, *, contexts: list[dict] | None = None, has_next_page: bool = False, **fields: Any) -> dict:
+    """One aliased ``pullRequest`` node as the batched code-host query returns
+    it; ``contexts=None`` is a head commit with no check rollup at all."""
+    rollup = None if contexts is None else {"contexts": {"pageInfo": {"hasNextPage": has_next_page}, "nodes": contexts}}
+    return {
+        "number": number, "title": f"PR {number}", "url": f"u{number}", "state": "OPEN",
+        "isDraft": False, "headRefName": f"branch-{number}", "headRefOid": f"sha{number}", "mergedAt": None,
+        "commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]},
+        **fields,
+    }
+
+
+def pull_requests_graphql(node_for: Callable[[int], dict | None]) -> Callable[[list[str], str | None], dict]:
+    """A route response for the batched ``pullRequest`` query: each alias in
+    the query text is answered by ``node_for(number)`` (None for a miss)."""
+
+    def respond(args: list[str], _input: str | None) -> dict:
+        query = next(arg for arg in args if arg.startswith("query="))
+        return graphql_data({"repository": {alias: node_for(int(number)) for alias, number in _PR_ALIAS.findall(query)}})
+
+    return respond
 
 
 class GitHubHostTest(unittest.TestCase):
