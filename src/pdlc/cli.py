@@ -61,7 +61,7 @@ def _usage() -> str:
         "  Run `pdlc COMMAND --help` for a command's own usage, flags, and behavioral contract.\n"
         "\nREAD-ONLY COMMANDS\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
-        "  doctor                      inspect config, derived values, and all validation results\n"
+        "  doctor                      inspect config, derived values, backend CLI access, and all validation results\n"
         "  guide                       print a bundled Markdown guide for PDLC agents\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
         "  inspect task WI [TASK...]   full text and flags for specific delivery tasks\n"
