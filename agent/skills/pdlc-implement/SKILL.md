@@ -1,137 +1,129 @@
 ---
 name: pdlc-implement
-description: "Use when asked to implement, continue, or complete a PDLC record's delivery tasks."
+description: "Use when a resolved PDLC work item has Implementation due, including the next pending task, changes-required reconciliation, and stale reopened tasks."
 argument-hint: "Parent work item number to implement"
 ---
 
 # Implement one PDLC task
 
-**One invocation implements exactly one delivery task**, then stops. `pdlc-loop` or the driver re-invokes it for the next.
+Implement exactly one delivery task per invocation, then stop; `pdlc-loop` or the driver re-invokes this skill for the next. The task's implementer sub-agent writes the code, `pdlc-implementation-reviewer` checks it at `task` depth, `pdlc-test-writer` adds its unit coverage, and `pdlc post implement-task` lands and closes the task. Once every delivery task is closed, `pdlc post implement` publishes the stage at `Review Required`. This skill owns orchestration; it never decides the code's content.
 
-This skill writes no code and reviews none of its own work — it dispatches both and records the outcome. It never sets a gate to `Approved`, never authors acceptance tests, and never continues into Testing; those belong to `pdlc-review` and `pdlc-test`. The sub-agents it dispatches to know nothing about the PDLC pipeline, so every brief it builds must stand on its own.
+The sub-agents know nothing about the PDLC pipeline, so every brief this skill builds must stand on its own.
 
-If the lifecycle rules are not already clear to you, read `pdlc guide contract` before dispatching.
+Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), [`references/task-review-prompt.md`](references/task-review-prompt.md), and [`references/implementation-summary.md`](references/implementation-summary.md) as templates.
 
-When implementation or validation produces local files, or the driver supplied local files in this prompt, pass each one to the relevant `pdlc post implement-*` command as `--attachment PATH [--attachment-description TEXT]`. Repeat `--attachment PATH` for multiple files; a description applies only to the immediately preceding file. See `pdlc guide attachments`.
+## Resolve
 
----
+Require the exact parent work-item number from the conversation. If it is missing or ambiguous, stop and ask; never infer it from a title, branch, file, PR, or history.
 
-## Step 0: Check
+Run:
 
-Require an exact parent work item number. Check the current conversation for an unambiguous one before asking; never infer it from the branch, recent files, open PRs, or history alone. The driver may scope the run further — "do TASK-004 next" is `--task TASK-004`, "just the UI tasks" is `--phase ui`. Either way the run covers **one** task.
+```bash
+pdlc inspect WORK_ITEM
+```
+
+Read the resolved `Status`, `Gate State`, and `# Due Next` with its `### Next Pending Task` and `### Open Changes`. Continue only when `Status` is `Implementation`; the Gate step below decides which gate states this skill acts on. Otherwise report the actual routing result and stop.
+
+## Gate
+
+Follow `# Due Next` for what to do, whatever produced that state, including a record edited outside PDLC:
+
+- Names the Implementation stage (`Pending`): implement the next pending task.
+- Says the work item needs changes (`Changes Required`): every open change request, review findings or failed checks, is this run's scope. `pdlc inspect changes WORK_ITEM` prints them in full.
+- Says tasks were invalidated (`Stale`): upstream intent changed; reconcile the reopened task against the open changes before implementing it.
+- Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
+
+Any other due next result belongs to another owner (`pdlc-review`, `pdlc post ci`, or the driver's approval): report it and stop. A skipped stage, malformed record, unavailable workflow, or backend error is a blocker: report it and stop.
+
+Carry the driver's follow-up verbatim. This step is complete when the gate, its evidence, and the exact follow-up are in hand for the dispatch.
+
+## Scope
+
+The driver may narrow the run: "do TASK-004 next" is `--task TASK-004`, "just the UI tasks" is `--phase ui`.
 
 ```bash
 pdlc inspect implement WORK_ITEM [--task TASK-NNN | --phase core|ui]
 ```
 
-Fail fast here. Everything below reads a section of that output.
+`## Next Task` names the single eligible task with its `branch:` and `stackSetup:` line. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
 
-**`## Readiness`** — implementation is due only at Status `Implementation`, gate `Pending`, `Changes Required`, or `Stale`, and not skipped. Anything else → stop, report the line verbatim, name the owning stage. The three gates that do reach you differ:
+Settle every `## Judgment Required` line from the task body and the record's comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one. Keep `## Remaining` for the report.
 
-- `Pending` — normal. Implement the next task.
-- `Changes Required` — a reviewer found something in the completed implementation. Read `pdlc inspect timeline WORK_ITEM`; those findings are this run's scope.
-- `Stale` — upstream intent changed. Reconcile the task against it before implementing.
-
-Implementation stays at `Pending` across every task. Do not move the gate here — Step 4 moves it, and only once every delivery task on the record is closed.
-
-**`## Next Task`** — the single eligible task (OPEN, technically planned, not yet implemented), with its `branch:` and the `stackSetup:` command; its `## Technical Plan` comes from the Step 1 `pdlc inspect task` render, not here. This is the task, whether or not you would have picked it: the order is CORE before UI, then task number, and `--task` / `--phase` only narrow the scan. Nothing eligible → report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
-
-**`## Judgment Required`** — what the script cannot decide. Settle every line before dispatching, from the task body and the record's own comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one.
-
-Stop and report rather than dispatching when any of those fails, when the plan contradicts current source, when acceptance criteria are ambiguous, or when the work needs a new product, architecture, safety, or UX decision.
-
-**`## Remaining`** — the rest of the record, for your final report.
-
-## Step 1: Implement
+Fetch the chosen task:
 
 ```bash
 pdlc inspect task DELIVERY_TASK
 ```
 
-This is the task's own record: front matter (`isUI`, `hasPlan`, `prs`), the full body with its acceptance criteria, its `## Technical Plan`, and `## Agent` — the implementer sub-agent this project routes this task to, resolved from its `isUI`. Dispatch to exactly that agent; do not pick one yourself.
+It renders the task's front matter (`isUI`, `hasPlan`, `prs`), full body with acceptance criteria, `## Technical Plan`, and `## Agent`, the implementer sub-agent this project routes the task to.
 
-1. **Branch.** Check `git status --short` and preserve all unrelated staged, unstaged, and untracked work — the tree must be clean before you branch. Then run Step 0's `stackSetup:` line verbatim: it is the code host's own stack vocabulary, and hand-rolling the branch or its base breaks it. A `Changes Required` re-run needs no new branch — `gh stack checkout <branch>` puts you back on it, and the fix lands as a new commit on top.
-2. **Dispatch one agent.** The one `## Agent` names, and only one — never mix a CORE and a UI task in a single dispatch, and never run two agents against the same task concurrently. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, and the upstream dependency summaries. The template tells it to make exactly one commit on the current branch and not to push, branch, or touch a pull request — the branch and the checkpoint are this skill's job.
+Stop and report instead of dispatching when a judgment line fails, the plan contradicts current source, acceptance criteria are ambiguous, or the work needs a new product, architecture, safety, or UX decision. This step is complete when one task is chosen, every judgment line is settled, and none of those stop conditions holds.
+
+## Implement
+
+1. **Branch.** Check `git status --short`; the tree must be clean before branching, with all unrelated staged, unstaged, and untracked work preserved. Run the `stackSetup:` line verbatim: it is the code host's own stack vocabulary, and a hand-rolled branch or base breaks it. A `Changes Required` re-run needs no new branch: `gh stack checkout <branch>` puts you back on it, and the fix lands as a new commit on top.
+2. **Dispatch** the agent `## Agent` names, and only that one, for this one task. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, the upstream dependency summaries, and the Gate evidence. The template limits it to one commit on the current branch; the branch and PR stay with this skill and the CLI.
 3. **Wait** for it to return before inspecting or changing its files.
-4. **Inspect the commit** against the task's plan, acceptance criteria, and the approved requirements it covers. Confirm the dispatch produced exactly one commit, touching only this task's owned files.
+4. **Inspect the commit** against the task's plan, acceptance criteria, and the approved requirements it covers.
 5. **Validate what you did not author**: `git diff --check`, targeted diagnostics, existing focused tests, and the affected build unless the driver limits validation.
 
-## Step 2: Review
+This step is complete when the dispatch produced exactly one commit on the task branch, touching only this task's owned files, and every validation above has run with its result noted.
 
-Spawn `pdlc-implementation-reviewer` at `task` depth, building its prompt from `references/task-review-prompt.md` — fill every placeholder from the task body, its `## Technical Plan`, and `git show` for the commit. It is read-only and returns findings plus a verdict. Keep this shallow: it is a task-depth pass, not the stage-level review `pdlc-review` owns.
+## Review
 
-- `Changes Required` → hand the findings back to the same implementing agent as its next dispatch. The fix is a new commit on top, never an amend or rebase of the first — the history of what a reviewer asked for stays legible. Re-review it. If a second pass still returns `Changes Required`, stop and report the open findings — do not checkpoint the task or advance.
-- `Approval Required` → continue. Non-blocking findings you accept as-is are carried into the evidence note, not silently dropped.
+Dispatch `pdlc-implementation-reviewer` at `task` depth with [`references/task-review-prompt.md`](references/task-review-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, and `git show` for the commit. It is read-only and returns findings plus a verdict; this is a shallow task pass, not the stage review `pdlc-review` owns.
 
-Never checkpoint a task whose `task`-depth review has not returned `Approval Required`.
+On `Changes Required`, hand the findings verbatim to the same implementing agent. The fix is a new commit on top, never an amend or rebase, so the history of what the reviewer asked for stays legible; validate and review it again. On `Approval Required`, carry every non-blocking finding you accept into the summary. After a second `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within two passes.
 
-## Step 3: Test
+## Test
 
-Spawn `pdlc-test-writer` once, scoped to this task only — its plan, its acceptance criteria, and the commit's diff — for unit-level coverage of the code just shipped. It commits onto the same task branch. Whole-feature acceptance coverage is not this skill's job; that is the Testing stage. Wait for its report and re-inspect the commit(s) it added.
+Dispatch `pdlc-test-writer` once, scoped to this task only (its plan, its acceptance criteria, and the commit's diff), for unit coverage of the code just shipped; whole-feature acceptance coverage belongs to `pdlc-test`. It commits onto the same task branch. This step is complete when its report is in and the commit(s) it added are on the task branch and inspected.
 
-## Step 4: Checkpoint and publish
+## Land
 
-Write a summary following [`references/implementation-summary.md`](references/implementation-summary.md), then land it. It is a comment on the delivery task; **the task body is never edited**, and implementation notes never go into the parent work item body.
-
-Write the summary to a file and pass its path:
+Write the summary to a local file following [`references/implementation-summary.md`](references/implementation-summary.md), then land it:
 
 ```bash
 pdlc post implement-task DELIVERY_TASK /tmp/pdlc-task-summary.md --close
 ```
 
-This submits the task's branch as a pull request — one per task, stacked on the previous task's — titled with this task's title and described by the summary above, registers its number on the task, posts the `## Implementation` comment, and closes the task. On success `taskPr` is this task's PR and `prs` holds its registered numbers; a partial failure posts no comment and leaves the task open, so `pdlc inspect implement` still offers it for a clean re-run. It does **not** gate on the PR's checks — CI is reconciled after the stage review, at the `CI Pending` gate.
+Repeat each local file that implementation or validation produced, or the driver supplied, with `--attachment PATH [--attachment-description TEXT]`; a description applies only to the immediately preceding attachment. See `pdlc guide attachments`.
 
-If the PR was opened or updated but the run failed before `prs` came back — or you had to open the PR by hand — register it explicitly so later stages see it: `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent). Then re-run `pdlc post implement-task` to land the comment and closure.
+The command records the summary as the task's `## Implementation` comment and as its PR's description, leaves the task body untouched, and closes the task. A failure posts no comment and leaves the task open, so `pdlc inspect implement` still offers it for a clean re-run; report the exact error. If the PR exists but the run failed before `prs` came back, register it with `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent), then re-run `pdlc post implement-task`. This step is complete when the JSON shows `closed: true` and this task's `taskPr`.
 
-**Publish only when every delivery task on the record is closed.** The parent stays at `Implementation / Pending` while any task is open — that is what stops testing and verification from starting before the whole task graph is done. Any task still open → stop and report what landed and what remains; the loop or the driver dispatches the next.
+## Publish
+
+Publish only when every delivery task on the record is closed. While any task is open the parent stays at `Implementation / Pending`, which keeps Testing from starting on a partial task graph; go straight to Report.
+
+Write the stage evidence (the result, the task PR stack, and any exception) to a local file, or pass a short one as `text:<body>`:
 
 ```bash
-pdlc post implement WORK_ITEM "text:Result: all 7 delivery tasks closed; task PR stack #148–#154 ready for review. Exceptions: none; CI in flight."
+pdlc post implement WORK_ITEM /tmp/pdlc-implement-evidence.md
 ```
 
-Pass a longer summary as a file path instead.
+The command refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns the registered `pullRequest`; a failure leaves the stage unpublished, so a re-run is clean. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
 
-`pdlc post implement` refuses while any delivery task is open, registers the top task PR on the record, takes every open PR registered on the record and its tasks out of draft so humans can review the stack, posts the evidence, and sets `Review Required`. Leave the stack open — merging it is a driver/review decision. The stage review then lands `CI Pending`, and `pdlc post ci` reconciles the live check rollup across every PR registered on the record and its tasks — a red result routes back here at `Changes Required`.
+## Report
 
-## Step 5: Report
+Relay the command JSON, plus:
 
-Report the one task implemented, its `taskPr`, the `task`-depth review outcome, unit coverage added, any material exception, and current `Status`/`Gate State`. Do not repeat per-task files or routine green validation already on the task comment. If this was the last task and you published, say it is at `Review Required`; after review, Implementation may park at `CI Pending` until checks settle.
+- the task implemented and its `taskPr`;
+- the task-depth review verdict and pass count;
+- the unit coverage added;
+- any material exception or accepted non-blocking finding;
+- `## Remaining` and the current `Status`/`Gate State`.
 
-Never set `Approved` and never continue into Testing.
+Leave per-task files and routine green validation on the task comment. The report is complete when it contains the command output, review result, final gate, and every unresolved failure or risk.
 
 ## Requirement corrections
 
-Do not silently work around a requirement, constraint, plan, or acceptance criterion that is factually wrong. A mechanically provable error — a renamed type, a dead path — may be corrected in place, with every affected reference updated. Anything that changes approved intent needs the driver: stop, report it, and let them run `pdlc post invalidate` against the owning stage. Never edit the approved specification to match what was built.
-
----
+Surface a requirement, constraint, plan, or acceptance criterion that is factually wrong rather than working around it. Correct a mechanically provable error, such as a renamed type or a dead path, in place, updating every affected reference. Anything that changes approved intent goes to the driver: stop, report it, and name `pdlc post invalidate` against the owning stage. The approved specification stays as approved, even where the build differs.
 
 ## Boundaries
 
-- Implement **one** task per invocation. Do not loop through the rest of the scope yourself — the queue or the driver re-invokes the skill.
-- Do not author acceptance tests — `pdlc-test` owns whole-feature coverage. `pdlc-test-writer` in Step 3 is scoped to the single task's unit coverage only.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
-- Do not edit the parent's `Product`, `UI`, `Decisions`, or `Open Questions` sections.
-- Do not write lifecycle state into any work item body — those fields are script-owned.
-- Preserve unrelated staged, unstaged, and untracked local work.
-- Do not claim delegated implementation, build, test, PR, or check evidence that does not exist.
-- Create the task branch only through `gh stack init`/`gh stack add`. Do not commit task work to the base branch or to another task's branch.
-- Let `gh stack` and `pdlc post implement-task` manage branches and PRs — do not run `git push`, `git rebase`, or open PRs by hand.
-- Do not merge any PR in the stack — that is a driver/review decision.
-
-## Checklist
-
-Each run:
-
-- [ ] Resolved the record with `pdlc inspect implement`; `## Readiness` reported ready
-- [ ] `Gate State` was `Pending`, `Changes Required`, or `Stale`, and the run was scoped to what that gate means
-- [ ] Exactly one task selected — the inspector's `## Next Task`
-- [ ] Every `## Judgment Required` line settled: dependencies closed by Result and source, HITL approval on record
-- [ ] Ran the inspector's `stackSetup:` `gh stack` command on a clean tree; no hand-rolled branching
-- [ ] Dispatched to the sub-agent named in the task's `## Agent` section, and only that one
-- [ ] One implementation commit per dispatch on the task branch, review fixes stacked on top; no PR opened by the sub-agent
-- [ ] Validation actually run before the `task`-depth review
-- [ ] `task`-depth `pdlc-implementation-reviewer` returned `Approval Required` (a `Changes Required` looped back once; a second failure stopped the run)
-- [ ] `pdlc-test-writer` added unit coverage for this task onto the same branch
-- [ ] `## Implementation` comment posted and task closed via `pdlc post implement-task`; task body untouched; `taskPr` recorded
-- [ ] Parent left at `Implementation / Pending` unless this was the last task
-- [ ] Published exactly once, and only after the final task closed
+- Keep code with the `## Agent` implementer, review judgement with `pdlc-implementation-reviewer`, and unit coverage with `pdlc-test-writer`; this skill writes no code and authors no acceptance tests.
+- Use the CLI as the only work-item interface; lifecycle state, evidence markers, and the parent's Product, UI, Decisions, and Open Questions sections belong to other owners.
+- Branches come only from `stackSetup:` and `gh stack`, and PRs only from `pdlc post implement-task`; keep task work off the base branch and other tasks' branches, and leave pushing, rebasing, and merging to those tools and the driver.
+- Claim only implementation, build, test, PR, or check evidence that exists.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
+- Preserve unrelated staged, unstaged, and untracked work.

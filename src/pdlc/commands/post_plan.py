@@ -21,11 +21,19 @@ Technical Plan is reviewed before this script publishes it. A task that
 already carries a `## Technical Plan` comment has that comment replaced in
 place rather than getting a second one, so pdlc-inspect and the task thread
 only ever show one current plan per task. A record still at `Technical Plan /
-Approval Required` is re-authored in place: a non-dry-run call overwrites the
+Approval Required` (or `Review Required`) is re-authored in place: a non-dry-run call overwrites the
 existing plan comments with the new content (no invalidation comment — the
 plan never settled at Approved, and the re-land's own evidence records the
 change) and lands back at Approval Required, so it requires a fresh
 independent review before the next approval.
+
+The record must be at `Technical Plan` with Gate State `Pending`, `Stale`,
+`Changes Required`, `Review Required`, or `Approval Required`. `Changes
+Required` (for example after a resolved decision) lands the same way as
+`Stale`. `Review Required` (a plan published without its local review) is
+re-authored in place the same way as `Approval Required`. `Decision Required`
+is refused with a pointer to `pdlc guide decisions`; any other gate is
+refused. A refusal leaves the record untouched.
 
 `--dry-run` prints a markdown report:
 
@@ -95,7 +103,7 @@ from pdlc.internal.workitem import (
 )
 from pdlc.domain.lifecycle import PdlcError, duplicates
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
-from pdlc.domain.workflow import Event
+from pdlc.domain.workflow import Event, decision_required_message
 
 
 def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
@@ -226,15 +234,17 @@ def main(argv: list[str] | None = None) -> int:
 
         if stage != "Technical Plan":
             raise PdlcError(f"cannot land Technical Plan: the record is at {stage}")
-        if gate in ("Pending", "Stale"):
+        # Changes Required lands exactly like Stale: a resolved decision parks
+        # the stage there, and the re-planned artifact publishes from it.
+        if gate in ("Pending", "Stale", "Changes Required"):
             pass
-        elif gate == "Approval Required":
+        elif gate in ("Review Required", "Approval Required"):
             # Defer this mutation until the complete manifest has validated.
-            # Invalid plans must leave the approval gate untouched. A dry run
+            # Invalid plans must leave the published gate untouched. A dry run
             # never reaches the mutation at all, so it is safe to preview here.
             pass
-        elif gate in ("Review Required", "Changes Required"):
-            raise PdlcError(f"Technical Plan is at {gate}, which no path in this flow produces for it; report it rather than landing over it")
+        elif gate == "Decision Required":
+            raise PdlcError(decision_required_message(stage))
         else:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, "Technical Plan"):
@@ -276,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
 
         assert evidence_body is not None
 
-        if gate == "Approval Required":
+        if gate in ("Review Required", "Approval Required"):
             reauthor_invalidate_stage(record, "Technical Plan", pipeline)
 
         state = state_for_item(record, pipeline)

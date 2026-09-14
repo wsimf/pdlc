@@ -133,7 +133,8 @@ class CiPendingGateTests(FileBackendTest):
         self.assertIn("PDLC-REVIEW", self.comments_text(27))
         self.assertIn("CI check has failed", self.comments_text(27))
         self.assertIn("Failed checks: #149 (FAILURE)", self.comments_text(27))
-        self.assertIn("Failed checks: #149 (FAILURE)", self.invoke("inspect", 27, "--full").stdout)
+        self.assertIn("1 open change request for Implementation: CI failure.", self.invoke("inspect", 27, "--full").stdout)
+        self.assertIn("Failed checks: #149 (FAILURE)", self.invoke("inspect_changes", 27).stdout)
 
     def test_no_linked_pr_advances_straight_through(self):
         self.seed_record(28, "Implementation", "Review Required")

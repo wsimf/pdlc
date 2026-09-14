@@ -24,6 +24,11 @@ The implementation is recorded as its own artifact on the task, leaving the
 human-authored task body and its Technical Plan as they were. Pass --close once
 the task review passed, its unit coverage landed, and its criteria are met.
 
+A task carries one `## Implementation` comment. Re-recording a task that
+already has one, such as a review or CI fix on a closed task, edits the newest
+in place and removes any older duplicates, so the comment always reads as what
+finally shipped.
+
 This first submits the task's stacked pull request via `gh stack`, sets that PR's
 title (the delivery task's own title with its `WORK-N-TASK-N` id prefix and
 `[CORE]`/`[UI]` tag stripped, or the optional `[code_host] pr_title_format`
@@ -50,11 +55,15 @@ from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
     close_task,
+    delete_comment,
+    edit_comment,
+    heading_comment_objects,
     item_slug,
     post_comment,
     attach_pr,
@@ -129,6 +138,22 @@ def _pr_body(summary: str, work_number: str) -> str:
     return f"{attachment.replace('{work.number}', work_number)}\n\n{summary}"
 
 
+def _record_implementation(delivery_task: str, comment_objects: list[dict], summary: str) -> None:
+    """Keep one `## Implementation` comment on the task: edit the newest in
+    place, then retire older duplicates newest-first; post only when there is
+    none to edit. Readers take the newest match, so a failure part-way still
+    leaves this summary authoritative."""
+    existing = heading_comment_objects(comment_objects, IMPLEMENTATION_COMMENT_HEADING)
+    if not existing or not existing[-1].get("url"):
+        post_comment(delivery_task, summary)
+        return
+    *older, newest = existing
+    edit_comment(delivery_task, newest["url"], summary)
+    for comment in reversed(older):
+        if comment.get("url"):
+            delete_comment(delivery_task, comment["url"])
+
+
 def post_implement_task(delivery_task: str, evidence: str, close: bool, attachment_inputs: list[dict]) -> dict:
     if not delivery_task.isdigit():
         raise PdlcError(f"delivery task number must be numeric: {delivery_task}")
@@ -146,6 +171,8 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     gate = item_gate(parent)
     if status == pipeline.terminal_stage:
         raise PdlcError("the parent work item is Complete and locked")
+    if gate == "Decision Required":
+        raise PdlcError(decision_required_message(status))
     if status != "Implementation" or due_next(parent).get("action") != "pdlc-implement":
         raise PdlcError(f"implementation is not active: parent is at {status} / {gate}")
     if not task.get("hasPlan"):
@@ -180,7 +207,7 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
     result["taskPr"] = task_pr
     result["prs"] = attach_pr(task["number"], task_pr["number"])
 
-    post_comment(delivery_task, summary)
+    _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
     if close:
         close_task(delivery_task)

@@ -4,9 +4,10 @@ for these stages, byte for byte.
 
 `docs/due-next-decision.md` is parsed rather than duplicated into a second
 hardcoded expectation, so the doc stays the single place that wording lives
-and drifts are caught the moment either side changes. Changes Required and
-Stale each carry two doc examples — evidence found and evidence not found —
-so those two are handled separately from the single-example gates.
+and drifts are caught the moment either side changes. Changes Required,
+Stale, and Decision Required each carry two doc examples — evidence found and
+evidence not found — so those are handled separately from the single-example
+gates.
 """
 
 import re
@@ -152,7 +153,7 @@ class DueNextMatchesDocTests(unittest.TestCase):
         rendered = _due_next_section(item, [], implemented_tasks)
         self.assertIn("No delivery tasks are currently pending implementation.", rendered)
 
-    def test_changes_required_inlines_the_newest_review_or_resolution_comment(self):
+    def test_changes_required_summarises_the_open_review(self):
         for stage in STAGES:
             with self.subTest(stage=stage):
                 review_body = "PDLC-REVIEW\n\n" + compose_review(
@@ -164,18 +165,12 @@ class DueNextMatchesDocTests(unittest.TestCase):
                 item = _item(stage, "Changes Required")
                 rendered = _due_next_section(item, comments, _tasks_for(stage))
 
-                found_template = self.blocks[stage]["Changes Required"][0]
-                expected = found_template.replace(
-                    "This evidence was posted at {when}.\n"
-                    "{the newest PDLC-REVIEW or PDLC-DECISION comment's verbatim text, marker and metadata header stripped}",
-                    f"This evidence was posted at {timeline_formatted_at('2026-01-05T14:30:00Z')}.\n"
-                    "Tighten the requirements in section 2.",
+                expected = self.blocks[stage]["Changes Required"][0].replace(
+                    "{OPEN_CHANGES_SUMMARY}", f"1 open change request for {stage}: Review findings."
                 )
-                self.assertNotIn("{when}", expected)
-                self.assertNotIn("{the newest", expected)
                 self.assertEqual(rendered, expected)
 
-    def test_stale_inlines_the_newest_invalidated_comment(self):
+    def test_stale_summarises_the_open_invalidation(self):
         for stage in STAGES:
             with self.subTest(stage=stage):
                 comments = [
@@ -187,15 +182,9 @@ class DueNextMatchesDocTests(unittest.TestCase):
                 item = _item(stage, "Stale")
                 rendered = _due_next_section(item, comments, _tasks_for(stage))
 
-                found_template = self.blocks[stage]["Stale"][0]
-                expected = found_template.replace(
-                    "This evidence was posted at {when}.\n"
-                    "{the newest PDLC-INVALIDATED comment's verbatim text}",
-                    f"This evidence was posted at {timeline_formatted_at('2026-02-01T09:00:00Z')}.\n"
-                    f"Invalidated stage: {stage}\n\nScope changed after the kickoff call.",
+                expected = self.blocks[stage]["Stale"][0].replace(
+                    "{OPEN_CHANGES_SUMMARY}", f"1 open change request for {stage}: Invalidation."
                 )
-                self.assertNotIn("{when}", expected)
-                self.assertNotIn("{the newest", expected)
                 self.assertEqual(rendered, expected)
 
     def test_decision_required_inlines_the_newest_decision_comment(self):
@@ -221,17 +210,47 @@ class DueNextMatchesDocTests(unittest.TestCase):
                 self.assertNotIn("{the newest", expected)
                 self.assertEqual(rendered, expected)
 
-    def test_changes_required_prefers_the_newer_of_review_and_resolution(self):
-        older_review = "PDLC-REVIEW\n\n" + compose_review("Product", ReviewVerdict.DECISION_REQUIRED, "Needs a call.")
-        newer_resolution = "PDLC-RESOLUTION\n\nUser decided: keep the current scope."
-        comments = [
-            {"body": older_review, "createdAt": "2026-01-01T00:00:00Z", "url": "u1", "author": {"login": "reviewer"}},
-            {"body": newer_resolution, "createdAt": "2026-01-02T00:00:00Z", "url": "u2", "author": {"login": "driver"}},
+    def test_open_changes_counts_every_request_since_the_stage_last_published(self):
+        def review(text):
+            return "PDLC-REVIEW\n\n" + compose_review("Implementation", ReviewVerdict.CHANGES_REQUIRED, text)
+
+        bodies = [
+            review("Addressed by the publication after it."),
+            "PDLC-IMPLEMENTATION\n\nsecond pass",
+            review("TASK-001 drops the retry."),
+            "PDLC-REVIEW\n\nCI failed stage: Implementation\n\nFailed checks: #149 (FAILURE)",
+            review("TASK-002 skips validation."),
         ]
-        item = _item("Product", "Changes Required")
-        rendered = _due_next_section(item, comments, [])
-        self.assertIn("User decided: keep the current scope.", rendered)
-        self.assertNotIn("Needs a call.", rendered)
+        comments = [
+            {"body": body, "createdAt": f"2026-01-0{day}T00:00:00Z", "url": f"u{day}", "author": {"login": "t"}}
+            for day, body in enumerate(bodies, start=1)
+        ]
+        rendered = _due_next_section(_item("Implementation", "Changes Required"), comments, IMPLEMENTATION_TASKS)
+        self.assertIn(
+            "### Open Changes\n\n3 open change requests for Implementation: Review findings (2), CI failure.\n"
+            f"Run `pdlc inspect changes {TEST_ITEM_ID}` for their full text, and address every one of them.",
+            rendered,
+        )
+
+    def test_stale_lists_a_verification_bounce(self):
+        bounce = "PDLC-REVIEW\n\n" + compose_review(
+            "Verification", ReviewVerdict.CHANGES_REQUIRED, "Claim 3 fails.", bounce="Implementation", loop="delivery-rework"
+        )
+        comments = [
+            {"body": bounce, "createdAt": "2026-01-01T00:00:00Z", "url": "u1", "author": {"login": "t"}},
+            {"body": "PDLC-INVALIDATED\n\nInvalidated stage: Implementation\n\nTASK-001", "createdAt": "2026-01-02T00:00:00Z", "url": "u2", "author": {"login": "t"}},
+        ]
+        rendered = _due_next_section(_item("Implementation", "Stale"), comments, IMPLEMENTATION_TASKS)
+        self.assertIn("2 open change requests for Implementation: Verification bounce, Invalidation.", rendered)
+
+    def test_changes_required_falls_back_once_the_stage_republished(self):
+        review_body = "PDLC-REVIEW\n\n" + compose_review("Product", ReviewVerdict.CHANGES_REQUIRED, "Tighten section 2.")
+        comments = [
+            {"body": review_body, "createdAt": "2026-01-01T00:00:00Z", "url": "u1", "author": {"login": "t"}},
+            {"body": "PDLC-PRODUCT\n\nrewritten", "createdAt": "2026-01-02T00:00:00Z", "url": "u2", "author": {"login": "t"}},
+        ]
+        rendered = _due_next_section(_item("Product", "Changes Required"), comments, [])
+        self.assertEqual(rendered, self.blocks["Product"]["Changes Required"][1])
 
 
 if __name__ == "__main__":

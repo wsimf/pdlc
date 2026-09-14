@@ -1,6 +1,7 @@
 """Backend-independent validation in `pdlc post tasks`, `pdlc post plan`, and
 `pdlc post write` — coverage, dependency, identity, and section-shape rules,
-plus the re-author-in-place / return-to-Stale guard."""
+plus the re-author-in-place / return-to-Stale guard — and the gate guards every
+`pdlc post` command applies at Review Required and Decision Required."""
 
 import json
 
@@ -90,6 +91,33 @@ class PostTasksValidationTests(FileBackendTest):
         self.assertEqual(reauth.json["gateState"], "Approval Required")
         self.assertNotIn("PDLC-INVALIDATED", self.comments_text(31))
 
+    def test_review_and_changes_required_land_at_approval_required(self):
+        for number, gate in ((33, "Review Required"), (34, "Changes Required")):
+            with self.subTest(gate=gate):
+                self.seed_record(number, "Tasks", gate)
+                manifest = self.write_file(f"m{number}.json", json.dumps([
+                    {"title": "A", "body": self.body_file, "ui": True, "covers": ["FR-1", "UJ-1"]}
+                ]))
+                dry = self.invoke("post_tasks", "--work-item", number, "--stage", "Tasks",
+                                  "--manifest", manifest, "--dry-run")
+                self.assertEqual(dry.code, 0, dry.stderr)
+                self.assertEqual(self.fields(number)["Gate State"], gate)
+                landed = self.invoke("post_tasks", "--work-item", number, "--stage", "Tasks",
+                                     "--manifest", manifest, "--evidence", self.evidence_file())
+                self.assertEqual(landed.code, 0, landed.stderr)
+                self.assertEqual(self.fields(number)["Gate State"], "Approval Required")
+
+    def test_decision_required_points_at_the_decisions_guide(self):
+        self.seed_record(35, "Tasks", "Decision Required")
+        manifest = self.write_file("m35.json", json.dumps([
+            {"title": "A", "body": self.body_file, "ui": True, "covers": ["FR-1", "UJ-1"]}
+        ]))
+        result = self.invoke("post_tasks", "--work-item", 35, "--stage", "Tasks",
+                             "--manifest", manifest, "--evidence", self.evidence_file())
+        self.assertEqual(result.code, 1)
+        self.assertIn("pdlc guide decisions", result.stderr)
+        self.assertEqual(self.fields(35)["Gate State"], "Decision Required")
+
     def test_ui_applicability_must_be_explicit(self):
         self.seed_record(32, "UI", "Pending")
         ok = self.write_file("ui-ok.md", "## UI\n\nUJ-1 covers the first run.\n")
@@ -161,8 +189,78 @@ class PostPlanValidationTests(FileBackendTest):
         self.assertIn("overwrite", result.stdout)
         self.assertEqual(self.fields(41)["Gate State"], "Approval Required")
 
+    def test_changes_required_lands_like_stale(self):
+        self.seed_record(42, "Technical Plan", "Changes Required")
+        self.seed_task(42, 421, "TASK-001", "OPEN", "WORK-42-TASK-001 One")
+        evidence = self.write_file("plan-evidence.md", "Re-planned after the resolved decision.\n")
+        result = self.invoke(
+            "post_plan", "--work-item", 42,
+            "--manifest", self.write_file("pm42.json", json.dumps(
+                [{"id": "TASK-001", "plan": self.plan_body}]
+            )),
+            "--evidence", evidence,
+        )
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["planned"], ["TASK-001"])
+        self.assertEqual(self.fields(42)["Status"], "Technical Plan")
+        self.assertEqual(self.fields(42)["Gate State"], "Approval Required")
+
+    def test_review_required_re_lands_at_approval_required(self):
+        self.seed_record(43, "Technical Plan", "Review Required")
+        self.seed_task(43, 431, "TASK-001", "OPEN", "WORK-43-TASK-001 One")
+        manifest = self.write_file("pm43.json", json.dumps(
+            [{"id": "TASK-001", "plan": self.plan_body}]
+        ))
+        dry = self.invoke("post_plan", "--work-item", 43, "--manifest", manifest, "--dry-run")
+        self.assertEqual(dry.code, 0, dry.stderr)
+        self.assertEqual(self.fields(43)["Gate State"], "Review Required")
+        evidence = self.write_file("plan-evidence-43.md", "Reviewed the published plan.\n")
+        result = self.invoke("post_plan", "--work-item", 43, "--manifest", manifest, "--evidence", evidence)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.fields(43)["Gate State"], "Approval Required")
+
+    def test_blocking_gates_are_refused_without_writing(self):
+        for number, gate, expected in (
+            (44, "Decision Required", "pdlc guide decisions"),
+            (45, "Approved", "cannot land Technical Plan from Gate State: Approved"),
+        ):
+            with self.subTest(gate=gate):
+                self.seed_record(number, "Technical Plan", gate)
+                self.seed_task(number, number * 10 + 1, "TASK-001", "OPEN", f"WORK-{number}-TASK-001 One")
+                result = self.invoke(
+                    "post_plan", "--work-item", number,
+                    "--manifest", self.write_file(f"pm{number}.json", json.dumps(
+                        [{"id": "TASK-001", "plan": self.plan_body}]
+                    )),
+                    "--dry-run",
+                )
+                self.assertEqual(result.code, 1)
+                self.assertIn(expected, result.stderr)
+                self.assertEqual(self.fields(number)["Gate State"], gate)
+
 
 class PostWriteReconstructionTests(FileBackendTest):
+    def _rewrite(self, number):
+        rewrite = self.write_file(
+            f"rewrite-{number}.md",
+            "## Product\nnew product\n\n## Decisions\nnew decision\n\n## Open Questions\nnew question\n",
+        )
+        return self.invoke("post_write", "--work-item", number,
+                           "--evidence", self.evidence_file(), "--body", rewrite)
+
+    def test_review_required_re_lands_at_approval_required(self):
+        self.seed_record(52, "Product", "Review Required", body="## Product\nold\n")
+        result = self._rewrite(52)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.fields(52)["Gate State"], "Approval Required")
+
+    def test_decision_required_points_at_the_decisions_guide(self):
+        self.seed_record(53, "Product", "Decision Required", body="## Product\nold\n")
+        result = self._rewrite(53)
+        self.assertEqual(result.code, 1)
+        self.assertIn("pdlc guide decisions", result.stderr)
+        self.assertEqual(self.fields(53)["Gate State"], "Decision Required")
+
     def test_only_the_three_owned_sections_are_replaced(self):
         self.seed_record(50, "Product", "Stale", body=(
             "## Product\nold\n\n## UI\nowned later\n\n## Decisions\nold\n\n## Open Questions\nold\n"
@@ -189,3 +287,79 @@ class PostWriteReconstructionTests(FileBackendTest):
         self.assertEqual(result.json["gateState"], "Approval Required")
         self.assertIn("revised", self.body(51))
         self.assertNotIn("PDLC-INVALIDATED", self.comments_text(51))
+
+
+class DecisionRequiredGuardTests(FileBackendTest):
+    def test_approve_and_ci_point_at_the_decisions_guide(self):
+        self.seed_record(60, "Implementation", "Decision Required")
+        for command, args in (
+            ("post_approve", (60, self.evidence_file())),
+            ("post_ci", (60,)),
+        ):
+            with self.subTest(command=command):
+                result = self.invoke(command, *args)
+                self.assertEqual(result.code, 1)
+                self.assertIn("pdlc guide decisions", result.stderr)
+        self.assertEqual(self.fields(60)["Gate State"], "Decision Required")
+
+
+class DecisionRequiredEveryCommandTests(FileBackendTest):
+    """Every stage-work `pdlc post` command refuses Decision Required with a
+    pointer to the decisions guide, and leaves the gate untouched."""
+
+    def _assert_refused(self, number, stage, command, *args):
+        self.seed_record(number, stage, "Decision Required")
+        result = self.invoke(command, *args)
+        self.assertEqual(result.code, 1, result.stdout)
+        self.assertIn("pdlc guide decisions", result.stderr)
+        self.assertEqual(self.fields(number)["Gate State"], "Decision Required")
+
+    def test_implement(self):
+        self._assert_refused(61, "Implementation", "post_implement", 61, self.evidence_file())
+
+    def test_test(self):
+        traceability = self.write_file("trace.md", "FR-1 -> tests/test_x.py\n")
+        self._assert_refused(62, "Testing", "post_test", 62, self.evidence_file(), "--traceability", traceability)
+
+    def test_review(self):
+        self._assert_refused(63, "Testing", "post_review", 63, "approval-required", self.evidence_file())
+
+    def test_verify(self):
+        report = self.write_file("report.md", "Findings.\n")
+        self._assert_refused(64, "Verification", "post_verify", 64, report, "--recommendation", "Changes Required")
+
+    def test_complete(self):
+        self._assert_refused(65, "Verification", "post_complete", 65, self.evidence_file())
+
+    def test_skip_declares_without_clearing_the_decision(self):
+        # `post skip` only records Skipped States; it never moves the gate, so
+        # the open decision still holds the stage until the driver resolves it.
+        self.seed_record(66, "UI", "Decision Required")
+        result = self.invoke("post_skip", "--work-item", 66, "--state", "UI")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.fields(66)["Gate State"], "Decision Required")
+        due = self.invoke("inspect", 66)
+        self.assertIn("UI.DecisionRequired", due.stdout)
+
+
+class DecisionRequiredExitTests(FileBackendTest):
+    def test_invalidate_still_leaves_decision_required(self):
+        self.seed_record(67, "Technical Plan", "Decision Required")
+        result = self.invoke("post_invalidate", 67, "Tasks", self.evidence_file())
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual((self.fields(67)["Status"], self.fields(67)["Gate State"]), ("Tasks", "Stale"))
+
+
+class PostTasksUiGateTests(FileBackendTest):
+    def test_ui_review_and_changes_required_land_at_approval_required(self):
+        body = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        for number, gate in ((36, "Review Required"), (37, "Changes Required")):
+            with self.subTest(gate=gate):
+                self.seed_record(number, "UI", gate)
+                dry = self.invoke("post_tasks", "--work-item", number, "--stage", "UI", "--body", body, "--dry-run")
+                self.assertEqual(dry.code, 0, dry.stderr)
+                self.assertEqual(self.fields(number)["Gate State"], gate)
+                landed = self.invoke("post_tasks", "--work-item", number, "--stage", "UI",
+                                     "--body", body, "--evidence", self.evidence_file())
+                self.assertEqual(landed.code, 0, landed.stderr)
+                self.assertEqual(self.fields(number)["Gate State"], "Approval Required")

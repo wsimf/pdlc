@@ -32,6 +32,8 @@ pdlc inspect verify WORK_ITEM
 
 Its `## Readiness` line already resolves `Status`/`Gate State` and the outcome. Not ready → stop, report the reason verbatim, do nothing further. Verification records its own outcome; it never uses `Review Required`. Keep this output at hand — nothing below needs re-fetching.
 
+At `Changes Required`, also run `pdlc inspect changes WORK_ITEM`. When it lists a CI failure, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Steps 2-8, then Step 9.
+
 ## Step 2: Check for pending PR review comments early
 
 Step 1's output already carries `## Open Comments` — live, still-unresolved review-thread state off the registered PR stack, not evidence PDLC itself recorded. **None** → continue to Step 3.

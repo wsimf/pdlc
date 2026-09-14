@@ -115,7 +115,7 @@ Run this loop one pass at a time:
 
 1. Run `pdlc inspect <work-item>` and read its `# Due Next` section. Re-read the record rather than predicting the next action from the previous pass.
 2. Act on the instruction `# Due Next` gives:
-   - **Invoke a skill** (a `pdlc-*` stage skill or `pdlc-review`): invoke it with the work item number, carrying any `### Evidence`, `### Next Pending Task`, or `### Testable Scope` it names. The specialist re-inspects the record and owns its stage work.
+   - **Invoke a skill** (a `pdlc-*` stage skill or `pdlc-review`): invoke it with the work item number, carrying any `### Open Changes`, `### Evidence`, `### Next Pending Task`, or `### Testable Scope` it names. The specialist re-inspects the record and owns its stage work.
    - **Call `pdlc next <id>`**: run it; it corrects the state and routes onward.
 3. When that finishes, return to step 1.
 

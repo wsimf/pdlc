@@ -29,6 +29,7 @@ Follow `# Due Next` for what to do, whatever produced that state, including a re
 - Names the review procedure (`Review Required`): skip straight to Review with the existing artifact; do not author or validate first.
 - Says the work item needs changes (`Changes Required`): reconcile against the recorded evidence, the same as `Stale`, then continue through Author onward.
 - Names user approval (`Approval Required`): re-author only when the driver explicitly requests an artifact change in this turn; Without that request, it's a human boundary: report it and stop.
+- Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
 Any other due next result, malformed record, missing evidence, unavailable workflow, or backend error is a blocker.
 

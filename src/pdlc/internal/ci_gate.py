@@ -70,7 +70,11 @@ def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State)
             for pr in pull_requests
             if (pr.get("checks") or "") in _RED
         )
+        # The `CI failed stage:` line attributes this change request to its
+        # stage for `pdlc inspect changes`; the note carries no review
+        # metadata, so Verification evidence readers keep ignoring it.
         body = (
+            f"CI failed stage: {stage.name}\n\n"
             f"CI check has failed on the {stage.name.lower()} pull request(s) after the "
             f"{stage.name.lower()} review was approved.\n\n"
             f"Failed checks: {failed}.\n\n"

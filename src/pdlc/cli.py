@@ -23,6 +23,7 @@ COMMANDS = {
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "task", "timeline"): "pdlc.commands.inspect_task_timeline",
     ("inspect", "comments"): "pdlc.commands.inspect_comments",
+    ("inspect", "changes"): "pdlc.commands.inspect_changes",
     ("inspect", "timeline"): "pdlc.commands.inspect_timeline",
     ("inspect", "verify"): "pdlc.commands.inspect_verify",
     ("inspect", "complete"): "pdlc.commands.inspect_complete",
@@ -67,6 +68,7 @@ def _usage() -> str:
         "  inspect task timeline TASK  one delivery task's plan/implementation/invalidation history\n"
         "  inspect comments WI --page N  read one page of comments (100 per page)\n"
         "  inspect timeline WI         all evidence comments as a stage-by-stage timeline\n"
+        "  inspect changes WI [--stage STAGE]  change requests the stage has not addressed since it last published\n"
         "  inspect implement WI        whether Implementation is due and the next task to implement\n"
         "  inspect review WI           whether review is due; which artifact and reviewer agent\n"
         "  inspect test WI             whether testing is due; testable scope and files the PRs touched\n"

@@ -36,7 +36,9 @@ If the driver explicitly asks for ad hoc coverage on a record not due for `pdlc-
 
 ## Step 2: Handle the gate
 
-`Pending` (first pass), `Changes Required` (a reviewer found missing/failing coverage — read `pdlc inspect timeline WORK_ITEM`, that's this pass's scope), and `Stale` (implementation changed under existing coverage — reconcile it) are the only gates `## Readiness` lets through.
+`Pending` (first pass), `Changes Required` (a reviewer found missing/failing coverage — read `pdlc inspect changes WORK_ITEM`, that's this pass's scope), and `Stale` (implementation changed under existing coverage — reconcile it) are the only gates `## Readiness` lets through.
+
+When `pdlc inspect changes WORK_ITEM` lists a CI failure, or a Verification bounce for a red check, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Steps 3-6; it ends by running Step 6, then Step 7.
 
 ## Step 3: Build the traceability map
 

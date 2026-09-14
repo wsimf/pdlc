@@ -11,8 +11,9 @@ DESCRIPTION
 
   - checks still running          -> no change; reports "still running"
   - checks green / none tracked   -> Stage / Approval Required
-  - checks red                    -> posts a note under the stage's own
-                                     marker and Stage / Changes Required
+  - checks red                    -> posts a PDLC-REVIEW note opening with
+                                     `CI failed stage: <stage>` and naming the
+                                     failed PRs, and Stage / Changes Required
 
 Mechanical: it records an external fact, makes no judgement, and carries no
 identity check. The autonomous loop runs it once CI finishes; a driver may run
@@ -30,6 +31,7 @@ import sys
 
 from pdlc.internal.ci_gate import resolve_ci_gate
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item
 
@@ -37,6 +39,8 @@ from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item
 def post_ci(issue: str) -> dict:
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)
+    if item_gate(record) == "Decision Required":
+        raise PdlcError(decision_required_message(state.stage))
     if item_gate(record) != "CI Pending":
         raise PdlcError(f"pdlc post ci requires Gate State = CI Pending, not {item_gate(record) or 'unset'}")
 

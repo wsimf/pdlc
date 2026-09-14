@@ -26,10 +26,14 @@ The supplied body contains exactly the three sections owned by Product:
 `Product`, `Decisions`, and `Open Questions`. New records use it as their
 initial body.
 
-An existing record already at `Product / Approval Required` is re-authored in
-place: the script resets Product to Stale itself (no comment — the spec never
-settled at Approved, and the re-land's own Product evidence records the change)
-and re-lands the reviewed spec in the same call.
+An existing record lands from `Product / Pending`, `Changes Required`, or
+`Stale`. A record at `Product / Review Required` (published without its local
+review) or `Product / Approval Required` (a driver change request) is
+re-authored in place: the script resets Product to Stale itself (no comment —
+the spec never settled at Approved, and the re-land's own Product evidence
+records the change) and re-lands the reviewed spec in the same call. Decision
+Required is refused with a pointer to `pdlc guide decisions`; any other gate
+is refused.
 """
 
 from __future__ import annotations
@@ -59,7 +63,7 @@ from pdlc.internal.invalidation import reauthor_invalidate_stage
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
 from pdlc.domain.stages import Gate
-from pdlc.domain.workflow import Event, State, WorkType
+from pdlc.domain.workflow import Event, State, WorkType, decision_required_message
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -93,10 +97,13 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, 
     if item_status(record) != "Product":
         raise PdlcError(f"cannot author Product while the record is at {item_status(record) or 'an unset stage'}")
     gate = item_gate(record)
-    if gate == "Approval Required":
-        # The driver asked for a change before approving: reset Product to Stale
-        # ourselves and re-land the reviewed spec in this same call.
+    if gate in ("Review Required", "Approval Required"):
+        # A published spec awaiting review or approval is re-landed in place:
+        # reset Product to Stale ourselves and publish the reviewed spec in
+        # this same call.
         reauthor_invalidate_stage(record, "Product", pipeline)
+    elif gate == "Decision Required":
+        raise PdlcError(decision_required_message("Product"))
     elif gate not in ("Pending", "Changes Required", "Stale"):
         raise PdlcError(
             f"Product is at {gate or 'an unset Gate State'}; "

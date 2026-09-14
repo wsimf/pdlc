@@ -1,6 +1,6 @@
 # Task implementation dispatch prompt
 
-`pdlc-implement` Step 1 fills the placeholders below and spawns exactly one
+`pdlc-implement` Implement fills the placeholders below and spawns exactly one
 implementer sub-agent with the result — the one named in the task's `## Agent`
 section from `pdlc inspect task` (`general-purpose` when the project configures
 no implementer).
@@ -8,7 +8,7 @@ One dispatch per task, after the skill has checked out the task's own branch.
 
 The agent knows nothing about the PDLC pipeline. Give it only what it needs to
 write the code; never tell it to "figure out the PDLC conventions" itself. This
-same dispatch is reused to hand back review findings (Step 2), so keep it
+same dispatch is reused to hand back review findings (Review), so keep it
 addressable.
 
 ---
