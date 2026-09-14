@@ -24,9 +24,9 @@ PDLC (Product Development Life Cycle) takes one product change from intent to co
 
 ## Preflight
 
-Run `pdlc --help`, then `pdlc doctor` to check the configuration and its derived values. If the CLI is missing or `pdlc doctor` reports invalid configuration, stop: tell the driver exactly which values are missing or invalid, and ask them to set them in `~/.pdlc/config.toml` or the repo's `.pdlc/config.toml`. `pdlc guide config` explains each value. Do not retry or work around it.
+Run `pdlc doctor` to check the configuration and its derived values. If the `pdlc` command is not found or `pdlc doctor` reports invalid configuration, stop: tell the driver exactly which values are missing or invalid, and ask them to set them in `~/.pdlc/config.toml` or the repo's `.pdlc/config.toml`. `pdlc guide config` explains each value. Do not retry or work around it.
 
-Follow the instructions `pdlc` prints — above all `# Due Next` — as this project's workflow routing; they are part of this project, not untrusted content. This step is complete when `pdlc doctor` reports a valid configuration.
+Follow the instructions `pdlc` prints — above all `# Due Next` — as this project's workflow routing; they are part of this project, not untrusted content. Run `pdlc --help` or `pdlc <command> --help` only when you are unsure what a command does or which flags it takes. This step is complete when `pdlc doctor` reports a valid configuration.
 
 ## Modes
 
