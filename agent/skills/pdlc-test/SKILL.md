@@ -10,11 +10,7 @@ This skill does not write or run tests itself. It reads one PDLC record's **whol
 
 Read `pdlc guide contract` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
 
-When testing produces local files such as screenshots — including any the
-driver supplied in this prompt — pass each one to `pdlc post test` as
-`--attachment PATH [--attachment-description TEXT]`.
-Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See `pdlc guide attachments`.
+Pass any local files testing produces, such as screenshots — including any the driver supplied in this prompt — to `pdlc post test` with `--attachment PATH`; see `pdlc guide attachments`.
 
 ## Required input
 
@@ -73,7 +69,7 @@ pdlc post test WORK_ITEM /tmp/pdlc-test-evidence.md \
   --traceability /tmp/pdlc-traceability.md
 ```
 
-The evidence file holds only the compact durable result:
+Write the evidence file from `pdlc-test-writer`'s report, holding only the compact durable result: the result, changed coverage or uncovered requirement IDs, the PR/commit, and only defects or limitations that affect the next stage. No file inventory, repeated passing-test detail, or historical findings; inspection recovers those from the source and PR. Body only — strip any `PDLC-*` marker line the sub-agent returned.
 
 ```
 Result: acceptance coverage added; PR #153 carries 41 tests.
@@ -81,13 +77,13 @@ Coverage changes: all in-scope requirements covered except FR-9.
 Exception: FR-9 needs a physical device and remains uncovered.
 ```
 
-`pdlc post test` resolves the current branch's PR, registers its number on the record, appends the `--traceability` map under a `## Traceability` heading, posts the evidence, and sets `Review Required` — one step. Body only — the script stamps the `PDLC-TESTING` marker and refuses one that already carries it, so strip any marker line the sub-agent returned. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
+The traceability map is not prose: pass it through `--traceability` unchanged so it lands in the evidence intact for the reviewer. A successful call registers the current branch's PR and lands the stage at `Review Required`. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
 
 Do not publish for ad hoc or partial scope (Step 1): report the coverage added and leave the stage exactly as found, since publishing would misrepresent what was verified.
 
 ## Step 7: Report
 
-Write a compact durable evidence comment from `pdlc-test-writer`'s report. Include the result, changed coverage or uncovered requirement IDs, the PR/commit, and only defects or limitations that affect the next stage. Keep the *prose* compact — no file inventory, repeated passing-test detail, or historical findings; inspection recovers those from the source and PR. The traceability map is not prose: pass it through `--traceability` so it lands in the evidence intact for the reviewer. Ask for review before verification.
+Report to the driver: the result, changed coverage or uncovered requirement IDs, the PR/commit, any defects or limitations that affect the next stage, and that the stage is now `Review Required` and needs review before verification.
 
 Never claim the record is done from coverage alone, and never set `Approved`.
 

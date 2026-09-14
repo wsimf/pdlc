@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 This skill decides nothing about the work itself. It asks the controller what is next, hands the returned instruction to the specialist skill named in it, and repeats until a human is required. Routing lives in the controller; the work lives in the specialists — you are the orchestrator.
 
-Read `references/loop-contract.md` for the retry contract, and `pdlc guide contract` before dispatching.
+Read `pdlc guide contract` before dispatching.
 
 ## Required input
 
@@ -26,11 +26,7 @@ pdlc next loop
 pdlc next loop WORK_ITEM   # one record
 ```
 
-Returns a Markdown document: YAML front matter — `id`, `work_item_number`, `title`, `current_status`, `action` — then the record's `# Due Next` section, exactly as `pdlc inspect <work-item>` renders it for the state just routed. That section is the instruction for this pass; `action` only classifies it. `action` is a `pdlc-*` skill name or `pdlc-post-ci` (autonomous), or `human-input` / `human-approval` / `human-decision` / `blocked` (a stop), and always agrees with what `# Due Next` names. A record with nothing to act on — an exhausted no-work scan, a `CI Pending` record whose checks are still running, or a Complete record — carries `action: none` and a short notice instead of a `# Due Next` section, plus an `attempts` count when the scan was exhausted.
-
-The scan dispatches the first autonomous action, or surfaces the first human stop when none is available, and auto-advances past any `Skipped States` stage and self-heals a stray gate before deciding.
-
-While `loop` waits for work it prints `No work ready, retrying in Ns (attempt X of N)` to stderr between attempts, and a give-up line once the attempts are exhausted.
+The record's `# Due Next` section is the instruction for this pass. The front matter's `action` says whether you may carry it out: a `pdlc-*` skill name or `pdlc-post-ci` is autonomous; `human-input`, `human-approval`, `human-decision`, and `blocked` are stops; `none` means there is nothing to act on yet. See `pdlc next --help` for the full output.
 
 A controller failure — API error, malformed work item state, ambiguous identity — is a hard stop. Report it exactly; never retry around it or fall back to a guess.
 
@@ -40,7 +36,7 @@ A controller failure — API error, malformed work item state, ambiguous identit
 
 - **Autonomous `action`** (a `pdlc-*` skill name or `pdlc-post-ci`): fill [`references/handling-agent.prompt.md`](references/handling-agent.prompt.md) with `work_item_number` and the `# Due Next` section verbatim, spawn exactly one lightweight handling agent in the background, and wait for its output. The handling agent carries out that section's instruction — invoking the skill it names with the work item number, or running the `pdlc` command it names — the same way the `pdlc` skill's Continue mode acts on `# Due Next`. Then continue to Step 3.
 - **`human-input`, `human-approval`, `human-decision`, or `blocked`**: **Stop**. Relay `current_status` and the `# Due Next` section to the driver as the action they must take; do not act on it yourself.
-- **`none`**: **Stop**. Report the notice, and the `attempts` count when present; the script should be re-invoked later.
+- **`none`**: **Stop**. Report the notice, and the `attempts` count when present; `pdlc next loop` has already retried with backoff, so the run should be re-invoked later.
 
 Never reconstruct context from the title or re-derive the stage yourself; the invoked skill resolves the record with `pdlc inspect` itself. A handling agent whose `# Due Next` tells it to stop and ask the user reports that back as a stop, never as a clean pass.
 
@@ -59,12 +55,6 @@ Stop, and stop the whole run, on the first of:
 - The driver asked for a single pass.
 
 Track the passes as you go and report them in order at the end: for each, the record acted on, the action dispatched, what the specialist returned, and the resulting `Status`/`Gate State`. Then name the stop condition that ended the run and what the driver has to do next. A run that stopped on a failure says so plainly — do not summarise it as a completed queue.
-
-## Backoff
-
-Only `none` retries, with exponential backoff: `min(initial × 2^(attempt-1), maximum)`. Errors and malformed state raise straight away. Each wait and the final give-up print to stderr so the caller sees why the loop returned.
-
-Defaults: five attempts, 60s initial delay, 15-minute cap. Override with the `[workflow]` keys `max_attempts`, `initial_delay_seconds`, `max_delay_seconds` in `.pdlc/config.toml`. `[workflow] no_sleep = true` skips the waits (tests).
 
 ---
 

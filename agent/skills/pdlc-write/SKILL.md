@@ -10,11 +10,7 @@ Author product specifications that are clear, actionable, and suitable for imple
 
 Section format, numbering, and writing rules: [references/product-spec-format.md](references/product-spec-format.md). Read it before Step 1.
 
-When the artifact includes local files such as mockups — including any the
-driver supplied in this prompt — pass each one to `pdlc post write` as
-`--attachment PATH [--attachment-description TEXT]`.
-Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See `pdlc guide attachments`.
+Pass any local files the artifact includes, such as mockups — including any the driver supplied in this prompt — to `pdlc post write` with `--attachment PATH`; see `pdlc guide attachments`.
 
 ## Philosophy: the work item is a spec, not a log
 
@@ -45,7 +41,7 @@ Keep the whole specification proportional to the feature — a well-scoped recor
 | A concrete feature idea, no work item yet | New record. Nothing is published until the specification passes review. |
 | An exact work item number at `Product / {Pending, Changes Required, Stale}` | Reconcile that work item's sections in place. |
 | An exact work item number at `Product / Review Required` | The spec was published without its local review. Review the published sections as the draft, then re-land them in place. |
-| An exact work item number at `Product / Approval Required`, with a driver request to change the spec | Re-author in place. `pdlc post write` returns Product to Stale itself and re-lands the reviewed spec in one call. |
+| An exact work item number at `Product / Approval Required`, with a driver request to change the spec | Re-author in place and re-land the reviewed spec with `pdlc post write`. |
 
 Never infer either from the branch, recent files, open PRs, or conversation history. A work item at `Product / Approval Required` is a reconcile input **only** when the driver is asking for a change this turn; otherwise it is awaiting the driver's approval — report that and stop. If the named work item is not at a Product stage at all, report the state it is actually at and stop.
 
@@ -57,7 +53,7 @@ When reconciling an existing record, preserve its identity, `Slug`, tasks, plans
 
 Skip this step for a fresh feature idea with no existing work item.
 
-When reconciling an existing record, run `pdlc inspect <WORK_ITEM>` before creating the scratch file or asking questions. Treat its `# Work Item`, work item metadata, and `# Due Next` as the current record snapshot. Continue only when `Due Next` confirms `Product.Pending`, `Product.Changes Required`, `Product.Stale`, or `Product.Review Required` (write the published sections to the scratch file and go straight to the Step 2 review) — or `Product.Approval Required` when the driver has asked this turn to change the spec (`pdlc post write` returns it to Stale itself on landing). At `Product.Decision Required`, point the driver at `pdlc guide decisions` and stop. Otherwise report the actual state and stop. Use the snapshot to preserve the record's identity and existing sections during reconciliation.
+When reconciling an existing record, run `pdlc inspect <WORK_ITEM>` before creating the scratch file or asking questions. Treat its `# Work Item`, work item metadata, and `# Due Next` as the current record snapshot. Continue only when `Due Next` confirms `Product.Pending`, `Product.Changes Required`, `Product.Stale`, or `Product.Review Required` (write the published sections to the scratch file and go straight to the Step 2 review) — or `Product.Approval Required` when the driver has asked this turn to change the spec. At `Product.Decision Required`, point the driver at `pdlc guide decisions` and stop. Otherwise report the actual state and stop. Use the snapshot to preserve the record's identity and existing sections during reconciliation.
 
 The snapshot does not include evidence comments; read `pdlc inspect timeline <WORK_ITEM>` when the evidence history is needed.
 
@@ -96,8 +92,6 @@ Spawn `pdlc-product-reviewer` with the exact scratch file path (and, on a re-rev
 - **Findings** — fix them in the same file, going back to Step 1 as the finding demands, then hand the same path and the prior findings back for re-review. After two failed reconciliations, stop and put the decision to a human.
 - **Clean** — that same file is what Step 3 lands. Do not rewrite, reformat, or regenerate it; the reviewed bytes ship.
 
-This is why Product is published straight to `Approval Required` — the review happens here, before publication.
-
 ---
 
 ## Step 3: Land the record
@@ -118,7 +112,7 @@ pdlc post write \
 
 Creates the work item, stamps `Slug`, posts evidence, sets `Product / Approval Required`. Refuses a body that is not exactly the three owned sections.
 
-**Existing record** — pass the same reviewed three-section file with `--work-item`. The script resolves its work item, requires `Product / {Pending, Changes Required, Stale}` — or `Product / {Review Required, Approval Required}`, whose gate it resets to Stale itself first (no comment — the re-land's own Product evidence records the change) — reconstructs the full work item body with only those sections replaced, and performs one work-item body edit before it posts Product evidence and sets `Product / Approval Required`.
+**Existing record** — pass the same reviewed three-section file with `--work-item`. Only the three owned sections are replaced, and the record lands at `Product / Approval Required`.
 
 ```bash
 pdlc post write \

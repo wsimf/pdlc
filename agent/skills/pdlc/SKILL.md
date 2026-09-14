@@ -60,8 +60,8 @@ Treat the work item as **current intent only** — a specification, not a log. T
 
 No reference is required for ordinary orientation when `pdlc inspect` provides enough information.
 
-1. **Resolve and read the record.** `pdlc inspect <work-item>` — compact work-item metadata including normalized `workType`, classified task tree, linked PR summary, a pointer to the full body in a temp file, and `# Due Next` (pipeline routing already applied). Read the pointed-to file when the full body is needed; use `--full` only when inline content is useful. No comments. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
-2. **Read the evidence comments when needed.** `pdlc inspect timeline <work-item>` — chronological, marker-stripped, grouped by stage. Use `pdlc inspect comments <work-item> --page N` to inspect the raw discussion in bounded newest-first pages of 100; it reports the total and next page command. Reconcile against work item state; flag disagreement.
+1. **Resolve and read the record.** `pdlc inspect <work-item>` — the record's metadata, task tree, linked PRs, and `# Due Next`; `pdlc inspect --help` covers the rest, including how to read the full body. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
+2. **Read the evidence comments when needed.** `pdlc inspect timeline <work-item>` — chronological, marker-stripped, grouped by stage. Use `pdlc inspect comments <work-item> --page N` to inspect the raw discussion. Reconcile against work item state; flag disagreement.
 3. **Read the delivery tasks.** Already classified in `pdlc inspect`'s `# Tasks` section. Pull full bodies with `pdlc inspect task DELIVERY_TASK [...]` only where the summary leaves a real question about dependencies, HITL/AFK, or acceptance criteria.
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.
 5. **Check the worktree and relevant history.** Always run `git status --short`. From Implementation onward, run `git log --oneline --decorate --all --grep='<work item/task/file terms>'`.
@@ -121,7 +121,7 @@ Run this loop one pass at a time:
    - **Call `pdlc post ci <id>`**: run it; it records the settled CI outcome and moves the gate.
 3. When that finishes, return to step 1.
 
-Stop the loop when `# Due Next` says the work item cannot continue autonomously or asks the user for something: pending user input (Product authoring, which needs `pdlc-write` run interactively), pending user approval, pending user decision, a Changes Required or Stale whose evidence is missing or unclear, or `This work item has been completed.` Also stop on a `# Warnings` section, a controller error, malformed or ambiguous state, a specialist blocker/failure, or a pass that returns the same `Due next:` line for the same record without a status change. Report every pass, the specialist result, the resulting state, the stop reason, and the exact human action required. Never approve, skip, invalidate, record a decision, or complete a record during Continue mode unless the driver explicitly authorizes that exact transition in the current turn.
+Stop the loop when `# Due Next` asks the user for something or says the work item cannot continue autonomously, or on a `# Warnings` section, a controller error, malformed or ambiguous state, a specialist blocker/failure, or a pass that returns the same `Due next:` line for the same record without a status change. Report every pass, the specialist result, the resulting state, the stop reason, and the exact human action required. Never approve, skip, invalidate, record a decision, or complete a record during Continue mode unless the driver explicitly authorizes that exact transition in the current turn.
 
 ### Human gates
 

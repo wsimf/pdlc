@@ -12,11 +12,7 @@ This skill may touch production source or tests when resolving an approved findi
 
 Read `pdlc guide contract` before starting.
 
-When verification produces local files, or the driver supplied local files
-in this prompt, pass each one to `pdlc post verify` as
-`--attachment PATH [--attachment-description TEXT]`. Repeat
-`--attachment PATH` for multiple files; a description applies only to the
-immediately preceding file. See `pdlc guide attachments`.
+Pass any local files verification produced or the driver supplied to `pdlc post verify` with `--attachment PATH`; see `pdlc guide attachments`.
 
 ## Required input
 
@@ -87,15 +83,15 @@ Build the prompt from [cumulative-review-prompt.template.md](references/cumulati
 
 Work through every finding from Steps 4-6 with the driver rather than fixing silently. **Verification is source-read-only** — it never commits production or test code, because a fix made here has no push, linked PR, CI, merge, or owning-stage reapproval behind it:
 
-- **Fix** — bounce to the owning stage: post at `Changes Required` with `--bounce STAGE` (Step 8), `Implementation` for a production change, `Testing` for a coverage or test change. The script returns that stage to `Stale` with no driver step, and the record goes back through review, approval, and testing before this audit resumes. Never edit source from this skill.
+- **Fix** — bounce to the owning stage: post at `Changes Required` with `--bounce STAGE` (Step 8), naming the earliest stage that must rework — `Implementation` for a production change, `Testing` for a coverage or test-only change. The record goes back through that stage's rework, review, and approval before this audit resumes. Never edit source from this skill.
 - **Accept** — note the finding and the driver's reason; it becomes a one-line Open Questions deferral when the report posts (Step 8 writes it, not you).
 - **Decision** — for a finding that turns on a product, architecture, UX, safety, or scope call you cannot make, and that the driver may want to split into its own work item rather than settle inline. Write it as a `## Decision Required` block (question, options, your recommendation, what it blocks, why it is not mechanical) and post at `Decision Required` (Step 8). The autonomous loop halts; the driver clears it with `pdlc guide decisions` (`pdlc post decision`), which returns the record to `Changes Required` for a re-verify with any deferred point out of scope. Do not use this for a finding you and the driver can just accept — that is **Accept**.
 
-Every finding that turns on a production-source, test, or task-Result change goes back to its owning stage via `--bounce STAGE` (Step 8), naming the earliest stage that must rework — `Implementation`, or `Testing` for a coverage or test-only gap. The script returns that stage to `Stale` itself (no driver step) and the record goes back through review, approval, and testing before this audit resumes; the bounce is what advances the churn loop count. When the audit resumes after a bounce, don't blanket re-run everything — diff the reworked commits against each item's scope files and re-verify only what they actually touched, originating check first.
+When the audit resumes after a bounce, don't blanket re-run everything — diff the reworked commits against each item's scope files and re-verify only what they actually touched, originating check first.
 
 ## Step 8: Post the verification report
 
-`pdlc post verify` assembles the comment, writes the Findings section, files deferrals into Open Questions, and sets the gate from `--recommendation`. Give it these inputs; make no formatting decisions yourself.
+`pdlc post verify` formats the report and sets the gate from `--recommendation`. Give it these inputs and make no formatting decisions yourself; `pdlc post verify --help` documents each flag.
 
 1. A report fragment with only Claims Audit, User Journeys, UX, and Cumulative Review sections. Every item carries the `Verified @` commit the check actually ran against — never "now":
 
@@ -112,13 +108,13 @@ Every finding that turns on a production-source, test, or task-Result change goe
 
    One line per task with a Result under Claims Audit, never blank. A journey is `Accepted` or `Deferred` with a matching Open Questions entry. `Not applicable` for User Journeys/UX with no UI. Cumulative Review reads `Clean` only once every finding is genuinely resolved.
 
-2. A fixed-findings file, one `description | commit` per line, only for findings a prior bounce's rework resolved and this pass has since re-verified against the named commit. Omit or leave empty if nothing was re-verified this pass.
+2. `--fixed` — only findings a prior bounce's rework resolved and this pass has since re-verified against the named commit.
 
-3. A deferred-findings file, one line per driver-accepted finding. Omit or leave empty if nothing deferred.
+3. `--deferred` — only findings the driver accepted in Step 7.
 
-4. `--decision` with a file of `## Decision Required` blocks — only when `--recommendation "Decision Required"`, and required then.
+4. `--decision` — the `## Decision Required` blocks, with `--recommendation "Decision Required"`.
 
-5. `--bounce STAGE` — only with `--recommendation "Changes Required"`, when a finding needs an upstream stage to rework (Step 7). Records the target and named loop in `PDLC-REVIEW` and returns that stage to `Stale`, no driver step.
+5. `--bounce STAGE` — with `--recommendation "Changes Required"`, when a finding needs an upstream stage to rework (Step 7).
 
 ```bash
 pdlc post verify WORK_ITEM /tmp/pdlc-report.md \
@@ -127,9 +123,9 @@ pdlc post verify WORK_ITEM /tmp/pdlc-report.md \
     --deferred /tmp/pdlc-deferred.txt
 ```
 
-`--recommendation` is `Approval Required` once every finding is fixed or accepted, `Decision Required` (with `--decision`) when a finding was routed to the driver in Step 2 or Step 7, and `Changes Required` when you are stopping mid-pass — with `--bounce STAGE` when the rework belongs to an upstream stage, without it when you can reconcile it in a re-verify. The script sets the gate: `Approval Required` lands `CI Pending` and reconciles the registered PR stack's CI in the same call — green (or nothing to wait on) → `Approval Required`, which awaits the driver's approval then `pdlc-complete`; red → `Changes Required` with a CI failure (see [`references/fix-ci.md`](references/fix-ci.md)); still running → stays at `CI Pending` until `pdlc post ci` or the loop reconciles it; plain `Changes Required` and (after `pdlc post decision`) `Decision Required` route back to `pdlc-verify`; `--bounce` routes to the named stage's owner. Do not edit `Product`, `UI`, `Decisions`, or Open Questions yourself — this script is the only thing that writes to the body at this stage.
+`--recommendation` is `Approval Required` once every finding is fixed or accepted, `Decision Required` (with `--decision`) when a finding was routed to the driver in Step 2 or Step 7, and `Changes Required` when you are stopping mid-pass — with `--bounce STAGE` when the rework belongs to an upstream stage, without it when you can reconcile it in a re-verify. An `Approval Required` recommendation is held for the pull requests' CI, so read the `gateState` the command returns: `Approval Required` (awaits the driver's approval, then `pdlc-complete`), `Changes Required` with a CI failure (see [`references/fix-ci.md`](references/fix-ci.md)), or `CI Pending` while checks still run (the loop reconciles it). Do not edit `Product`, `UI`, `Decisions`, or Open Questions yourself — this command is the only thing that writes to the body at this stage.
 
-**There is no `pdlc-verify.sh`**, and the stage publishers (`pdlc post implement`, `pdlc post test`) land `Review Required`, which Verification doesn't use — don't reach for them. Stop after posting (report the blocker if the workflow stopped early). Never set `Approved` or `Complete` from this skill.
+Stop after posting (report the blocker if the workflow stopped early). Never set `Approved` or `Complete` from this skill.
 
 ## Step 9: Report
 

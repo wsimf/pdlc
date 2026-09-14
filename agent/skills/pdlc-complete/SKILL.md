@@ -10,11 +10,7 @@ Close out one PDLC record: confirm `pdlc-verify` has already proven it is done, 
 
 Completion does not edit the verified record. Product, UI, requirement, and task wording are frozen at Verification — any substantive change to them is a new parent work item, or a bounce to the owning stage and re-verification. The only parent-body edit `pdlc post complete` makes is blanking the now-settled `## Open Questions` section to a pointer; every decision that emerged during delivery and every open-question resolution is recorded in the completion evidence comment instead.
 
-When completion evidence includes local files — including any the driver
-supplied in this prompt — pass each one to `pdlc post complete` as
-`--attachment PATH [--attachment-description TEXT]`.
-Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See `pdlc guide attachments`.
+Pass any local files the completion evidence includes — including any the driver supplied in this prompt — to `pdlc post complete` with `--attachment PATH`; see `pdlc guide attachments`.
 
 Read `pdlc guide contract` before checking readiness.
 
@@ -22,7 +18,7 @@ Read `pdlc guide contract` before checking readiness.
 
 Require an exact parent work item number. Check the current conversation for an unambiguous one before asking; never infer it from the branch, recent files, open PRs, or history alone.
 
-Completion also requires an **explicit driver instruction to complete this record, in this turn**, naming it. `pdlc post complete` carries no identity check — every agent acts under the driver's own store credentials, so an identity match would prove nothing. The boundary is procedural: never complete on a verifier's recommendation, because the state looks finished, because approval was implied earlier, or as a step folded into some other action.
+Completion also requires an **explicit driver instruction to complete this record, in this turn**, naming it. Never complete on a verifier's recommendation, because the state looks finished, because approval was implied earlier, or as a step folded into some other action.
 
 ---
 
@@ -32,9 +28,7 @@ Completion also requires an **explicit driver instruction to complete this recor
 pdlc inspect complete WORK_ITEM
 ```
 
-`## Readiness` runs the same `completion_blockers` policy `pdlc post complete` enforces: status and gate, open tasks, closed tasks with no `## Implementation` evidence, closing PRs not merged and green, missing or structurally invalid Verification `PDLC-REVIEW` evidence, stale verification rows, and missing stage evidence or settlement markers. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the mechanical detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, cumulative review `clean`. A line that passes the policy but doesn't actually say that is still not ready — judging what the words say is yours, not the script's. `## Open Questions` lists the live entries your completion evidence must disposition; the evidence parser, not the readiness check, enforces that.
-
-Each non-skipped stage must carry exactly one settlement marker: `PDLC-APPROVED`, `PDLC-AUTOAPPROVED` (churn-gated auto-approval on Implementation or Testing), or `PDLC-SKIPPED`. The policy checks this; a stage in the item's `Skipped States` was deliberately bypassed — note it in the completion evidence rather than treating it as a gap.
+`## Readiness` applies the same checks `pdlc post complete` enforces. Any `Not ready` line means stop, report it verbatim, do nothing further. When it reports `Ready`, `## Task Completion`, `## Verification Evidence`, and `## Open Questions` still print the detail — read every listed item's actual wording yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, cumulative review `clean`. A line that passes the check but doesn't actually say that is still not ready — judging what the words say is yours, not the command's. `## Open Questions` lists the live entries your completion evidence must disposition.
 
 For any open task or stale item, look for an explicit on-record reason — the same comments, or an explicit descope note on the task. Never invent one.
 
@@ -53,9 +47,7 @@ Wait for its report. Relay its judgments without reinterpreting them. If the com
 
 ## Step 3: Lock the record
 
-One call does everything: it validates the evidence body, posts it, locks the record, and blanks the settled `## Open Questions` section. Run it only on the driver's explicit instruction from this turn:
-
-Write the completion evidence body to a file and pass its path:
+Run it only on the driver's explicit instruction from this turn. Write the completion evidence body to a file and pass its path:
 
 ```bash
 pdlc post complete WORK_ITEM /tmp/pdlc-complete-evidence.md
@@ -92,9 +84,7 @@ clean @ a1b2c3d — claims, 4 journeys, UX reviewed, cumulative review clean.
 
 All six `##` sections are required. **Decisions**, **Limitations**, and **Skipped Stages** are a bulleted list or a lone `- None`. **Open Questions** carries one line per live entry from the record — `<question> — Resolved: <answer>` or `<question> — Deferred: <what>, tracked as <ref>` — or a lone `- None` when the record had none; the parser rejects a body that leaves any live entry unaccounted for. **Verification** must state `clean @ <commit>`.
 
-The script re-checks the record is at `Verification / Approval Required`, refuses while any delivery task is open, refuses evidence that does not parse, posts the evidence under `PDLC-COMPLETE`, sets `Complete / Approved / Completed`, and replaces the `## Open Questions` section with a pointer to the comment. It refuses a record that already carries `PDLC-COMPLETE`.
-
-A completion claim in prose is not a completion transition. If the script fails, report the exact failure; do not describe the record as complete.
+A successful call leaves the record at `Complete`. A completion claim in prose is not a completion transition. If the script fails, report the exact failure; do not describe the record as complete.
 
 ## Step 4: Report
 
@@ -121,7 +111,6 @@ Completed records are locked. Only a mechanical, non-semantic fix — a typo, a 
 - [ ] `## Readiness` from `pdlc inspect complete` reports ready
 - [ ] Every delivery task closed; every linked PR merged or dispositioned with checks passing
 - [ ] `## Verification Evidence` shows nothing stale, and every line's wording actually says Confirmed/Accepted/Deferred/reviewed/clean, or the driver sent it back to `pdlc-verify`
-- [ ] Each non-skipped stage carries one settlement marker (`PDLC-APPROVED`, `PDLC-AUTOAPPROVED`, or `PDLC-SKIPPED`); skipped stages noted rather than mistaken for gaps
 - [ ] Unfinished work has an explicit recorded reason, or the workflow stopped
 - [ ] Completion evidence has all six sections; Decisions capture only what shaped what shipped, no changelog
 - [ ] Every live Open Questions entry is dispositioned Resolved or Deferred in the evidence

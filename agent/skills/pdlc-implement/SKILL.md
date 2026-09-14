@@ -87,13 +87,13 @@ Write the summary to a local file following [`references/implementation-summary.
 pdlc post implement-task DELIVERY_TASK /tmp/pdlc-task-summary.md --close
 ```
 
-Repeat each local file that implementation or validation produced, or the driver supplied, with `--attachment PATH [--attachment-description TEXT]`; a description applies only to the immediately preceding attachment. See `pdlc guide attachments`.
+Pass any local files implementation or validation produced, or the driver supplied, with `--attachment PATH`; see `pdlc guide attachments`.
 
 The command records the summary as the task's `## Implementation` comment and as its PR's description, leaves the task body untouched, and closes the task. A failure posts no comment and leaves the task open, so `pdlc inspect implement` still offers it for a clean re-run; report the exact error. If the PR exists but the run failed before `prs` came back, register it with `pdlc post attach-pr DELIVERY_TASK PR_NUMBER` (idempotent), then re-run `pdlc post implement-task`. This step is complete when the JSON shows `closed: true` and this task's `taskPr`.
 
 ## Publish
 
-Publish only when every delivery task on the record is closed. While any task is open the parent stays at `Implementation / Pending`, which keeps Testing from starting on a partial task graph; go straight to Report.
+Publish only when every delivery task on the record is closed. While any task is open the parent stays at `Implementation / Pending`; go straight to Report.
 
 Write the stage evidence (the result, the task PR stack, and any exception) to a local file, or pass a short one as `text:<body>`:
 
