@@ -6,7 +6,7 @@ child directories under `tasks/`.
     $PDLC_HOME/
       seq                        shared monotonic counter (records + tasks)
       records/<n>/
-        meta.json                {id, number, title, url, fields:{...}, prs:[…]}
+        meta.json                {id, number, title, url, fields:{...}, prs:[…], state?}
         body.md
         comments.jsonl
         tasks/<m>/
@@ -194,6 +194,13 @@ class FileWorkItemBackend(WorkItemBackend):
 
     def set_skipped_states(self, item_id: str, value: str) -> None:
         self._set_fields(item_id, {"Skipped States": value})
+
+    @single_writer
+    def close_record(self, ref: str) -> None:
+        path = self._record_dir(ref)
+        meta = _read_meta(path)
+        meta["state"] = "CLOSED"
+        _write_meta(path, meta)
 
     # --- body ---
 

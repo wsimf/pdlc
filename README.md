@@ -157,7 +157,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
 | `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
 | `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
-| `[backend.azure] closed_state` | `Done` | Work-item state name. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
+| `[backend.azure] closed_state` | `Done` | Work-item state a record is closed into by `pdlc post complete`. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
 | `[backend.azure] open_state` | `To Do` | Work-item state name. Falls back for `task_open_state` when that is unset. |
 | `[backend.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
 | `[backend.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |

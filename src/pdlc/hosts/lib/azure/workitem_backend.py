@@ -204,6 +204,9 @@ class AzureWorkItemBackend(WorkItemBackend):
     def set_skipped_states(self, item_id: str, value: str) -> None:
         azure.update(item_id, {azure.SKIPPED_FIELD: value})
 
+    def close_record(self, ref: str) -> None:
+        azure.update(self._record_id(ref), state=_closed_state())
+
     # --- body ---
 
     def write_body(self, ref: str, body: str) -> None:

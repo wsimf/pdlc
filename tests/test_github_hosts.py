@@ -630,6 +630,11 @@ class WorkItemBackendTest(GitHubHostTest):
         self.backend.close_task("11")
         self.assertTrue(any(call[0][:2] == ["issue", "close"] for call in self.gh.calls))
 
+    def test_close_record_closes_the_issue(self) -> None:
+        self.gh.gh("issue", "close", response="")
+        self.backend.close_record("10")
+        self.assertTrue(any(call[0][:3] == ["issue", "close", "10"] for call in self.gh.calls))
+
     def test_reopen_task_reopens_the_sub_issue(self) -> None:
         self.gh.gh("issue", "reopen", response="")
         self.backend.reopen_task("11")

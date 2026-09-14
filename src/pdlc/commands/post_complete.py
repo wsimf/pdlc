@@ -12,9 +12,13 @@ FLAGS
 DESCRIPTION
     Locks a verified record to Complete: validates the structured completion
     evidence, posts it, locks Status/Gate/Lifecycle to
-    Complete/Approved/Completed, and blanks the now-settled `## Open
-    Questions` section (its real disposition lives in the evidence). It
-    never otherwise edits the parent body.
+    Complete/Approved/Completed, blanks the now-settled `## Open
+    Questions` section (its real disposition lives in the evidence), and
+    closes the record on its host. It never otherwise edits the parent body.
+
+    Closing the record means a closed GitHub Issue, or on Azure the
+    configured `[backend.azure] closed_state` (default `Done`) written to
+    the work item's own state.
 
     This is a final transition: only from Verification / Approval Required,
     only on explicit human instruction, and only once completion blockers
@@ -81,6 +85,7 @@ from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.vcs import stale_verification_rows
 from pdlc.internal.workitem import (
     comments_for_issue,
+    close_record,
     item_for_issue,
     item_gate,
     item_skipped_states,
@@ -149,6 +154,7 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     post_comment(issue, evidence_body, "COMPLETE")
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
     update_section(issue, "Open Questions", OPEN_QUESTIONS_SETTLED)
+    close_record(issue)
 
     return {"completed": True, "itemId": record["id"], "work_item": int(issue), "attachments": attachments}
 

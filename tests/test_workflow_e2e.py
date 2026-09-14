@@ -177,6 +177,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(completed.code, 0, completed.stderr)
         self.assertTrue(completed.json["completed"])
         self.assertEqual(self.fields(issue)["Status"], "Complete")
+        self.assertEqual(self.meta(issue)["state"], "CLOSED")
         self.assertIn("see the completion comment", self.body(issue))
 
         # The evidence log is append-only: one comment per stage, none rewritten.
@@ -191,3 +192,4 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(result.code, 1)
         self.assertIn("evidence-malformed", result.stderr)
         self.assertEqual(self.state(80), ("Verification", "Approval Required"))
+        self.assertNotIn("state", self.meta(80))
