@@ -14,6 +14,7 @@ import pdlc.hosts.lib.github.issues as github_issues
 import pdlc.hosts.lib.github.pr_registry as pr_registry
 import pdlc.hosts.lib.github.project as github_project
 from pdlc.hosts.lib.github.transport import (
+    assignee_args,
     body_file,
     repo_args,
     run_gh,
@@ -139,7 +140,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
             # line of its output.
             output = run_gh([
                 "issue", "create", *repo_args(), "--title", title,
-                "--body-file", body_path,
+                "--body-file", body_path, *assignee_args(),
             ])
 
         url = output.strip().splitlines()[-1]

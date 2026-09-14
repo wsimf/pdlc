@@ -59,7 +59,7 @@ name = "file"
 | `repository` | Required for the `github` backend, and whenever `[code_host] name` is `github` | Derived from `origin` | `owner/name` of the GitHub repository holding Issues and PRs. |
 | `project_number` | Required for the `github` backend | — | Number of the GitHub Project that tracks PDLC state. |
 | `project_owner` | Required for the `github` backend | — | User or organization that owns that Project. |
-| `assigned_to` | Optional | Unset (no filter) | Limits queue scans to Issues assigned to this login; `@me` resolves to the authenticated `gh` user. |
+| `assigned_to` | Optional | Unset (no filter; new Issues assigned to the authenticated `gh` user) | Limits queue scans to Issues assigned to this login and assigns new records and tasks to it; `@me` resolves to the authenticated `gh` user. |
 
 ## `[backend.azure]`
 

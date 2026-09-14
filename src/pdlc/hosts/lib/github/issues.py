@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from pdlc.hosts.lib.github.transport import (
+    assignee_args,
     body_file,
     neutralize_refs,
     owner_repository,
@@ -178,7 +179,7 @@ def _upsert_task(
         url = match["url"]
     else:
         with body_file(body_text) as path:
-            output = run_gh(["issue", "create", *repo_args(), "--title", full_title, "--body-file", path])
+            output = run_gh(["issue", "create", *repo_args(), "--title", full_title, "--body-file", path, *assignee_args()])
         url = output.strip().splitlines()[-1]
         number_text = url.rsplit("/", 1)[-1]
         if not number_text.isdigit():
