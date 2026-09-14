@@ -17,7 +17,7 @@ from pdlc.hosts.lib.github import issues as github_issues, project as github_pro
 from pdlc.hosts.lib.github.code_host import GitHubCodeHost
 from pdlc.hosts.lib.github.workitem_backend import GitHubWorkItemBackend
 
-from tests._gh_replay import GitHubHostTest, graphql_data
+from tests._gh_replay import GitHubHostTest, graphql_data, pull_request_node, pull_requests_graphql
 
 
 class ProjectItemResolutionTest(GitHubHostTest):
@@ -666,21 +666,61 @@ class CodeHostTest(GitHubHostTest):
         super().setUp()
         self.host = GitHubCodeHost()
 
+    def test_pull_requests_by_number_reads_every_pr_in_one_query(self) -> None:
+        success = {"status": "COMPLETED", "conclusion": "SUCCESS"}
+        nodes = {
+            5: pull_request_node(5, contexts=[success, {"state": "SUCCESS"}]),
+            9: pull_request_node(9, contexts=[success, {"status": "IN_PROGRESS", "conclusion": None}]),
+            4: pull_request_node(4, contexts=None, state="MERGED", mergedAt="2026-09-14T09:45:00Z"),
+        }
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(nodes.get))
+
+        prs = self.host.pull_requests_by_number([5, 9, 4])
+
+        self.assertEqual([pr["number"] for pr in prs], [5, 9, 4])
+        self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "PENDING", "NONE"])
+        self.assertEqual(prs[2], {
+            "number": 4, "title": "PR 4", "url": "u4", "state": "MERGED", "isDraft": False,
+            "branch": "branch-4", "mergedAt": "2026-09-14T09:45:00Z", "checks": "NONE", "headSha": "sha4",
+        })
+        self.assertEqual(len(self.gh.calls), 1)
+        self.assertEqual(self.gh.graphql_variables("pullRequest(number:"), {"owner": "wsimf", "repo": "pdlc"})
+
+    def test_pull_requests_by_number_skips_the_host_when_none_are_registered(self) -> None:
+        self.assertEqual(self.host.pull_requests_by_number([]), [])
+        self.assertEqual(self.gh.calls, [])
+
+    def test_pull_requests_by_number_pages_an_overflowing_rollup_through_pr_view(self) -> None:
+        nodes = {
+            5: pull_request_node(5, contexts=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]),
+            9: pull_request_node(9, contexts=[{"state": "SUCCESS"}], has_next_page=True),
+        }
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(nodes.get))
+        self.gh.gh("pr", "view", response={
+            "number": 9, "title": "PR 9", "url": "u9", "state": "OPEN", "isDraft": False,
+            "headRefName": "branch-9", "mergedAt": None,
+            "statusCheckRollup": [{"state": "SUCCESS"}, {"status": "COMPLETED", "conclusion": "FAILURE"}],
+        })
+
+        prs = self.host.pull_requests_by_number([5, 9])
+
+        self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "FAILURE"])
+        self.assertEqual([args[2] for args, _ in self.gh.calls if args[:2] == ["pr", "view"]], ["9"])
+
     def test_pull_requests_by_number_fails_closed_on_unknown(self) -> None:
-        def view(args, _input):
-            number = int(args[2])
-            if number == 9:
-                raise PdlcError("no pull requests found")
-            return {
-                "number": number, "title": "impl", "url": f"u{number}", "state": "OPEN",
-                "isDraft": False, "headRefName": "feat", "mergedAt": None,
-                "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
-            }
+        self.gh.graphql(
+            "pullRequest(number:",
+            PdlcError("gh: Could not resolve to a PullRequest with the number of 9."),
+        )
 
-        self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
-
-        with self.assertRaisesRegex(PdlcError, "registered pull request #9"):
+        with self.assertRaisesRegex(PdlcError, "registered pull request #9 could not be found"):
             self.host.pull_requests_by_number([5, 9, 4])
+
+    def test_pull_requests_by_number_fails_closed_on_a_null_alias(self) -> None:
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: None if number == 9 else pull_request_node(number, contexts=[])))
+
+        with self.assertRaisesRegex(PdlcError, "registered pull request #9 could not be found"):
+            self.host.pull_requests_by_number([5, 9])
 
     def test_pr_dict_carries_the_head_commit(self) -> None:
         from pdlc.hosts.lib.github.code_host import _pr_dict
@@ -734,14 +774,13 @@ class CodeHostTest(GitHubHostTest):
                 self.assertEqual(_checks_state({"statusCheckRollup": rollup}), "PENDING")
 
     def test_pull_requests_by_number_reraises_transient_failure(self) -> None:
-        def view(args, _input):
-            raise PdlcError("HTTP 401: Bad credentials")
-
-        self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
+        self.gh.graphql("pullRequest(number:", PdlcError("HTTP 401: Bad credentials"))
 
         with self.assertRaises(PdlcError) as caught:
             self.host.pull_requests_by_number([5])
         self.assertIn("#5", str(caught.exception))
+        self.assertIn("Bad credentials", str(caught.exception))
+        self.assertNotIn("could not be found", str(caught.exception))
 
     def test_pull_request_files_lists_changed_paths(self) -> None:
         self.gh.gh(

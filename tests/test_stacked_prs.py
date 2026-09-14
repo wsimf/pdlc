@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from _gh_replay import GitHubHostTest
+from _gh_replay import GitHubHostTest, pull_request_node, pull_requests_graphql
 from _support import FileBackendTest
 
 from pdlc.config import Config
@@ -84,16 +84,10 @@ class GitHubStackSubmitTests(GitHubHostTest):
             ],
         })
 
-        def view(args, _input):
-            number = int(args[2])
-            return {
-                "number": number, "title": f"Task {number}", "url": f"u{number}",
-                "state": "OPEN", "isDraft": True,
-                "headRefName": f"pdlc/record-9/task-{number:03d}", "mergedAt": None,
-                "statusCheckRollup": [{"context": "CI", "state": "SUCCESS"}],
-            }
-
-        self.gh.route(lambda args, _input: args[:2] == ["pr", "view"], view)
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(
+            number, contexts=[{"state": "SUCCESS"}], isDraft=True,
+            headRefName=f"pdlc/record-9/task-{number:03d}",
+        )))
 
     def _call(self, *prefix):
         return next(args for args, _ in self.gh.calls if args[: len(prefix)] == list(prefix))
@@ -113,10 +107,11 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertEqual(self._call("stack", "sync"), ["stack", "sync", "--prune"])
         self.assertEqual(self._call("stack", "submit"), ["stack", "submit", "--auto"])
         self.assertFalse(any("branches" in " ".join(args) for args, _ in self.gh.calls if args[0] == "api"))
-        pr_views = [args for args, _ in self.gh.calls if args[:2] == ["pr", "view"]]
-        self.assertTrue(pr_views)
-        self.assertTrue(all("--json" in args for args in pr_views))
-        self.assertTrue(all("statusCheckRollup" in " ".join(args) for args in pr_views))
+        # The whole stack is read back in one query, check rollup included.
+        pr_reads = [args for args, _ in self.gh.calls if "pullRequest(number:" in " ".join(args)]
+        self.assertEqual(len(pr_reads), 1)
+        self.assertIn("statusCheckRollup", " ".join(pr_reads[0]))
+        self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "SUCCESS"])
 
     def test_no_repository_default_branch_lookup_is_needed(self):
         # `gh stack` resolves the trunk itself; nothing here asks GitHub for it.

@@ -8,6 +8,8 @@ backend and a swap is one env var.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from pdlc.domain.changes import approval_gap
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.stages import Gate
@@ -286,6 +288,33 @@ task_tree = subissues_for
 
 def tasks_by_number(numbers: list[str]) -> list[Task]:
     return [classify_task(validate_task(task)) for task in get_backend().tasks_by_number([str(n) for n in numbers])]
+
+
+# --- concurrent snapshots ---
+#
+# Each backend read is its own host round trip (a `gh`/`az` subprocess, or a
+# file read), so independent reads overlap on threads instead of queueing. The
+# backend is selected on the calling thread first so workers share one
+# instance rather than racing its lazy construction.
+
+def record_snapshot(ref: str) -> tuple[WorkItem, list[Task], list[Comment]]:
+    """The record, its delivery tasks, and its comments, read concurrently.
+    A failure to resolve the record wins over the other reads' failures."""
+    get_backend()
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        item = pool.submit(resolve_item, ref)
+        tasks = pool.submit(task_tree, ref)
+        comments = pool.submit(comments_for_issue, ref)
+        return item.result(), tasks.result(), comments.result()
+
+
+def comments_and_tasks(ref: str) -> tuple[list[Comment], list[Task]]:
+    """An already-resolved record's comments and delivery tasks, read concurrently."""
+    get_backend()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        comments = pool.submit(comments_for_issue, ref)
+        tasks = pool.submit(task_tree, ref)
+        return comments.result(), tasks.result()
 
 
 def require_all_subissues_closed(ref: str) -> None:

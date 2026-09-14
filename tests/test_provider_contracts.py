@@ -1,9 +1,11 @@
 """Failure, retry, and normalized-data contracts shared by the providers."""
 
+import contextlib
 import importlib
 import io
 import subprocess
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -30,6 +32,7 @@ from pdlc.hosts.lib.azure import workitems as azure
 from pdlc.hosts.lib.file.storage import atomic_write
 from pdlc.hosts.lib.github import project
 from pdlc.hosts.lib.process import parse_json, run_process
+from pdlc.internal import workitem
 from pdlc.internal.inputs import resolve_text
 from pdlc.internal.pull_requests import registered_pr_numbers
 
@@ -84,7 +87,7 @@ class FailureContractTests(unittest.TestCase):
 
     def test_missing_registered_pr_is_a_failure_for_each_code_host(self):
         for host in (FileCodeHost(), NoneCodeHost(), GitHubCodeHost()):
-            with self.subTest(host=type(host).__name__), patch("pdlc.hosts.lib.file.code_host._all_pull_requests", return_value=[]), patch("pdlc.hosts.lib.github.code_host.run_gh_json", side_effect=PdlcError("no pull requests found")):
+            with self.subTest(host=type(host).__name__), patch("pdlc.hosts.lib.file.code_host._all_pull_requests", return_value=[]), patch("pdlc.hosts.lib.github.code_host.run_graphql", side_effect=PdlcError("Could not resolve to a PullRequest with the number of 123.")), patch("pdlc.hosts.lib.github.code_host.owner_repository", return_value=("wsimf", "pdlc")):
                 with self.assertRaises(PdlcError):
                     host.pull_requests_by_number([123])
                 self.assertEqual(host.pull_requests_by_number([]), [])
@@ -308,3 +311,42 @@ class GitHubSlugTests(unittest.TestCase):
         with patch.object(project, "_project_id", return_value="P"), patch.object(project, "get_config", return_value=Config(repository="o/r")), patch.object(project, "run_graphql", return_value=empty):
             with self.assertRaises(NotFound):
                 project.issue_for_slug("missing")
+
+
+class ConcurrentSnapshotTests(unittest.TestCase):
+    """`record_snapshot` and `comments_and_tasks` overlap their backend reads
+    rather than queueing them, whichever backend is configured."""
+
+    def _patched(self, **reads):
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(workitem, "get_backend"))
+        for name, read in reads.items():
+            stack.enter_context(patch.object(workitem, name, side_effect=read))
+
+    def test_record_snapshot_runs_its_three_reads_at_once(self):
+        # Each read waits for the other two; a sequential fetch would time out.
+        barrier = threading.Barrier(3, timeout=5)
+
+        def read(value):
+            return lambda _ref: (barrier.wait(), value)[1]
+
+        self._patched(resolve_item=read({"id": "item"}), task_tree=read(["task"]), comments_for_issue=read(["comment"]))
+        self.assertEqual(workitem.record_snapshot("7"), ({"id": "item"}, ["task"], ["comment"]))
+
+    def test_comments_and_tasks_runs_both_reads_at_once(self):
+        barrier = threading.Barrier(2, timeout=5)
+        self._patched(
+            comments_for_issue=lambda _ref: (barrier.wait(), ["comment"])[1],
+            task_tree=lambda _ref: (barrier.wait(), ["task"])[1],
+        )
+        self.assertEqual(workitem.comments_and_tasks("7"), (["comment"], ["task"]))
+
+    def test_record_resolution_failure_wins_over_the_other_reads(self):
+        self._patched(
+            resolve_item=NotFound("Issue #7 has no item in the configured Project"),
+            task_tree=PdlcError("sub-issue read failed"),
+            comments_for_issue=PdlcError("comment read failed"),
+        )
+        with self.assertRaisesRegex(NotFound, "no item in the configured Project"):
+            workitem.record_snapshot("7")

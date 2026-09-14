@@ -162,16 +162,15 @@ from pdlc.domain.model import evidence_comment_text, item_issue, latest_marked_c
 from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.workitem import (
-    comments_for_issue,
+    comments_and_tasks,
     due_next,
     is_stage_skipped,
     item_gate,
     item_skipped_states,
     item_status,
     pipeline_for_item,
+    record_snapshot,
     ref_label,
-    resolve_item,
-    task_tree,
     user_comments_markdown,
 )
 from pdlc.domain.workflows.stages import (
@@ -757,9 +756,8 @@ def due_next_section(item: dict) -> tuple[str, bool]:
     The flag is True when the section is an evidence gate's no-evidence
     fallback, which tells the agent to stop for the user's confirmation — the
     caller must not then report the record as autonomous work."""
-    issue = item_issue(item)
-    comments = comments_for_issue(issue)
-    section = _due_next_section(item, comments, task_tree(issue))
+    comments, tasks = comments_and_tasks(item_issue(item))
+    section = _due_next_section(item, comments, tasks)
     due = due_next(item)
     unevidenced = (
         due["status"] in _STAGE_DUE_NEXT
@@ -870,8 +868,8 @@ def _compact_render(
 
 
 def render(issue: str) -> tuple[str, str, Path]:
-    item = resolve_item(issue)
-    tasks = task_tree(issue)
+    # One comment fetch feeds the `## User Comments` section in both renders.
+    item, tasks, comments = record_snapshot(issue)
     pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     attachments = attachments_for_item(item)
 
@@ -886,8 +884,6 @@ def render(issue: str) -> tuple[str, str, Path]:
         "pullRequests": pull_requests,
     }
 
-    # One comment fetch feeds the `## User Comments` section in both renders.
-    comments = comments_for_issue(issue)
     user_comments_section = user_comments_markdown(issue, comments=comments)
     comments_notice = older_comments_notice(issue, item.get("commentsMeta"), len(comments))
     if comments_notice:
