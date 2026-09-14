@@ -21,6 +21,49 @@ DESCRIPTION
     are empty. Only the orchestrator may call this — this is a procedural
     boundary, not an authentication check, since identity cannot
     distinguish a human from an agent acting on their behalf.
+
+EVIDENCE_FILE holds six `##` sections, in any order, each non-empty:
+
+  - Shipped — the scope delivered: tasks, PRs, what a user can now do.
+  - Verification — must state `clean @ <commit>`, plus a one-line outcome.
+  - Decisions — decisions that emerged during delivery, one bullet each
+    with rationale and reference.
+  - Open Questions — one bullet per live entry in the record's Open
+    Questions section: `<question> — Resolved: <answer>` or
+    `<question> — Deferred: <what>, tracked as <ref>`. A body that leaves
+    any live entry unaccounted for is refused.
+  - Limitations — known limitations or deferrals carried into release.
+  - Skipped Stages — each skipped stage, noted as a deliberate bypass.
+
+Decisions, Open Questions, Limitations, and Skipped Stages are a bulleted
+list, or a lone `- None` when there is nothing to record. For example:
+
+    ## Shipped
+
+    Offline tile pinning across 7 tasks, PRs #144-#153, all merged.
+
+    ## Verification
+
+    clean @ a1b2c3d — claims, 4 journeys, UX reviewed, cumulative review clean.
+
+    ## Decisions
+
+    - Evict pinned tiles LRU once the regional cap is hit — simpler than a manual queue (WORK-142-TASK-004).
+
+    ## Open Questions
+
+    - Should tile eviction be LRU or manual-only? — Resolved: LRU, capped per region.
+    - Do we cap pinned regions at five? — Deferred: revisit for the paid tier, tracked as #210.
+
+    ## Limitations
+
+    - Pre-existing profile migration deferred to a follow-up record.
+
+    ## Skipped Stages
+
+    - None
+
+On success the command prints JSON with `completed: true`.
 """
 
 from __future__ import annotations

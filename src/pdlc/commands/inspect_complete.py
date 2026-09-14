@@ -6,7 +6,7 @@ USAGE
     pdlc inspect complete WORK_ITEM
 
 DESCRIPTION
-    Step 1 of pdlc-complete in one call. Checks whether the Work
+    Checks whether the Work
     Item is actually ready to lock right now, then — only if it is — gives the
     mechanical facts a completion pass needs: which delivery tasks are open,
     which linked PRs aren't both merged and green, which live Open Questions the

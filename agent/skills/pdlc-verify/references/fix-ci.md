@@ -21,6 +21,6 @@ This step is complete when every cause is labelled production, coverage, flake, 
 
 ## Post
 
-Any production or coverage cause is a bounce. Write a short report fragment with one line per cause, naming its PR, check, owning task, and log excerpt, and say the audit sections did not re-run. Post it through Step 8 with `--recommendation "Changes Required"` and `--bounce STAGE`, naming the earliest stage that must rework: `Implementation` whenever any cause is production, otherwise `Testing`. This path is complete when the JSON shows the bounced stage in `bouncedTo`.
+Any production or coverage cause is a bounce. Write a short report fragment with one line per cause, naming its PR, check, owning task, and log excerpt, and say the audit sections did not re-run. Post it through the skill's Post step with `--recommendation "Changes Required"` and `--bounce STAGE`, naming the earliest stage that must rework: `Implementation` whenever any cause is production, otherwise `Testing`. This path is complete when the JSON shows the bounced stage in `bouncedTo`.
 
-When every cause went green on rerun, re-post the latest clean run's report fragment unchanged through Step 8 with `--recommendation "Approval Required"`. Its `Verified @` commits still hold, since no source changed. This path is complete when the JSON's `gateState` is `Approval Required`, or `CI Pending` while the checks rerun.
+When every cause went green on rerun, re-post the latest clean run's report fragment unchanged through the skill's Post step with `--recommendation "Approval Required"`. Its `Verified @` commits still hold, since no source changed. This path is complete when the JSON's `gateState` is `Approval Required`, or `CI Pending` while the checks rerun.

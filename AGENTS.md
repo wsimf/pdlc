@@ -25,7 +25,11 @@ Done means every modified behavior has a caller, a regression check or an explic
 
 When changing a lifecycle command or its evidence contract, inspect the matching package command under `src/pdlc/commands/` and the skills that call it, then update their tests/docs together when both surfaces are affected.
 
-Skill and sub-agent instructions describe the CLI as a contract, never as an implementation. State the command's expected outcome — the state it leaves behind, the fields it returns, what a failure does or does not touch — so the agent can verify it. Do not narrate the steps the script runs internally to get there; those are free to change without touching a single skill.
+Skill and sub-agent instructions describe the CLI as a contract, never as an implementation. State only as much of the command's expected outcome as the step needs to verify — the state it leaves behind, the fields it reads back, what a failure does or does not touch. Do not narrate the steps the script runs internally to get there; those are free to change without touching a single skill.
+
+Do not repeat in a skill or sub-agent anything the command's `--help` already documents — flags, input forms, output fields, refusal reasons, sample output. Name the command the step uses and let the agent run `pdlc <command> --help` for the rest; a duplicated copy drifts from the CLI.
+
+Do not explain PDLC itself to the agent running a skill or sub-agent — what the lifecycle is, how gates, markers, or evidence work, or why a rule exists. Tell it only what it can use PDLC for in its own task: which command gets it the information or transition it needs, and what to do with the result. The `pdlc` entry skill is the one exception: it gives a short model of the lifecycle, gates, and human boundaries, and links `pdlc guide contract` for the rest.
 
 Skills, sub-agents, and `src/pdlc/guides/` pass command input as a file path or `text:<body>`, never as `-` for stdin, so every documented invocation works the same across shells and platforms. The CLI still accepts `-` as a convenience for humans, and command `--help` keeps documenting it.
 

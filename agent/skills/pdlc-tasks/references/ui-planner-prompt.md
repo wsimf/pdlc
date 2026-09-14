@@ -1,7 +1,7 @@
 # UI-planner dispatch prompt
 
-`pdlc-tasks` Step 3 fills the placeholders below and spawns `pdlc-ui-planner`
-when `Status = UI`. This is also the dispatch you return to in Step 5 with
+`pdlc-tasks` Author fills the placeholders below and spawns `pdlc-ui-planner`
+when `Status = UI`. This is also the dispatch you return to in Review with
 reviewer findings — keep it addressable.
 
 ---
