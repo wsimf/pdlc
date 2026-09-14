@@ -14,6 +14,15 @@ DESCRIPTION
   - checks red                    -> posts a PDLC-REVIEW note opening with
                                      `CI failed stage: <stage>` and naming the
                                      failed PRs, and Stage / Changes Required
+  - no registered PR on Implementation or Testing
+                                  -> no change; exits 1
+
+"None tracked" means the registered PRs have no checks configured, or — on
+Verification, which ships no PR of its own — that none is registered.
+Implementation and Testing publish through their pull requests, so with none
+registered there is no CI to have passed: the command refuses, leaves the
+record at `CI Pending`, and names the stage; register its pull requests
+(`pdlc post attach-pr` for a delivery task's PR) and run it again.
 
 Mechanical: it records an external fact, makes no judgement, and carries no
 identity check. The autonomous loop runs it once CI finishes; a driver may run
@@ -45,6 +54,11 @@ def post_ci(issue: str) -> dict:
         raise PdlcError(f"pdlc post ci requires Gate State = CI Pending, not {item_gate(record) or 'unset'}")
 
     result = resolve_ci_gate(issue, record, pipeline, state)
+    if result["state"] == "missing":
+        raise PdlcError(
+            f"{state.stage} has no registered pull request, so no CI was checked; the record stays at CI Pending. "
+            "Register the stage's pull requests (pdlc post attach-pr DELIVERY_TASK PR_NUMBER) and run this again"
+        )
     return {"workItem": int(issue), "itemId": record["id"], "stage": state.stage, **result}
 
 

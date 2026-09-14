@@ -31,4 +31,4 @@ This step is complete when its report is in and its fix commits are pushed and i
 
 Watch the red PRs to a result (`gh pr checks PR --watch`). Publish only when all of them are green; red again is another pass through this file, and a third red on the same cause goes to the driver.
 
-Run Step 6 with the same traceability map, updated only where coverage changed, and evidence naming each red check, its cause, and its fix commit or green rerun. This path is complete when the stage lands at `Review Required`.
+Run the skill's Publish step with the same traceability map, updated only where coverage changed, and evidence naming each red check, its cause, and its fix commit or green rerun. This path is complete when the stage lands at `Review Required`.

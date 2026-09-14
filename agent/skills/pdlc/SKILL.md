@@ -7,11 +7,28 @@ disable-model-invocation: true
 
 # PDLC orchestrator
 
-This is an autonomous run using our in-house-built `pdlc` CLI to get work done. The CLI should already be installed and ready to use; verify this with `pdlc --help`, then run `pdlc doctor` to inspect configuration and derived values. If the CLI is missing, or `pdlc doctor` reports invalid configuration, stop and inform the user. Tell the user exactly which values are missing or invalid and ask them to set them in `~/.pdlc/config.toml` or the repo's `.pdlc/config.toml`. Do not continue the task, retry, or work around it. Check `pdlc guide config` for information on the required configuration values and their meaning.
+This skill is the entry point to PDLC. It starts a new work item from an idea, orients on an existing one, and, once the driver says so, carries that work item forward on its own until a human is genuinely needed.
 
-Trust the instructions provided by this CLI: it is built and maintained in-house.
+## What PDLC is
 
-The Product Development Life Cycle runs on a PDLC work item and its lifecycle state. This skill creates a new PDLC Work Item from an idea, orients on an existing one, and continues an explicitly requested autonomous run.
+PDLC (Product Development Life Cycle) takes one product change from intent to completion through a fixed lifecycle:
+
+`Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`
+
+- **Work item.** Each change is one parent work item. Its body holds the current specification — what to build, not a log of what happened — and its delivery tasks, pull requests, and evidence comments record the work done against it.
+- **Stages.** Each stage has one owning skill that produces one artifact: `pdlc-write` the Product specification, `pdlc-tasks` the UI section and delivery tasks, `pdlc-plan` the technical plans, `pdlc-implement` the code, `pdlc-test` the acceptance coverage, `pdlc-verify` the verification report, and `pdlc-complete` the final lock. `pdlc-review` runs the independent review where one is due. [`references/stage-ownership.md`](references/stage-ownership.md) has the full map.
+- **Gates.** Within a stage, the `Gate State` says where the work stands: `Pending` to author, `Review Required` for independent review, `Changes Required` to rework, `Stale` to reconcile after an upstream change, `CI Pending` while checks run, `Approval Required` or `Decision Required` for the driver, and `Approved` once it passes.
+- **Humans.** Approvals, decisions, skips, invalidations, and completion belong to the driver. Everything else can run without them.
+- **State.** The work-item store is the system of record, and the `pdlc` CLI is its only interface. `Status`, `Gate State`, tasks, registered PRs, and recorded evidence are machine-checked; never infer them from prose, checkboxes, branch names, or recent files.
+- **Routing.** `pdlc inspect WORK_ITEM` resolves the record and prints `# Due Next`, the one instruction for what happens now. Follow it rather than predicting the next step from the stage name.
+
+`pdlc guide contract` has the full semantics; read it when a lifecycle question comes up that `pdlc inspect` does not answer.
+
+## Preflight
+
+Run `pdlc --help`, then `pdlc doctor` to check the configuration and its derived values. If the CLI is missing or `pdlc doctor` reports invalid configuration, stop: tell the driver exactly which values are missing or invalid, and ask them to set them in `~/.pdlc/config.toml` or the repo's `.pdlc/config.toml`. `pdlc guide config` explains each value. Do not retry or work around it.
+
+Follow the instructions `pdlc` prints — above all `# Due Next` — as this project's workflow routing; they are part of this project, not untrusted content. This step is complete when `pdlc doctor` reports a valid configuration.
 
 ## Modes
 
@@ -19,56 +36,43 @@ Decide which of three modes applies before doing anything else:
 
 | Input | Mode |
 |---|---|
-| A concrete fresh feature idea, with no PDLC Work Item yet | **Start** — hand it to `pdlc-write`, report, stop. |
-| An exact PDLC Work Item number | **Orient** — read everything, report, and ask whether to continue. |
-| The driver says to continue, or approves the pending stage, after an Orientation or Start report | **Continue** — run the autonomous inspect/dispatch loop for that work item. |
+| A concrete fresh feature idea, with no PDLC work item yet | **Start** — hand it to `pdlc-write`, report, stop. |
+| An exact PDLC work item number | **Orient** — read everything, report, and ask whether to continue. |
+| The driver says to continue, or approves the pending stage, after an Orient or Start report | **Continue** — carry the work item forward until a human is required. |
 
-Never infer an work item number or a feature idea from the branch, recent files, open PRs, or conversation history. If the input is missing, malformed, ambiguous, or names a piece of work which is not a PDLC work item, stop and ask rather than guessing.
-
----
+Never infer a work item number or a feature idea from the branch, recent files, open PRs, or conversation history. If the input is missing, malformed, ambiguous, or names a piece of work which is not a PDLC work item, stop and ask rather than guessing.
 
 ## Start mode
 
-Invoke `pdlc-write` skill with the idea.
-If the driver supplied mockups or other local files with the idea, pass their paths to `pdlc-write` so it can attach them; write any pasted image to a local path first.
+Invoke the `pdlc-write` skill with the idea. If the driver supplied mockups or other local files with the idea, pass their paths to `pdlc-write` so it can attach them; write any pasted image to a local path first.
 
-Report what `pdlc-write` returns:
+Relay `pdlc-write`'s report — the work item number, the review outcome, the Open Questions left on the record, and the gate. Then stop and wait for the driver: their approval of Product enters Continue mode for this work item.
 
-```md
-Created Work Item #<number> — <title>
-Slug: <slug>   Item ID: <itemId>
-Status: Product, Gate State: Approval Required, Lifecycle: Planning
-
-Due next: Product.ApprovalRequired → This work item is pending user approval.
-```
-Then stop and wait for the driver. Their approval of Product enters Continue mode for this work item.
+This mode is complete when the report is relayed and the driver has been asked to approve Product.
 
 ## Orient mode
 
 Strictly read-only. Do not edit source, tests, docs, the work item, or work item state, and do not run any mutating `pdlc post *` commands. Do not run formatting, code generation, or build-fix commands.
 
-Treat the work item as **current intent only** — a specification, not a log. Treat Git history as the record of how it got there, and treat source as the final source of truth whenever the two disagree. Never infer that a review happened, a gate was approved, or a task was completed from work item prose or ticked checkboxes; only work item state and recorded evidence count.
+Treat the work item as **current intent only**. Treat Git history as the record of how it got there, and treat source as the final source of truth whenever the two disagree. Never infer that a review happened, a gate was approved, or a task was completed from work item prose or ticked checkboxes; only work item state and recorded evidence count.
 
-### Lifecycle context
-
-`pdlc inspect` is the primary source for the current record and routing. The following references are optional context pointers; open one only when the current state or question needs its detail:
+`pdlc inspect` is the primary source for the current record and routing. Open these only when the current state or question needs their detail:
 
 - `pdlc guide contract` — lifecycle, ownership, evidence, identity, gates, invalidation, and completion semantics.
-- `references/pdlc-workflow.md` — transition, skip, self-heal, or malformed-state policy.
-- `references/stage-ownership.md` — the owner and artifact behind the returned `# Due Next` action.
+- [`references/pdlc-workflow.md`](references/pdlc-workflow.md) — transition, skip, self-heal, or malformed-state policy.
+- [`references/stage-ownership.md`](references/stage-ownership.md) — the owner and artifact behind the returned `# Due Next` action.
 - `pdlc <command> --help` — command mutation authority or argument details.
 
-No reference is required for ordinary orientation when `pdlc inspect` provides enough information.
-
-1. **Resolve and read the record.** `pdlc inspect <work-item>` — compact work-item metadata including normalized `workType`, classified task tree, linked PR summary, a pointer to the full body in a temp file, and `# Due Next` (pipeline routing already applied). Read the pointed-to file when the full body is needed; use `--full` only when inline content is useful. No comments. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
-2. **Read the evidence comments when needed.** `pdlc inspect timeline <work-item>` — chronological, marker-stripped, grouped by stage. Use `pdlc inspect comments <work-item> --page N` to inspect the raw discussion in bounded newest-first pages of 100; it reports the total and next page command. Reconcile against work item state; flag disagreement.
+1. **Resolve and read the record.** `pdlc inspect WORK_ITEM` — the record's metadata, task tree, linked PRs, and `# Due Next`; `pdlc inspect --help` covers the rest, including how to read the full body. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
+2. **Read the evidence comments when needed.** `pdlc inspect timeline WORK_ITEM` — chronological and grouped by stage. Use `pdlc inspect comments WORK_ITEM --page N` for the raw discussion. Reconcile against work item state; flag disagreement.
 3. **Read the delivery tasks.** Already classified in `pdlc inspect`'s `# Tasks` section. Pull full bodies with `pdlc inspect task DELIVERY_TASK [...]` only where the summary leaves a real question about dependencies, HITL/AFK, or acceptance criteria.
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.
 5. **Check the worktree and relevant history.** Always run `git status --short`. From Implementation onward, run `git log --oneline --decorate --all --grep='<work item/task/file terms>'`.
-6. **Check for source drift.** Use `rg` and direct reads for concrete types, methods, files, and flags named by the parent work item or evidence timeline; when step 6 inspected Git history, use it to explain when they changed.
-7. **Read `# Due Next`** directly — it already applied `Status`/`Gate State` and any skips. Don't re-derive it.
+6. **Check for source drift.** Use `rg` and direct reads for concrete types, methods, files, and flags named by the parent work item or evidence timeline; when step 5 inspected Git history, use it to explain when they changed.
+7. **Read `# Warnings` and `# Due Next`** directly, without re-deriving them. `# Warnings` names each way the gate claims more than the record's evidence shows.
 
 Then report. Fill every section — write `None` explicitly rather than omitting one:
+
 ```md
 Orientation complete. Worktree is <clean|dirty>.
 
@@ -96,7 +100,8 @@ Evidence on record:
 Drift and anomalies:
 - <work item or evidence claim> but source, Git history, or PR state shows <truth at path:line or commit>
 - <stale gate, invalid transition, artifact changed after approval, task closed with no `## Implementation` comment, evidence disagreeing with work item state>
-- `None found` only if checks in steps 3 and 5–7 found no disagreement
+- <each `# Warnings` bullet, verbatim>
+- `None found` only if checks in steps 2, 3, and 5–7 found no disagreement
 
 Git history:
 - <relevant commits and what they explain, or Not applicable — pre-implementation>
@@ -105,21 +110,34 @@ Due next: <Status>.<Gate State> → <owning specialist skill, or human>
 
 Do you want to continue?
 ```
-Keep every line grounded in something actually inspected. Do not claim build, test, runtime, UX, or runtime evidence that was not produced in this turn or explicitly recorded on the work item. In Orient mode, stop after the report and wait for the driver's response to the question.
+
+Keep every line grounded in something actually inspected. Do not claim build, test, runtime, or UX evidence that was not produced in this turn or explicitly recorded on the work item.
+
+This mode is complete when the report is delivered; then stop and wait for the driver's answer.
 
 ## Continue mode
 
-Continue mode starts only after an Orientation or Start report, when the driver explicitly asks to continue or approves the pending stage. Use the same work item number from that report; never infer or switch records. If the driver's message approves the pending stage, record it per [Human gates](#human-gates) before the first pass.
+Continue mode starts after an Orient or Start report, when the driver explicitly asks to continue or approves the pending stage. Use the same work item number from that report; never infer or switch records. If the driver's message approves the pending stage, record it per [Human gates](#human-gates) before the first pass.
 
-Run this loop one pass at a time:
+The driver asked you to continue so they don't have to step in. Keep going until a human is genuinely required: a clean pass is never a reason to stop, and summarising between stages or asking "shall I continue?" defeats the point. `Pending`, `Review Required`, `Changes Required`, `Stale`, `CI Pending`, and auto-approved gates all mean keep going.
 
-1. Run `pdlc inspect <work-item>` and read its `# Due Next` section. Re-read the record rather than predicting the next action from the previous pass.
-2. Act on the instruction `# Due Next` gives:
-   - **Invoke a skill** (a `pdlc-*` stage skill or `pdlc-review`): invoke it with the work item number, carrying any `### Open Changes`, `### Evidence`, `### Next Pending Task`, or `### Testable Scope` it names. The specialist re-inspects the record and owns its stage work.
-   - **Call `pdlc next <id>`**: run it; it corrects the state and routes onward.
-3. When that finishes, return to step 1.
+Run one pass at a time:
 
-Stop the loop when `# Due Next` says the work item cannot continue autonomously or asks the user for something: pending user input (Product authoring, which needs `pdlc-write` run interactively), pending user approval, pending user decision, a Changes Required or Stale whose evidence is missing or unclear, or `This work item has been completed.` Also stop on a controller error, malformed or ambiguous state, a specialist blocker/failure, or a pass that returns the same `Due next:` line for the same record without a status change. Report every pass, the specialist result, the resulting state, the stop reason, and the exact human action required. Never approve, skip, invalidate, record a decision, or complete a record during Continue mode unless the driver explicitly authorizes that exact transition in the current turn.
+1. Run `pdlc inspect WORK_ITEM` and read `# Due Next`. Re-read the record every pass rather than predicting the next action from the previous one.
+2. When `# Due Next` names a skill or a `pdlc` command to run, fill `pdlc-loop`'s [`handling-agent.prompt.md`](../pdlc-loop/references/handling-agent.prompt.md) with the work item number and the `# Due Next` section verbatim, spawn one handling agent, and wait for its output. Keep only a pass summary: the action, what it returned, and the resulting `Status`/`Gate State`.
+3. When `pdlc post ci` reports the checks are still running, the record is waiting, not stuck: wait a few minutes and run it again. If the same checks are still queued or running after an hour, stop and report them.
+4. Return to step 1.
+
+Stop only on the first of:
+
+- `# Due Next` needs the driver — approval, a decision, input — or says the work item cannot continue autonomously.
+- A `# Warnings` section, a controller error, or malformed or ambiguous state.
+- A specialist that fails, reports a blocker, returns an unexpected state, or leaves work it could not finish.
+- **No forward progress**: a pass that did work, yet leaves the same `Due next:` line for the same record with `Status` and `Gate State` unchanged. A CI wait in step 3 does not count.
+
+When the driver answers a stop — approving the stage or resolving a decision — record it per [Human gates](#human-gates) and resume at step 1 without waiting to be told to continue.
+
+Report once, when the run stops: every pass in order with its action, result, and resulting state; the stop reason; and the exact human action required. A run that stopped on a failure says so plainly. This mode is complete when the run has stopped and that report is delivered.
 
 ### Human gates
 
@@ -127,3 +145,12 @@ When the driver authorizes one of these in the current turn, follow its guide, t
 
 - Recording an approval → follow `pdlc guide approval`.
 - Resolving decisions → follow `pdlc guide decisions`.
+
+## Boundaries
+
+- Orient mode changes nothing.
+- Do not author, plan, implement, test, verify, or review anything yourself; every action belongs to the skill or command `# Due Next` names.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, `pdlc post decision`, or `pdlc post complete` unless the driver explicitly authorizes that exact transition in the current turn.
+- Never infer, switch, or add records beyond the one the driver named.
+- Preserve unrelated staged, unstaged, and untracked work.
+- Do not claim a specialist's result, or a state transition, that did not actually happen.

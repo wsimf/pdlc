@@ -6,9 +6,7 @@ argument-hint: "Parent work item number to plan"
 
 # Plan delivery tasks
 
-Prepare the Technical Plan for every delivery task that needs one. `pdlc-tech-planner` spikes the tasks against current source and authors the plans, `pdlc-plan-reviewer` checks the local plan files, and `pdlc post plan` validates and lands the reviewed plans at `Approval Required`. This skill owns orchestration; it never decides the plan's technical content.
-
-Review runs on the local files before publication, because landing rewrites every planned task's plan in place and a post-publication review would rewrite them all again on every finding.
+Prepare the Technical Plan for every delivery task that needs one. `pdlc-tech-planner` spikes the tasks against current source and authors the plans, `pdlc-plan-reviewer` checks the local plan files, and `pdlc post plan` validates and lands the reviewed plans at `Approval Required`. This skill owns orchestration; it never decides the plan's technical content. Review runs on the local files, before anything is landed.
 
 Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/tech-planner-prompt.md`](references/tech-planner-prompt.md) and [`references/plan-review-prompt.md`](references/plan-review-prompt.md) as dispatch templates.
 
@@ -84,7 +82,7 @@ pdlc post plan --work-item WORK_ITEM \
   --manifest /tmp/pdlc-plan.json --evidence /tmp/pdlc-plan-evidence.md
 ```
 
-Repeat each supplied local file with `--attachment PATH [--attachment-description TEXT]`; a description applies only to the immediately preceding attachment. The command validates everything before writing, records each plan on its task by stable `TASK-NNN` identity, stores evidence, and leaves the stage at `Approval Required`. On failure, keep all local files and report the exact error. After a successful landing, delete the temporary plan, manifest, and evidence files because the work-item store is now authoritative. This step is complete when the command succeeds and its JSON shows `gateState: Approval Required` and the planned task IDs.
+Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary plan, manifest, and evidence files because the work-item store is now authoritative. This step is complete when the command succeeds and its JSON shows `gateState: Approval Required` and the planned task IDs.
 
 ## Report
 

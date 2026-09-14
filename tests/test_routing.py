@@ -69,7 +69,7 @@ class RoutingTests(FileBackendTest):
         self.assertEqual(result.front_matter("action"), "human-input")
         self.assertEqual(result.front_matter("work_item_number"), "14")
         self.assertIsNone(result.front_matter("attempts"))
-        self.assertIn("invoke `pdlc-write`", result.stdout)
+        self.assertIn("# Due Next\n\nDue next: Product.ChangesRequired", result.stdout)
         self.assertNotIn("retrying", result.stderr)
 
     def test_product_approval_required_stops_for_human(self):
@@ -109,6 +109,23 @@ class RoutingTests(FileBackendTest):
         self.assertEqual(result.front_matter("action"), "none")
         self.assertEqual(result.front_matter("attempts"), "3")
         self.assertIn("Invoke this script again", result.stdout)
+
+    def test_stale_routes_to_its_skill_only_when_an_open_change_explains_it(self):
+        self.seed_record(40, "Implementation", "Stale")
+        result = self.next("--work-item", 40)
+        self.assertEqual(result.front_matter("action"), "human-input")
+        self.assertIn("Stop and request\nthe user's confirmation", result.stdout)
+
+        self.add_invalidation(40, "Implementation")
+        result = self.next("--work-item", 40)
+        self.assertEqual(result.front_matter("action"), "pdlc-implement")
+        self.assertIn("### Open Changes", result.stdout)
+
+    def test_ui_review_required_routes_to_the_owning_skill(self):
+        self.seed_record(41, "UI", "Review Required")
+        result = self.next("--work-item", 41)
+        self.assertEqual(result.front_matter("action"), "pdlc-tasks")
+        self.assertIn("Invoke pdlc-tasks skill and continue its review procedure.", result.stdout)
 
     def test_unknown_state_is_blocked(self):
         self.seed_record(30, "Implementation", "Bogus Gate")

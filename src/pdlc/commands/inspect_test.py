@@ -6,7 +6,7 @@ USAGE
     pdlc inspect test WORK_ITEM
 
 DESCRIPTION
-    Step 1-3 of pdlc-test in one call. Checks whether coverage is
+    Checks whether coverage is
     actually due right now, then — only if it is — resolves the testable scope:
     every delivery task that closed with its implementation recorded, its linked
     PRs, and the files those PRs actually touched (from the merge commit, since

@@ -295,36 +295,43 @@ def post_comment(item_id: int | str, body: str) -> str:
     return f"{item_url(item_id)}?discussionId={identifier}" if identifier else item_url(item_id)
 
 
-_DISCUSSION_ID_PATTERN = re.compile(r"discussionId=(\d+)")
+# A comment is addressed two ways: the `?discussionId=` web reference
+# `post_comment` returns, and the REST `.../comments/<id>` `url` a comment
+# carries when read back through `comments`. Edit and delete accept both.
+_COMMENT_ID_PATTERN = re.compile(r"discussionId=(\d+)|/comments/(\d+)(?:[/?#]|$)")
+
+
+def _comment_id(comment_ref: str) -> str:
+    match = _COMMENT_ID_PATTERN.search(comment_ref)
+    if not match:
+        raise PdlcError(f"cannot parse an Azure comment id from: {comment_ref}")
+    return match.group(1) or match.group(2)
 
 
 def edit_comment(item_id: int | str, comment_ref: str, body: str) -> str:
     """Replace an existing comment's text in place, addressed by the
-    `?discussionId=` reference `post_comment` returned for it."""
-    match = _DISCUSSION_ID_PATTERN.search(comment_ref)
-    if not match:
-        raise PdlcError(f"cannot parse an Azure comment id from: {comment_ref}")
+    `?discussionId=` reference `post_comment` returned for it or the REST
+    `url` the comment was read back with."""
+    comment_id = _comment_id(comment_ref)
     _, project = azure_config()
     az_invoke(
         "wit", "comments",
-        route_parameters={"project": project, "workItemId": str(item_id), "commentId": match.group(1)},
+        route_parameters={"project": project, "workItemId": str(item_id), "commentId": comment_id},
         query_parameters={"format": "markdown"},
         http_method="PATCH", body={"text": body},
     )
-    return f"{item_url(item_id)}?discussionId={match.group(1)}"
+    return f"{item_url(item_id)}?discussionId={comment_id}"
 
 
 def delete_comment(item_id: int | str, comment_ref: str) -> None:
     """Permanently remove an existing comment, addressed by the same
-    `?discussionId=` reference `edit_comment` accepts. Used when invalidation
+    references `edit_comment` accepts. Used when invalidation
     should retire stale task evidence outright rather than leave a
     superseded body on record."""
-    match = _DISCUSSION_ID_PATTERN.search(comment_ref)
-    if not match:
-        raise PdlcError(f"cannot parse an Azure comment id from: {comment_ref}")
+    comment_id = _comment_id(comment_ref)
     _, project = azure_config()
     az_invoke(
         "wit", "comments",
-        route_parameters={"project": project, "workItemId": str(item_id), "commentId": match.group(1)},
+        route_parameters={"project": project, "workItemId": str(item_id), "commentId": comment_id},
         http_method="DELETE",
     )

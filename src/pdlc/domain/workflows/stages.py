@@ -77,6 +77,7 @@ IMPLEMENTATION_STAGE = Stage(
         ReviewerTarget("Production PRs and each task's implementation", "pdlc-implementation-reviewer"),
     ),
     ci_gated=True,
+    publishes_pull_requests=True,
     skill="pdlc-implement",
 )
 
@@ -91,6 +92,7 @@ TESTING_STAGE = Stage(
         ReviewerTarget("Test PRs, coverage, and requirement traceability", "pdlc-testing-reviewer"),
     ),
     ci_gated=True,
+    publishes_pull_requests=True,
     skill="pdlc-test",
 )
 

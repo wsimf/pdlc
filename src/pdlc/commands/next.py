@@ -13,12 +13,24 @@ DESCRIPTION
     using the work item's configured workflow policy.
 
 Output is a Markdown document: YAML front matter — id, work_item_number, title,
-current_status, action — followed by a one-line instruction. The
-dispatched skill resolves the record itself with pdlc-inspect; the routing
-decision is all this script hands over.
+current_status, action — followed by the routed record's `# Due Next` section,
+exactly as `pdlc inspect WORK_ITEM` renders it for the same state. That
+section is the instruction to carry out; the dispatched skill still resolves
+the record itself with `pdlc inspect`.
 
-`action` is a pdlc-* skill name, `pdlc-post-ci` (run the script, then re-poll),
-or `human-input` / `human-approval` / `human-decision` / `blocked` / `none`.
+`action` classifies that instruction for a caller deciding whether to act
+without a human: a pdlc-* skill name or `pdlc-post-ci` is autonomous;
+`human-input` / `human-approval` / `human-decision` / `blocked` are stops. It
+always agrees with the skill or command `# Due Next` names — for example a
+UI, Tasks, or Technical Plan record at Review Required routes to its owning
+skill, which reviews the published artifact and re-lands it, and a Changes
+Required or Stale record with no change request to act on routes to
+`human-input`, because its `# Due Next` asks for the user's confirmation. The
+queue scan still selects by stage and gate, so it can surface such a record
+as a stop ahead of later autonomous work. An empty queue
+scan, a CI Pending record whose checks are still running, and a Complete
+record carry `action: none` and a short notice instead of a `# Due Next`
+section.
 
 Two routing side effects mutate the record before the decision is returned,
 the same way for a single --work-item lookup or a queue scan:
@@ -28,8 +40,11 @@ the same way for a single --work-item lookup or a queue scan:
   - self-heal: a stage/gate combination no pdlc command ever writes, but that
     has exactly one sane reading, is corrected rather than reported as
     blocked — see `pipeline.heal()` and `pdlc continue --help` for the exact
-    cases (a stray Approved gate, or CI Pending on a stage that isn't
-    CI-gated). `pdlc continue` exposes this same correction standalone.
+    cases (a stray Approved gate, CI Pending on a stage that isn't
+    CI-gated, or Review Required on Verification, which has no review).
+    A stray Approved whose stage evidence `pdlc post approve` would refuse
+    lands on that stage's own Approval Required instead.
+    `pdlc continue` exposes this same correction standalone.
 
 Churn-gated auto-approval of the Implementation/Testing approval gates is not
 done here — the script that writes each gate (lib/ci_gate.py, pdlc post review)
@@ -46,6 +61,7 @@ import time
 from pathlib import Path
 
 
+from pdlc.commands.inspect import due_next_section
 from pdlc.internal.ci_gate import peek_ci_state
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help
@@ -55,6 +71,7 @@ from pdlc.domain.workflow import Event, Lifecycle, Pipeline, State
 from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
 from pdlc.internal.reporting import yaml_front_matter
 from pdlc.internal.workitem import (
+    heal_item,
     is_stage_skipped,
     item_gate,
     item_issue,
@@ -63,7 +80,6 @@ from pdlc.internal.workitem import (
     queue_items,
     resolve_item,
     set_state,
-    write_healed_state,
 )
 
 
@@ -105,9 +121,7 @@ def _advance_past_skips(item: dict, pipeline: Pipeline) -> dict:
         except ValueError:
             break
 
-        healed = pipeline.heal(state)
-        if healed is not None:
-            item = write_healed_state(item, item_issue(item), state, healed)
+        if heal_item(item, item_issue(item), pipeline, state) is not None:
             continue
 
         try:
@@ -188,7 +202,7 @@ def next_once(selector: str | None) -> dict:
     except (TypeError, ValueError) as error:
         status, gate = item_status(item), item_gate(item)
         notation = f"{status.replace(' ', '')}.{gate.replace(' ', '')}"
-        return decision(item, "blocked", blocked_reason(str(error)), notation)
+        return _with_due_next(decision(item, "blocked", blocked_reason(str(error)), notation), item)
 
     item = _advance_past_skips(item, pipeline)
 
@@ -207,8 +221,21 @@ def next_once(selector: str | None) -> dict:
         route = None
     if route is None:
         notation = f"{status.replace(' ', '')}.{item_gate(item).replace(' ', '')}"
-        return decision(item, "blocked", "missing or unsupported work item state", notation)
-    return decision(item, route.action.value, route.reason, state.notation)
+        return _with_due_next(decision(item, "blocked", "missing or unsupported work item state", notation), item)
+    return _with_due_next(decision(item, route.action.value, route.reason, state.notation), item)
+
+
+# Attaches the record's `# Due Next` section, rendered after the skip cascade
+# and self-heal so it reflects the state just routed. It is the same section
+# `pdlc inspect` prints, so the loop acts on one instruction for a record
+# whichever command surfaced it. An evidence gate with no evidence renders a
+# stop-and-confirm fallback, so its action becomes human-input to match.
+def _with_due_next(result: dict, item: dict) -> dict:
+    result["due_next"], unevidenced = due_next_section(item)
+    if unevidenced and result["action"].startswith("pdlc-"):
+        result["action"] = "human-input"
+        result["reason"] = "no evidence identifies the required changes; the user must confirm how to continue"
+    return result
 
 
 # Retries next_once with exponential backoff, but only while nothing is
@@ -242,7 +269,8 @@ def _sentence(text: str) -> str:
     return text[:1].upper() + text[1:] if text else text
 
 
-# Renders the routing decision as front matter + a one-line instruction.
+# Renders the routing decision as front matter + the record's `# Due Next`
+# section (see `_with_due_next`), or a fixed notice when there is no record to act on.
 def render(result: dict, *, attempts: int | None = None) -> str:
     action = result["action"]
     number = result.get("work_item_number")
@@ -273,39 +301,7 @@ def render(result: dict, *, attempts: int | None = None) -> str:
         "current_status": result["current_status"],
         "action": action,
     })
-
-    if action == "human-input":
-        instruction = (
-            f"Work item {number} is at {result['current_status']} and needs interactive Product input. "
-            f"Stop and tell the driver to invoke `pdlc-write` for this work item."
-        )
-    elif action == "human-approval":
-        instruction = (
-            f"Work item {number} is at {result['current_status']} and needs explicit human approval. "
-            f"Stop and tell the driver which record and stage awaits them."
-        )
-    elif action == "human-decision":
-        instruction = (
-            f"Work item {number} is at {result['current_status']} (Gate State = Decision Required): a reviewer "
-            f"raised a blocking finding that only the driver can resolve. Stop, and point the driver at the "
-            f"PDLC-DECISION comment on the record."
-        )
-    elif action == "pdlc-post-ci":
-        instruction = (
-            f"Work item {number} is at {result['current_status']}: the implementation review passed and "
-            f"the registered PR stack's CI has finished. Run "
-            f"`pdlc post ci {number}` to record the outcome — it "
-            f"advances to Approval Required on green, or back to Changes Required on red — then re-poll."
-        )
-    elif action == "blocked":
-        reason = result.get("reason") or "workflow routing is blocked"
-        instruction = f"Work item {number} is blocked at {result['current_status']}. {_sentence(reason)}."
-        if not reason.startswith("stop here"):
-            instruction += " Stop and report it exactly."
-    else:
-        instruction = f"{_sentence(result['reason'])}. Invoke `{action}` for work item {number}."
-
-    return f"{front}\n\n# Next Action\n\n{instruction}\n"
+    return f"{front}\n\n{result['due_next'].rstrip()}\n"
 
 
 def main(argv: list[str] | None = None) -> int:

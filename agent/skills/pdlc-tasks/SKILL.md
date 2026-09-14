@@ -64,7 +64,7 @@ pdlc post tasks --work-item WORK_ITEM --stage UI \
 
 Call `pdlc post tasks --help` for more info about that command.
 
-The dry run must be clean before review. It checks stage/gate, parent `FR-*`/`C-*`/`UJ-*` coverage, task identity and titles, strict manifest `ui` values, dependency existence and acyclicity, and explicit UI applicability. It writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. This step is complete when the command prints a clean resolved plan or UI applicability result.
+The dry run must be clean before review; it writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. This step is complete when the command prints a clean resolved plan or UI applicability result.
 
 ## Review
 
@@ -81,7 +81,7 @@ pdlc post tasks --work-item WORK_ITEM --stage Tasks \
   --manifest /tmp/pdlc-tasks.json --evidence /tmp/pdlc-tasks-evidence.md
 ```
 
-For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`. Repeat each supplied local file with `--attachment PATH [--attachment-description TEXT]`; a description applies only to the immediately preceding attachment. The command validates everything before writing, updates stable task identities, records dropped tasks without deleting them, stores evidence, and leaves the active stage at `Approval Required`. On failure, keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
+For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
 
 ## Report
 

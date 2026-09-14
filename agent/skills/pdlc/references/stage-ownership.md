@@ -8,11 +8,12 @@
 | Technical Plan | `pdlc-plan` | Task-level source ownership, interfaces, sequencing, risks, validation plan. |
 | Implementation | `pdlc-implement` | Production/task PRs and per-task implementation notes, one task per dispatch with a `task`-depth review before push, carried through the requested scope. |
 | Testing | `pdlc-test` | Requirement-to-source traceability, acceptance coverage, CI evidence. |
-| Verification | `pdlc-verify` | Claims, runtime behaviour, UX journeys, review findings, completion recommendation. Sets the gate from its `--recommendation`: `Approval Required`, `Changes Required`, or `Decision Required` (a finding routed to the driver, cleared by `pdlc post decision`). |
+| Verification | `pdlc-verify` | Claims, runtime behaviour, UX journeys, review findings, completion recommendation: `Approval Required`, `Changes Required`, or `Decision Required`. |
 | `Implementation`, `Testing`, or `Verification` at `Decision Required` | `pdlc post decision` (driver) | Land a manifest of per-decision outcomes — answered or deferred to its own work item — and return to `Changes Required`. |
-| any stage at `Review Required` | `pdlc-review` | Independent read-only findings; records `Changes Required`, `Decision Required`, or `Approval Required`. A clean Implementation review lands `CI Pending`. |
-| `Implementation` at `CI Pending` | `pdlc post ci` (loop or driver) | Reconcile the registered PR stack's CI: green → `Approval Required`, red → `Changes Required`. Mechanical, no reviewer. |
+| `Implementation` or `Testing` at `Review Required` | `pdlc-review` | Independent read-only findings; records `Changes Required`, `Decision Required`, or `Approval Required`. A clean review lands `CI Pending`. |
+| `Product`, `UI`, `Tasks`, or `Technical Plan` at `Review Required` | the stage's owning skill (`pdlc-write` interactively for Product) | The artifact was published without its local review; the owning skill runs that review and re-lands it to `Approval Required`. |
+| `Implementation`, `Testing`, or `Verification` at `CI Pending` | `pdlc post ci` (loop or driver) | Settle the gate against the pull requests' CI: green → `Approval Required`, red → `Changes Required`. Mechanical, no reviewer. |
 
-A stage owner prepares only its own section; the commands re-read the record and update it without overwriting approved upstream work. `UI not required` is still an artifact — it goes through review and human approval like any other.
+A stage owner prepares only its own section. `UI not required` is still an artifact — it goes through review and human approval like any other.
 
-Every evidence comment opens with a marker identifying its stage, and covers actor, timestamp, scope, work item/PR links, result, and unresolved risk. **The commands stamp the marker** — every evidence file you prepare holds the body only, and one that already carries a marker is refused. The vocabulary lives in `pdlc guide contract`; you never need to type it.
+**Evidence files hold the body only; the commands add the marker**, and refuse a body that already carries one.

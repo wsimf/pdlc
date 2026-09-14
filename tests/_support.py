@@ -23,6 +23,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from pdlc.config import Config, install_config, reset_config, set_config
+from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.hosts import attachment_host, code_host, workitem_host
 
 BODY_DEFAULT = """## Product
@@ -291,6 +292,26 @@ class FileBackendTest(unittest.TestCase):
         }
         with log.open("a") as handle:
             handle.write(json.dumps(entry) + "\n")
+
+    def seed_publication(self, record: int, stage: str, *, passed_review: bool | None = None) -> None:
+        """Append `stage`'s publication comment — the evidence approval reads —
+        dated after every other seeded record comment. Implementation and
+        Testing, reviewed only after they publish, also get a passing review
+        unless `passed_review` is False."""
+        marker = {
+            "Product": "PRODUCT", "UI": "UI", "Tasks": "TASKS", "Technical Plan": "PLAN",
+            "Implementation": "IMPLEMENTATION", "Testing": "TESTING",
+        }[stage]
+        entries = [(f"PDLC-{marker}\n\n{stage} published.\n", "2026-05-01T00:00:00Z")]
+        if passed_review if passed_review is not None else stage in ("Implementation", "Testing"):
+            entries.append((
+                "PDLC-REVIEW\n\n" + compose_review(stage, ReviewVerdict.PASS, "## Findings\n\n- none"),
+                "2026-05-02T00:00:00Z",
+            ))
+        log = self.records_dir() / str(record) / "comments.jsonl"
+        with log.open("a") as handle:
+            for body, created in entries:
+                handle.write(json.dumps({"body": body, "createdAt": created, "url": "", "author": {"login": "t"}}) + "\n")
 
     # --- scratch files ---
 

@@ -20,41 +20,11 @@ You produce one artifact: the completion evidence body. The verified record is f
 
 ## Prepare the completion evidence body
 
-All six `##` sections, in this shape:
+Run `pdlc post complete --help` for the six required `##` sections, their format, and a sample body. Fill them from the supplied record:
 
-```markdown
-## Shipped
-
-Offline tile pinning across 7 tasks, PRs #144-#153, all merged.
-
-## Verification
-
-clean @ a1b2c3d — claims, 4 journeys, UX reviewed, cumulative review clean.
-
-## Decisions
-
-- Evict pinned tiles LRU once the regional cap is hit — simpler than a manual queue (TASK-004).
-
-## Open Questions
-
-- Should tile eviction be LRU or manual-only? — Resolved: LRU, capped per region.
-- Do we cap pinned regions at five? — Deferred: revisit for the paid tier, tracked as #210.
-
-## Limitations
-
-- Pre-existing profile migration deferred to a follow-up record.
-
-## Skipped Stages
-
-- None
-```
-
-- **Shipped** — scope delivered: tasks, PRs, what a user can now do.
-- **Verification** — must state `clean @ <commit>` plus a one-line outcome summary.
-- **Decisions** — decisions that only emerged during delivery, read from task `## Implementation` notes and the commits that landed them. Compact list of decision, rationale, reference; not a second changelog. Routine implementation steps do not belong. A lone `- None` if there were none.
-- **Open Questions** — one line per live entry in the record's Open Questions section, verbatim question text followed by `— Resolved: <answer>` or `— Deferred: <what>, tracked as <follow-up record or reason>`. Entries `pdlc-verify` already recorded as deferrals stay deferred. A lone `- None` only if the record carried no live entry. If a question genuinely cannot be resolved or deferred, say so plainly rather than inventing a disposition.
-- **Limitations** — known limitations or deferrals carried into release, or `- None`.
-- **Skipped Stages** — each skipped stage noted as a deliberate bypass, or `- None`.
+- **Decisions** — only decisions that emerged during delivery, read from task `## Implementation` notes and the commits that landed them. Compact list of decision, rationale, reference; not a second changelog. Routine implementation steps do not belong.
+- **Open Questions** — one line per live entry, with the question verbatim. Entries `pdlc-verify` already recorded as deferrals stay deferred. If a question genuinely cannot be resolved or deferred, say so plainly rather than inventing a disposition.
+- **Skipped Stages** — each stage listed in `Skipped States`, noted as a deliberate bypass.
 
 ## Boundaries
 

@@ -1,6 +1,7 @@
 # Due Next Section — Rendered Output Per Stage/Gate
 
 The exact `# Due Next` section `pdlc inspect` renders for every `(Status, Gate State)` combination in the Feature pipeline, produced by calling `_due_next_section()` in `src/pdlc/commands/inspect.py` directly for each cell.
+`pdlc next` prints the same section under its routing front matter, after its skip cascade and self-heal, and its `action` agrees with the skill or command the section names; a record rendering the "unable to parse" fallback routes to `human-input`.
 
 See `stage-ownership.md` for the underlying status/action/owner matrix; this file is the literal message text, not just the routing decision.
 
@@ -12,7 +13,8 @@ See `stage-ownership.md` for the underlying status/action/owner matrix; this fil
 - **Changes Required / Stale (every stage)**: an `### Open Changes` section after any `### Next Pending Task` or `### Testable Scope`, or the "unable to parse" fallback prose when the stage has no open change request. `{OPEN_CHANGES_SUMMARY}` is one line counting the change requests the stage has not addressed since it last published, by source in first-seen order, e.g. `3 open change requests for Implementation: Review findings (2), CI failure.`; `pdlc inspect changes` prints their full text.
 - **Decision Required (every stage)**: `Due next: Stage.DecisionRequired → This work item is pending user decision.` plus an `### Evidence` section inlining the newest PDLC-DECISION comment, or the "unable to parse" fallback prose when none is found.
 - **Implementation/Testing/Verification CI Pending (genuinely CI-gated, not healed)**: `→ pdlc post ci — record...` plus the read-only `pdlc guide resolve-ci` orientation line.
-- **Review Required (Implementation, Testing only)**: `→ pdlc-review`. Verification has no persisted review policy, so its Review Required is a heal instead (see above).
+- **Review Required (Implementation, Testing)**: `→ pdlc-review`. Verification has no persisted review policy, so its Review Required is a heal instead (see above).
+- **Review Required (Product, UI, Tasks, Technical Plan)**: the stage's owning skill continues its review procedure, because these stages are reviewed locally before publication; `pdlc next` routes them the same way (Product to `human-input`).
 - **Complete (every gate)**: a single fixed message, `This work item has been completed.`, regardless of which gate the record carries.
 
 Note: the reason line is just `reason.capitalize()` applied to a lowercase source string, so proper nouns and acronyms inside longer reasons render lowercase mid-sentence (e.g. `Ui or task artifact is due.`, `the registered pr stack's ci outcome`). Pre-existing cosmetic behavior, not introduced by the due-next changes.
@@ -957,8 +959,8 @@ the way Technical Plan/Implementation/Testing have, so Pending, Changes Required
 carry no extra section beyond the standard `### Evidence` lookup. Two gates differ genuinely
 from the shape used by every curated stage before it:
 - **Review Required** has no persisted review policy at this stage (`stage-ownership.md`), so
-  instead of dispatching a review it heals straight to Approval Required via `pdlc next`, the
-  same lightweight shape as a stray CI Pending on a non-CI-gated stage.
+  instead of dispatching a review it heals via `pdlc next` to CI Pending, where a clean
+  verification run lands, the same lightweight shape as a stray CI Pending on a non-CI-gated stage.
 - **CI Pending** is genuinely CI-gated, same as Implementation/Testing — checked via
   `pdlc post ci`, not healed away.
 - **Approval Required** is the completion boundary: it calls out `pdlc post complete`, not

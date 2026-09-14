@@ -16,7 +16,8 @@ DESCRIPTION
     and routing decision for the pdlc skill's Orient mode.
 
 Sections are ordered front matter, `# Work Item`, `## Attachments`,
-`## User Comments`, `# Tasks`, `# Due Next`.
+`## User Comments`, `# Tasks`, `# Warnings` (only when there is one),
+`# Due Next`.
 
 `## Attachments` lists local Work Item attachments with their descriptions and
 resolved paths. `## User Comments` carries every comment on the record that has
@@ -42,6 +43,15 @@ a handful of tasks. Fetch those with
 HITL approval still require reading a candidate's body and the record's own
 comments; this stops short of that judgment. Evidence comments are
 deliberately not included — they are read through their own script.
+
+`# Warnings` appears when the Gate State claims more than the record's own
+evidence shows, one bullet each: Review Required on Implementation or Testing
+with no current publication to review; Approval Required, CI Pending, or a
+stray Approved that would advance, where the stage's latest publication is
+missing, has a change request open since it, or (Implementation, Testing)
+has no passing review — the evidence `pdlc post approve` requires; and CI
+Pending on Implementation or Testing with no registered pull request. It
+reports and never corrects, and `# Due Next` still routes on the gate.
 
 Also includes a `# Due Next` section: the same `(Status, Gate State) → action`
 table pdlc next routes on, applied read-only — it looks ahead through
@@ -146,14 +156,18 @@ from pathlib import Path
 
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
-from pdlc.domain.changes import open_change_requests, open_changes_summary
+from pdlc.domain.changes import evidence_warnings, open_change_requests, open_changes_summary
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, item_issue, latest_marked_comment, timeline_formatted_at
+from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.workitem import (
     comments_for_issue,
     due_next,
+    is_stage_skipped,
+    item_gate,
     item_skipped_states,
+    item_status,
     pipeline_for_item,
     ref_label,
     resolve_item,
@@ -494,8 +508,8 @@ _TESTING_DUE_NEXT: dict[str, str] = {
 
 # Verification is not task-scoped (no Next Pending Task/Testable Scope block)
 # and has two genuine differences from every stage before it: it has no
-# persisted review policy, so a stray Review Required heals straight to
-# Approval Required (`Pipeline.heal()`) instead of dispatching a review; and
+# persisted review policy, so a stray Review Required heals to CI Pending,
+# where a clean run lands (`Pipeline.heal()`), instead of dispatching a review; and
 # its Approval Required calls out `pdlc post complete`, not `pdlc post
 # approve`, since approving here is the completion boundary.
 _VERIFICATION_DUE_NEXT: dict[str, str] = {
@@ -558,11 +572,11 @@ _STAGE_DUE_NEXT: dict[str, dict[str, str]] = {
     "Verification": _VERIFICATION_DUE_NEXT,
 }
 
-# `due_next()` only returns a `skill` for gates its own routing considers
-# reachable (e.g. it comes back blocked, with no `skill`, for UI/Tasks
-# Review Required and Decision Required even though those gates have their
-# own curated text below) — read the stage's `skill` directly instead so the
-# `{Stage.<name>.skill}` substitution always has a value to work with.
+# `due_next()` only returns a `skill` for gates its routing hands to a skill
+# (e.g. Decision Required routes to a human, with no `skill`, even though that
+# gate's curated text below names the stage's skill) — read the stage's `skill`
+# directly instead so the `{Stage.<name>.skill}` substitution always has a
+# value to work with.
 _STAGE_SKILL: dict[str, str] = {
     "Product": PRODUCT_STAGE.skill or "",
     "UI": UI_STAGE.skill or "",
@@ -696,9 +710,13 @@ def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> st
     if due["status"] == "Complete":
         return "# Due Next\n\nThis work item has been completed."
     stage_due_next = _STAGE_DUE_NEXT.get(due["status"])
-    if stage_due_next is not None and due["gate"] in stage_due_next:
+    # A blocked route (e.g. an unknown or unavailable work type on an otherwise
+    # well-formed Feature stage/gate) must not render that stage's curated work text.
+    if stage_due_next is not None and due["gate"] in stage_due_next and due["action"] != "blocked":
         skill = _STAGE_SKILL.get(due["status"], "")
-        default_body = stage_due_next[due["gate"]].replace(f"{{Stage.{due['status']}.skill}}", skill)
+        # The placeholder spells the stage without spaces (`{Stage.TechnicalPlan.skill}`).
+        placeholder = f"{{Stage.{due['status'].replace(' ', '')}.skill}}"
+        default_body = stage_due_next[due["gate"]].replace(placeholder, skill)
         if "{REVIEW_SKILL}" in default_body:
             default_body = default_body.replace("{REVIEW_SKILL}", due["action"])
         if due["status"] == "Technical Plan" and due["gate"] == "Review Required":
@@ -728,6 +746,51 @@ def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> st
     return (
         f"# Due Next\n\nDue next: {due['state']} → {due.get('owner', due['action'])}\n"
         f"{due['reason'].capitalize()}."
+    )
+
+
+def due_next_section(item: dict) -> tuple[str, bool]:
+    """The `# Due Next` section `pdlc inspect` renders for an already-resolved
+    record, fetching its comments and task tree. `pdlc next` prints this same
+    section for the record it routes, so both commands give one instruction.
+
+    The flag is True when the section is an evidence gate's no-evidence
+    fallback, which tells the agent to stop for the user's confirmation — the
+    caller must not then report the record as autonomous work."""
+    issue = item_issue(item)
+    comments = comments_for_issue(issue)
+    section = _due_next_section(item, comments, task_tree(issue))
+    due = due_next(item)
+    unevidenced = (
+        due["status"] in _STAGE_DUE_NEXT
+        and due["gate"] in _EVIDENCE_NOUN
+        and due["action"] != "blocked"
+        and _evidence_block(item, comments, due["status"], due["gate"]) is None
+    )
+    return section, unevidenced
+
+
+def _warnings_section(item: dict, comments: list[dict], pull_requests: list[dict]) -> str | None:
+    """`# Warnings`: each way the record's gate claims more than its evidence
+    shows (`evidence_warnings`), or None when they agree. A stage declared in
+    Skipped States publishes nothing, so it has nothing to disagree with."""
+    try:
+        pipeline = pipeline_for_item(item)
+        status = item_status(item)
+        lifecycle = item.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
+        state = State.parse(status, item_gate(item), lifecycle)
+    except (PdlcError, TypeError, ValueError):
+        return None
+    if is_stage_skipped(item, state.stage):
+        return None
+    warnings = evidence_warnings(comments, pipeline, state, has_pull_requests=bool(pull_requests))
+    if not warnings:
+        return None
+    return (
+        "# Warnings\n\n"
+        "The Gate State claims more than this work item's evidence shows. `# Due Next` still routes on the gate;\n"
+        "report each warning to the driver rather than working around it.\n\n"
+        + "\n".join(f"- {warning}" for warning in warnings)
     )
 
 
@@ -786,6 +849,7 @@ def _compact_render(
     full_output: str,
     path: Path,
     due_next_section: str,
+    warnings_section: str | None = None,
 ) -> str:
     body = (item.get("issueBody") or "").rstrip("\n")
     sections = [_compact_metadata(item, pull_requests)]
@@ -799,6 +863,8 @@ def _compact_render(
         task_blocks = "\n\n".join(_task_front_matter(task) for task in tasks)
         sections.append(f"# Tasks\n\n{task_blocks}")
 
+    if warnings_section is not None:
+        sections.append(warnings_section)
     sections.append(due_next_section)
     return "\n\n".join(sections) + "\n"
 
@@ -840,13 +906,16 @@ def render(issue: str) -> tuple[str, str, Path]:
         task_blocks = "\n\n".join(_task_front_matter(task) for task in tasks)
         sections.append(f"# Tasks\n\n{task_blocks}")
 
+    warnings_section = _warnings_section(item, comments, pull_requests)
+    if warnings_section is not None:
+        sections.append(warnings_section)
     due_next_section = _due_next_section(item, comments, tasks)
     sections.append(due_next_section)
 
     full_output = "\n\n".join(sections) + "\n"
     path = Path(tempfile.gettempdir()) / f"{ref_label()}-{issue}.md"
     compact_output = _compact_render(
-        item, pull_requests, tasks, attachments, user_comments_section, full_output, path, due_next_section
+        item, pull_requests, tasks, attachments, user_comments_section, full_output, path, due_next_section, warnings_section
     )
     return full_output, compact_output, path
 

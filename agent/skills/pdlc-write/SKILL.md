@@ -6,64 +6,40 @@ argument-hint: "Fresh feature idea, or work item number to reconcile"
 
 # Write product specification
 
-Author product specifications that are clear, actionable, and suitable for implementation. Read `pdlc guide contract`. This skill owns a PDLC Work Item's `Product`, `Decisions`, and `Open Questions` sections and nothing else.
+Author a work item's `Product`, `Decisions`, and `Open Questions` sections through a source-backed interview with the driver. You draft the sections, `pdlc-product-reviewer` checks the local draft, and `pdlc post write` lands the reviewed file at `Product / Approval Required`. This skill owns those three sections and nothing else. Review runs on the local file, before anything is landed.
 
-Section format, numbering, and writing rules: [references/product-spec-format.md](references/product-spec-format.md). Read it before Step 1.
+Read `pdlc guide contract` when resolving lifecycle questions. Read [`references/product-spec-format.md`](references/product-spec-format.md) before Interview for section format, numbering, and writing rules. Use [`references/product-review-prompt.md`](references/product-review-prompt.md) as the Review dispatch template.
 
-When the artifact includes local files such as mockups — including any the
-driver supplied in this prompt — pass each one to `pdlc post write` as
-`--attachment PATH [--attachment-description TEXT]`.
-Repeat `--attachment PATH` for multiple files; a description applies only to
-the immediately preceding file. See `pdlc guide attachments`.
+## Resolve
 
-## Philosophy: the work item is a spec, not a log
+Take either a concrete feature idea with no work item yet, or an exact work item number, from the conversation. If the input is missing or ambiguous, stop and ask; never infer a work item from a title, branch, recent files, open PRs, or history.
 
-A work item states **current, correct intent** — what to build and why, not a changelog, diary, or audit trail. The record keeps history for free: the body's own revision history holds every revision, and evidence comments hold what was published, reviewed, approved, and invalidated, in order.
+A fresh idea skips straight to Interview; nothing is published until the specification passes review.
 
-- Requirements are edited **in place**. Never strike through superseded text or append "amendment" trails — that duplicates the revision history and makes the body grow forever.
-- The product evidence comment is where the *why* of a change lives, not the body.
-- Never write lifecycle state into the body. `Status`, `Gate State`, `Lifecycle`, `Slug`, and `Skipped States` are tracked fields, owned by the `pdlc` commands. No frontmatter, no state block, no identity marker.
+For a work item number, run:
 
-Keep the whole specification proportional to the feature — a well-scoped record with a dozen tasks should still be readable in one sitting once implemented. If it isn't, the detail belongs in evidence comments, not here.
+```bash
+pdlc inspect WORK_ITEM
+```
 
----
+Read the resolved `Status`, `Gate State`, `# Due Next`, and `# Work Item` body. Continue only when `Status` is `Product`; otherwise report the actual state and stop. The snapshot does not include evidence comments; read `pdlc inspect timeline WORK_ITEM` when the evidence history is needed. This step is complete when you hold either a fresh idea or a Product-stage snapshot.
 
-## The Job
+## Gate
 
-1. Receive a feature idea, or an exact work item number, from the driver.
-2. Interview the driver until the design is settled, answering from source wherever source can answer.
-3. Complete the three Product-owned sections in the scratch file.
-4. Have that file independently reviewed **before** anything is published, fixing findings in the file itself.
-5. Land the reviewed file: create the work item, or update the existing one, at `Product / Approval Required`.
+For an existing record, follow `# Due Next` for what to do, whatever produced that state:
 
-**Important:** do not design UI, break the work into tasks, technically plan, or implement. Author only the product specification.
+- Names authoring or reauthoring (`Pending`, `Changes Required`, `Stale`): reconcile the three owned sections in place against the recorded evidence.
+- Names the review procedure (`Review Required`): the spec was published without its local review. Write the published three sections to the scratch file, then go straight to Review; on a clean verdict, Land it unchanged.
+- Names user approval (`Approval Required`): re-author in place only when the driver explicitly requests a spec change in this turn. Without that request, it's a human boundary: report it and stop.
+- Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
-### Two inputs
+Any other due next result, a malformed record, or a backend error is a blocker: report it and stop.
 
-| Input | Meaning |
-|---|---|
-| A concrete feature idea, no work item yet | New record. Nothing is published until the specification passes review. |
-| An exact work item number at `Product / {Pending, Changes Required, Stale}` | Reconcile that work item's sections in place. |
-| An exact work item number at `Product / Review Required` | The spec was published without its local review. Review the published sections as the draft, then re-land them in place. |
-| An exact work item number at `Product / Approval Required`, with a driver request to change the spec | Re-author in place. `pdlc post write` returns Product to Stale itself and re-lands the reviewed spec in one call. |
+When reconciling, preserve the record's identity, `Slug`, tasks, plans, results, approved UI section, and approved product intent. Interview only where the current record and source leave a real decision unresolved. This step is complete when the authoring mode and the driver's exact follow-up are settled.
 
-Never infer either from the branch, recent files, open PRs, or conversation history. A work item at `Product / Approval Required` is a reconcile input **only** when the driver is asking for a change this turn; otherwise it is awaiting the driver's approval — report that and stop. If the named work item is not at a Product stage at all, report the state it is actually at and stop.
+## Interview
 
-When reconciling an existing record, preserve its identity, `Slug`, tasks, plans, results, approved UI section, and approved product intent. Interview only where the current work item and source leave a real decision unresolved. Normalize only the three sections this skill owns.
-
----
-
-## Step 0: Existing record preflight
-
-Skip this step for a fresh feature idea with no existing work item.
-
-When reconciling an existing record, run `pdlc inspect <WORK_ITEM>` before creating the scratch file or asking questions. Treat its `# Work Item`, work item metadata, and `# Due Next` as the current record snapshot. Continue only when `Due Next` confirms `Product.Pending`, `Product.Changes Required`, `Product.Stale`, or `Product.Review Required` (write the published sections to the scratch file and go straight to the Step 2 review) — or `Product.Approval Required` when the driver has asked this turn to change the spec (`pdlc post write` returns it to Stale itself on landing). At `Product.Decision Required`, point the driver at `pdlc guide decisions` and stop. Otherwise report the actual state and stop. Use the snapshot to preserve the record's identity and existing sections during reconciliation.
-
-The snapshot does not include evidence comments; read `pdlc inspect timeline <WORK_ITEM>` when the evidence history is needed.
-
-## Step 1: Clarifying questions
-
-Create one scratch file before the first question, with only `## Product`, `## Decisions`, and `## Open Questions` headings in that order. This is the artifact you complete in Step 2 and land in Step 3.
+Create one scratch file before the first question, named for the slug, e.g. `/tmp/pdlc-route-shape-detection-body.md`, holding only the `## Product`, `## Decisions`, and `## Open Questions` headings in that order. It is the artifact you draft, have reviewed, and land.
 
 Interview the driver relentlessly about every aspect of the feature until you reach a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one by one. Ask one question at a time, with your recommended answer.
 
@@ -81,84 +57,67 @@ Use `AskUserQuestion` when available. Otherwise format the one question with let
 
 Record each settled answer immediately in its scratch-file section — one that binds implementation becomes a **Constraint**; an alternative considered and rejected goes in **Decisions**. Do not leave it in the conversation for a later skill to reconstruct.
 
-Write the sections yourself, from the settled answers. Do not hand drafting to a sub-agent — you hold the interview, the driver's exact words, and the source you explored, none of which survives a handoff intact. The only agent this skill spawns is the Step 2 reviewer, because that review has to be independent of the drafter.
+This step is complete when every branch of the design tree is settled and each answer is recorded in the scratch file.
 
----
+## Draft
 
-## Step 2: Write the draft, then have it reviewed
+Complete the scratch file per [`references/product-spec-format.md`](references/product-spec-format.md). Write the sections yourself from the settled answers; do not hand drafting to a sub-agent. When reconciling, write the final form of only the three owned sections, using the Resolve snapshot for context.
 
-Complete the scratch file created in Step 1 per [references/product-spec-format.md](references/product-spec-format.md). It contains only `## Product`, `## Decisions`, `## Open Questions`, in that order. The reviewer and `pdlc post write` accept no other level-2 headings. Name it for the slug, e.g. `/tmp/pdlc-route-shape-detection-body.md`.
+- Edit requirements in place. Never strike through superseded text or append "amendment" trails.
+- The *why* of a change goes in the evidence body, not the spec.
+- Write no lifecycle state, frontmatter, or identity marker into the body.
+- Keep the whole specification proportional to the feature — a well-scoped record with a dozen tasks should still be readable in one sitting. Detail beyond that belongs in the evidence body.
 
-When reconciling an existing record, read the full work item for context, then write the final form of only those three owned sections. The script preserves every later-stage section unchanged.
+This step is complete when the file holds exactly the three owned headings, in order, written to the format reference.
 
-Spawn `pdlc-product-reviewer` with the exact scratch file path (and, on a re-review, the prior findings). It reviews the whole supplied draft, reads the file, edits nothing, and returns findings plus a verdict.
+## Review
 
-- **Findings** — fix them in the same file, going back to Step 1 as the finding demands, then hand the same path and the prior findings back for re-review. After two failed reconciliations, stop and put the decision to a human.
-- **Clean** — that same file is what Step 3 lands. Do not rewrite, reformat, or regenerate it; the reviewed bytes ship.
+Dispatch `pdlc-product-reviewer` with [`references/product-review-prompt.md`](references/product-review-prompt.md), the exact scratch file path, and, when reconciling, the current record snapshot. The reviewer is read-only and must review the actual file, not a summary.
 
-This is why Product is published straight to `Approval Required` — the review happens here, before publication.
+On findings, fix them in the same file, going back to Interview when a finding needs the driver, then repeat Review on the same path with the prior findings. On a clean verdict, that exact file is what Land ships; do not rewrite, reformat, or regenerate it. After two failed reconciliation passes, stop and put the decision to the driver. This step is complete only when the actual file has a clean reviewer verdict within two reconciliations.
 
----
+## Land
 
-## Step 3: Land the record
+Write only the evidence body to a local file, e.g. `/tmp/pdlc-route-shape-detection-evidence.md`, covering your scope, the reviewer's verdict and coverage boundaries, and any unresolved risk; do not add a `PDLC-*` marker. Then make exactly one call, passing the reviewed scratch file straight through as `--body`:
 
-Pass the reviewed file straight through as `--body`, and the evidence body as a file path: your scope, the reviewer's verdict and coverage boundaries, and any unresolved risk. Body only — the script stamps the marker and refuses evidence that already carries one.
+- if creating a new record, derive the slug from the title:
 
-**New record** — derive the slug and pass `--title` and `--slug`:
+  ```bash
+  pdlc post write \
+    --title "Route shape detection" \
+    --slug route-shape-detection \
+    --body /tmp/pdlc-route-shape-detection-body.md \
+    --evidence /tmp/pdlc-route-shape-detection-evidence.md
+  ```
 
-```bash
-pdlc post write \
-  --title "Route shape detection" \
-  --slug route-shape-detection \
-  --body /tmp/pdlc-route-shape-detection-body.md \
-  --evidence /tmp/pdlc-route-shape-detection-evidence.md
-```
+- if updating an existing record:
 
-`--evidence` takes a file path (a `text:<body>` one-liner is accepted but Product evidence is rarely that short). The body is taken verbatim.
+  ```bash
+  pdlc post write \
+    --work-item WORK_ITEM \
+    --body /tmp/pdlc-route-shape-detection-body.md \
+    --evidence /tmp/pdlc-route-shape-detection-evidence.md
+  ```
 
-Creates the work item, stamps `Slug`, posts evidence, sets `Product / Approval Required`. Refuses a body that is not exactly the three owned sections.
+Pass any local files the artifact includes, such as mockups — including any the driver supplied in this prompt — with `--attachment PATH`; see `pdlc guide attachments`. A failed call may already have changed the record, so keep the scratch and evidence files, report the exact error, and inspect the work item before retrying. After a successful landing, delete the scratch and evidence files because the work-item store is now authoritative. This step is complete when the command succeeds and its JSON shows `gateState: Approval Required` and the work item number.
 
-**Existing record** — pass the same reviewed three-section file with `--work-item`. The script resolves its work item, requires `Product / {Pending, Changes Required, Stale}` — or `Product / {Review Required, Approval Required}`, whose gate it resets to Stale itself first (no comment — the re-land's own Product evidence records the change) — reconstructs the full work item body with only those sections replaced, and performs one work-item body edit before it posts Product evidence and sets `Product / Approval Required`.
+## Report
 
-```bash
-pdlc post write \
-  --work-item WORK_ITEM \
-  --body /tmp/pdlc-route-shape-detection-body.md \
-  --evidence /tmp/pdlc-route-shape-detection-evidence.md
-```
+Relay the command's JSON output, plus:
 
-Never set `Approved` — the driver does that with `pdlc post approve`. On failure, keep the scratch file, report the exact failure, and inspect the work item before retrying. The scratch file is temporary input only — never leave a local product-specification document behind once landed.
+- the work item number, and whether it was created or reconciled;
+- for an existing record, the resolved gate and why it was eligible;
+- the review verdict and pass count;
+- the Open Questions left on the record and any unresolved risk;
+- that Product is now at `Approval Required` and needs driver approval.
 
----
+The report is complete when it contains the command output, reviewer result, final gate, requested human action, and every unresolved failure or risk.
 
-## Writing style
+## Boundaries
 
-The reader may be a junior developer or an AI agent:
-
-- Be explicit and unambiguous.
-- Avoid jargon, or explain it.
-- Give enough detail to understand purpose and core logic.
-- Number requirements for easy reference.
-- Use concrete examples where they help.
-
----
-
-## Checklist
-
-- [ ] Interviewed the driver branch by branch, answering from source wherever source could answer
-- [ ] Problem statement is a short paragraph stating the problem, not a solution tour
-- [ ] Incorporated the driver's answers
-- [ ] Prior art & reuse cites real file and type paths found during that exploration
-- [ ] Functional requirements are numbered, behavioural, and testable
-- [ ] Binding design decisions are Constraints (`C-*`), not smuggled into `FR-*`
-- [ ] Assumptions lists only genuinely unverified claims, omitted entirely if none
-- [ ] Non-goals define clear boundaries
-- [ ] Any diagram is authoritative rather than a restatement, uses a permitted type, labels edges with `FR-*`/`C-*`
-- [ ] Decisions are numbered entries of bold decision, rationale, then `Ref:`
-- [ ] Open Questions holds only undecided things, not unverified ones
-- [ ] Body carries no frontmatter, no lifecycle state, no identity marker
-- [ ] The scratch file contains exactly `## Product`, `## Decisions`, `## Open Questions`, in that order
-- [ ] `pdlc-product-reviewer` reviewed the scratch body file itself and its verdict is clean
-- [ ] The file landed is the reviewed file, not a regenerated copy
-- [ ] Evidence holds the comment body only — scope, verdict, coverage boundaries, unresolved risk
-- [ ] Landed at `Product / Approval Required` via `pdlc post write`
+- Author only the product specification: do not design UI, break the work into tasks, technically plan, or implement.
+- Keep drafting with yourself and review judgement with `pdlc-product-reviewer`; the reviewer is the only agent this skill spawns.
+- Use the CLI as the only work-item interface; lifecycle state, evidence markers, and every section other than `Product`, `Decisions`, and `Open Questions` belong to other owners.
+- Leave production source and tests untouched.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions.
+- Preserve unrelated staged, unstaged, and untracked work.

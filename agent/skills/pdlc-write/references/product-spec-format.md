@@ -5,6 +5,8 @@ A work item is a title plus named sections. Write **no frontmatter** — the bod
 **Title:** human-readable and free to reword later; it is never identity.
 **Slug:** short kebab-case, derived from the title, stamped once at creation as the work item's `Slug` and never rewritten.
 
+Write for a reader who may be a junior developer or an AI agent: be explicit and unambiguous, avoid jargon or explain it, give enough detail to understand purpose and core logic, and use concrete examples where they help.
+
 Every section is a level-2 heading whose text is its exact name, and it runs until the next level-2 heading. That heading is the only anchor the commands have, so use these spellings verbatim and structure everything inside a section at level 3 or deeper:
 
 ```md
@@ -62,7 +64,7 @@ Two to four sentences: who is affected, what they cannot do today, and why it ma
 Specific, measurable objectives (bullet list).
 
 ### Prior art & reuse
-What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Step 1 exploration — it is the written record of that search, and it is what saves `pdlc-plan` from repeating it.
+What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Interview exploration — it is the written record of that search, and it is what saves `pdlc-plan` from repeating it.
 
 Cite real file paths and type names, not descriptions:
 
@@ -98,7 +100,7 @@ Be explicit and unambiguous. "Works correctly" is bad; "shows a confirmation dia
 "Must be fast", "should be accessible", and "reasonable memory use" are not requirements — they are the absence of one. Give the bound or drop the line. Accessibility and localization behaviour is journey-level and belongs to the `UI` section, not here.
 
 ### Constraints
-Binding design decisions that implementation is not free to relitigate. Not testable behaviours, but as binding as requirements — this is where decisions made during the Step 1 interview go.
+Binding design decisions that implementation is not free to relitigate. Not testable behaviours, but as binding as requirements — this is where decisions made during the Interview go.
 
 Number them `C-1`, `C-2`, … so tasks can reference them alongside FRs:
 
@@ -125,7 +127,7 @@ This section is temporary, and its presence is a signal. `pdlc-plan` verifies ev
 
 **Omit the heading entirely when there is nothing to assume.** Do not write "None." — an empty section reads downstream as unverified work still outstanding and forces a spike with nothing to check. Leaving it out is the honest signal.
 
-Be strict about what qualifies. If you could have settled it by reading source during Step 1, it was never an assumption — go and check it now. If nobody has decided it yet, it is an Open Question.
+Be strict about what qualifies. If you could have settled it by reading source during the Interview, it was never an assumption — go and check it now. If nobody has decided it yet, it is an Open Question.
 
 ### Success metrics
 How success will be measured — "route details open with no perceptible delay after tap", "multi-day plan completes in under three minutes".
