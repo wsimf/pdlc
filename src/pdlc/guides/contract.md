@@ -163,8 +163,9 @@ It is also the evidence marker for CI reconciliation findings that must be surfa
 `PDLC-AUTOAPPROVED` records a workflow-selected approval bypass within the selected rework policy.
 `PDLC-INVALIDATED` records a driver return to `Stale`.
 
-For `Changes Required`, `Stale`, and `Decision Required`, `pdlc inspect` finds the newest matching evidence marker and renders it under `### Evidence`.
-If no matching evidence exists, it reports that evidence could not be identified and stops autonomous continuation.
+For `Changes Required` and `Stale`, `pdlc inspect` summarises under `### Open Changes` every change request the stage has not addressed since it last published; `pdlc inspect changes` prints their full text.
+For `Decision Required`, it renders the newest `PDLC-DECISION` under `### Evidence`.
+If there is nothing to show, it reports that evidence could not be identified and stops autonomous continuation.
 
 A delivery task's `## Technical Plan` and `## Implementation` comments are task-local exceptions and have no `PDLC-*` marker.
 Task plan evidence is replaceable during re-planning; task implementation evidence and pull-request registration follow the task command contracts.

@@ -134,7 +134,7 @@ class DueNextMatrixE2ETests(FileBackendTest):
                     expected = self._expected(stage, gate, 1, record, task_ids)
                     self.assertEqual(_rendered_due_next(result.stdout), expected)
 
-    def test_changes_required_inlines_a_real_review_comment(self):
+    def test_changes_required_summarises_a_real_review_comment(self):
         for stage in STAGES:
             with self.subTest(stage=stage):
                 record = self._fresh_number()
@@ -147,16 +147,12 @@ class DueNextMatrixE2ETests(FileBackendTest):
                 )
                 result = self.invoke("inspect", record, "--full")
                 self.assertEqual(result.code, 0, result.stderr)
-                template = self._expected(stage, "Changes Required", 0, record, task_ids)
-                expected = template.replace(
-                    "This evidence was posted at {when}.\n"
-                    "{the newest PDLC-REVIEW or PDLC-DECISION comment's verbatim text, marker and metadata header stripped}",
-                    f"This evidence was posted at {timeline_formatted_at('2026-01-05T14:30:00Z')}.\nTighten section 2.",
+                expected = self._expected(stage, "Changes Required", 0, record, task_ids).replace(
+                    "{OPEN_CHANGES_SUMMARY}", f"1 open change request for {stage}: Review findings."
                 )
-                self.assertNotIn("{when}", expected)
                 self.assertEqual(_rendered_due_next(result.stdout), expected)
 
-    def test_stale_inlines_a_real_invalidation_comment(self):
+    def test_stale_summarises_a_real_invalidation_comment(self):
         for stage in STAGES:
             with self.subTest(stage=stage):
                 record = self._fresh_number()
@@ -165,14 +161,9 @@ class DueNextMatrixE2ETests(FileBackendTest):
                 self.add_invalidation(record, stage)
                 result = self.invoke("inspect", record, "--full")
                 self.assertEqual(result.code, 0, result.stderr)
-                template = self._expected(stage, "Stale", 0, record, task_ids)
-                expected = template.replace(
-                    "This evidence was posted at {when}.\n"
-                    "{the newest PDLC-INVALIDATED comment's verbatim text}",
-                    f"This evidence was posted at {timeline_formatted_at('2026-04-01T00:00:00Z')}.\n"
-                    f"Invalidated stage: {stage}\ndetail",
+                expected = self._expected(stage, "Stale", 0, record, task_ids).replace(
+                    "{OPEN_CHANGES_SUMMARY}", f"1 open change request for {stage}: Invalidation."
                 )
-                self.assertNotIn("{when}", expected)
                 self.assertEqual(_rendered_due_next(result.stdout), expected)
 
     def test_decision_required_inlines_a_real_decision_comment(self):

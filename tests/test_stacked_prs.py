@@ -306,6 +306,48 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
 
+    def _implementation_comments(self) -> list[dict]:
+        lines = self.task_comments_text(70, 701).splitlines()
+        return [c for c in map(json.loads, filter(None, lines)) if c["body"].startswith("## Implementation")]
+
+    def test_relanding_a_closed_task_edits_its_implementation_comment_in_place(self):
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            first = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"), "--close")
+            self.assertEqual(first.code, 0, first.stderr)
+            original = self._implementation_comments()
+            metadata = self.meta(70)
+            metadata["fields"]["Gate State"] = "Changes Required"
+            (self.records_dir() / "70" / "meta.json").write_text(json.dumps(metadata) + "\n")
+            second = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it, with the review fix.\n"))
+        self.assertEqual(second.code, 0, second.stderr)
+        comments = self._implementation_comments()
+        self.assertEqual(len(comments), 1)
+        self.assertEqual(comments[0]["url"], original[0]["url"])
+        self.assertIn("with the review fix", comments[0]["body"])
+        self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
+
+    def test_relanding_retires_older_duplicate_implementation_comments(self):
+        self._seed()
+        task_dir = self.records_dir() / "70" / "tasks" / "701"
+        comments = [
+            {"body": "## Technical Plan\n\nImplement the core behavior.\n", "url": "t#comment-1"},
+            {"body": "## Implementation\n\nFirst attempt.\n", "url": "t#comment-2"},
+            {"body": "## Implementation\n\nSecond attempt.\n", "url": "t#comment-3"},
+        ]
+        task_dir.joinpath("comments.jsonl").write_text("".join(json.dumps(c) + "\n" for c in comments))
+        host = Mock()
+        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.evidence_file("Final.\n"), "--close")
+        self.assertEqual(result.code, 0, result.stderr)
+        remaining = self._implementation_comments()
+        self.assertEqual([c["url"] for c in remaining], ["t#comment-3"])
+        self.assertIn("Final.", remaining[0]["body"])
+        self.assertIn("## Technical Plan", self.task_comments_text(70, 701))
+
     def test_submits_and_registers_the_task_pr(self):
         self._seed()
         host = Mock()

@@ -35,7 +35,8 @@ Each entry is either answered or deferred:
 Each `defer` becomes its own PDLC work item at `Product / Pending` (resolved by
 slug first, so a re-run after a mid-way failure reuses it rather than
 double-creating), linked back to the origin with an Open Questions pointer. A
-single `PDLC-RESOLUTION` comment records every outcome, and the gate moves to
+single `PDLC-RESOLUTION` comment, opening with a `Resolved stage: <stage>` line,
+records every outcome, and the gate moves to
 `Changes Required` — the stage's owner then reconciles against it with a
 deferred point now out of scope (Implementation and Testing re-publish for a
 fresh independent review; Verification re-runs its audit).
@@ -121,8 +122,10 @@ def _defer(origin: str, stage: str, defer: dict) -> dict:
     return {"number": number, "title": title, "reused": False}
 
 
-def _resolution_body(entries: list[dict], deferred: dict[int, dict]) -> str:
-    blocks = []
+# The leading `Resolved stage:` line attributes the resolution to its stage for
+# `pdlc inspect changes`.
+def _resolution_body(stage: str, entries: list[dict], deferred: dict[int, dict]) -> str:
+    blocks = [f"Resolved stage: {stage}"]
     for index, entry in enumerate(entries, start=1):
         lines = [f"### {entry['decision'].strip()}"]
         if "answer" in entry:
@@ -159,7 +162,7 @@ def post_decision(issue: str, manifest_path: Path, attachment_inputs: list[dict]
         if "defer" in entry:
             deferred[index] = _defer(issue, stage, entry["defer"])
 
-    post_comment(issue, _resolution_body(entries, deferred), "RESOLUTION")
+    post_comment(issue, _resolution_body(stage, entries, deferred), "RESOLUTION")
     set_gate(record["id"], target.gate.value)
 
     return {

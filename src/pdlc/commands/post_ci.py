@@ -11,8 +11,9 @@ DESCRIPTION
 
   - checks still running          -> no change; reports "still running"
   - checks green / none tracked   -> Stage / Approval Required
-  - checks red                    -> posts a note under the stage's own
-                                     marker and Stage / Changes Required
+  - checks red                    -> posts a PDLC-REVIEW note opening with
+                                     `CI failed stage: <stage>` and naming the
+                                     failed PRs, and Stage / Changes Required
 
 Mechanical: it records an external fact, makes no judgement, and carries no
 identity check. The autonomous loop runs it once CI finishes; a driver may run
