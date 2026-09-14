@@ -33,8 +33,6 @@ Follow `# Due Next` for what to do, whatever produced that state, including a re
 - Says tasks were invalidated (`Stale`): upstream intent changed; reconcile the reopened task against the open changes before implementing it.
 - Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
-When `### Open Changes` lists a CI failure, or a Verification bounce for a red check, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Scope through Land; it ends at Publish, then Report.
-
 Any other due next result belongs to another owner (`pdlc-review`, `pdlc post ci`, or the driver's approval): report it and stop. A skipped stage, malformed record, unavailable workflow, or backend error is a blocker: report it and stop.
 
 Carry the driver's follow-up verbatim. This step is complete when the gate, its evidence, and the exact follow-up are in hand for the dispatch.
@@ -47,7 +45,7 @@ The driver may narrow the run: "do TASK-004 next" is `--task TASK-004`, "just th
 pdlc inspect implement WORK_ITEM [--task TASK-NNN | --phase core|ui]
 ```
 
-`## Next Task` names the single eligible task with its `branch:` and `stackSetup:` line. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
+`## Next Task` names the single eligible task with its `branch:` and `stackSetup:` line. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
 
 Settle every `## Judgment Required` line from the task body and the record's comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one. Keep `## Remaining` for the report.
 
