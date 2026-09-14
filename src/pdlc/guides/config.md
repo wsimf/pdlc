@@ -69,7 +69,7 @@ name = "file"
 | `project` | Required for the `azure` backend | — | Azure DevOps project; also the reference label on evidence. |
 | `record_type` | Optional | `Product Backlog Item` | Work-item type used for PDLC records. |
 | `open_state` | Optional | `To Do` | State written when a record opens. |
-| `closed_state` | Optional | `Done` | State written when a record closes. |
+| `closed_state` | Optional | `Done` | State written when `pdlc post complete` closes a record. |
 | `task_open_state` | Optional | `open_state` | Open state for delivery tasks, when their type uses a different vocabulary. |
 | `task_closed_state` | Optional | `closed_state` | Closed state for delivery tasks. `Removed` and `Closed` always count as closed. |
 | `task_in_progress_state` | Optional | Unset | Accepted but not currently used. |

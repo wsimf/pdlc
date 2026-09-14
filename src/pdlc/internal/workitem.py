@@ -298,6 +298,10 @@ def upsert_tasks(parent: str, tasks: list[dict], existing: list[Task]) -> list[T
     return get_backend().upsert_tasks(str(parent), validate_task_inputs(tasks), existing)
 
 
+def close_record(ref: str) -> None:
+    get_backend().close_record(str(ref))
+
+
 def close_task(task_ref: str) -> None:
     get_backend().close_task(str(task_ref))
 

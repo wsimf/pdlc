@@ -630,6 +630,11 @@ class WorkItemBackendTest(GitHubHostTest):
         self.backend.close_task("11")
         self.assertTrue(any(call[0][:2] == ["issue", "close"] for call in self.gh.calls))
 
+    def test_close_record_closes_the_issue(self) -> None:
+        self.gh.gh("issue", "close", response="")
+        self.backend.close_record("10")
+        self.assertTrue(any(call[0][:3] == ["issue", "close", "10"] for call in self.gh.calls))
+
     def test_reopen_task_reopens_the_sub_issue(self) -> None:
         self.gh.gh("issue", "reopen", response="")
         self.backend.reopen_task("11")
@@ -656,6 +661,13 @@ class CodeHostTest(GitHubHostTest):
 
         with self.assertRaisesRegex(PdlcError, "registered pull request #9"):
             self.host.pull_requests_by_number([5, 9, 4])
+
+    def test_pr_dict_carries_the_head_commit(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _pr_dict
+        base = {"number": 5, "title": "t", "url": "u", "state": "MERGED", "isDraft": False,
+                "headRefName": "feat", "mergedAt": "2026-01-01T00:00:00Z", "statusCheckRollup": []}
+        self.assertEqual(_pr_dict({**base, "headRefOid": "abc123"})["headSha"], "abc123")
+        self.assertEqual(_pr_dict(base)["headSha"], "")
 
     def test_checks_state_handles_check_runs_and_status_contexts(self) -> None:
         from pdlc.hosts.lib.github.code_host import _checks_state

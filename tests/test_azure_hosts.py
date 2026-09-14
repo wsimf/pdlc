@@ -193,6 +193,14 @@ class StateWriteTest(AzureHostTest):
         AzureWorkItemBackend().set_skipped_states("7", "")
         self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {SKIPPED_FIELD: ""})
 
+    def test_close_record_moves_the_record_to_the_configured_closed_state(self):
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.configure(azure_closed_state="Closed", azure_task_closed_state="Done")
+        AzureWorkItemBackend().close_record("7")
+        call = self.az.calls[-1]
+        self.assertEqual(call[call.index("--id") + 1], "7")
+        self.assertEqual(call[call.index("--state") + 1], "Closed")
+
     def test_write_body_replaces_the_description_and_nothing_else(self):
         self.az.az("boards", "work-item", "show", response=RECORD)
         AzureWorkItemBackend().write_body("7", "## Product\n\nRewritten.\n")

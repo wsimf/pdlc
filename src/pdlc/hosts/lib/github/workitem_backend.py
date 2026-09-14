@@ -52,6 +52,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def set_skipped_states(self, item_id: str, value: str) -> None:
         github_project.set_skipped_states(item_id, value)
 
+    def close_record(self, ref: str) -> None:
+        run_gh(["issue", "close", str(ref), *repo_args()])
+
     # --- body ---
 
     def _raw_body(self, ref: str) -> str:

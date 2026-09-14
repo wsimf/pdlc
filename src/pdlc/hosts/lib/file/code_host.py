@@ -6,7 +6,7 @@ work item and its tasks (see `internal.pull_requests`), not by this file.
     $PDLC_HOME/records/<n>/pull_requests.json
       [ { "number": 148, "title": "...", "url": "...", "state": "OPEN",
           "isDraft": false, "branch": "feat/x", "mergedAt": null,
-          "checks": "PENDING" } ]
+          "checks": "PENDING", "headSha": "<optional commit>" } ]
 """
 
 from __future__ import annotations

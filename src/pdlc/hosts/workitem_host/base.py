@@ -77,6 +77,11 @@ class WorkItemBackend(ABC):
     @abstractmethod
     def set_skipped_states(self, item_id: str, value: str) -> None: ...
 
+    @abstractmethod
+    def close_record(self, ref: str) -> None:
+        """Close the record upstream (the host's own open/closed state, not
+        the PDLC fields) once it is locked at Complete. Idempotent."""
+
     # --- body ---
 
     @abstractmethod
