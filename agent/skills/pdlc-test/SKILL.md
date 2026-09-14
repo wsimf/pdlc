@@ -6,55 +6,57 @@ argument-hint: "Parent work item number to test"
 
 # Test a PDLC implementation
 
-This skill does not write or run tests itself. It reads one PDLC record's **whole** implemented scope and verifies acceptance coverage across the feature as a unit — every in-scope requirement and user journey, end to end. Per-task unit coverage is already committed by `pdlc-implement` on each task's branch as that task lands; this stage is the feature-level acceptance pass on top of the completed task PR stack, not a re-run of per-task testing. It works out from task Results and touched source exactly which requirements and seams still need acceptance coverage, dispatches `pdlc-test-writer` once with a self-contained brief, and publishes the stage at `Review Required`. The test writer commits its coverage on the current branch — the top task branch in the stack — so the top task PR carries the acceptance suite.
+Verify acceptance coverage across the whole implemented feature — every in-scope requirement and user journey, end to end, on top of the per-task coverage each task already carries. You build the requirement-to-source traceability map, `pdlc-test-writer` writes the coverage and commits it on the current branch, so the top task PR carries the acceptance suite, and `pdlc post test` publishes the stage at `Review Required`. This skill never writes or runs tests itself.
 
-Read `pdlc guide contract` before dispatching. This skill never records a review outcome and never sets a gate to `Approved`.
+Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/test-writer-prompt.md`](references/test-writer-prompt.md) as the dispatch template.
 
-Pass any local files testing produces, such as screenshots — including any the driver supplied in this prompt — to `pdlc post test` with `--attachment PATH`; see `pdlc guide attachments`.
+## Resolve
 
-## Required input
+Require the exact parent work-item number from the conversation. If it is missing or ambiguous, stop and ask; never infer it from a title, branch, file, PR, or history.
 
-Require an exact parent work item number. Check the current conversation for an unambiguous one before asking; never infer it from the branch, recent files, open PRs, or history alone.
-
----
-
-## Step 1: Resolve the record and the testable scope
+Run:
 
 ```bash
 pdlc inspect test WORK_ITEM
 ```
 
-`## Readiness` already resolves whether coverage is due. Not ready → stop, report the reason verbatim, name the actual owner. Testing is gated behind implementation, not a substitute for it.
+`## Readiness` resolves whether coverage is due. Not ready → stop, report the reason verbatim, and name the actual owner.
 
-`## Testable Scope` already lists every task that closed with a `## Implementation` comment, its linked PRs, and the files those PRs actually touched — straight from the code host, not from the comment's prose, since implementation routinely touches files the comment never mentions. Read the current source at each seam to confirm the real API — never infer a signature from requirement wording or a task title. If a task's implementation comment names behaviour that doesn't correspond to any real source change, flag it as suspect and report it rather than writing tests against a claim. Nothing implemented → stop and report that.
+`## Testable Scope` lists every task that closed with a `## Implementation` comment, its linked PRs, and the files those PRs actually touched. Read the current source at each seam to confirm the real API — never infer a signature from requirement wording or a task title. If a task's implementation comment names behaviour that doesn't correspond to any real source change, flag it as suspect and report it rather than writing tests against a claim. Nothing implemented → stop and report that.
 
-If the driver explicitly asks for ad hoc coverage on a record not due for `pdlc-test`, you may build and dispatch the map, but say plainly it sits outside the stage contract and will not satisfy the Testing gate — and do not publish.
+If the driver explicitly asks for ad hoc coverage on a record not due for `pdlc-test`, you may build and dispatch the map, but say plainly it sits outside the stage contract and will not satisfy the Testing gate. Do not run Publish for it: report the coverage added and leave the stage exactly as found.
 
-## Step 2: Handle the gate
+This step is complete when `## Readiness` reads ready and every seam in `## Testable Scope` has been confirmed in source or flagged.
 
-`Pending` (first pass), `Changes Required` (a reviewer found missing/failing coverage — read `pdlc inspect changes WORK_ITEM`, that's this pass's scope), and `Stale` (implementation changed under existing coverage — reconcile it) are the only gates `## Readiness` lets through.
+## Gate
 
-When `pdlc inspect changes WORK_ITEM` lists a CI failure, or a Verification bounce for a red check, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Steps 3-6; it ends by running Step 6, then Step 7.
+`## Readiness` lets through only these gates:
 
-## Step 3: Build the traceability map
+- **`Pending`** — the first pass.
+- **`Changes Required`** — a reviewer found missing or failing coverage. Read `pdlc inspect changes WORK_ITEM`; that is this pass's scope. When it lists a CI failure, or a Verification bounce for a red check, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Map through Check; it ends at Publish, then Report.
+- **`Stale`** — implementation changed under existing coverage; reconcile it.
 
-Produce one map, in plain terms, that the test writer can act on without reading the record:
+This step is complete when the gate and this pass's scope are known.
+
+## Map
+
+Produce one traceability map, in plain terms, that the test writer can act on without reading the record:
 
 `FR-* / C-* / acceptance criterion → expected behaviour → source file, type, and seam → why it needs coverage`
 
 Include every in-scope `FR-*` and task acceptance criterion. Include a `C-*` constraint only when it creates an observable invariant a test can actually assert. Note coverage boundaries you already know about — anything needing a device, a fixture, a permission, or manual verification.
 
-This map is the deliverable of the stage as much as the tests are: the contract requires requirement-to-source traceability, not just a green suite. `pdlc post test` persists it verbatim into the `PDLC-TESTING` evidence under a `## Traceability` heading (Step 6), and that persisted copy is the exact artifact `pdlc-testing-reviewer` audits — so write it to a file you can pass through unchanged.
+`pdlc-testing-reviewer` audits this map as the stage's deliverable alongside the tests, so write it to a file you can pass to Publish unchanged. This step is complete when every in-scope requirement has a map row or a stated coverage boundary.
 
-## Step 4: Dispatch `pdlc-test-writer`
+## Dispatch
 
-Spawn once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the Step 3 traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
+Spawn `pdlc-test-writer` once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
 
-`pdlc-test-writer` commits its coverage on the current branch **and pushes it**, so the top task PR in the stack — which tracks that branch — carries the tests. There is no separate test PR.
+The writer commits and pushes its coverage on the current branch, so the top task PR carries the tests; there is no separate test PR.
 
-Wait for its report. Do not write, edit, or run tests yourself, and do not spawn a second test author for the same scope.
+Wait for its report. Do not write, edit, or run tests yourself, and do not spawn a second test author for the same scope. This step is complete when its report is in and its commits are pushed.
 
-## Step 5: Re-read the evidence before publishing
+## Check
 
 Do not take the report on trust:
 
@@ -62,14 +64,11 @@ Do not take the report on trust:
 - Confirm every in-scope requirement is either covered or recorded as an explicit coverage boundary.
 - A red test left deliberately to expose a real defect is a finding for the driver, not a reason to withhold the work. Report it plainly and let them decide whether implementation must be reopened.
 
-## Step 6: Publish and stop at Review Required
+This step is complete when the PR, its checks, and every requirement's coverage or boundary have been re-read.
 
-```bash
-pdlc post test WORK_ITEM /tmp/pdlc-test-evidence.md \
-  --traceability /tmp/pdlc-traceability.md
-```
+## Publish
 
-Write the evidence file from `pdlc-test-writer`'s report, holding only the compact durable result: the result, changed coverage or uncovered requirement IDs, the PR/commit, and only defects or limitations that affect the next stage. No file inventory, repeated passing-test detail, or historical findings; inspection recovers those from the source and PR. Body only — strip any `PDLC-*` marker line the sub-agent returned.
+Write the evidence file from `pdlc-test-writer`'s report, holding only the compact durable result: the result, changed coverage or uncovered requirement IDs, the PR/commit, and only defects or limitations that affect the next stage. No file inventory, repeated passing-test detail, or historical findings. Supply the body only; strip any `PDLC-*` marker line the sub-agent returned.
 
 ```
 Result: acceptance coverage added; PR #153 carries 41 tests.
@@ -77,36 +76,30 @@ Coverage changes: all in-scope requirements covered except FR-9.
 Exception: FR-9 needs a physical device and remains uncovered.
 ```
 
-The traceability map is not prose: pass it through `--traceability` unchanged so it lands in the evidence intact for the reviewer. A successful call registers the current branch's PR and lands the stage at `Review Required`. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
+Pass the traceability map through `--traceability` unchanged:
 
-Do not publish for ad hoc or partial scope (Step 1): report the coverage added and leave the stage exactly as found, since publishing would misrepresent what was verified.
+```bash
+pdlc post test WORK_ITEM /tmp/pdlc-test-evidence.md \
+  --traceability /tmp/pdlc-traceability.md
+```
 
-## Step 7: Report
+Pass any local files testing produced, such as screenshots, or the driver supplied, with `--attachment PATH`; see `pdlc guide attachments`. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
 
-Report to the driver: the result, changed coverage or uncovered requirement IDs, the PR/commit, any defects or limitations that affect the next stage, and that the stage is now `Review Required` and needs review before verification.
+If the command fails, keep the evidence and map files, report the exact error, and re-read the record before retrying. This step is complete when the command's JSON shows `gateState: Review Required` and the registered `pullRequest`.
 
-Never claim the record is done from coverage alone, and never set `Approved`.
+## Report
 
----
+Relay the command's JSON output, plus the result, changed coverage or uncovered requirement IDs, the PR/commit, any defects or limitations that affect the next stage, and that the stage now needs review before verification.
+
+If the workflow stopped early, report only the exact blocking condition. The report is complete when it contains the command output, the coverage outcome, the final gate, and the requested next action.
 
 ## Boundaries
 
 - Do not edit production source, the parent work item body, or any delivery task — never their requirements, plans, or Results.
 - Do not edit fixtures, package manifests, project files, agents, or other skills.
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
-- Do not create or switch branches — coverage is committed and pushed on the current branch, onto the top task PR in the stack.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete` — driver-only.
-- Do not write lifecycle state into any work item body — those fields are script-owned.
-- Preserve unrelated staged, unstaged, and untracked local work.
+- Do not create or switch branches; coverage is committed and pushed on the current branch.
+- Use the CLI as the only work-item interface, and never write lifecycle state into any work item body.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. Never set `Approved`, and never claim the record is done from coverage alone.
+- Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated coverage, traceability, or test-run validation unless `pdlc-test-writer` actually reported it.
-
-## Checklist
-
-- [ ] `## Readiness` from `pdlc inspect test` reports ready; gate was `Pending`, `Changes Required`, or `Stale`
-- [ ] Scope came from `## Testable Scope`, cross-checked against real source at each seam
-- [ ] The traceability map covers every in-scope FR, criterion, and observable constraint, and was passed through `--traceability` so it persists in the Testing evidence
-- [ ] No coverage was dispatched for unimplemented requirements
-- [ ] Coverage was committed and pushed on the current branch; `pdlc post test` registered the current branch's PR on the record and its checks were re-read
-- [ ] Coverage boundaries are recorded rather than passed off as covered
-- [ ] Evidence holds only the durable result, changed coverage, evidence, and exceptions
-- [ ] Published exactly once, landing the stage at `Review Required`

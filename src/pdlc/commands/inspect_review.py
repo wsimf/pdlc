@@ -6,7 +6,7 @@ USAGE
     pdlc inspect review WORK_ITEM
 
 DESCRIPTION
-    Step 1-2 of pdlc-review in one call. Checks whether review is
+    Checks whether review is
     actually due right now, then — only if it is — names the exact artifact
     under review and the reviewer agent that owns it, so the agent never has to
     re-apply the Status→artifact→reviewer table by hand. Also flags a stage that

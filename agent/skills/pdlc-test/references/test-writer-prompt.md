@@ -1,6 +1,6 @@
 # Test-writer dispatch prompt
 
-`pdlc-test` Step 4 fills the placeholders below and spawns `pdlc-test-writer`
+`pdlc-test` Dispatch fills the placeholders below and spawns `pdlc-test-writer`
 once with the result. The agent knows nothing about the PDLC pipeline — give it
 behaviour and files, not stage jargon. Resolve the two leading lines from `pdlc
 inspect capability test-authoring` and `pdlc inspect capability test-framework`
@@ -25,7 +25,7 @@ Write and run the coverage directly and return one report to the calling `pdlc-t
 
 ## Traceability map
 
-<the Step 3 map, in full — one row per requirement:>
+<the traceability map, in full — one row per requirement:>
 
 `FR-* / C-* / acceptance criterion → expected behaviour → source file, type, and
 seam → why it needs coverage`

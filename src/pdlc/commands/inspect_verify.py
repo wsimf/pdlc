@@ -6,8 +6,7 @@ USAGE
     pdlc inspect verify WORK_ITEM
 
 DESCRIPTION
-    Step 1 and Step 2 of pdlc-verify in one call, and the prep
-work for Step 4. Checks whether the Work Item is actually ready to audit
+    Checks whether the Work Item is actually ready to audit
 right now, then — only if it is — gives a resuming verification pass the
 full picture it needs to avoid redoing settled work: every task and PR's
 raw completion state, any still-unresolved PR review comment, the evidence
@@ -21,7 +20,7 @@ never by the agent querying the work-item store or `git`, or re-deriving it
 from the raw work item body itself.
 
 1. Readiness: resolves the Work Item's `Status`/`Gate State` and applies the
-   same table pdlc-verify's Step 1 applies. Not `Status: Verification`, or a `Gate State` other than `Pending`
+   verification readiness table. Not `Status: Verification`, or a `Gate State` other than `Pending`
    / `Changes Required` / `Stale`, stops right here with why — nothing below
    is computed, since none of it matters if this pass shouldn't be running.
    The one exception is `Approval Required`: that gate means a clean pass is
@@ -85,7 +84,7 @@ from the raw work item body itself.
     - Deferred — TASK-004 postponed to a follow-up work item, accepted because it's out of scope for this release
 
     Linked PRs not yet merged and green — expected at Verification; the stack
-    merges after a clean pass. Use them to pick the Step 5 diff base, not as a blocker:
+    merges after a clean pass. Use them to pick the cumulative review's diff base, not as a blocker:
 
     - #148 OPEN checks: PENDING
 
@@ -166,7 +165,7 @@ Journeys to review reads
 
     ## Journeys to review
 
-    Not applicable — no UI tasks; record journeys and UX as not applicable and skip Step 4.
+    Not applicable — no UI tasks; record journeys and UX as not applicable and skip the `user-journey-reviewer` dispatch.
 
 when no task is tagged `isUI`, or
 
@@ -298,7 +297,7 @@ def _ui_journeys(body: str) -> dict[str, str]:
 # the agent is only using this to fill the user-journey-reviewer template.
 def _journeys_to_review_section(tasks: list[dict], body: str, reuse_items: list[dict]) -> list[str]:
     if not any(task["isUI"] for task in tasks):
-        return ["## Journeys to review", "", "Not applicable — no UI tasks; record journeys and UX as not applicable and skip Step 4."]
+        return ["## Journeys to review", "", "Not applicable — no UI tasks; record journeys and UX as not applicable and skip the `user-journey-reviewer` dispatch."]
 
     ui_journeys = _ui_journeys(body)
     journey_items = [item for item in reuse_items if item["section"] == "User Journeys"]
@@ -360,7 +359,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
     # PR merge and CI state are not a Verification gate: the stack is audited
     # before it lands and a clean pass is what unblocks the merge, so requiring
     # merge here would deadlock against that. They are surfaced only as context
-    # for choosing the Step 5 diff base. Completion owns the merged-and-green bar.
+    # for choosing the cumulative review's diff base. Completion owns the merged-and-green bar.
     pending_prs = [
         f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
@@ -370,7 +369,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
         [
             "",
             "Linked PRs not yet merged and green — expected at Verification; the stack "
-            "merges after a clean pass. Use them to pick the Step 5 diff base, not as a blocker:",
+            "merges after a clean pass. Use them to pick the cumulative review's diff base, not as a blocker:",
             "",
             *pending_prs,
         ]

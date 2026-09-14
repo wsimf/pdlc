@@ -1,6 +1,6 @@
 # Breakdown-reviewer dispatch prompt
 
-`pdlc-tasks` Step 5 fills the placeholders below and spawns `pdlc-tasks-reviewer`
+`pdlc-tasks` Review fills the placeholders below and spawns `pdlc-tasks-reviewer`
 with the result, before the UI fragment or task breakdown is landed. Read-only:
 it returns findings and a verdict, and changes nothing.
 

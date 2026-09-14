@@ -10,8 +10,7 @@ FLAGS
     --phase core|ui      restrict the scan to the CORE or UI half; cannot combine with --task
 
 DESCRIPTION
-    Step 1 and the mechanical half of Step 3 of pdlc-implement in one
-    call. Resolves whether Implementation is due for a record and, if so, the single
+    Resolves whether Implementation is due for a record and, if so, the single
     next delivery task to implement.
 
 `## Readiness` reports whether the stage is due (Status Implementation, gate
