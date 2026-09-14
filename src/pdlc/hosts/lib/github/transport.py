@@ -36,6 +36,14 @@ def repo_args() -> list[str]:
     return ["--repo", repository] if repository else []
 
 
+def assignee_args() -> list[str]:
+    """`gh issue create` flags assigning a new Issue to the configured
+    `[backend.github] assigned_to` login, or to the authenticated user when
+    that is unset — `gh` resolves `@me` itself, so neither costs a lookup."""
+    configured = (get_config().github_assigned_to or "").strip()
+    return ["--assignee", configured if configured and configured.casefold() != "@me" else "@me"]
+
+
 def owner_repository() -> tuple[str, str]:
     repository = get_config().repository
     if not repository or "/" not in repository:

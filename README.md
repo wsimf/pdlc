@@ -153,7 +153,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.github] repository` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. |
 | `[backend.github] project_number` | unset; required for GitHub | GitHub Projects number. |
 | `[backend.github] project_owner` | unset; required for GitHub | GitHub Projects owner. |
-| `[backend.github] assigned_to` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. |
+| `[backend.github] assigned_to` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. New records and task Issues are assigned to this login, or to the authenticated user when unset. |
 | `[backend.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
 | `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
 | `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
@@ -162,7 +162,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
 | `[backend.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
 | `[backend.azure] task_in_progress_state` | unset | Optional. No work-item fallback — set explicitly if your process has an in-progress `Task` state you want recorded. |
-| `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. |
+| `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. New records and tasks are assigned to this identity, or to the signed-in `az` account when unset. |
 | `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
 | `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
 | `[code_host] pr_title_format` | unset | Optional format string for each task PR title when `pdlc post implement-task` submits the stack. Placeholders: `{task.title}` (the delivery task's title, with its `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the parent's bare number), `{work.type}` (`feature`/`bug`). Unset uses the bare stripped task title; the `[CORE]`/`[UI]` tag is dropped either way. |
@@ -215,7 +215,7 @@ pr_title_format = "[{work.number}] {task.title}"   # optional; each task PR titl
 repository = "OWNER/REPOSITORY"
 ```
 
-`assigned_to` is optional and inactive unless set: with it, `pdlc next` and the queue scan only surface records assigned to that identity (`@me` is Azure's `@Me` macro). The GitHub backend has the same optional `assigned_to` filter under `[backend.github]`.
+`assigned_to` is optional: when set, `pdlc next` and the queue scan only surface records assigned to that identity (`@me` is Azure's `@Me` macro), and new records and tasks are assigned to it; when unset, the queue is unfiltered and new records and tasks are assigned to the signed-in account. The GitHub backend has the same optional `assigned_to` under `[backend.github]`.
 
 Only `organization` and `project` are required by the backend itself. `repository` is required by the *code host*, not the backend — the two are validated independently, so `name = "none"` under `[code_host]` needs neither it nor the `[backend.github]` table.
 

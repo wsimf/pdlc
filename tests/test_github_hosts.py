@@ -465,6 +465,8 @@ class SubIssueUpsertTest(GitHubHostTest):
         self.assertEqual(results[0]["action"], "created")
         self.assertEqual(results[0]["number"], 11)
         self.assertTrue(self.gh.graphql_variables("addSubIssue"))
+        create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
+        self.assertEqual(create_call[create_call.index("--assignee") + 1], "@me")
 
 
 class PrRegistryFormatTest(unittest.TestCase):
@@ -607,6 +609,24 @@ class WorkItemBackendTest(GitHubHostTest):
         self.assertEqual(record, {"id": "PVTI_new", "number": 42, "url": "https://github.com/wsimf/pdlc/issues/42"})
         create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
         self.assertNotIn("--type", create_call)
+
+    def _created_assignee(self) -> str:
+        self.gh.gh("issue", "create", response="Creating issue\nhttps://github.com/wsimf/pdlc/issues/42\n")
+        self.gh.gh("project", "item-add", response={"id": "PVTI_new"})
+        self.backend.create("WORK-42 Title", "## Product\n", "title")
+        create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
+        return create_call[create_call.index("--assignee") + 1]
+
+    def test_a_new_record_is_assigned_to_the_authenticated_user_by_default(self) -> None:
+        self.assertEqual(self._created_assignee(), "@me")
+
+    def test_a_new_record_is_assigned_to_the_configured_login(self) -> None:
+        self.configure(github_assigned_to="ada")
+        self.assertEqual(self._created_assignee(), "ada")
+
+    def test_a_configured_at_me_assigns_the_authenticated_user(self) -> None:
+        self.configure(github_assigned_to="@Me")
+        self.assertEqual(self._created_assignee(), "@me")
 
     def test_create_rejects_unparseable_issue_url(self) -> None:
         self.gh.gh("issue", "create", response="Creating issue\nnot-a-url\n")
