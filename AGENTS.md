@@ -29,13 +29,13 @@ Skill and sub-agent instructions describe the CLI as a contract, never as an imp
 
 Do not repeat in a skill or sub-agent anything the command's `--help` already documents — flags, input forms, output fields, refusal reasons, sample output. Name the command the step uses and let the agent run `pdlc <command> --help` for the rest; a duplicated copy drifts from the CLI.
 
-Do not explain PDLC itself to the agent running a skill or sub-agent — what the lifecycle is, how gates, markers, or evidence work, or why a rule exists. Tell it only what it can use PDLC for in its own task: which command gets it the information or transition it needs, and what to do with the result. The `pdlc` entry skill is the one exception: it gives a short model of the lifecycle, gates, and human boundaries, and links `pdlc guide contract` for the rest.
+Do not explain PDLC itself to the agent running a skill or sub-agent — what the lifecycle is, how gates, markers, or evidence work, or why a rule exists. Tell it only what it can use PDLC for in its own task: which command gets it the information or transition it needs, and what to do with the result. The `pdlc` entry skill is the one exception: it gives a short model of work items, workflows, gates, and human boundaries without naming any workflow's stages, and links `pdlc guide contract` for the rest.
 
 Skills, sub-agents, and `src/pdlc/guides/` pass command input as a file path or `text:<body>`, never as `-` for stdin, so every documented invocation works the same across shells and platforms. The CLI still accepts `-` as a convenience for humans, and command `--help` keeps documenting it.
 
 ## PDLC workflow
 
-The fixed lifecycle is `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`. Gate state controls whether work is pending, under review, awaiting approval, blocked on CI, stale, or complete.
+The lifecycle is data-driven: a work item's type selects its workflow, and the workflow definition supplies the stages, gates, transitions, and owners. The Feature pipeline is the only workflow today, and more will follow, so never assume a stage order up front. Stage skills belong to the stages they own, but the `pdlc` and `pdlc-loop` skills, the guides, and routing code must not name a workflow's stages or predict the next stage from the current one; they follow `# Due Next`. Gate state controls whether work is pending, under review, awaiting approval, blocked on CI, stale, or complete.
 
 For lifecycle behavior, read `pdlc guide contract` first. For a work-item orientation, use the read-only `agent/skills/pdlc/SKILL.md`; for queue execution, use `agent/skills/pdlc-loop/SKILL.md`; for a stage, use that stage's `SKILL.md` and only its triggered references.
 

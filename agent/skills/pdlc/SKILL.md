@@ -11,16 +11,14 @@ This skill is the entry point to PDLC. It starts a new work item from an idea, o
 
 ## What PDLC is
 
-PDLC (Product Development Life Cycle) takes one product change from intent to completion through a fixed lifecycle:
-
-`Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`
+PDLC (Product Development Life Cycle) takes one product change from intent to completion, driven entirely by the data on its work item.
 
 - **Work item.** Each change is one parent work item. Its body holds the current specification — what to build, not a log of what happened — and its delivery tasks, pull requests, and evidence comments record the work done against it.
-- **Stages.** Each stage has one owning skill that produces one artifact: `pdlc-write` the Product specification, `pdlc-tasks` the UI section and delivery tasks, `pdlc-plan` the technical plans, `pdlc-implement` the code, `pdlc-test` the acceptance coverage, `pdlc-verify` the verification report, and `pdlc-complete` the final lock. `pdlc-review` runs the independent review where one is due. [`references/stage-ownership.md`](references/stage-ownership.md) has the full map.
-- **Gates.** Within a stage, the `Gate State` says where the work stands: `Pending` to author, `Review Required` for independent review, `Changes Required` to rework, `Stale` to reconcile after an upstream change, `CI Pending` while checks run, `Approval Required` or `Decision Required` for the driver, and `Approved` once it passes.
+- **Workflow.** The work item's type selects the workflow it follows, and that workflow defines its stages, the gates within each stage, the transitions between them, and which skill, command, or human owns each step. Different work types follow different workflows, so never assume a stage order or predict the next stage from the current one.
+- **Gates.** The `Gate State` says where the current stage's work stands: being authored, under review, needing rework, waiting on checks, or waiting on the driver.
 - **Humans.** Approvals, decisions, skips, invalidations, and completion belong to the driver. Everything else can run without them.
 - **State.** The work-item store is the system of record, and the `pdlc` CLI is its only interface. `Status`, `Gate State`, tasks, registered PRs, and recorded evidence are machine-checked; never infer them from prose, checkboxes, branch names, or recent files.
-- **Routing.** `pdlc inspect WORK_ITEM` resolves the record and prints `# Due Next`, the one instruction for what happens now. Follow it rather than predicting the next step from the stage name.
+- **Routing.** `pdlc inspect WORK_ITEM` resolves the record through its workflow and prints `# Due Next`: the one instruction for what happens now, naming the skill, command, or human that owns it. Follow it.
 
 `pdlc guide contract` has the full semantics; read it when a lifecycle question comes up that `pdlc inspect` does not answer.
 
@@ -46,9 +44,9 @@ Never infer a work item number or a feature idea from the branch, recent files, 
 
 Invoke the `pdlc-write` skill with the idea. If the driver supplied mockups or other local files with the idea, pass their paths to `pdlc-write` so it can attach them; write any pasted image to a local path first.
 
-Relay `pdlc-write`'s report — the work item number, the review outcome, the Open Questions left on the record, and the gate. Then stop and wait for the driver: their approval of Product enters Continue mode for this work item.
+Relay `pdlc-write`'s report — the work item number, the review outcome, the Open Questions left on the record, and the gate. Then stop and wait for the driver: their approval enters Continue mode for this work item.
 
-This mode is complete when the report is relayed and the driver has been asked to approve Product.
+This mode is complete when the report is relayed and the driver has been asked for the action it requests.
 
 ## Orient mode
 
@@ -67,7 +65,7 @@ Treat the work item as **current intent only**. Treat Git history as the record 
 2. **Read the evidence comments when needed.** `pdlc inspect timeline WORK_ITEM` — chronological and grouped by stage. Use `pdlc inspect comments WORK_ITEM --page N` for the raw discussion. Reconcile against work item state; flag disagreement.
 3. **Read the delivery tasks.** Already classified in `pdlc inspect`'s `# Tasks` section. Pull full bodies with `pdlc inspect task DELIVERY_TASK [...]` only where the summary leaves a real question about dependencies, HITL/AFK, or acceptance criteria.
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.
-5. **Check the worktree and relevant history.** Always run `git status --short`. From Implementation onward, run `git log --oneline --decorate --all --grep='<work item/task/file terms>'`.
+5. **Check the worktree and relevant history.** Always run `git status --short`. Once the record has delivery tasks with results or linked PRs, run `git log --oneline --decorate --all --grep='<work item/task/file terms>'`.
 6. **Check for source drift.** Use `rg` and direct reads for concrete types, methods, files, and flags named by the parent work item or evidence timeline; when step 5 inspected Git history, use it to explain when they changed.
 7. **Read `# Warnings` and `# Due Next`** directly, without re-deriving them. `# Warnings` names each way the gate claims more than the record's evidence shows.
 
@@ -85,11 +83,7 @@ Skipped States: <list, or None>
 We are building <one-sentence product/architecture summary>.
 
 Stage artifacts:
-- Product: <present and covering what, or absent>
-- UI: <required | not required | absent>
-- Tasks: <n total, n closed, n open>
-- Technical Plan: <n of n incomplete tasks planned>
-- Testing / Verification: <recorded evidence, or none>
+- <stage>: <its artifact, present and covering what, or absent> (one line per stage in the evidence timeline, plus the current stage)
 
 Delivery tasks:
 - #<n> WORK-NNN-TASK-NNN <title> — <open|closed>, plan <yes|no>, result <yes|no>, PR <link|none>
@@ -99,12 +93,12 @@ Evidence on record:
 
 Drift and anomalies:
 - <work item or evidence claim> but source, Git history, or PR state shows <truth at path:line or commit>
-- <stale gate, invalid transition, artifact changed after approval, task closed with no `## Implementation` comment, evidence disagreeing with work item state>
+- <stale gate, invalid transition, artifact changed after approval, task closed without its recorded result, evidence disagreeing with work item state>
 - <each `# Warnings` bullet, verbatim>
 - `None found` only if checks in steps 2, 3, and 5–7 found no disagreement
 
 Git history:
-- <relevant commits and what they explain, or Not applicable — pre-implementation>
+- <relevant commits and what they explain, or Not applicable — no code changes yet>
 
 Due next: <Status>.<Gate State> → <owning specialist skill, or human>
 
@@ -119,7 +113,7 @@ This mode is complete when the report is delivered; then stop and wait for the d
 
 Continue mode starts after an Orient or Start report, when the driver explicitly asks to continue or approves the pending stage. Use the same work item number from that report; never infer or switch records. If the driver's message approves the pending stage, record it per [Human gates](#human-gates) before the first pass.
 
-The driver asked you to continue so they don't have to step in. Keep going until a human is genuinely required: a clean pass is never a reason to stop, and summarising between stages or asking "shall I continue?" defeats the point. `Pending`, `Review Required`, `Changes Required`, `Stale`, `CI Pending`, and auto-approved gates all mean keep going.
+The driver asked you to continue so they don't have to step in. Keep going until a human is genuinely required: a clean pass is never a reason to stop, and summarising between stages or asking "shall I continue?" defeats the point. Whenever `# Due Next` names a skill or command to run, keep going.
 
 Run one pass at a time:
 
