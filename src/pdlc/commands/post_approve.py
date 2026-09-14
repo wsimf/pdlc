@@ -3,9 +3,10 @@
     pdlc post approve - record human approval and advance to the next stage
 
 USAGE
-    pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
+    pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--force] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
+    --force                             approve even when the stage's evidence does not support it; the override is recorded
     --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
     --attachment-description TEXT       description for the --attachment immediately before it
 
@@ -18,6 +19,19 @@ DESCRIPTION
     instruction — this is a procedural boundary, not an authentication
     check, since identity cannot distinguish a human from an agent acting
     on their behalf.
+
+    Also refuses (exit 1, nothing posted) when the stage's own evidence does
+    not support the approval: its latest publication (PDLC-<marker>) must be
+    on record, no change request may be open since it (see
+    `pdlc inspect changes`), and Implementation and Testing — reviewed only
+    after they publish — need a passing review of that publication. The error
+    names which of these is missing; publish or review the stage first.
+
+    --force overrides only that evidence refusal, for a driver with a genuine
+    reason to approve anyway; every other refusal above still applies. The
+    PDLC-APPROVED comment then ends with a line naming the evidence that was
+    missing, and the JSON carries `forced: true`, so the override stays on the
+    record.
 """
 
 from __future__ import annotations
@@ -27,10 +41,12 @@ import sys
 
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
+from pdlc.domain.changes import approval_gap
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.workitem import (
+    comments_for_issue,
     current_actor,
     is_stage_skipped,
     item_for_issue,
@@ -42,7 +58,7 @@ from pdlc.internal.workitem import (
 )
 
 
-def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
+def approve(issue: str, evidence: str, attachment_inputs: list[dict], force: bool = False) -> dict:
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)
     stage = item_status(record)
@@ -59,10 +75,15 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
         if pipeline.completion_policy is not None and pipeline.completion_policy.is_boundary(state):
             raise PdlcError(f"use pdlc post complete after {stage} approval") from None
         raise PdlcError(str(error)) from None
+    gap = approval_gap(comments_for_issue(issue), pipeline, stage)
+    if gap is not None and not force:
+        raise PdlcError(f"cannot approve {stage}: {gap}")
 
     login = current_actor()
 
     evidence_body = resolve_text(evidence, label="approval evidence")
+    if gap is not None:
+        evidence_body = f"{evidence_body.rstrip()}\n\nApproved with --force over missing evidence: {gap}.\n"
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     post_comment(issue, evidence_body, "APPROVED")
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
@@ -75,6 +96,7 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
         "from": stage,
         "to": target.stage,
         "gateState": target.gate.value,
+        "forced": gap is not None,
         "attachments": attachments,
     }
 
@@ -90,13 +112,15 @@ def main(argv: list[str] | None = None) -> int:
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
+    force = "--force" in args
+    args = [argument for argument in args if argument != "--force"]
     if len(args) != 2:
-        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
+        print("usage: pdlc post approve WORK_ITEM EVIDENCE_FILE|text:STR|- [--force]", file=sys.stderr)
         return 1
     issue, evidence = args
 
     try:
-        result = approve(issue, evidence, attachment_inputs)
+        result = approve(issue, evidence, attachment_inputs, force)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

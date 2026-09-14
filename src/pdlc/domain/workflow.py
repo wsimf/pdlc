@@ -405,28 +405,42 @@ class Pipeline:
 
         - Approved on a non-terminal stage: no pdlc command ever leaves a gate
           there (Approved is reserved for the terminal stage), so it can only
-          mean the stage was just approved. Replays that approval — to the
-          completion boundary's own Event.COMPLETED write when the stage is
-          the completion boundary, otherwise to the next stage's Pending.
+          mean the stage was just approved. Replays that approval to the next
+          stage's Pending. At the completion boundary it returns to the
+          boundary's own Approval Required instead: completion is gated by the
+          completion policy's readiness checks, which only `pdlc post complete`
+          runs, so a stray Approved can never complete a record by itself.
+          This reads the state alone; the replay is also held to the stage
+          evidence `pdlc post approve` checks, which only the caller holding
+          the record's comments can apply (`heal_item` lands the stage's own
+          Approval Required when `approval_gap` finds one).
         - CI Pending on a stage that isn't CI-gated: that stage's own work
           never depends on CI, so its outcome is irrelevant — advance
           straight to the stage's own result gate, ignoring red/green.
         - Review Required on a stage with no independent review policy: no
           pdlc command ever persists that gate there since there is nothing
           to dispatch a reviewer for, so it can only mean review was skipped
-          entirely — advance straight to Approval Required.
+          entirely — land where a clean outcome for that stage lands: CI
+          Pending on a CI-gated stage (so the PR stack's CI is still checked
+          before any human approval), else Approval Required.
+
+        A heal never lands a state that the equivalent `pdlc post` command
+        would refuse to produce from the same evidence, so it can never skip a
+        guard that command enforces.
         """
         try:
             stage = self.stage(state.stage)
         except ValueError:
             return None
-        if stage.terminal:
+        # A Completed lifecycle on an active stage has no single sane reading,
+        # and every target below would still fail validation.
+        if stage.terminal or state.lifecycle == Lifecycle.COMPLETED:
             return None
 
         if state.gate == Gate.APPROVED:
-            source = State(state.stage, Gate.APPROVAL_REQUIRED, state.lifecycle)
+            source =State(state.stage, Gate.APPROVAL_REQUIRED, state.lifecycle)
             if self.completion_policy is not None and self.completion_policy.is_boundary(source):
-                return self.next_state(source, Event.COMPLETED)
+                return source
             try:
                 return self.next_state(source, Event.APPROVED)
             except ValueError:
@@ -438,7 +452,7 @@ class Pipeline:
             return State(stage.name, stage.result_gate, state.lifecycle)
 
         if state.gate == Gate.REVIEW_REQUIRED and stage.review is None:
-            return State(stage.name, Gate.APPROVAL_REQUIRED, state.lifecycle)
+            return State(stage.name, Gate.CI_PENDING if stage.ci_gated else Gate.APPROVAL_REQUIRED, state.lifecycle)
 
         return None
 
@@ -459,6 +473,8 @@ class Pipeline:
         if gate == Gate.APPROVAL_REQUIRED:
             return Route(Action.HUMAN_APPROVAL, False, "explicit human approval is required")
         if gate == Gate.REVIEW_REQUIRED:
+            if stage.reviewed_before_publication and stage.action is not None:
+                return Route(stage.action, stage.autonomous, "review is due")
             return Route(Action.REVIEW, True, "review is due")
         if gate in _WORK_GATES and stage.action is not None:
             return Route(stage.action, stage.autonomous, stage.reason or f"{stage.name} work is due")

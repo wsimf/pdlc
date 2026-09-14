@@ -44,20 +44,32 @@ class SkipInvalidateTests(FileBackendTest):
 
     def test_next_heals_a_stray_approved_gate_on_an_active_stage(self):
         self.seed_record(76, "Technical Plan", "Approved")
+        self.seed_publication(76, "Technical Plan")
         result = self.next("--work-item", 76)
         self.assertEqual(result.front_matter("action"), "pdlc-implement")
         self.assertEqual(self.fields(76)["Status"], "Implementation")
         self.assertEqual(self.fields(76)["Gate State"], "Pending")
         self.assertIn("PDLC-APPROVED", self.comments_text(76))
 
-    def test_next_heals_a_stray_approved_gate_at_the_completion_boundary(self):
+    def test_next_heals_a_stray_approved_gate_at_the_completion_boundary_without_completing(self):
+        # A bare record `pdlc post complete` would refuse must not reach
+        # Complete through the heal either.
         self.seed_record(77, "Verification", "Approved")
         result = self.next("--work-item", 77)
-        self.assertEqual(result.front_matter("action"), "none")
-        self.assertEqual(self.fields(77)["Status"], "Complete")
-        self.assertEqual(self.fields(77)["Gate State"], "Approved")
-        self.assertEqual(self.fields(77)["Lifecycle"], "Completed")
-        self.assertIn("PDLC-APPROVED", self.comments_text(77))
+        self.assertEqual(result.front_matter("action"), "human-approval")
+        self.assertEqual(self.fields(77)["Status"], "Verification")
+        self.assertEqual(self.fields(77)["Gate State"], "Approval Required")
+        text = self.comments_text(77)
+        self.assertIn("Verification.Approved was found directly", text)
+        self.assertNotIn("PDLC-APPROVED", text)
+
+    def test_continue_heals_a_stray_approved_gate_at_the_completion_boundary_without_completing(self):
+        self.seed_record(81, "Verification", "Approved")
+        result = self.invoke("continue_", 81)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["to"], "Verification.ApprovalRequired")
+        self.assertEqual(self.fields(81)["Status"], "Verification")
+        self.assertNotIn("PDLC-APPROVED", self.comments_text(81))
 
     def test_next_heals_ci_pending_on_a_stage_that_is_not_ci_gated(self):
         self.seed_record(78, "UI", "CI Pending")
@@ -71,6 +83,7 @@ class SkipInvalidateTests(FileBackendTest):
 
     def test_continue_heals_a_stray_approved_gate(self):
         self.seed_record(79, "Technical Plan", "Approved")
+        self.seed_publication(79, "Technical Plan")
         result = self.invoke("continue_", 79)
         self.assertEqual(result.code, 0, result.stderr)
         body = json.loads(result.stdout)

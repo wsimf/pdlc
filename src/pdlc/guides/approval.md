@@ -28,7 +28,7 @@ pdlc post approve <WORK_ITEM> text:<evidence>
 
 Pass a file path instead of `text:` for a longer body. Pass `--attachment PATH [--attachment-description TEXT]` for any sign-off artifact the driver supplied; see `pdlc guide attachments`.
 
-On success the command prints JSON with `approved: true`, `from` (the approved stage), `to` (the next stage), and `gateState` (`Pending`). On failure it exits non-zero with `pdlc: <reason>` and leaves the record untouched: the gate is not `Approval Required`, the stage is declared in `Skipped States`, or the stage is `Verification`. Report the reason and stop rather than retrying.
+On success the command prints JSON with `approved: true`, `from` (the approved stage), `to` (the next stage), and `gateState` (`Pending`). On failure it exits non-zero with `pdlc: <reason>` and leaves the record untouched: the gate is not `Approval Required`, the stage is declared in `Skipped States`, the stage is `Verification`, or the stage's evidence does not support approval — no publication of the stage is on record, a change request is open since its latest publication (`pdlc inspect changes <WORK_ITEM>` lists them), or an Implementation or Testing publication has no passing review. Report the reason and stop rather than retrying.
 
 Completion criterion: inspect the work item and confirm a `PDLC-APPROVED` evidence comment and `Status` at the next stage with `Gate State` `Pending`.
 

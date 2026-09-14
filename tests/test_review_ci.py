@@ -136,10 +136,41 @@ class CiPendingGateTests(FileBackendTest):
         self.assertIn("1 open change request for Implementation: CI failure.", self.invoke("inspect", 27, "--full").stdout)
         self.assertIn("Failed checks: #149 (FAILURE)", self.invoke("inspect_changes", 27).stdout)
 
-    def test_no_linked_pr_advances_straight_through(self):
+    def test_a_clean_review_with_no_registered_pr_holds_ci_pending(self):
+        # Implementation publishes through its PRs: none registered means no
+        # CI was checked, not that there is nothing to wait on.
         self.seed_record(28, "Implementation", "Review Required")
         result = self.invoke("post_review", 28, "approval-required", self.evidence_file())
-        self.assertEqual(result.json["gateState"], "Approval Required")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["gateState"], "CI Pending")
+        self.assertEqual(result.json["ci"]["state"], "missing")
+        self.assertEqual(self.state(28), ("Implementation", "CI Pending"))
+
+    def test_post_ci_refuses_a_pull_request_stage_with_none_registered(self):
+        for number, stage in ((29, "Implementation"), (30, "Testing")):
+            with self.subTest(stage=stage):
+                self.seed_record(number, stage, "CI Pending")
+                result = self.invoke("post_ci", number)
+                self.assertEqual(result.code, 1)
+                self.assertIn(f"pdlc: {stage} has no registered pull request, so no CI was checked", result.stderr)
+                self.assertIn("pdlc post attach-pr", result.stderr)
+                self.assertEqual(self.state(number), (stage, "CI Pending"))
+                self.assertEqual(self.comments_text(number), "")
+
+    def test_registered_prs_with_no_checks_configured_still_pass(self):
+        self.seed_record(31, "Testing", "CI Pending")
+        self.green_pr(31, number=931, checks="NONE")
+        result = self.invoke("post_ci", 31)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## CI Not Tracked", result.stdout)
+        self.assertEqual(self.state(31), ("Testing", "Approval Required"))
+
+    def test_verification_with_no_registered_pr_still_passes(self):
+        # Verification ships no PR of its own; the rule is per stage.
+        self.seed_record(32, "Verification", "CI Pending")
+        result = self.invoke("post_ci", 32)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.state(32), ("Verification", "Approval Required"))
 
 
 class ChurnGateTests(FileBackendTest):
@@ -161,6 +192,7 @@ class ChurnGateTests(FileBackendTest):
 
     def test_clean_testing_review_autoapproves_across_stage_bounces(self):
         self.seed_record(65, "Testing", "Review Required")
+        self.green_pr(65)
         self.add_rework_review(65)
         self.add_rework_review(65, "Testing")
         result = self.invoke("post_review", 65, "approval-required", self.evidence_file())

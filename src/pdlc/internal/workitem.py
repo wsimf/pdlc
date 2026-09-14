@@ -8,6 +8,7 @@ backend and a swap is one env var.
 
 from __future__ import annotations
 
+from pdlc.domain.changes import approval_gap
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Lifecycle, Pipeline, State, WorkType
@@ -92,18 +93,33 @@ def set_state(item_id: str, status: str, gate: str, lifecycle: str) -> None:
     get_backend().set_state(item_id, status, gate, lifecycle)
 
 
-# Writes a `pipeline.heal()` correction: a comment explaining the correction
-# (reusing the APPROVED marker when healing a stray Approved gate, since that
-# is exactly the evidence a real approval would have left) and the healed
-# state. Shared by `pdlc next`'s self-heal side effect and `pdlc continue`.
-def write_healed_state(item: dict, issue: str, source: State, target: State) -> dict:
-    marker = "APPROVED" if source.gate == Gate.APPROVED else None
-    post_comment(issue, f"{source.notation} was found directly; healed to {target.notation}.", marker)
+# Applies a `pipeline.heal()` correction and returns the healed state, or None
+# when `source` is not healable. A stray Approved is held to the evidence
+# `pdlc post approve` checks (`approval_gap`): when that command would refuse,
+# the record lands on its own stage's Approval Required instead of replaying
+# an approval, and the comment names what is missing. Writes a comment
+# explaining the correction (reusing the APPROVED marker when a stray Approved
+# gate is replayed into the next stage, since that is exactly the evidence a
+# real approval would have left; a heal that stays on its own stage replays no
+# approval) and the healed state. Shared by `pdlc next`'s self-heal side
+# effect and `pdlc continue`.
+def heal_item(item: dict, issue: str, pipeline: Pipeline, source: State) -> State | None:
+    target = pipeline.heal(source)
+    if target is None:
+        return None
+    note = ""
+    if source.gate == Gate.APPROVED and target.stage != source.stage:
+        gap = approval_gap(comments_for_issue(issue), pipeline, source.stage)
+        if gap is not None:
+            target = State(source.stage, Gate.APPROVAL_REQUIRED, source.lifecycle)
+            note = f" {source.stage} cannot be approved yet: {gap}."
+    marker = "APPROVED" if source.gate == Gate.APPROVED and target.stage != source.stage else None
+    post_comment(issue, f"{source.notation} was found directly; healed to {target.notation}.{note}", marker)
     set_state(item["id"], target.stage, target.gate.value, target.lifecycle.value)
     item["Status"] = target.stage
     item["Gate State"] = target.gate.value
     item["Lifecycle"] = target.lifecycle.value
-    return item
+    return target
 
 
 def set_gate(item_id: str, gate: str) -> None:

@@ -41,7 +41,7 @@ def _raw_blocks(stage: str) -> dict[str, list[str]]:
         bodies = []
         for body in re.findall(r"```\n(.*?)```", rest, re.DOTALL):
             body = body.rstrip("\n")
-            body = body.replace(f"{{Stage.{stage}.skill}}", STAGES[stage].skill or "")
+            body = body.replace(f"{{Stage.{stage.replace(' ', '')}.skill}}", STAGES[stage].skill or "")
             body = body.replace("{REVIEW_SKILL}", REVIEW_SKILL_TEXT)
             bodies.append(body)
         blocks[gate] = bodies
@@ -188,6 +188,32 @@ class DueNextMatrixE2ETests(FileBackendTest):
                 )
                 self.assertNotIn("{when}", expected)
                 self.assertEqual(_rendered_due_next(result.stdout), expected)
+
+    def test_next_prints_the_same_due_next_as_inspect_and_its_action_agrees(self):
+        # `pdlc next` may heal or skip the record first, so `inspect` runs after it
+        # and must render the identical section for the state `next` routed.
+        for stage in STAGES:
+            for gate in SIMPLE_GATES + EVIDENCE_GATES:
+                with self.subTest(stage=stage, gate=gate):
+                    record = self._fresh_number()
+                    self.seed_record(record, stage, gate)
+                    self._seed_tasks(record, stage)
+                    # Implementation's seeded tasks already register a green PR.
+                    if gate == "CI Pending" and stage != "Implementation":
+                        self.green_pr(record, number=self._fresh_number())
+                    routed = self.next("--work-item", record)
+                    self.assertEqual(routed.code, 0, routed.stderr)
+                    inspected = self.invoke("inspect", record, "--full")
+                    self.assertEqual(inspected.code, 0, inspected.stderr)
+                    due_next = _rendered_due_next(inspected.stdout)
+                    self.assertEqual(_rendered_due_next(routed.stdout), due_next)
+                    action = routed.front_matter("action") or ""
+                    if action == "pdlc-post-ci":
+                        self.assertIn(f"`pdlc post ci {record}`", due_next)
+                    elif action.startswith("pdlc-"):
+                        self.assertIn(f"Invoke {action} skill", due_next)
+                    else:
+                        self.assertIn(action, ("human-input", "human-approval", "human-decision"))
 
     def _append_comment(self, record: int, body: str, when: str) -> None:
         log = self.records_dir() / str(record) / "comments.jsonl"

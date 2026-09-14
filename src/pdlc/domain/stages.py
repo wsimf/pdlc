@@ -87,6 +87,10 @@ class Stage:
     # Whether this stage's Review Required outcome must pass through CI
     # Pending before Approval Required, rather than going straight there.
     ci_gated: bool = False
+    # Whether this stage publishes through registered pull requests, so its
+    # CI gate always has a stack to check: with none registered, CI Pending
+    # holds rather than passing as nothing to wait on.
+    publishes_pull_requests: bool = False
     # Whether a driver may skip this stage entirely via Event.SKIPPED.
     skippable: bool = True
     # Whether a driver request to change this artifact re-enters its owning
@@ -106,3 +110,12 @@ class Stage:
     # "what do I run to redo this stage" from data instead of special-casing
     # a stage by name.
     skill: str | None = None
+
+    @property
+    def reviewed_before_publication(self) -> bool:
+        """Whether the owning skill runs this stage's review on local files
+        before landing, so publication goes straight to Approval Required. A
+        persisted Review Required here means the artifact was published
+        without that local review, and the owning skill (not `pdlc-review`)
+        reviews and re-lands it."""
+        return self.review is not None and self.result_gate == Gate.APPROVAL_REQUIRED

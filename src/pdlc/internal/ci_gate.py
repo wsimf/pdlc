@@ -10,6 +10,11 @@ makes no judgement, so the autonomous loop resolves it unattended.
 
 On green, a record that has already been reworked within the churn cap skips the
 human approval step entirely (see churn_gate) and lands on the next stage's Pending.
+
+A stage that publishes through pull requests (Implementation, Testing) with none
+registered reports "missing" and holds `CI Pending`: no stack means no CI was
+checked, not that there is nothing to wait on. Only a stage that ships no PR of its
+own (Verification) passes with none registered.
 """
 
 from __future__ import annotations
@@ -29,7 +34,8 @@ _PENDING = {"PENDING", "EXPECTED", "IN_PROGRESS", "QUEUED", "WAITING", "REQUESTE
 def ci_state(issue: str) -> tuple[str, list[dict]]:
     """One of "pending", "red", "green", "untracked", plus the pull requests it
     was read from. "untracked" means no registered PR, or none with CI
-    configured — there is nothing to wait on, so the caller advances."""
+    configured — there is nothing to wait on, so the caller advances (see
+    `resolve_ci_gate` for a stage that must have registered PRs)."""
     pull_requests = record_pull_requests(issue)
     if not pull_requests:
         return "untracked", []
@@ -56,13 +62,16 @@ def peek_ci_state(issue: str) -> str:
 def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State) -> dict:
     """Reconcile a CI-gated stage's `CI Pending` record against live CI.
     Caller has already confirmed the gate; this only reads the outcome and
-    moves the gate."""
+    moves the gate. "pending" and "missing" (a pull-request stage with none
+    registered) leave it at `CI Pending`."""
     stage = pipeline.stage(source.stage)
     state, pull_requests = ci_state(issue)
+    if not pull_requests and stage.publishes_pull_requests:
+        state = "missing"
 
-    if state == "pending":
+    if state in ("pending", "missing"):
         target = pipeline.next_state(source, Event.CI_RECONCILED, Outcome.CHECKS_PENDING)
-        return {"state": "pending", "changed": False, "gateState": target.gate.value}
+        return {"state": state, "changed": False, "gateState": target.gate.value}
 
     if state == "red":
         failed = ", ".join(

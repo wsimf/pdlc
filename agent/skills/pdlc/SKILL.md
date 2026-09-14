@@ -66,7 +66,7 @@ No reference is required for ordinary orientation when `pdlc inspect` provides e
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.
 5. **Check the worktree and relevant history.** Always run `git status --short`. From Implementation onward, run `git log --oneline --decorate --all --grep='<work item/task/file terms>'`.
 6. **Check for source drift.** Use `rg` and direct reads for concrete types, methods, files, and flags named by the parent work item or evidence timeline; when step 6 inspected Git history, use it to explain when they changed.
-7. **Read `# Due Next`** directly — it already applied `Status`/`Gate State` and any skips. Don't re-derive it.
+7. **Read `# Warnings` and `# Due Next`** directly — `# Due Next` already applied `Status`/`Gate State` and any skips, so don't re-derive it; `# Warnings`, present only when the gate claims more than the record's evidence shows, names each disagreement.
 
 Then report. Fill every section — write `None` explicitly rather than omitting one:
 ```md
@@ -96,6 +96,7 @@ Evidence on record:
 Drift and anomalies:
 - <work item or evidence claim> but source, Git history, or PR state shows <truth at path:line or commit>
 - <stale gate, invalid transition, artifact changed after approval, task closed with no `## Implementation` comment, evidence disagreeing with work item state>
+- <each `# Warnings` bullet, verbatim>
 - `None found` only if checks in steps 3 and 5–7 found no disagreement
 
 Git history:
@@ -116,10 +117,11 @@ Run this loop one pass at a time:
 1. Run `pdlc inspect <work-item>` and read its `# Due Next` section. Re-read the record rather than predicting the next action from the previous pass.
 2. Act on the instruction `# Due Next` gives:
    - **Invoke a skill** (a `pdlc-*` stage skill or `pdlc-review`): invoke it with the work item number, carrying any `### Open Changes`, `### Evidence`, `### Next Pending Task`, or `### Testable Scope` it names. The specialist re-inspects the record and owns its stage work.
-   - **Call `pdlc next <id>`**: run it; it corrects the state and routes onward.
+   - **Call `pdlc next <id>`**: run it; it corrects the state and routes onward, printing the corrected record's `# Due Next`.
+   - **Call `pdlc post ci <id>`**: run it; it records the settled CI outcome and moves the gate.
 3. When that finishes, return to step 1.
 
-Stop the loop when `# Due Next` says the work item cannot continue autonomously or asks the user for something: pending user input (Product authoring, which needs `pdlc-write` run interactively), pending user approval, pending user decision, a Changes Required or Stale whose evidence is missing or unclear, or `This work item has been completed.` Also stop on a controller error, malformed or ambiguous state, a specialist blocker/failure, or a pass that returns the same `Due next:` line for the same record without a status change. Report every pass, the specialist result, the resulting state, the stop reason, and the exact human action required. Never approve, skip, invalidate, record a decision, or complete a record during Continue mode unless the driver explicitly authorizes that exact transition in the current turn.
+Stop the loop when `# Due Next` says the work item cannot continue autonomously or asks the user for something: pending user input (Product authoring, which needs `pdlc-write` run interactively), pending user approval, pending user decision, a Changes Required or Stale whose evidence is missing or unclear, or `This work item has been completed.` Also stop on a `# Warnings` section, a controller error, malformed or ambiguous state, a specialist blocker/failure, or a pass that returns the same `Due next:` line for the same record without a status change. Report every pass, the specialist result, the resulting state, the stop reason, and the exact human action required. Never approve, skip, invalidate, record a decision, or complete a record during Continue mode unless the driver explicitly authorizes that exact transition in the current turn.
 
 ### Human gates
 

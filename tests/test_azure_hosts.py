@@ -518,6 +518,25 @@ class CommentTest(AzureHostTest):
         self.assertIn("commentId=42", " ".join(args))
         self.assertEqual(reference, f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7?discussionId=42")
 
+    def test_a_comment_read_back_can_be_edited_and_deleted_by_its_url(self):
+        # `comments` surfaces each comment's REST `url`, which is what a re-plan
+        # hands back as `planCommentUrl` and invalidation hands to delete.
+        self.az.invoke("wit", "comments", response={"comments": [
+            {"id": 15680861, "text": "## Technical Plan\n\nold",
+             "url": f"{ORGANIZATION}/{PROJECT}/_apis/wit/workItems/7/comments/15680861"},
+        ]})
+        backend = AzureWorkItemBackend()
+        url = backend.comments("7")[0]["url"]
+
+        reference = backend.edit_comment("7", url, "updated plan")
+        self.assertIn("commentId=15680861", " ".join(self.az.calls[-1]))
+        self.assertEqual(reference, f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7?discussionId=15680861")
+
+        backend.delete_comment("7", url)
+        args = self.az.calls[-1]
+        self.assertEqual(args[args.index("--http-method") + 1], "DELETE")
+        self.assertIn("commentId=15680861", " ".join(args))
+
     def test_editing_a_comment_rejects_an_unparseable_reference(self):
         with self.assertRaisesRegex(PdlcError, "cannot parse an Azure comment id"):
             AzureWorkItemBackend().edit_comment("7", f"{ORGANIZATION}/{PROJECT}/_workitems/edit/7", "updated plan")

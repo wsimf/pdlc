@@ -12,12 +12,24 @@ DESCRIPTION
       - Approved on a non-terminal stage: no pdlc command ever leaves a gate
         there — Approved is reserved for the terminal stage — so it can only
         mean the stage was just approved. Advances to the next stage's
-        Pending with a PDLC-APPROVED comment, or to Complete when the stage
-        is the completion boundary (Verification).
+        Pending with a PDLC-APPROVED comment — unless the stage's evidence
+        would make `pdlc post approve` refuse (no publication on record, a
+        change request open since it, or no passing review of an
+        Implementation or Testing publication); then it lands on the stage's
+        own Approval Required with a plain comment naming what is missing, so
+        the approval stops for the driver. At the completion boundary
+        (Verification) it returns to Approval Required with a plain comment
+        instead, never to Complete: completion runs its readiness checks only
+        through `pdlc post complete`.
       - CI Pending on a stage that isn't CI-gated: that stage's own work
         never depends on CI, so its outcome is irrelevant. Advances straight
         to the stage's own result gate, ignoring red/green, with a plain
         comment recording the correction.
+      - Review Required on a stage with no independent review policy
+        (Verification): nothing dispatches a reviewer there, so it can only
+        mean review was skipped. Lands where a clean verification run lands —
+        CI Pending on a CI-gated stage, so the PR stack's CI is still checked
+        before any human approval — with a plain comment.
 
     Refuses (exit 1) for every other state, including one `pdlc next` would
     happily route (Pending, Approval Required, Review Required, ...) —
@@ -38,11 +50,11 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import (
+    heal_item,
     item_gate,
     item_status,
     pipeline_for_item,
     resolve_item,
-    write_healed_state,
 )
 
 
@@ -56,11 +68,9 @@ def continue_(issue: str) -> dict:
     except ValueError as error:
         raise PdlcError(str(error)) from None
 
-    healed = pipeline.heal(state)
+    healed = heal_item(item, str(issue), pipeline, state)
     if healed is None:
         raise PdlcError(f"{state.notation} is not a self-healable state; nothing to correct")
-
-    write_healed_state(item, str(issue), state, healed)
     return {"healed": True, "work_item": int(issue), "from": state.notation, "to": healed.notation}
 
 

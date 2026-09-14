@@ -104,7 +104,7 @@ def _stage_blocks(stage: str) -> dict[str, list[str]]:
         for body in re.findall(r"```\n(.*?)```", rest, re.DOTALL):
             body = body.rstrip("\n")
             if stage in STAGES:
-                body = body.replace(f"{{Stage.{stage}.skill}}", STAGES[stage].skill or "")
+                body = body.replace(f"{{Stage.{stage.replace(' ', '')}.skill}}", STAGES[stage].skill or "")
             body = body.replace("{ITEM_ID}", str(TEST_ITEM_ID))
             body = body.replace("{REVIEW_SKILL}", REVIEW_SKILL_TEXT)
             if stage == "Technical Plan":

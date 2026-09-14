@@ -27,7 +27,8 @@ stack's CI was still in flight. This script then reconciles it immediately again
 check state (advancing to `Approval Required` if CI is already green, dropping to
 `Changes Required` with a note under the stage's own marker if already red) and otherwise
 leaves it at `CI Pending` for pdlc post ci / the loop to resolve when CI
-finishes. Every other stage lands `Approval Required` directly. Whichever way a stage lands
+finishes — including when the stage has no registered pull request, which reports `ci.state`
+"missing" rather than passing as nothing to wait on. Every other stage lands `Approval Required` directly. Whichever way a stage lands
 there — a non-CI-gated stage's direct landing, or a CI-gated stage's reconciliation once CI
 settles — a record already reworked within its named rework loop's churn cap skips the human
 approval step (PDLC-AUTOAPPROVED) and lands on the next stage's Pending instead. See

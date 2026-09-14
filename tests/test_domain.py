@@ -147,7 +147,7 @@ class RoutingTableTests(unittest.TestCase):
     def test_verification_review_required_is_a_stray_state_that_heals(self):
         due = due_next({"Status": "Verification", "Gate State": "Review Required", "Skipped States": ""})
         self.assertEqual(due["action"], "pdlc-continue")
-        self.assertIn("Verification.ApprovalRequired", due["owner"])
+        self.assertIn("Verification.CIPending", due["owner"])
 
 
 # The full 8 stages x 8 gates matrix, so a change to routing or self-heal
@@ -198,7 +198,7 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
         "reason": "product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously",
     },
     ("Product", "Review Required"): {
-        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+        "action": "human-input", "owner": "human — invoke pdlc-write interactively", "reason": _REVIEW_REQUIRED_REASON,
     },
     ("Product", "Decision Required"): {
         "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
@@ -213,7 +213,7 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
     ("UI", "Changes Required"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
     ("UI", "Stale"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
     ("UI", "Review Required"): {
-        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+        "action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": _REVIEW_REQUIRED_REASON,
     },
     ("UI", "Decision Required"): {
         "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
@@ -228,7 +228,7 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
     ("Tasks", "Changes Required"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
     ("Tasks", "Stale"): {"action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": "UI or task artifact is due"},
     ("Tasks", "Review Required"): {
-        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+        "action": "pdlc-tasks", "owner": "pdlc-tasks", "reason": _REVIEW_REQUIRED_REASON,
     },
     ("Tasks", "Decision Required"): {
         "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
@@ -243,7 +243,7 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
     ("Technical Plan", "Changes Required"): {"action": "pdlc-plan", "owner": "pdlc-plan", "reason": "technical plan is due"},
     ("Technical Plan", "Stale"): {"action": "pdlc-plan", "owner": "pdlc-plan", "reason": "technical plan is due"},
     ("Technical Plan", "Review Required"): {
-        "action": "pdlc-review", "owner": "pdlc-review", "reason": _REVIEW_REQUIRED_REASON,
+        "action": "pdlc-plan", "owner": "pdlc-plan", "reason": _REVIEW_REQUIRED_REASON,
     },
     ("Technical Plan", "Decision Required"): {
         "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
@@ -301,7 +301,7 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
     ("Verification", "Stale"): {"action": "pdlc-verify", "owner": "pdlc-verify", "reason": "verification is due"},
     # No persisted review policy at this stage, so a stray Review Required
     # heals straight to Approval Required instead of dispatching a reviewer.
-    ("Verification", "Review Required"): _heal("Verification.ReviewRequired", "Verification.ApprovalRequired"),
+    ("Verification", "Review Required"): _heal("Verification.ReviewRequired", "Verification.CIPending"),
     ("Verification", "Decision Required"): {
         "action": "human-decision", "owner": _DECISION_REQUIRED_OWNER, "reason": _DECISION_REQUIRED_REASON,
     },
@@ -314,7 +314,9 @@ _EXPECTED: dict[tuple[str, str], dict[str, str]] = {
         # routes to `pdlc post complete`, not the generic `pdlc post approve`.
         "action": "human-approval", "owner": "human — pdlc post complete", "reason": _APPROVAL_REQUIRED_REASON,
     },
-    ("Verification", "Approved"): _heal("Verification.Approved", "Complete.Approved"),
+    # The completion boundary never heals into Complete: completion readiness
+    # is checked only by `pdlc post complete`, so it returns to its own gate.
+    ("Verification", "Approved"): _heal("Verification.Approved", "Verification.ApprovalRequired"),
 
     ("Complete", "Approved"): {"action": "none", "owner": "none — record is Complete", "reason": "complete"},
 }
