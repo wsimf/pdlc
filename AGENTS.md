@@ -29,7 +29,7 @@ Skill and sub-agent instructions describe the CLI as a contract, never as an imp
 
 Do not repeat in a skill or sub-agent anything the command's `--help` already documents — flags, input forms, output fields, refusal reasons, sample output. Name the command the step uses and let the agent run `pdlc <command> --help` for the rest; a duplicated copy drifts from the CLI.
 
-Do not explain PDLC itself to the agent running a skill or sub-agent — what the lifecycle is, how gates, markers, or evidence work, or why a rule exists. Tell it only what it can use PDLC for in its own task: which command gets it the information or transition it needs, and what to do with the result.
+Do not explain PDLC itself to the agent running a skill or sub-agent — what the lifecycle is, how gates, markers, or evidence work, or why a rule exists. Tell it only what it can use PDLC for in its own task: which command gets it the information or transition it needs, and what to do with the result. The `pdlc` entry skill is the one exception: it gives a short model of the lifecycle, gates, and human boundaries, and links `pdlc guide contract` for the rest.
 
 Skills, sub-agents, and `src/pdlc/guides/` pass command input as a file path or `text:<body>`, never as `-` for stdin, so every documented invocation works the same across shells and platforms. The CLI still accepts `-` as a convenience for humans, and command `--help` keeps documenting it.
 
