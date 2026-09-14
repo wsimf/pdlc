@@ -8,6 +8,21 @@ DESCRIPTION
     Print the effective PDLC configuration, its source, derived values, and
     every validation result. Exit 1 when any validation fails; warnings do not
     fail the command.
+
+    When the backend is github or azure, a "Backend access" section also shows
+    what its CLI reports, using read-only calls only:
+
+    - github: the `gh` version, the active github.com login, its token scopes
+      (`project` is required), the repository permission, and whether the
+      configured Project can be read.
+    - azure: the `az` version, whether the `azure-devops` extension is installed
+      and its version, whether AZURE_DEVOPS_EXT_PAT is set, the `az login` user,
+      and whether the configured project can be read and its Boards queried.
+      Either an `az login` session or a PAT (AZURE_DEVOPS_EXT_PAT or
+      `az devops login`) is enough; the project read settles which one works.
+
+    A missing CLI, extension, login, scope, or access fails the command. A CLI
+    or extension older than the minimum version pdlc is tested with only warns.
 """
 
 from __future__ import annotations
@@ -30,6 +45,9 @@ from pdlc.config import (
     home_config_path,
     repository_root,
 )
+from pdlc.hosts.lib.access import AccessReport
+from pdlc.hosts.lib.azure import access as azure_access
+from pdlc.hosts.lib.github import access as github_access
 from pdlc.internal.inputs import print_help
 
 
@@ -141,6 +159,20 @@ def _validate(config: Config, errors: list[str]) -> list[str]:
     return warnings
 
 
+def _backend_access(config: Config) -> AccessReport | None:
+    """Probes the backend's host CLI; None for backends that need no CLI."""
+    backend = config.backend or "github"
+    if backend == "github":
+        return github_access.check_access(
+            repository=config.repository,
+            project_owner=config.project_owner,
+            project_number=config.project_number,
+        )
+    if backend == "azure":
+        return azure_access.check_access(organization=config.azure_org, project=config.azure_project)
+    return None
+
+
 def _source(field: str, sources: dict[str, str]) -> str:
     return sources.get(field, "default")
 
@@ -186,11 +218,18 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     typed = _typed_values(values, errors)
     config = Config.from_values(typed)
     warnings.extend(_validate(config, errors))
+    access = _backend_access(config)
+    if access is not None:
+        warnings.extend(access.warnings)
+        errors.extend(access.errors)
     lines = ["# PDLC doctor", "", f"Working directory: {Path.cwd()}", f"Repository root: {root or '(not found)' }", "", "## Config files", "", f"- ~/.pdlc/config.toml: {'present' if home_present else 'missing'} ({home_path})", f"- repo .pdlc/config.toml: {'present' if repo_present else 'missing'} ({repo_path or 'not found'})", "", "## Effective values", ""]
     for field in fields(Config):
         value = getattr(config, field.name)
         shown = "(unset)" if value is None else repr(value)
         lines.append(f"- {field.name} = {shown} [{_source(field.name, sources)}]")
+    if access is not None:
+        lines += ["", "## Backend access", ""]
+        lines.extend(f"- {fact}" for fact in access.facts)
     lines += ["", "## Warnings", ""]
     lines.extend(f"- WARNING: {warning}" for warning in warnings) or lines.append("- None")
     lines += ["", "## Validations", ""]
