@@ -23,12 +23,13 @@ DESCRIPTION
     `PDLC-INVALIDATED`, posted when the task is reopened) and synthetic
     `PLAN`/`IMPLEMENTATION` entries for the unmarked evidence comments.
 
-    `pdlc post invalidate` deletes a reopened task's stale `## Technical
-    Plan`/`## Implementation` comments outright rather than editing them in
-    place, so they leave no `INVALIDATED` entry of their own — once a task is
-    reopened, its earlier `PLAN`/`IMPLEMENTATION` entries are gone from this
-    timeline too, and only the reopen's own `PDLC-INVALIDATED` entry (plus any
-    evidence posted since) remains.
+    Reopening a task deletes its stale `## Technical Plan`/`## Implementation`
+    comments outright rather than editing them in place, so they leave no
+    `INVALIDATED` entry of their own — once a task is reopened, its earlier
+    `PLAN`/`IMPLEMENTATION` entries are gone from this timeline too, and only
+    the reopen's own `PDLC-INVALIDATED` entry (plus any evidence posted since)
+    remains. That entry's body names what reopened the task: a driver
+    invalidation, or a re-landed breakdown that changed the task's own body.
 
     By default the full timeline is written to a file under the system temp
     directory and stdout carries only a compact index: one block per entry

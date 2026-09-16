@@ -21,7 +21,9 @@ DESCRIPTION
     attached to the task — it survives invalidation, since invalidation only
     deletes evidence comments, not the PR. `implementationInvalidated` is true when
     a PR is attached but the task's `## Implementation` comment is missing, i.e.
-    reopened for rework since it was last implemented. When the task has a plan,
+    reopened for rework since it was last implemented — by a driver
+    invalidation, or by a re-landed breakdown that changed this task's own body.
+    Read `pdlc inspect task timeline` for which. When the task has a plan,
     it is rendered after the `# Task` body. Read these flags and the rendered plan
     rather than fetching task comments directly.
 

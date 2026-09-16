@@ -42,15 +42,6 @@ typo'd requirement or a dependency cycle fails without having touched the
 record. --dry-run stops after validation and prints the plan, which is how a
 breakdown is checked before it is worth landing.
 
-An entry may instead carry a landed task forward untouched with
-`"unchanged": true`. It still declares `ui`, `covers`, and `depends`, so the
-breakdown stays complete and its coverage still counts, but it names no `title`
-and no `body` — both are read back from the record — and the task is never
-handed to the backend, so it cannot be rewritten, retitled, or reopened by this
-call. `"unchanged": true` on an id the record does not have is refused. This is
-how a breakdown says a task needs no rework, without restating a body
-byte-for-byte to avoid rewriting it.
-
 A Tasks manifest entry matching a delivery task that is already closed re-lands
 onto that task. When the re-land changes its title or body, the task is
 reopened and its `## Technical Plan` and `## Implementation` comments are
@@ -61,6 +52,15 @@ byte-identical stays closed. Reopened task ids are listed in the evidence
 comment and in the printed `reopened` array. --dry-run reports the closed tasks
 the breakdown lands onto as `reopenCandidates`; which of them change, and so
 which are reopened, is only known once the bodies are written.
+
+An entry may instead carry a landed task forward untouched with
+`"unchanged": true`. It still declares `ui`, `covers`, and `depends`, so the
+breakdown stays complete and its coverage still counts, but it names no `title`
+and no `body` — both are read back from the record — and the task is never
+handed to the backend, so it cannot be rewritten, retitled, or reopened by this
+call. `"unchanged": true` on an id the record does not have is refused. This is
+how a breakdown says a task needs no rework, without restating a body
+byte-for-byte to avoid rewriting it.
 
 UI --body is the `## UI` section's content; a leading `## UI` heading is
 tolerated and stripped. Applicability must be explicit: the fragment either
