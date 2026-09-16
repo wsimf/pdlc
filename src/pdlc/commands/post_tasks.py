@@ -147,6 +147,9 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
 
     journeys = declared_identifiers(fragment, UJ_PATTERN)
 
+    # Applicability is carried by the flag, never by the fragment's wording.
+    # Sniffing prose for a "no UI" sentence made the caller guess phrasings,
+    # so --body owns the reviewable rationale and --no-ui owns the decision.
     if no_ui and journeys:
         raise PdlcError(
             "--no-ui declares no user-facing surface, but --body names "
