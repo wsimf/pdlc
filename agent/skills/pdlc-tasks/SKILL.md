@@ -44,7 +44,7 @@ Dispatch exactly one owning planner:
 
 Build the prompt from the matching template with the complete parent body, `Status`/`Gate State`, stale reason, driver's verbatim follow-up, and existing task tree. The planner is the leaf author: it returns the UI fragment, or one task body per task plus a manifest. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
 
-The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run. For `UI`, the planner also reports applicability as `UI required` or `UI not required`; carry that verdict into Validate and Land.
+The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run. For `UI`, the planner also reports whether UI is required; carry that verdict into Validate and Land.
 
 ## Validate
 
@@ -62,7 +62,7 @@ pdlc post tasks --work-item WORK_ITEM --stage UI \
   --body /tmp/pdlc-ui.md --dry-run
 ```
 
-Add `--no-ui` when the planner returned `UI not required`. The planner's applicability verdict decides the flag; never add or drop it to make a failing dry run pass.
+Add `--no-ui` when the planner reported that UI is not required. The planner's applicability verdict decides the flag; never add or drop it to make a failing dry run pass.
 
 Call `pdlc post tasks --help` for more info about that command.
 

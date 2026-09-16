@@ -44,7 +44,6 @@ every named `UJ-*` journey.
 A feature with no user-facing surface still returns a fragment saying so and
 why, so applicability is reviewed and approved like any other artifact.
 
-Report your applicability verdict as one of the exact strings `UI required` or
-`UI not required`. The fragment's own wording is yours to choose; the calling
-skill acts on the verdict, not on the prose.
+Report whether UI is required. The fragment's own wording is yours to choose;
+the calling skill acts on your verdict, not on the prose.
 ```
