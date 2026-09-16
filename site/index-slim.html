@@ -120,6 +120,24 @@ code.cmd{
 .fact:nth-child(2){border-color:var(--b)}
 .fact:nth-child(3){border-color:var(--c)}
 .fact:nth-child(4){border-color:var(--d)}
+.srcs{display:grid;gap:8px;position:relative}
+.src{display:grid;grid-template-columns:1fr;gap:2px;padding:8px 14px 9px;border:1px solid var(--line);border-left:2px solid var(--a);border-radius:10px;background:var(--card);position:relative}
+.src.b{border-left-color:var(--b)} .src.c{border-left-color:var(--c)}
+.future{margin-top:22px;padding-top:14px;border-top:1px dashed var(--line);display:flex;gap:14px;align-items:baseline;font-size:13.5px;color:#a9b3cd;font-weight:300}
+.future .tag{font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.18em;color:var(--a);white-space:nowrap}
+.src::after{content:"";position:absolute;right:-34px;top:50%;width:30px;height:1px;background:linear-gradient(90deg,var(--line),var(--a))}
+.src .host{font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.18em;color:var(--dim);margin-bottom:4px}
+.src b{font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+.src span:last-child{font-size:12.5px;color:#a9b3cd;font-weight:300}
+.cmds{margin-top:6px;font-size:11px;letter-spacing:.06em;color:var(--a)}
+.tiers{display:grid;gap:8px}
+.tier{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.tier b{display:block;font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+.tier span{font-size:12.5px;color:#a9b3cd;font-weight:300}
+.chip{font:600 10.5px/1 'JetBrains Mono',monospace;letter-spacing:.14em;font-style:normal;padding:7px 10px;border-radius:999px;border:1px solid;white-space:nowrap}
+.chip.n{color:var(--dim);border-color:var(--line)}
+.chip.s{color:var(--a);border-color:rgba(94,234,212,.4)}
+.chip.o{color:var(--c);border-color:rgba(240,171,252,.45)}
 #bar{position:fixed;left:0;right:0;top:0;height:2px;z-index:20;background:rgba(255,255,255,.06)}
 #bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--a),var(--b),var(--c));transition:width .5s cubic-bezier(.2,.8,.2,1)}
 #nav{position:fixed;right:26px;top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:12px}
@@ -292,7 +310,148 @@ code.cmd{
   </div>
 </section>
 
-<!-- 6 GATES -->
+<!-- 6 CONTEXT ASSEMBLY -->
+<section class="slide">
+  <div class="wrap" style="width:min(1280px,100%)">
+    <div class="eyebrow">Context assembly</div>
+    <h2 style="font-size:clamp(26px,3.6vw,46px);margin-bottom:10px">Scattered across systems. <span class="grad">Handed over as one read.</span></h2>
+    <p class="lede" style="font-size:clamp(14px,1.2vw,17px)">The facts a stage needs live in the tracker, the code host, comments, attachments and config. The CLI gathers them, strips the noise and prints exactly what this step needs, so the agent never goes looking.</p>
+    <div class="grid" style="grid-template-columns:.85fr 1.15fr;gap:34px;margin-top:24px;align-items:start">
+      <div class="srcs">
+        <div class="src"><span class="host">AZURE BOARDS · GH ISSUES</span><b>Work item</b><span>spec body, Status, Gate State, skipped stages</span></div>
+        <div class="src"><span class="host">TRACKER</span><b>Attachments &amp; discussion</b><span>mockups with descriptions and local paths, human comments</span></div>
+        <div class="src"><span class="host">TRACKER</span><b>Delivery tasks</b><span>task tree, technical plans, per-task flags</span></div>
+        <div class="src b"><span class="host">GITHUB</span><b>Pull requests</b><span>state, checks and stack for the record and its tasks</span></div>
+        <div class="src b"><span class="host">REVIEWS · CI</span><b>Open change requests</b><span>only what arrived since the stage last published</span></div>
+        <div class="src c"><span class="host">.PDLC/CONFIG.TOML</span><b>Capability routing</b><span>which sub-agent or skill owns this step</span></div>
+        <div class="cmds mono">pdlc inspect · task · timeline · changes · capability</div>
+      </div>
+      <div class="term"><span class="p">$ pdlc inspect timeline 142</span>
+<span class="h"># Timeline — 7 evidence comment(s); full bodies in</span>
+<span class="h">  /tmp/pdlc-timeline-142.md</span>
+
+<b>## PRODUCT</b> — 2026-08-01 21:14 UTC (@sudara)
+   Scope: CSV export for reports, 6 requirements.
+   <span class="d">Read lines 3-41 for the full comment.</span>
+
+<b>## APPROVED</b> — 2026-08-02 09:03 UTC (@sudara)
+   Product approved; advancing to UI.
+   <span class="d">Read lines 43-47 for the full comment.</span>
+
+<b>## PLAN</b> — 2026-08-04 16:40 UTC (@pdlc-agent)
+   4 tasks planned against current source.
+   <span class="d">Read lines 49-112 for the full comment.</span>
+
+<b>## REVIEW</b> — 2026-08-06 11:22 UTC (@pdlc-agent)
+   Implementation: changes required, 2 findings.
+   <span class="d">Read lines 114-150 for the full comment.</span>
+
+<span class="d">3 comment(s) without a PDLC marker were skipped.</span></div>
+    </div>
+    <div class="future"><span class="tag">+ ADD SOURCES AS WE GO</span><span>The read grows with the organisation. Plug in a service registry and the same call can also say <b style="color:var(--ink);font-weight:600">which project owns an API route</b>.</span></div>
+  </div>
+</section>
+
+<!-- 7 RESTART -->
+<section class="slide">
+  <div class="wrap" style="width:min(1280px,100%)">
+    <div class="eyebrow">Restartability</div>
+    <h2 style="font-size:clamp(26px,3.6vw,46px);margin-bottom:10px">Stop anywhere. <span class="grad mono">/pdlc 142</span> picks it back up.</h2>
+    <p class="lede" style="font-size:clamp(14px,1.2vw,17px)">Close the laptop, lose the session, switch agents. Everything needed to continue lives on the record, so one command gives a fresh agent the full context and the next move.</p>
+    <div class="grid" style="grid-template-columns:1.05fr .95fr;gap:34px;margin-top:24px;align-items:start">
+      <div class="term"><span class="d"># a brand-new session, no prior context</span>
+<span class="p">&gt; /pdlc 142</span>
+
+<span class="d">  reading #142 · 4 tasks · PR #139 · source · git history</span>
+
+<span class="h">  Where it stands</span>
+  <b>Implementation</b> · CI Pending
+  #143, #144 complete · #145 in flight on PR #139
+  #146 still needs a plan
+
+<span class="h">  Due next</span>
+  Checks are still running on PR #139.
+  <span class="w">Continue from here?</span>
+
+<span class="p">&gt; yes</span>
+<span class="g">  resuming Implementation at #145 …</span></div>
+      <div class="facts">
+        <div class="fact"><h3>No session memory required</h3><p>Stage, gate, tasks, PRs and evidence are on the work item, not in a transcript. A new session, a compacted context or a different agent all start from the same facts.</p></div>
+        <div class="fact"><h3>Resumes mid-stage, not from the top</h3><p>The gate says exactly where the stage was left: being authored, under review, reworking findings, waiting on CI or waiting on you. Work already recorded is never redone.</p></div>
+        <div class="fact"><h3>Orienting is read-only</h3><p>The agent reads the record, its tasks, linked PRs, current source and git history, reports where things stand, and asks before it changes anything.</p></div>
+        <div class="fact"><h3>One command, every time</h3><p>No hand-off notes, no re-explaining the feature. The work item number is the whole prompt.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 MACHINE CHECK -->
+<section class="slide">
+  <div class="wrap" style="width:min(1280px,100%)">
+    <div class="eyebrow">Machine-checked</div>
+    <h2 style="font-size:clamp(26px,3.6vw,46px);margin-bottom:10px">The agent can believe it is done. <span class="grad">The CLI decides.</span></h2>
+    <p class="lede" style="font-size:clamp(14px,1.2vw,17px)">Every transition checks the record, not the agent's account of it. If the evidence is not there, the command refuses, names what is missing and changes nothing.</p>
+    <div class="grid" style="grid-template-columns:1.05fr .95fr;gap:34px;margin-top:24px;align-items:start">
+      <div class="term"><span class="d"># the agent reads its transcript and concludes</span>
+<b>  All four tasks are done and tests pass.</b>
+<b>  Completing #142.</b>
+
+<span class="p">$ pdlc post complete 142 report.md</span>
+<span class="w">pdlc: record is not ready to complete:</span>
+<span class="w">  - [closed-without-implementation]</span>
+      Closed tasks with no implementation pull
+      request attached: #146
+<span class="w">  - [pull-requests]</span>
+      Every linked closing PR must be merged with
+      passing required checks, or explicitly
+      unlinked: #139 OPEN checks:FAILURE
+<span class="d">  exit 1 · nothing posted · record unchanged</span>
+
+<span class="p">$ pdlc inspect 142</span>
+<span class="h">  # Due Next</span>
+  Resolve the failing checks on PR #139 …</div>
+      <div class="facts">
+        <div class="fact"><h3>Claims are not evidence</h3><p>A ticked checkbox, a closed task or "tests pass" in a transcript does not move a gate. Only recorded publications, reviews, linked PRs and live check state do.</p></div>
+        <div class="fact"><h3>Refusal leaves no trace</h3><p>A refused <span class="mono">post</span> writes nothing. There is no half-completed transition to clean up, and the agent goes back to <span class="mono">pdlc inspect</span> for the real next move.</p></div>
+        <div class="fact"><h3>Every blocker in one pass</h3><p>Completion reports all outstanding blockers at once: open tasks, tasks closed without a PR, unmerged or failing PRs, missing verification, missing stage evidence.</p></div>
+        <div class="fact"><h3>Every gate, not just the last one</h3><p>Approval needs a current publication and a passing review. CI clearance needs registered PRs. Authoring refuses when the record is at another stage. Only a human <span class="mono">--force</span> on approval overrides, and that is recorded.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 COST -->
+<section class="slide">
+  <div class="wrap" style="width:min(1280px,100%)">
+    <div class="eyebrow">Keeping cost down</div>
+    <h2 style="font-size:clamp(26px,3.6vw,46px);margin-bottom:10px">The CLI decides what happens next, <span class="grad">so most steps don't need the biggest model.</span></h2>
+    <p class="lede" style="font-size:clamp(14px,1.2vw,17px)">Routing, gates and transitions are Python, so no step spends tokens working out what to do. Each specialist agent declares its own model: expensive reasoning goes where a wrong call costs everything downstream, and cheaper models take the bounded work.</p>
+    <div class="grid" style="grid-template-columns:1.1fr .9fr;gap:34px;margin-top:22px;align-items:start">
+      <div class="tiers">
+        <div class="tier"><div><b>Routing, gates, CI clearance</b><span class="mono">pdlc next · post ci</span></div><i class="chip n">NO MODEL</i></div>
+        <div class="tier"><div><b>Queue runner</b><span>carries out what <span class="mono">pdlc next loop</span> names; decides nothing itself</span></div><i class="chip s">SMALL</i></div>
+        <div class="tier"><div><b>Reviews</b><span>product, UI + tasks, plan, implementation, testing</span></div><i class="chip s">SONNET</i></div>
+        <div class="tier"><div><b>Tests &amp; completion evidence</b><span>test writer, completer</span></div><i class="chip s">SONNET</i></div>
+        <div class="tier"><div><b>Planning</b><span>UI, task and technical planners</span></div><i class="chip o">OPUS</i></div>
+        <div class="tier"><div><b>Verification</b><span>audits the whole change and resolves findings with you</span></div><i class="chip o">SESSION'S BEST</i></div>
+        <p class="mono" style="font-size:11px;color:var(--dim);margin-top:8px;letter-spacing:.04em">Claude defaults shown · Codex and Copilot declarations ship their own tiers</p>
+      </div>
+      <div class="facts">
+        <div class="fact" style="border-color:var(--c)"><h3>Technical Plan — spend here</h3><p>The planner spikes every task against current source. A wrong plan is paid for again in every task, review and rework loop after it, so it gets the strongest model.</p>
+          <div class="term" style="margin-top:10px;padding:10px 14px;font-size:12px"><span class="d"># agent/sub-agents/claude/pdlc-tech-planner.md</span>
+name: pdlc-tech-planner
+model: <span class="p" style="color:var(--c)">opus</span></div></div>
+        <div class="fact" style="border-color:var(--a)"><h3>Plan review — save here</h3><p>The reviewer checks a finished plan against the approved tasks. The question is bounded and the CLI already knows what is due, so a mid-tier model does it well.</p>
+          <div class="term" style="margin-top:10px;padding:10px 14px;font-size:12px"><span class="d"># agent/sub-agents/claude/pdlc-plan-reviewer.md</span>
+name: pdlc-plan-reviewer
+model: <span class="p">sonnet</span></div></div>
+        <div class="fact" style="border-color:var(--d)"><h3>Verification — decide with you</h3><p>The last line before completion runs in your own session. Its cumulative review routes to whichever agent the project configures, at the tier you choose.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 GATES -->
 <section class="slide">
   <div class="wrap">
     <div class="eyebrow">Gate states</div>
@@ -311,7 +470,7 @@ code.cmd{
   </div>
 </section>
 
-<!-- 7 DELIVERY -->
+<!-- 11 DELIVERY -->
 <section class="slide">
   <div class="wrap">
     <div class="eyebrow">Delivery mechanics</div>
@@ -325,7 +484,7 @@ code.cmd{
   </div>
 </section>
 
-<!-- 8 RUNNING IT -->
+<!-- 12 RUNNING IT -->
 <section class="slide">
   <div class="wrap">
     <div class="eyebrow">Running it</div>
@@ -372,7 +531,6 @@ base_ref  = <span class="p">"origin/main"</span></div>
 <script>
 /* ---------------- scene construction ---------------- */
 const U = document.getElementById('universe');
-let camK=1,camX=0,camY=0;
 const l1 = U.querySelector('.l1'), l2 = U.querySelector('.l2'),
       l3 = U.querySelector('.l3'), l4 = U.querySelector('.l4');
 
@@ -429,279 +587,172 @@ function title(p,x,y,text,k,color='var(--ink)'){
   label(l2,c,cy+620,'the output of one agent is the input of the next',k);
 })();
 
-/* ---- L3 : the journey a work item takes ----
-   on-screen px = canvas px * 0.0833, so 1 screen px = 12 canvas px */
+/* ---- L3 : the journey a work item takes, as one line of stages ----
+   on-screen px = canvas px * 0.0833, so 1 screen px = 12 canvas px.
+   The nested stage (l2) sits in the centre, so the line runs below it. */
 const L3 = (function(){
-  const W=12600,H=6840,cx=W/2,cy=H/2,rx=4600,ry=2150,N=8;
-  /* each stage carries its own gate flow: who authors it, who reviews it,
-     who clears the gate, and whether that gate waits on a person */
+  const W=12600,H=6840,N=8;
+  /* each stage: who authors it, what its gate waits on, and whether that gate waits on a person */
   const stages=[
-    {n:'Product',        human:1, rework:1, flow:['draft spec','reviewer','your approval','approved']},
-    {n:'UI',             human:1, rework:0, flow:['draft UI','reviewer','your approval','approved']},
-    {n:'Tasks',          human:1, rework:0, flow:['decompose','reviewer','your approval','approved']},
-    {n:'Tech Plan',      human:1, rework:1, flow:['spike + plan','reviewer','your approval','approved']},
-    {n:'Implementation', human:0, rework:0, flow:['write code','CI + reviewer','agent clears it','merged']},
-    {n:'Testing',        human:0, rework:0, flow:['write tests','reviewer','agent clears it','approved']},
-    {n:'Verification',   human:1, rework:1, flow:['audit journey','findings','your decision','resolved']},
-    {n:'Complete',       human:1, rework:0, flow:['completion evidence','readiness check','you complete it','locked']}
+    {n:'Product',        human:1, rework:1, author:'draft spec',          gate:'your approval',   done:'approved'},
+    {n:'UI',             human:1, rework:0, author:'draft UI',            gate:'your approval',   done:'approved'},
+    {n:'Tasks',          human:1, rework:0, author:'decompose',           gate:'your approval',   done:'approved'},
+    {n:'Tech Plan',      human:1, rework:0, author:'spike + plan',        gate:'your approval',   done:'approved'},
+    {n:'Implementation', human:0, rework:0, author:'write code',          gate:'agent clears it', done:'approved'},
+    {n:'Testing',        human:0, rework:0, author:'write tests',         gate:'agent clears it', done:'approved'},
+    {n:'Verification',   human:1, rework:1, author:'audit journey',       gate:'your decision',   done:'resolved'},
+    {n:'Complete',       human:1, rework:0, author:'completion evidence', gate:'you complete it', done:'locked'}
   ];
   const COL={a:'#5eead4',r:'#818cf8',x:'#fb7185',h:'#fbbf24',g:'#34d399'};
-  const DIM='rgba(140,160,220,.22)', MUT='#8b96b4';
-  const ang=i=>-Math.PI/2+i*(2*Math.PI/N);
-  const px=a=>[cx+rx*Math.cos(a),cy+ry*Math.sin(a)];
-  /* the token rides just inside the ring so it never covers a stage label */
-  const tp=a=>[cx+(rx-1150)*Math.cos(a),cy+(ry-760)*Math.sin(a)];
-
-  const PERSON=`<svg viewBox="0 0 24 24" style="width:100%;height:100%"><circle cx="12" cy="7.2" r="4.2" fill="currentColor"/><path d="M3.8 21.2c0-5 3.7-7.9 8.2-7.9s8.2 2.9 8.2 7.9z" fill="currentColor"/></svg>`;
-  const AGENT=`<svg viewBox="0 0 24 24" style="width:100%;height:100%"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="3.1" fill="currentColor"/></svg>`;
+  const M=200, STEP=(W-2*M)/N, BW=STEP-170, BH=850, LY=5250, TY=LY-BH/2-320;
+  const sx=i=>M+STEP*(i+.5);
 
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('class','deco');
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   svg.setAttribute('style',`position:absolute;left:0;top:0;width:${W}px;height:${H}px;overflow:visible`);
-  svg.innerHTML=`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none"
-      stroke="rgba(129,140,248,.35)" stroke-width="14" stroke-dasharray="240 170">
-      <animate attributeName="stroke-dashoffset" from="0" to="-410" dur="3.2s" repeatCount="indefinite"/></ellipse>
-    <path id="chord" d="" fill="none" stroke="#fb7185" stroke-width="22" stroke-dasharray="260 180" opacity="0">
+  let arrows='';
+  for(let i=0;i<N-1;i++){
+    const a=sx(i)+BW/2+25, b=sx(i+1)-BW/2-15;
+    arrows+=`<line x1="${a}" y1="${LY}" x2="${b-60}" y2="${LY}" stroke="rgba(129,140,248,.55)" stroke-width="16"/>
+             <polygon points="${b-70},${LY-40} ${b},${LY} ${b-70},${LY+40}" fill="rgba(129,140,248,.55)"/>`;
+  }
+  svg.innerHTML=arrows+`<path id="chord" d="" fill="none" stroke="#fb7185" stroke-width="22" stroke-dasharray="260 180" opacity="0">
       <animate attributeName="stroke-dashoffset" from="0" to="-440" dur="1.4s" repeatCount="indefinite"/></path>`;
   l3.appendChild(svg);
   const chord=svg.querySelector('#chord');
 
-  /* panels live in their own wrapper so layer fading never fights panel fading */
-  const panelBox=el('deco','','position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5');
-  l3.appendChild(panelBox);
-
-  const PW=3000, PH=1500, CW=560, CH=380, GAP=160, X0=140, ROW=760;
-  const chipX=j=>X0+j*(CW+GAP);
-
-  function buildPanel(i,st,x,y){
-    const p=document.createElement('div');
-    p.style.cssText=`position:absolute;left:${x-PW/2}px;top:${y-PH/2}px;width:${PW}px;height:${PH}px;
-      background:rgba(6,9,16,.96);border:7px solid rgba(140,160,220,.3);border-radius:80px;
-      opacity:0;transition:opacity .4s ease;box-shadow:0 0 400px rgba(0,0,0,.8)`;
-    const g=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    g.setAttribute('viewBox',`0 0 ${PW} ${PH}`);
-    g.setAttribute('style',`position:absolute;left:0;top:0;width:${PW}px;height:${PH}px`);
-    let inner='';
-    for(let j=0;j<3;j++){
-      const a=chipX(j)+CW, b=chipX(j+1);
-      inner+=`<line x1="${a+20}" y1="${ROW+CH/2}" x2="${b-60}" y2="${ROW+CH/2}" stroke="${DIM}" stroke-width="9"/>
-              <polygon points="${b-60},${ROW+CH/2-28} ${b-10},${ROW+CH/2} ${b-60},${ROW+CH/2+28}" fill="${DIM}"/>`;
-    }
-    if(st.rework){
-      inner+=`<path id="rw" d="M ${chipX(1)+CW/2} ${ROW-30} Q ${(chipX(0)+chipX(1)+CW)/2} ${ROW-430} ${chipX(0)+CW/2} ${ROW-30}"
-                fill="none" stroke="#fb7185" stroke-width="11" stroke-dasharray="90 70" opacity=".18">
-                <animate attributeName="stroke-dashoffset" from="0" to="-160" dur="1.1s" repeatCount="indefinite"/></path>
-              <polygon id="rwh" points="${chipX(0)+CW/2-40},${ROW-90} ${chipX(0)+CW/2+40},${ROW-90} ${chipX(0)+CW/2},${ROW-20}" fill="#fb7185" opacity=".18"/>`;
-    }
-    g.innerHTML=inner;
-    p.appendChild(g);
-
-    const head=el('', `${st.n}`,`position:absolute;left:0;right:0;top:170px;text-align:center;font-weight:900;
-      letter-spacing:-.02em;font-size:140px;color:#eef2ff`);
-    const tag=el('', st.human?'this stage waits on a person':'this stage clears itself',
-      `position:absolute;left:0;right:0;top:360px;text-align:center;font-family:'JetBrains Mono',monospace;
-       font-size:58px;letter-spacing:.2em;text-transform:uppercase;color:${st.human?'#fbbf24':'#5eead4'}`);
-    p.appendChild(head);p.appendChild(tag);
-    if(st.rework) p.appendChild(el('','changes required',
-      `position:absolute;left:${chipX(0)}px;width:${CW+GAP+CW}px;top:${ROW-330}px;text-align:center;
-       font-family:'JetBrains Mono',monospace;font-size:54px;letter-spacing:.18em;text-transform:uppercase;color:#fb7185`));
-
-    const chips=st.flow.map((txt,j)=>{
-      const c=el('',``,`position:absolute;left:${chipX(j)}px;top:${ROW}px;width:${CW}px;height:${CH}px;
-        border:6px solid ${DIM};border-radius:44px;display:flex;flex-direction:column;align-items:center;
-        justify-content:center;gap:26px;color:${MUT};transition:border-color .3s ease,color .3s ease,box-shadow .3s ease`);
-      const ic=el('',(j===2?(st.human?PERSON:AGENT):AGENT),
-        `width:${j===2?130:96}px;height:${j===2?130:96}px;color:inherit;opacity:${j===2?1:.55}`);
-      const lb=el('',txt,`font-family:'JetBrains Mono',monospace;font-size:52px;letter-spacing:.12em;
-        text-transform:uppercase;color:inherit;text-align:center;padding:0 20px`);
-      c.appendChild(ic);c.appendChild(lb);p.appendChild(c);
-      return c;
-    });
-    p.appendChild(el('', st.human?'this gate holds until the driver clears it':'the gate opens the moment the checks pass',
-      `position:absolute;left:0;right:0;top:${ROW+CH+120}px;text-align:center;font-family:'JetBrains Mono',monospace;
-       font-size:50px;letter-spacing:.16em;text-transform:uppercase;color:${MUT}`));
-    panelBox.appendChild(p);
-    return {p,chips,rw:g.querySelector('#rw'),rwh:g.querySelector('#rwh')};
-  }
-
   const els=stages.map((st,i)=>{
-    const [x,y]=px(ang(i));
-    const box=node(l3,x,y,2050,720,st.n,'pending',5.6,'deco');
+    const box=node(l3,sx(i),LY,BW,BH,st.n,'pending',5,'deco');
     box.style.transition='border-color .35s ease,box-shadow .35s ease,opacity .35s ease';
     if(st.human){
       const g=document.createElement('div');
       g.className='gate';
-      g.style.cssText='position:absolute;right:-90px;top:-90px;width:210px;height:210px;border-radius:50%;background:#fbbf24';
+      g.style.cssText='position:absolute;right:-70px;top:-70px;width:170px;height:170px;border-radius:50%;background:#fbbf24';
       box.appendChild(g);
       st.badge=g;
     }
-    return {box, sub:box.querySelector('.s'), st, x, y, panel:buildPanel(i,st,x,y)};
+    return {box, sub:box.querySelector('.s'), st, kind:null};
   });
 
   const tok=document.createElement('div');
   tok.className='deco';
-  tok.style.cssText=`position:absolute;width:240px;height:240px;border-radius:50%;background:#5eead4;
-    box-shadow:0 0 0 80px rgba(94,234,212,.12),0 0 240px 50px rgba(94,234,212,.45);z-index:3;transition:opacity .4s ease`;
+  tok.style.cssText=`position:absolute;width:260px;height:260px;border-radius:50%;background:#5eead4;
+    box-shadow:0 0 0 80px rgba(94,234,212,.12),0 0 240px 50px rgba(94,234,212,.45);z-index:3`;
   l3.appendChild(tok);
-  const place=(x,y)=>{tok.style.left=(x-120)+'px';tok.style.top=(y-120)+'px';};
-  place(...tp(ang(0)));
+  const place=(x,y)=>{tok.style.left=(x-130)+'px';tok.style.top=(y-130)+'px';};
+  place(sx(0),TY);
 
-  const ringDeco=[svg,
-    title(l3,cx,560,'ONE WORK ITEM · ITS OWN WORKFLOW',6.6,'var(--b)'),
-    label(l3,cx-2100,H-520,'● agent works the stage',8.3,'#5eead4'),
-    label(l3,cx+2100,H-520,'● human gate',8.3,'#fbbf24')];
-  ringDeco.forEach(e=>e.style.transition='opacity .4s ease');
-  /* the ring view and a focused stage are two different pictures — never show both */
-  const kids=L=>[...L.children].filter(c=>!c.classList.contains('layer'));
-  const showRing=on=>{
-    ringDeco.forEach(e=>e.style.opacity=on?'1':'0');
-    els.forEach(e=>e.box.style.opacity=on?'1':'0');
-    /* the inner layers would smear across a focused stage, so drop them too */
-    if(on) fadeLayers(); else { kids(l1).forEach(e=>e.style.opacity=0); kids(l2).forEach(e=>e.style.opacity=0); }
-  };
+  title(l3,W/2,1500,'ONE WORK ITEM · ITS OWN WORKFLOW',6.6,'var(--b)');
+  label(l3,W/2-2100,LY+BH/2+330,'● agent works the stage',8.3,'#5eead4');
+  label(l3,W/2+2100,LY+BH/2+330,'● human gate',8.3,'#fbbf24');
 
-  /* ---------- scripted journey ---------- */
+  /* ---------- scripted journey: the whole line stays in view ---------- */
   let gen=0, running=false;
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-  const FOCUS=4.6;
+  const DEF='rgba(140,160,220,.18)';
 
+  /* active stage glows in its phase colour; finished stages keep a soft green border */
+  function paint(e,active){
+    const c=COL[e.kind];
+    e.box.style.borderColor = active?c:(e.kind==='g'?c+'88':DEF);
+    e.box.style.boxShadow   = active?`0 0 260px ${c}30 inset, 0 0 180px ${c}22`:'none';
+  }
   function phase(i,text,kind){
-    els.forEach((e,j)=>{
-      const on=j===i;
-      e.box.style.borderColor = on?COL[kind]:'rgba(140,160,220,.18)';
-      e.box.style.boxShadow   = on?`0 0 260px ${COL[kind]}30 inset, 0 0 180px ${COL[kind]}22`:'none';
-      if(on){e.sub.textContent=text;e.sub.style.color=COL[kind];}
-    });
+    const e=els[i];
+    e.kind=kind; e.sub.textContent=text; e.sub.style.color=COL[kind];
+    els.forEach((o,j)=>paint(o,j===i));
+    if(e.st.badge) e.st.badge.classList.toggle('ok',kind==='g');
     tok.style.background=COL[kind];
     tok.style.boxShadow=`0 0 0 90px ${COL[kind]}22,0 0 260px 60px ${COL[kind]}70`;
   }
-  function chip(i,j,kind){
-    const {chips}=els[i].panel;
-    chips.forEach((c,n)=>{
-      const on=n===j;
-      c.style.borderColor = on?COL[kind]:DIM;
-      c.style.color       = on?COL[kind]:MUT;
-      c.style.boxShadow   = on?`0 0 120px ${COL[kind]}33, 0 0 90px ${COL[kind]}22 inset`:'none';
-    });
+  function unset(i){
+    const e=els[i];
+    e.kind=null; e.sub.textContent='pending'; e.sub.style.color='var(--dim)';
+    e.box.style.borderColor=DEF; e.box.style.boxShadow='none';
+    if(e.st.badge) e.st.badge.classList.remove('ok');
   }
-  function clearChips(i){ els[i].panel.chips.forEach(c=>{c.style.borderColor=DIM;c.style.color=MUT;c.style.boxShadow='none';}); }
-  function rework(i,on){
-    const {rw,rwh}=els[i].panel;
-    if(rw){rw.setAttribute('opacity',on?'1':'.18');rwh.setAttribute('opacity',on?'1':'.18');}
-  }
+  function reset(){ els.forEach((_,i)=>unset(i)); chord.setAttribute('opacity','0'); place(sx(0),TY); }
+
   function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+  /* rejects once the journey is stopped, which unwinds run() */
   function anim(dur,fn){
-    return new Promise(res=>{
+    return new Promise((res,rej)=>{
       const g=gen, t0=performance.now();
       (function step(now){
-        if(g!==gen)return res();
+        if(g!==gen)return rej(0);
         const t=Math.min(1,(now-t0)/dur); fn(ease(t));
         t<1?requestAnimationFrame(step):res();
       })(t0);
     });
   }
-  const moveRing=(from,to)=>{
-    let a1=ang(from),a2=ang(to); if(a2<a1)a2+=2*Math.PI;
-    return anim(950,t=>place(...tp(a1+(a2-a1)*t)));
-  };
+  const wait=ms=>anim(ms,()=>{});
+  const moveLine=(from,to)=>anim(800,t=>place(sx(from)+(sx(to)-sx(from))*t,TY));
   const moveChord=(from,to)=>{
-    const [x1,y1]=tp(ang(from)),[x2,y2]=tp(ang(to));
-    chord.setAttribute('d',`M ${x1} ${y1} Q ${cx} ${cy-900} ${x2} ${y2}`);
+    const x1=sx(from),x2=sx(to),mx=(x1+x2)/2,my=TY-900;
+    chord.setAttribute('d',`M ${x1} ${TY} Q ${mx} ${my} ${x2} ${TY}`);
     chord.setAttribute('opacity','1');
     return anim(1100,t=>{
-      const u=1-t, mx=cx, my=cy-900;
-      place(u*u*x1+2*u*t*mx+t*t*x2, u*u*y1+2*u*t*my+t*t*y2);
-    }).then(()=>{chord.setAttribute('opacity','0')});
+      const u=1-t;
+      place(u*u*x1+2*u*t*mx+t*t*x2, u*u*TY+2*u*t*my+t*t*TY);
+    }).then(()=>chord.setAttribute('opacity','0'));
   };
-  /* camera: push in on one stage, then pull back to the ring */
-  async function focusStage(i){
-    if(z!==3) return;
-    const e=els[i];
-    clearChips(i); rework(i,false);
-    camK=FOCUS; camX=-(e.x-cx); camY=-(e.y-cy);
-    applyT(true);
-    tok.style.opacity='0'; showRing(false);
-    e.panel.p.style.opacity='1';
-    await sleep(1150);
-  }
-  async function unfocus(i){
-    if(z!==3){ blur(); return; }
-    els[i].panel.p.style.opacity='0';
-    showRing(true);
-    camK=1;camX=0;camY=0; applyT(true);
-    await sleep(700);
-    tok.style.opacity='1';
-    await sleep(250);
-  }
-  function blur(){
-    els.forEach(e=>e.panel.p.style.opacity='0');
-    tok.style.opacity='1'; showRing(true);
-  }
-  function reset(){
-    els.forEach(e=>{
-      e.box.style.borderColor='rgba(140,160,220,.18)';e.box.style.boxShadow='none';
-      e.sub.textContent='pending';e.sub.style.color='var(--dim)';
-      if(e.st.badge)e.st.badge.classList.remove('ok');
-    });
-    blur(); place(...tp(ang(0)));
-  }
 
   async function playStage(i,opts={}){
-    const st=stages[i], g=gen;
-    const guard=()=>{ if(g!==gen) throw 0; };
-    await focusStage(i); guard();
-    phase(i,st.flow[0],'a'); chip(i,0,'a'); await sleep(850); guard();
-    phase(i,'in review','r'); chip(i,1,'r'); await sleep(850); guard();
+    const st=stages[i];
+    phase(i,st.author,'a'); await wait(850);
+    phase(i,'in review','r'); await wait(850);
     if(st.rework && !opts.noRework){
-      phase(i,'changes required','x'); chip(i,1,'x'); rework(i,true); await sleep(1000); guard();
-      phase(i,'reconciling','a'); chip(i,0,'a'); rework(i,false); await sleep(750); guard();
-      phase(i,'in review','r'); chip(i,1,'r'); await sleep(700); guard();
+      phase(i,'changes required','x'); await wait(1000);
+      phase(i,'reconciling','a'); await wait(750);
+      phase(i,'in review','r'); await wait(700);
     }
-    if(opts.stopAtGate){ return; }
     if(st.human){
-      phase(i,st.flow[2],'h'); chip(i,2,'h');
-      if(st.badge)st.badge.classList.remove('ok');
-      await sleep(1600); guard();
-      phase(i,'approved','g'); chip(i,3,'g');
-      if(st.badge)st.badge.classList.add('ok');
-      await sleep(800); guard();
+      phase(i,st.gate,'h'); await wait(1600);
     }else{
-      phase(i,st.flow[2],'r'); chip(i,2,'r'); await sleep(800); guard();
-      phase(i,st.flow[3],'g'); chip(i,3,'g'); await sleep(700); guard();
+      phase(i,st.gate,'r'); await wait(800);
     }
-    await unfocus(i);
+    phase(i,st.done,'g'); await wait(700);
   }
 
   async function run(){
-    const g=++gen; running=true; reset();
+    running=true;
     while(true){
-      if(g!==gen)return;
-      for(const i of [0,1,2,3]){ await playStage(i); if(g!==gen)return; await moveRing(i,i+1); }
-      await playStage(4); if(g!==gen)return; await moveRing(4,5);
-      await playStage(5); if(g!==gen)return; await moveRing(5,6);
+      reset();
+      for(const i of [0,1,2]){ await playStage(i); await moveLine(i,i+1); }
+      /* the plan spike exposes a spec gap: outer loop back to Product */
+      phase(3,'spike + plan','a'); await wait(850);
+      phase(3,'spec gap found','r'); await wait(800);
+      phase(3,'changes required','x'); await wait(1100);
+      await moveChord(3,0); unset(1); unset(2); unset(3);
+      phase(0,'spec revised','a'); await wait(850);
+      phase(0,'in review','r'); await wait(700);
+      phase(0,'your approval','h'); await wait(1200);
+      phase(0,'approved','g'); await wait(500);
+      for(const i of [1,2]){ await moveLine(i-1,i); phase(i,'re-checked','r'); await wait(600); phase(i,'approved','g'); await wait(400); }
+      await moveLine(2,3);
+      for(const i of [3,4,5]){ await playStage(i); await moveLine(i,i+1); }
       /* Verification finds something: outer loop back to Implementation */
-      await focusStage(6);
-      phase(6,'audit journey','a'); chip(6,0,'a'); await sleep(850);
-      phase(6,'findings','r');      chip(6,1,'r'); await sleep(800);
-      phase(6,'changes required','x'); chip(6,1,'x'); rework(6,true); await sleep(1100);
-      await unfocus(6); if(g!==gen)return;
-      await moveChord(6,4);
-      phase(4,'task 3 reworked','a'); await sleep(900);
-      phase(4,'CI pending','r'); await sleep(750);
-      await moveRing(4,5);
-      phase(5,'coverage updated','a'); await sleep(800);
-      await moveRing(5,6);
-      await playStage(6,{noRework:true}); if(g!==gen)return;
-      await moveRing(6,7);
-      await playStage(7); if(g!==gen)return;
-      await sleep(1600);
+      phase(6,'audit journey','a'); await wait(850);
+      phase(6,'findings','r'); await wait(800);
+      phase(6,'changes required','x'); await wait(1100);
+      await moveChord(6,4); unset(5); unset(6);
+      phase(4,'task 3 reworked','a'); await wait(900);
+      phase(4,'CI pending','r'); await wait(750);
+      phase(4,'approved','g'); await wait(500);
+      await moveLine(4,5);
+      phase(5,'coverage updated','a'); await wait(800);
+      phase(5,'approved','g'); await wait(400);
+      await moveLine(5,6);
+      await playStage(6,{noRework:true});
+      await moveLine(6,7);
+      await playStage(7);
+      await wait(1600);
     }
   }
   return {
-    start(){ if(!running) run().catch(()=>{}); },
-    stop(){ gen++; running=false; camK=1;camX=0;camY=0; blur(); },
-    blur
+    start(){ if(!running){ gen++; run().catch(()=>{}); } },
+    stop(){ gen++; running=false; reset(); },
+    stageX:sx, lineY:LY
   };
 })();
 
@@ -732,13 +783,13 @@ const L3 = (function(){
     if(!b)return;
     const col=idx%3, row=(idx/3)|0;
     const ox=cx+(col-1)*CW, oy=cy+(row-1)*CH;
-    const rx=4300, ry=1950, c=COL[b[3]];
-    g+=`<ellipse cx="${ox}" cy="${oy}" rx="${rx}" ry="${ry}" fill="none"
+    /* same line geometry as the live l3 cell in the centre */
+    const c=COL[b[3]], X=i=>ox-CW/2+L3.stageX(i), y=oy-CH/2+L3.lineY;
+    g+=`<line x1="${X(0)}" y1="${y}" x2="${X(7)}" y2="${y}"
          stroke="rgba(129,140,248,.28)" stroke-width="26" stroke-dasharray="300 210">
-         <animate attributeName="stroke-dashoffset" from="0" to="-510" dur="${3+idx*0.35}s" repeatCount="indefinite"/></ellipse>`;
+         <animate attributeName="stroke-dashoffset" from="0" to="-510" dur="${3+idx*0.35}s" repeatCount="indefinite"/></line>`;
     for(let i=0;i<8;i++){
-      const a=-Math.PI/2+i*(Math.PI/4);
-      const x=ox+rx*Math.cos(a), y=oy+ry*Math.sin(a);
+      const x=X(i);
       const on=i===b[2];
       g+=`<circle cx="${x}" cy="${y}" r="${on?300:150}" fill="${on?c:'rgba(140,160,220,.35)'}"
            ${on?`opacity=".95"><animate attributeName="r" values="300;420;300" dur="1.8s" repeatCount="indefinite"/></circle>`:'/>'}`;
@@ -758,7 +809,8 @@ const L3 = (function(){
 
 /* ---------------- zoom control ---------------- */
 const SCALES={1:.75,2:.25,3:.0833,4:.02777};
-/* camera: SCALES[z] is the layer scale, cam* pushes in on one stage at level 3 */
+/* level 3 grows to fill the viewport so the whole workflow line reads at presentation size */
+const scaleFor=n=>n===3?Math.min(innerWidth*.96/12600,(innerHeight-190)/6840):SCALES[n];
 /* fade layers in as they become relevant (own children only, never nested layers) */
 function fadeLayers(){
   const own = L => [...L.children].filter(c=>!c.classList.contains('layer'));
@@ -769,18 +821,18 @@ function fadeLayers(){
 }
 function applyT(animate){
   U.style.transition = animate? 'transform 1.25s cubic-bezier(.65,.02,.2,1)':'none';
-  U.style.transform=`scale(${SCALES[z]*camK}) translate(${camX}px,${camY}px)`;
+  U.style.transform=`scale(${scaleFor(z)})`;
 }
 const CAPS={
  1:['Level 1 · one agent','An agent takes an input and produces an output.','A single bounded unit of work, sized to fit one context window. This is the only thing an agent does reliably well, and everything above it is built out of this.'],
  2:['Level 2 · one stage','A stage is an author plus an independent reviewer.','The implementer\'s output is the reviewer\'s input. The reviewer is read-only and checks the artifact against the requirement before the gate opens, so a deviation is caught one stage after it happens.'],
- 3:['Level 3 · the workflow','A work item traverses its workflow.','The camera pushes into each stage to show its gate: author, review, the inner rework loop when the reviewer objects, then the gate itself. A person glyph means the gate waits on the driver and turns green once cleared; a ring glyph means the agent clears it. Verification returns findings to implementation on the outer loop.'],
- 4:['Level 4 · the queue','The same structure, one per work item.','Each cell is one work item mid-workflow — some implementing, some in review, some holding at a gate. `pdlc next loop` routes the queue, advances whatever is actionable and retries the rest with backoff.']
+ 3:['Level 3 · the workflow','A work item traverses its workflow.','The item moves stage by stage along one line: author, review, the inner rework loop when the reviewer objects, then the gate. An amber dot means the gate waits on the driver and turns green once cleared; the rest the agent clears itself. Downstream findings send the item back upstream: a plan spike can reopen the spec, and verification can reopen implementation.'],
+ 4:['Level 4 · the queue','The same line, one per work item.','Each line is one work item mid-workflow — some implementing, some in review, some holding at a gate. `pdlc next loop` routes the queue, advances whatever is actionable and retries the rest with backoff.']
 };
 let z=1;
+addEventListener('resize',()=>applyT(false));
 function setZoom(n,animate=true){
   z=Math.max(1,Math.min(4,n));
-  camK=1;camX=0;camY=0;
   applyT(animate);
   U.dataset.zoom=z;
   fadeLayers();
@@ -795,7 +847,6 @@ function setZoom(n,animate=true){
   },260);
   document.querySelectorAll('#zoomctl button').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
   z>=3 ? L3.start() : L3.stop();
-  if(z!==3) L3.blur();
 }
 document.getElementById('caption').style.transition='opacity .3s ease';
 document.querySelectorAll('#zoomctl button').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
