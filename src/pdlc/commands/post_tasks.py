@@ -42,6 +42,17 @@ typo'd requirement or a dependency cycle fails without having touched the
 record. --dry-run stops after validation and prints the plan, which is how a
 breakdown is checked before it is worth landing.
 
+A Tasks manifest entry matching a delivery task that is already closed re-lands
+onto that task. When the re-land changes its title or body, the task is
+reopened and its `## Technical Plan` and `## Implementation` comments are
+deleted, so it reads as needing a plan and an implementation again rather than
+staying closed against a body nothing built; `hasImplementation` tracks the
+attached pull request and is unaffected. A closed task the re-land leaves
+byte-identical stays closed. Reopened task ids are listed in the evidence
+comment and in the printed `reopened` array. --dry-run reports the closed tasks
+the breakdown lands onto as `reopenCandidates`; which of them change, and so
+which are reopened, is only known once the bodies are written.
+
 UI --body is the `## UI` section's content; a leading `## UI` heading is
 tolerated and stripped. Applicability must be explicit: the fragment either
 names at least one `UJ-N` journey, or states that no UI is required.
@@ -89,7 +100,7 @@ from pdlc.internal.workitem import (
     write_body,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
-from pdlc.internal.invalidation import reauthor_invalidate_stage
+from pdlc.internal.invalidation import reauthor_invalidate_stage, reopen_tasks
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
@@ -176,6 +187,14 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             print(f"  - {error}", file=sys.stderr)
         raise SystemExit(1)
 
+    # A closed task named by the breakdown is only actually reopened when this
+    # call changes its title or body; the dry run cannot know that yet, so it
+    # reports the candidates rather than a prediction.
+    closed_in_breakdown = sorted(
+        task["taskId"] for task in existing
+        if task.get("taskId") and task["taskId"] in {t["id"] for t in plan["tasks"]} and task.get("state") == "CLOSED"
+    )
+
     if dry_run:
         print(json.dumps({
             "dryRun": True,
@@ -192,6 +211,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             ],
             "order": plan["order"],
             "orphans": [task["taskId"] for task in plan["orphans"]],
+            "reopenCandidates": closed_in_breakdown,
             "attachmentCount": len(attachment_inputs),
         }))
         return
@@ -210,12 +230,32 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     unchanged = [r["taskId"] for r in results if r["action"] == "unchanged"]
     open_orphans = [task["taskId"] for task in plan["orphans"] if task.get("state") != "CLOSED"]
 
+    # A re-landed breakdown that rewrites a task Implementation already closed
+    # invalidates that task's plan and implementation: without the reopen it
+    # stays closed, so no later stage is eligible to build the new body and the
+    # record reads as fully delivered against a breakdown nothing implemented.
+    # Scoped to tasks this call actually rewrote — an `unchanged` closed task is
+    # still faithfully implemented and stays closed. Targeting `Technical Plan`
+    # retires the plan as well as the implementation, matching the Tasks stage's
+    # own evidence dependencies.
+    changed = [str(r["number"]) for r in results if r["action"] in ("updated", "retitled")]
+    task_ids = {str(r["number"]): r["taskId"] for r in results}
+    reopened: list[str] = []
+    if changed:
+        numbers = reopen_tasks(
+            issue, "Technical Plan", changed,
+            reason="Reopened for rework: the task body changed in a re-landed breakdown.",
+        )
+        reopened = [task_ids[number] for number in numbers]
+
     # The evidence body is the durable judgement. Counts, order, and coverage
     # are already recoverable from the task tree and should not inflate history.
     assert evidence_body is not None
     summary_lines = [evidence_body.rstrip("\n")]
     if open_orphans:
         summary_lines += ["", f"Exception: open tasks absent from this breakdown: {', '.join(open_orphans)}"]
+    if reopened:
+        summary_lines += ["", f"Reopened for rework, their plan and implementation retired: {', '.join(reopened)}"]
 
     post_comment(issue, "\n".join(summary_lines) + "\n", "TASKS")
 
@@ -232,6 +272,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         "retitled": retitled,
         "unchanged": unchanged,
         "orphans": open_orphans,
+        "reopened": reopened,
         "order": plan["order"],
         "tasks": results,
         "attachments": attachments,
