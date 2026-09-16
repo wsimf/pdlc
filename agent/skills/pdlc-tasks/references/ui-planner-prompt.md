@@ -41,6 +41,9 @@ One fragment file: the `UI` section — information architecture, interaction
 states, loading / error / empty states, accessibility, responsive behaviour, and
 every named `UJ-*` journey.
 
-UI applicability is always explicit: a feature with no user-facing surface still
-says so, in a form that can be reviewed and approved like any other artifact.
+A feature with no user-facing surface still returns a fragment saying so and
+why, so applicability is reviewed and approved like any other artifact.
+
+Report whether UI is required. The fragment's own wording is yours to choose;
+the calling skill acts on your verdict, not on the prose.
 ```

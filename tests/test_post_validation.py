@@ -118,17 +118,47 @@ class PostTasksValidationTests(FileBackendTest):
         self.assertIn("pdlc guide decisions", result.stderr)
         self.assertEqual(self.fields(35)["Gate State"], "Decision Required")
 
-    def test_ui_applicability_must_be_explicit(self):
+    def test_ui_journeys_are_required_without_the_no_ui_flag(self):
         self.seed_record(32, "UI", "Pending")
         ok = self.write_file("ui-ok.md", "## UI\n\nUJ-1 covers the first run.\n")
         result = self.invoke("post_tasks", "--work-item", 32, "--stage", "UI",
                              "--body", ok, "--dry-run")
         self.assertEqual(result.json["journeys"], ["UJ-1"])
+        self.assertIs(result.json["uiRequired"], True)
         vague = self.write_file("vague.md", "Some prose that decides nothing.\n")
         rejected = self.invoke("post_tasks", "--work-item", 32, "--stage", "UI",
                                "--body", vague, "--dry-run")
         self.assertEqual(rejected.code, 1)
-        self.assertIn("UI applicability must be explicit", rejected.stderr)
+        self.assertIn("--no-ui", rejected.stderr)
+
+    def test_no_ui_lands_a_rationale_the_wording_cannot_break(self):
+        self.seed_record(33, "UI", "Pending")
+        # The phrasing is deliberately none of the sentences the old regex
+        # accepted: the flag carries applicability, the fragment carries why.
+        body = self.write_file("no-ui.md", "**UI Phase:** Not required — the sync runs headless.\n")
+        result = self.invoke("post_tasks", "--work-item", 33, "--stage", "UI",
+                             "--body", body, "--no-ui", "--dry-run")
+        self.assertEqual(result.code, 0)
+        self.assertIs(result.json["uiRequired"], False)
+        self.assertEqual(result.json["journeys"], [])
+
+    def test_no_ui_is_refused_against_a_fragment_naming_journeys(self):
+        self.seed_record(34, "UI", "Pending")
+        body = self.write_file("both.md", "UJ-1 covers the first run.\n")
+        result = self.invoke("post_tasks", "--work-item", 34, "--stage", "UI",
+                             "--body", body, "--no-ui", "--dry-run")
+        self.assertEqual(result.code, 1)
+        self.assertIn("UJ-1", result.stderr)
+
+    def test_no_ui_is_refused_on_the_tasks_stage(self):
+        self.seed_record(36, "Tasks", "Pending")
+        manifest = self.write_file("m36.json", json.dumps([
+            {"title": "A", "body": self.body_file, "ui": False, "covers": ["FR-1"]}
+        ]))
+        result = self.invoke("post_tasks", "--work-item", 36, "--stage", "Tasks",
+                             "--manifest", manifest, "--no-ui", "--dry-run")
+        self.assertEqual(result.code, 1)
+        self.assertIn("--no-ui is only valid with --stage UI", result.stderr)
 
 
 class PostPlanValidationTests(FileBackendTest):

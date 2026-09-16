@@ -121,7 +121,7 @@ Write the fragment to a file (e.g. `/tmp/pdlc-ui.md`) and return its path.
 Return to the calling skill:
 
 1. Parent work item number and whether this was a first pass or a reconciliation.
-2. UI applicability decision.
+2. UI applicability decision: required or not required.
 3. Fragment file path.
 4. Journeys and surfaces written, or why no UI is required.
 5. Decisions resolved from evidence, and any genuine conflict or gap returned rather than resolved.

@@ -3,8 +3,10 @@
     pdlc post tasks - land the UI or Tasks stage
 
 USAGE
-    - if landing the UI stage:
+    - if landing the UI stage for a work item with a user-facing surface:
         pdlc post tasks --work-item N --stage UI    --body FILE     --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    - if landing the UI stage for a work item with no user-facing surface:
+        pdlc post tasks --work-item N --stage UI    --body FILE --no-ui --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
     - if landing the Tasks stage:
         pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
 
@@ -12,6 +14,8 @@ FLAGS
     --work-item N                        required; the work item's number
     --stage UI|Tasks                     required; which stage this call lands
     --body FILE                          required with --stage UI; the `## UI` section's content
+    --no-ui                              action="store_true"; only valid with --stage UI; declares the work item
+                                         has no user-facing surface, so --body names no UJ-N journey
     --manifest FILE                      required with --stage Tasks; JSON array of delivery tasks
     --evidence FILE|-                    required unless --dry-run; the review evidence body
     --dry-run                            validate and print the plan without landing it
@@ -63,8 +67,12 @@ how a breakdown says a task needs no rework, without restating a body
 byte-for-byte to avoid rewriting it.
 
 UI --body is the `## UI` section's content; a leading `## UI` heading is
-tolerated and stripped. Applicability must be explicit: the fragment either
-names at least one `UJ-N` journey, or states that no UI is required.
+tolerated and stripped. Applicability is explicit, and it is carried by the
+flag rather than by the fragment's wording: without --no-ui the fragment must
+name at least one `UJ-N` journey, and --no-ui declares there is no user-facing
+surface and refuses a fragment that names one. --body is required either way —
+a work item with no UI still records why, as a reviewable artifact. The printed
+`uiRequired` reports which of the two landed.
 
 Tasks --manifest is a JSON array, one entry per delivery task:
 
@@ -121,7 +129,6 @@ from pdlc.domain.task_plan import build_plan, declared_identifiers, resolve_task
 FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
 UJ_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
 UI_HEADING_PATTERN = re.compile(r"^##[ \t]+UI[ \t]*$")
-NO_UI_PATTERN = re.compile(r"no UI is required|UI is not required|UI not required", re.IGNORECASE)
 
 @dataclass(frozen=True)
 class PublicationContext:
@@ -130,7 +137,7 @@ class PublicationContext:
     reauthor: bool = False
 
 
-def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_body: str, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
+def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_body: str, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext, no_ui: bool) -> None:
     lines = body_path.read_text(encoding="utf-8").splitlines()
     if lines and UI_HEADING_PATTERN.match(lines[0]):
         lines = lines[1:]
@@ -138,16 +145,24 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
     if not fragment.strip():
         raise PdlcError(f"--body file holds nothing but its heading: {body_path}")
 
-    if not (UJ_PATTERN.search(fragment) or NO_UI_PATTERN.search(fragment)):
-        raise PdlcError(
-            "UI applicability must be explicit: name at least one UJ-N journey, "
-            "or state that no UI is required"
-        )
-
     journeys = declared_identifiers(fragment, UJ_PATTERN)
 
+    # Applicability is carried by the flag, never by the fragment's wording.
+    # Sniffing prose for a "no UI" sentence made the caller guess phrasings,
+    # so --body owns the reviewable rationale and --no-ui owns the decision.
+    if no_ui and journeys:
+        raise PdlcError(
+            "--no-ui declares no user-facing surface, but --body names "
+            f"{', '.join(journeys)}; drop --no-ui, or remove the journeys"
+        )
+    if not no_ui and not journeys:
+        raise PdlcError(
+            "--body names no UJ-N journey; name at least one, "
+            "or pass --no-ui if this work item has no user-facing surface"
+        )
+
     if dry_run:
-        print(json.dumps({"dryRun": True, "stage": "UI", "journeys": journeys, "attachmentCount": len(attachment_inputs)}))
+        print(json.dumps({"dryRun": True, "stage": "UI", "uiRequired": not no_ui, "journeys": journeys, "attachmentCount": len(attachment_inputs)}))
         return
 
     if context.reauthor:
@@ -165,6 +180,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         "stage": "UI",
         "itemId": item,
         "work_item": int(issue),
+        "uiRequired": not no_ui,
         "journeys": journeys,
         "gateState": target.gate.value,
         "attachments": attachments,
@@ -333,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--body")
     parser.add_argument("--manifest")
     parser.add_argument("--evidence")
+    parser.add_argument("--no-ui", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(script_args)
 
@@ -350,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise PdlcError("--stage Tasks requires --manifest FILE")
             if args.body:
                 raise PdlcError("--body is only valid with --stage UI")
+            if args.no_ui:
+                raise PdlcError("--no-ui is only valid with --stage UI")
             manifest_path = require_file("--manifest file", args.manifest)
 
         validate_attachments(attachment_inputs)
@@ -410,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.stage == "UI":
             context = PublicationContext(record, pipeline, reauthor and not args.dry_run)
-            land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, target, context)
+            land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, target, context, args.no_ui)
         else:
             context = PublicationContext(record, pipeline, reauthor and not args.dry_run)
             land_tasks(args.work_item, item, manifest_path, evidence_body, args.dry_run, parent_body, attachment_inputs, target, context)

@@ -44,7 +44,7 @@ Dispatch exactly one owning planner:
 
 Build the prompt from the matching template with the complete parent body, `Status`/`Gate State`, stale reason, driver's verbatim follow-up, and existing task tree. The planner is the leaf author: it returns the UI fragment, or one task body per task plus a manifest. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
 
-The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run.
+The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run. For `UI`, the planner also reports whether UI is required; carry that verdict into Validate and Land.
 
 ## Validate
 
@@ -61,6 +61,8 @@ For a UI fragment, run:
 pdlc post tasks --work-item WORK_ITEM --stage UI \
   --body /tmp/pdlc-ui.md --dry-run
 ```
+
+Add `--no-ui` when the planner reported that UI is not required. The planner's applicability verdict decides the flag; never add or drop it to make a failing dry run pass.
 
 Call `pdlc post tasks --help` for more info about that command.
 
@@ -81,7 +83,7 @@ pdlc post tasks --work-item WORK_ITEM --stage Tasks \
   --manifest /tmp/pdlc-tasks.json --evidence /tmp/pdlc-tasks-evidence.md
 ```
 
-For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
+For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`, with the same `--no-ui` the dry run used. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
 
 ## Report
 
