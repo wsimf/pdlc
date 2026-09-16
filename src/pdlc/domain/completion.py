@@ -13,8 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
-from pdlc.domain.evidence import parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.verification import SCHEMA, parse
 from pdlc.domain.workflow import Pipeline
 
 SETTLEMENT_MARKERS = {"APPROVED", "AUTOAPPROVED", "SKIPPED"}
@@ -40,6 +40,7 @@ def completion_blockers(
     skipped_states: str | None,
     verification_body: str | None,
     stale_rows: list[str] | None = None,
+    open_findings: list[str] | None = None,
     open_questions: str = "",
     evidence_body: str | None = None,
 ) -> list[Blocker]:
@@ -112,15 +113,21 @@ def completion_blockers(
             f"found {settlements}, expected at least {len(settled_stages)}.",
         ))
 
-    if policy.verification_parser not in (None, "parse_verification_report"):
+    if policy.verification_parser not in (None, SCHEMA):
         blockers.append(Blocker("verification-parser", f"Unsupported verification parser: {policy.verification_parser}."))
     elif policy.verification_parser and verification_body is None:
         blockers.append(Blocker("no-verification", "No Verification review evidence — pdlc-verify must run first."))
     elif policy.verification_parser:
         try:
-            parse_verification_report(verification_body)
+            parse(verification_body)
         except PdlcError as error:
             blockers.append(Blocker("verification-malformed", f"Verification evidence is not valid: {error}"))
+
+    if open_findings:
+        blockers.append(Blocker(
+            "verification-findings",
+            "Verification findings are still open or awaiting a decision; re-verify: " + "; ".join(open_findings),
+        ))
 
     if stale_rows:
         blockers.append(Blocker(

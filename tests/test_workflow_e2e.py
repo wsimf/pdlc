@@ -140,14 +140,7 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- Verification (clean) ---
         sha = self.head_sha()
-        report = self.write_file(
-            "report.md",
-            f"### Claims Audit\n\n- FR-1 confirmed against source (Verified @ {sha})\n\n"
-            f"### User Journeys\n\n- UJ-1 confirmed in the running app (Verified @ {sha})\n\n"
-            "### UX\n\n- Reviewed — no critical findings\n\n"
-            "### Cumulative Review\n\n- Clean — no findings\n",
-        )
-        verified = self.invoke("post_verify", issue, report, "--recommendation", "Approval Required")
+        verified = self.invoke("post_verify", issue, self.verify_report(issue))
         self.assertEqual(verified.code, 0, verified.stderr)
         self.assertEqual(self.state(issue), ("Verification", "Approval Required"))
 

@@ -231,23 +231,28 @@ class AzureRecoveryTests(unittest.TestCase):
 
 
 class FileStoreContractTests(FileBackendTest):
-    def test_completion_uses_one_comment_snapshot_and_one_git_batch(self):
+    def test_completion_uses_one_comment_snapshot_and_one_git_diff(self):
         from pdlc.commands import inspect_complete
-        from pdlc.domain.evidence import EvidenceRow, VerificationReport
+        from pdlc.domain.evidence import ReviewVerdict, compose_review
+        from pdlc.domain.verification import Report, Row, render
+        from pdlc.internal import verification
 
         self.seed_record(70, "Verification", "Approval Required")
-        comments = [{"body": "report"}]
-        report = VerificationReport(
-            rows=(EvidenceRow("Claims Audit", "first", "abc"), EvidenceRow("Claims Audit", "second", "abc")),
-            findings=(), recommendation="Approval Required",
+        report = Report(
+            head=self.head_sha(), run_at="2026-09-16 10:42 UTC", recommendation="Approval Required",
+            claims=(Row("TASK-001", "confirmed", "first"), Row("TASK-002", "confirmed", "second")),
+            journeys=None, ux=Row("ux", "not_applicable"), cumulative=Row("cumulative", "clean"),
         )
-        with patch.object(inspect_complete, "comments_for_issue", return_value=comments) as fetch, patch.object(inspect_complete, "verification_evidence_comments", return_value=comments) as evidence, patch.object(inspect_complete, "parse_verification_report", return_value=report), patch.object(inspect_complete, "stale_commits", return_value=set()) as git, patch.object(inspect_complete, "completion_blockers", return_value=[]), patch.object(inspect_complete, "marked_comments", return_value=[]):
+        comments = [{"body": "PDLC-REVIEW\n\n" + compose_review("Verification", ReviewVerdict.PASS, render(report)),
+                     "createdAt": "2026-09-16T10:42:00Z", "url": "", "author": {"login": "v"}}]
+        with patch.object(inspect_complete, "comments_for_issue", return_value=comments) as fetch, \
+                patch.object(verification, "changed_files", return_value=set()) as git, \
+                patch.object(inspect_complete, "completion_blockers", return_value=[]):
             output = inspect_complete.inspect("70")
         fetch.assert_called_once_with("70")
-        evidence.assert_called_once_with("70", comments=comments)
-        git.assert_called_once()
-        self.assertIn("- first", output)
-        self.assertIn("- second", output)
+        git.assert_called_once_with(report.head)
+        self.assertIn("- claims TASK-001 · confirmed — first", output)
+        self.assertIn("- claims TASK-002 · confirmed — second", output)
 
     def test_reading_an_absent_store_does_not_create_it(self):
         root = self.work / "absent"

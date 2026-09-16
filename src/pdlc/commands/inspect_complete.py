@@ -10,13 +10,14 @@ DESCRIPTION
     Item is actually ready to lock right now, then — only if it is — gives the
     mechanical facts a completion pass needs: which delivery tasks are open,
     which linked PRs aren't both merged and green, which live Open Questions the
-    completion evidence must disposition, and whether the evidence in
-    the latest Verification `PDLC-REVIEW` comment still holds against current source
-    (the same staleness check pdlc inspect verify's reuse pass runs, applied
-    here at lock time instead of audit time). The agent supplies judgment only
-    where the data is genuinely ambiguous — is an open task's deferral durable,
-    is unfinished work small enough to note and continue; every mechanical fact
-    is resolved here, never by the agent querying the work-item store or `git` itself.
+    completion evidence must disposition, and whether the latest Verification
+    report still holds against current source (the same staleness check
+    pdlc inspect verify's reuse pass runs, applied here at lock time instead of
+    audit time) with no verification finding left open. The agent supplies
+    judgment only where the data is genuinely ambiguous — is an open task's
+    deferral durable, is unfinished work small enough to note and continue;
+    every mechanical fact is resolved here, never by the agent querying the
+    work-item store or `git` itself.
 
     ## Readiness
 
@@ -34,36 +35,35 @@ DESCRIPTION
 
     ## Verification Evidence
 
-    - WORK-142-TASK-007 — Confirmed: RouteShapeAnimator matches Result (Verified @ a1b2c3d)
+    Verified clean @ c47d0ae13f2b… — every row still holds against current source.
 
-    Stale — re-verify before completing:
-
-    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
+    - claims TASK-007 · confirmed — RouteSyncClient retries 503 with backoff
+    - ux · not_applicable
+    - cumulative · clean — master..feature/142-top
 
 or, when not ready:
 
     ## Readiness
 
-    Not ready: Status is 'Testing', not Verification. That stage owns this Work Item now.
+    Not ready — resolve each of these before completing:
+
+    - [verification-stale] Verification evidence no longer holds against current source; re-verify: claims TASK-007 · confirmed
 
 Task Completion reads "All tasks closed; every linked PR merged with passing
-checks." when there's nothing to flag. Verification Evidence reads "No
-Verification review evidence found — pdlc-verify must run first." when
-Verification never posted a report, or "Every verified item still holds
-against current source." when nothing has gone stale since the last pass.
+checks." when there's nothing to flag.
 """
 
 from __future__ import annotations
 
 import sys
-from pdlc.domain.evidence import VerificationReport, parse_verification_report
 
 
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.completion import completion_blockers
 from pdlc.domain.completion_evidence import live_open_questions
-from pdlc.internal.vcs import stale_commits
+from pdlc.domain.verification import Report
+from pdlc.internal.verification import verification_state
 from pdlc.internal.workitem import (
     comments_for_issue,
     item_skipped_states,
@@ -72,7 +72,6 @@ from pdlc.internal.workitem import (
     resolve_item,
     task_tree,
     workflow_for_item,
-    verification_evidence_comments,
 )
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
@@ -98,21 +97,17 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> li
     return sections
 
 
-def _verification_evidence_section(report: VerificationReport | None, stale: list[str]) -> list[str]:
+def _verification_evidence_section(report: Report | None) -> list[str]:
     if report is None:
         return ["## Verification Evidence", "", "No Verification review evidence found — pdlc-verify must run first."]
-    still_valid = [row.text for row in report.rows if row.commit and row.text not in stale]
-
-    sections = ["## Verification Evidence"]
-    if not stale:
-        sections += ["", "Every verified item still holds against current source."]
-        if still_valid:
-            sections += [""] + [f"- {text}" for text in still_valid]
-        return sections
-
-    sections += [""] + [f"- {text}" for text in still_valid]
-    sections += ["", "Stale — re-verify before completing:", ""]
-    sections += [f"- {text}" for text in stale]
+    sections = [
+        "## Verification Evidence",
+        "",
+        f"Verified clean @ {report.head} — every row still holds against current source.",
+        "",
+    ]
+    for section, row in report.rows():
+        sections.append(f"- {section} {row.key} · {row.result}" + (f" — {row.note}" if row.note else ""))
     return sections
 
 
@@ -138,18 +133,7 @@ def inspect(issue: str) -> str:
     pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
-    verification_comments = verification_evidence_comments(issue, comments=comments)
-    verification_body = verification_comments[-1]["body"] if verification_comments else None
-    report = None
-    stale_rows: list[str] = []
-    if verification_body:
-        try:
-            report = parse_verification_report(verification_body)
-        except PdlcError:
-            pass  # completion_blockers reports malformed evidence below.
-        if report is not None:
-            stale = stale_commits(list(report.verified_commits))
-            stale_rows = [row.text for row in report.rows if row.commit in stale]
+    verification_body, report, stale_rows, open_findings = verification_state(issue, comments, tasks)
 
     blockers = completion_blockers(
         pipeline=pipeline,
@@ -161,6 +145,7 @@ def inspect(issue: str) -> str:
         skipped_states=item_skipped_states(item),
         verification_body=verification_body,
         stale_rows=stale_rows,
+        open_findings=open_findings,
         open_questions=read_section(body, "Open Questions"),
     )
 
@@ -173,7 +158,7 @@ def inspect(issue: str) -> str:
     sections = ["## Readiness", "", f"Ready — Status: {boundary_stage}, Gate State: {boundary_gate.value}."]
     sections += ["", attachments_markdown(attachments)]
     sections += ["", *_task_completion_section(tasks, pull_requests)]
-    sections += ["", *_verification_evidence_section(report, stale_rows)]
+    sections += ["", *_verification_evidence_section(report)]
     sections += ["", *_open_questions_section(body)]
 
     return "\n".join(sections) + "\n"

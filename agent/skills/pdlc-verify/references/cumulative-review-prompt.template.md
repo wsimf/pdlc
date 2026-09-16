@@ -50,7 +50,7 @@ Return the findings to the calling `pdlc-verify` skill.
 
 ## Filling it in
 
-- **Resolve the scope before dispatching.** If every commit since the last `Verified @` touched only work-item paperwork, the prior clean result still holds — carry it forward and do not dispatch at all.
+- **Resolve the scope before dispatching.** When the report `pdlc inspect verify` wrote already carries the cumulative review forward, nothing has changed since it ran clean — do not dispatch at all.
 - **If the record's work has already been merged in pieces**, the branch diff no longer covers it. Do not let the sub-agent fall back to an automatic scope that silently reviews nothing: work out the right base ref or commit range first, and ask the driver when you cannot.
 - **Translate the constraints.** The sub-agent cannot resolve `FR-*`/`C-*`, so write what each one requires rather than citing it.
 - **Relay findings unchanged.** Any finding of any severity stops the verify pass before the report is posted; never write clean verification evidence while one is open, and never re-prioritise or reinterpret the sub-agent's verdict.

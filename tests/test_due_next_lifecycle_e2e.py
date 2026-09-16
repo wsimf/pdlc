@@ -127,15 +127,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.inspect_due(issue, "Testing.ApprovalRequired", "pdlc post approve")
         self.assertEqual(self.invoke("post_approve", issue, evidence).code, 0)
 
-        sha = self.head_sha()
-        report = self.write_file(
-            "report.md",
-            f"### Claims Audit\n\n- FR-1 confirmed (Verified @ {sha})\n\n"
-            f"### User Journeys\n\n- UJ-1 confirmed (Verified @ {sha})\n\n"
-            "### UX\n\n- Reviewed — no critical findings\n\n"
-            "### Cumulative Review\n\n- Clean — no findings\n",
-        )
-        verified = self.invoke("post_verify", issue, report, "--recommendation", "Approval Required")
+        verified = self.invoke("post_verify", issue, self.verify_report(issue))
         self.assertEqual(verified.code, 0, verified.stderr)
         self.inspect_due(issue, "Verification.ApprovalRequired", "pdlc post complete")
         self.next_action(issue, "human-approval")

@@ -2,12 +2,9 @@ import unittest
 from unittest.mock import patch
 
 from pdlc.commands.inspect_test import _testable_scope_section
-from pdlc.commands.inspect_verify import _reuse_items
-from pdlc.commands.post_complete import _stale_rows
 from pdlc.commands.inspect_implement import _next_task_section
 from pdlc.commands.inspect_task import _render_task
 from pdlc.internal.reporting import older_comments_notice
-from pdlc.domain.evidence import parse_verification_report
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal import pull_requests
 
@@ -36,45 +33,6 @@ class ReviewRegressionTests(unittest.TestCase):
             caps.return_value.agent.return_value = "general-purpose"
             output = _render_task(task)
         self.assertIn("1 more comments; use pdlc inspect comments 1 --page 2", output)
-    REPORT = """## Claims Audit
-- Claim (Verified @ deadbeef)
-## User Journeys
-- Journey (Verified @ deadbeef)
-## UX
-- Clean
-## Cumulative Review
-- Clean
-## Findings
-- None
-Recommendation: Changes Required
-"""
-
-    def test_unknown_anchor_is_stale_in_both_readers(self):
-        with patch("pdlc.commands.inspect_verify.stale_commits", return_value={"deadbeef"}) as stale:
-            self.assertTrue(all(item["stale"] for item in _reuse_items(self.REPORT)))
-        stale.assert_called_once_with(["deadbeef", "deadbeef"])
-        with patch("pdlc.internal.vcs.stale_commits", return_value={"deadbeef"}):
-            self.assertEqual(_stale_rows(self.REPORT), [
-                "Claim (Verified @ deadbeef)", "Journey (Verified @ deadbeef)"
-            ])
-
-    def test_parser_accepts_heading_case_and_ignores_unknown_heading(self):
-        body = """## claims audit
-- Claim (Verified @ HEAD)
-## Unknown
-- Must not become evidence
-## USER JOURNEYS
-- Journey (Verified @ HEAD)
-## ux
-- Clean
-## cumulative review
-- Clean
-## Findings
-- None
-Recommendation: Approval Required
-"""
-        report = parse_verification_report(body)
-        self.assertEqual([row.text for row in report.rows], ["Claim (Verified @ HEAD)", "Journey (Verified @ HEAD)", "Clean", "Clean"])
 
     def test_testable_scope_fetches_each_task_pr_once_and_keeps_ownership(self):
         tasks = [

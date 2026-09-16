@@ -325,8 +325,7 @@ class DecisionRequiredEveryCommandTests(FileBackendTest):
         self._assert_refused(63, "Testing", "post_review", 63, "approval-required", self.evidence_file())
 
     def test_verify(self):
-        report = self.write_file("report.md", "Findings.\n")
-        self._assert_refused(64, "Verification", "post_verify", 64, report, "--recommendation", "Changes Required")
+        self._assert_refused(64, "Verification", "post_verify", 64, 'text:{"schema": "pdlc.verify/1"}')
 
     def test_complete(self):
         self._assert_refused(65, "Verification", "post_complete", 65, self.evidence_file())

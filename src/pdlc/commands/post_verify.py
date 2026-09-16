@@ -1,77 +1,107 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc post verify - post verification results and move the Verification gate
+    pdlc post verify - post a verification report and move the Verification gate
 
 USAGE
-    pdlc post verify WORK_ITEM REPORT_FILE|- --recommendation TEXT [--attachment PATH [--attachment-description TEXT]]
-        [--fixed FIXED_FILE|-] [--deferred DEFERRED_FILE|-]
-        [--decision DECISION_FILE|-] [--bounce STAGE]
+    pdlc post verify WORK_ITEM REPORT_FILE|text:JSON|- [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --recommendation TEXT                 required; "Approval Required" | "Changes Required" | "Decision Required"
-    --fixed FIXED_FILE|-                  one "description | commit" pair per line
-    --deferred DEFERRED_FILE|-            one plain reason per line
-    --decision DECISION_FILE|-            required with a Decision Required recommendation
-    --bounce STAGE                        with Changes Required, return an upstream stage to Stale instead
-    --attachment PATH (repeatable)        attach a local file's contents to the verification comment
-    --attachment-description TEXT         description for the --attachment immediately before it
+    --attachment PATH (repeatable)      attach a local file's contents to the verification comment
+    --attachment-description TEXT       description for the --attachment immediately before it
 
 DESCRIPTION
-    Posts a durable "Verification Run Results" comment on a PDLC parent work item,
-    stamped with the current UTC time and a structured REVIEW marker, files any
-    deferred findings into the parent's Open Questions section, and moves the
-    Verification gate to match the run's recommendation. Every run adds a new
-    comment rather than editing a prior one, so the work item's comment history is
-    the full, permanent verification log.
+    Posts a durable "Verification Run Results" comment on a PDLC parent work
+    item from a filled-in verification report, records every finding's status,
+    and moves the Verification gate to the outcome the report supports. Every
+    run adds a new comment rather than editing a prior one, so the work item's
+    comment history is the full, permanent verification log.
 
-The caller hands over raw findings only — a plain description, and for fixed
-items the commit it was re-verified against — and makes no formatting
-decisions: this script owns the Findings section (including its "None" empty
-case and the `(Verified @ ...)` marker on each fixed item), the Open
-Questions deferral lines (the `Deferred — ` marker), and the Recommendation
-line. Deferred findings are filed into Open Questions only — never echoed
-into the comment itself; pdlc inspect verify is how a later pass reads
-both back, and owns parsing these same markers on the way in.
+REPORT_FILE is the `pdlc.verify/1` JSON skeleton `pdlc inspect verify` wrote,
+with its blanks filled in. The verifier supplies results, notes, finding
+statuses, and new findings only. This command owns everything else: it stamps
+the commit the report was checked at (HEAD), numbers new findings `F-<n>`,
+derives the recommendation, and renders the comment. Fields the skeleton
+carries for context (`title`, `reuse`, `author`, `excerpt`, a finding's
+`about`/`text`) are ignored on input.
 
-REPORT_FILE holds only the Claims Audit, User Journeys, UX, and Cumulative Review
-sections — Findings and Recommendation are assembled here. On an
-`Approval Required` run the assembled comment must satisfy the strict
-`evidence.parse_verification_report` schema (all four sections non-empty,
-every Claims Audit / User Journeys row carrying its `(Verified @ <commit>)`
-anchor) that verify inspection and completion read it back through; a
-malformed clean run is refused before anything is posted. DEFERRED_FILE is
-one plain reason per line. FIXED_FILE is one `description | commit` pair per
-line — the commit the fix was re-verified against, not embedded prose.
-Omit either file, or leave it empty, when there's nothing to report for it.
+    {
+      "schema": "pdlc.verify/1",
+      "claims": [
+        {"task": "TASK-007", "result": "confirmed", "note": "RouteSyncClient retries 503 with backoff"}
+      ],
+      "journeys": [
+        {"journey": "UJ-3", "result": "accepted", "note": "offline retry confirmed in the running app"}
+      ],
+      "ux": {"result": "clean", "note": "no material findings"},
+      "cumulativeReview": {"result": "findings", "scope": "master..feature/142-top", "note": "one low finding"},
+      "openComments": [
+        {"url": "https://github.com/acme/app/pull/57#discussion_r1", "action": "finding", "note": ""}
+      ],
+      "findings": [
+        {"id": "F-1", "status": "fixed", "note": "503 now retried; covered by test503Backoff"}
+      ],
+      "newFindings": [
+        {"about": "cumulative", "text": "Backoff jitter constant duplicated in two files",
+         "source": "cumulative review", "status": "deferred", "note": "driver accepted: cosmetic"},
+        {"about": "TASK-007", "text": "503s are not retried",
+         "source": "https://github.com/acme/app/pull/57#discussion_r1", "status": "deferred",
+         "note": "driver accepted for this release"}
+      ],
+      "bounce": null
+    }
 
---recommendation is one of "Approval Required", "Changes Required", or
-"Decision Required", and sets the gate to that value on a successful post:
+Results:
 
-  - Approval Required — clean run; the driver approves, then pdlc post complete.
-  - Changes Required  — a finding the skill can reconcile itself; the loop
-                        routes straight back to pdlc-verify. With --bounce STAGE
-                        the run instead returns that upstream stage to Stale
+  - claims[].result — confirmed | failed | not_run; one row per closed delivery task.
+  - journeys[].result — accepted | failed | not_run; one row per UJ journey in the
+    parent's UI section. `journeys` is null when no delivery task is UI.
+  - ux.result — clean | findings | not_run, or not_applicable when no task is UI.
+  - cumulativeReview.result — clean | findings | not_run.
+  - openComments[].action — finding (a newFindings entry has the comment URL as
+    its source) | no_action (the note says why). Every still-unresolved review
+    comment on the PR stack needs one.
+
+Findings:
+
+  - findings[] updates a finding already on the record by id: status open |
+    fixed | deferred | decision. A finding left out keeps its status, except
+    one previously sent to the driver as a decision, which must be given its
+    outcome.
+  - newFindings[] raises a finding: about (a task id, journey id, ux,
+    cumulative, or general), text, optional source, status open | deferred |
+    decision.
+  - deferred needs a note with the driver's reason, and is appended to the
+    parent's Open Questions as `Deferred — F-<n>: <text> (<note>)`.
+  - decision needs a `decision` object: question, options (two or more),
+    recommendation, blocks, whyNotMechanical. It is posted as a
+    `## Decision Required` block through the backend's blocker channel under a
+    PDLC-DECISION marker; the driver clears it with pdlc post decision.
+  - A failed / findings row needs an open, deferred, or decision finding about it.
+
+The recommendation is derived, never supplied, and sets the gate:
+
+  - Decision Required — any finding is at decision. The autonomous loop halts.
+  - Changes Required  — any finding is open, any row is not_run, or a failed row
+                        has a finding that is not deferred. The loop routes
+                        straight back to pdlc-verify. With "bounce": "STAGE" the
+                        run instead returns that upstream stage to Stale
                         (recorded by the review's Bounce and Loop fields), so
                         the Implementation -> Testing -> Verification loop keeps
                         moving with no driver step. The verifier chooses the
                         target stage.
-  - Decision Required — a finding that needs a product, architecture, UX,
-                        safety, or scope call only the driver can make.
-                        Requires --decision, a file carrying one or more
-                        `## Decision Required` blocks; it is posted through
-                        the backend's blocker channel under a PDLC-DECISION
-                        marker, the autonomous loop halts on it, and the
-                        driver clears it with pdlc post decision.
+  - Approval Required — everything else: a clean run. The driver approves, then
+                        pdlc post complete.
+
+Every problem in the report is refused together, before anything is posted.
+The command also refuses while tracked files differ from HEAD (HEAD would not
+be what was checked), or while HEAD does not include every open task PR's head
+commit — check out the top of the task stack, restacked, first.
 
 The gate is only moved when Status is Verification and the current gate is
 Pending, Changes Required, or Stale — a run against an already-approved or
 malformed record is refused.
 
-Given a REPORT_FILE with Claims Audit / User Journeys / UX / Cumulative Review
-sections, `--fixed` with one line
-`Route line snapped to wrong profile on regen | b2c3d4e`, and `--deferred`
-with one line `Elevation gain rounding drifts by 2m, accepted because it's
-within tolerance`, the posted comment body is:
+For the report above, checked at HEAD c47d0ae…, the posted comment body is:
 
     PDLC-REVIEW
 
@@ -83,193 +113,167 @@ within tolerance`, the posted comment body is:
     ---
 
     ## Verification Run Results
-    Run at 2026-08-24 09:14 UTC
+    Run at 2026-09-16 10:42 UTC · HEAD c47d0ae… · Approval Required
 
     ### Claims Audit
 
-    - WORK-142-TASK-007 — Confirmed: RouteShapeAnimator matches Result; C-2 holds (Verified @ a1b2c3d)
+    - TASK-007 · confirmed — RouteSyncClient retries 503 with backoff
 
     ### User Journeys
 
-    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
+    - UJ-3 · accepted — offline retry confirmed in the running app
 
     ### UX
 
-    - Reviewed — no critical findings (Verified @ a1b2c3d)
+    - ux · clean — no material findings
 
     ### Cumulative Review
 
-    - Clean — no findings (Verified @ a1b2c3d)
+    - cumulative · findings — master..feature/142-top; one low finding
+
+    ### Open Comments
+
+    - https://github.com/acme/app/pull/57#discussion_r1 · finding
 
     ### Findings
 
-    - Route line snapped to wrong profile on regen (Verified @ b2c3d4e)
+    - F-1 · fixed — 503 now retried; covered by test503Backoff
+    - F-2 · deferred · cumulative — Backoff jitter constant duplicated in two files
+      - source: cumulative review
+      - note: driver accepted: cosmetic
+    - F-3 · deferred · TASK-007 — 503s are not retried
+      - source: https://github.com/acme/app/pull/57#discussion_r1
+      - note: driver accepted for this release
 
-    Recommendation: Approval Required
+pdlc inspect verify and completion read that comment back; a hand-edited one
+that no longer parses is refused rather than guessed at.
 
-and the parent work item's Open Questions section gets one new bullet appended:
-`Deferred — Elevation gain rounding drifts by 2m, accepted because it's
-within tolerance`.
+The command prints JSON: `posted`, `workItem`, `itemId`, `gateState`,
+`recommendation`, `head`, `findings` (the IDs this run raised), `attachments`,
+plus `bouncedTo` for a bounce and `ci` when a clean run resolved the CI gate.
+
+EXAMPLES
+    pdlc post verify 142 /tmp/pdlc-verify-142.json
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
-from datetime import datetime, timezone
 
 
 from pdlc.internal.workitem import (
     append_to_section,
+    comments_for_issue,
     item_for_issue,
     post_blocker,
     post_comment,
     set_gate,
+    task_tree,
     workflow_for_item,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.internal.ci_gate import resolve_ci_gate
 from pdlc.internal.invalidation import bounce_stage
-from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_verification_report
+from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
+from pdlc.internal.vcs import has_tracked_changes, head_commit
+from pdlc.internal.verification import context, reports, stack_gaps
+from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import is_stdin, resolve_text, print_help, wants_help
+from pdlc.domain.verification import build_report, ledger, render, render_decisions
+from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, Gate, Outcome
 
-RECOMMENDATIONS = ("Approval Required", "Changes Required", "Decision Required")
-DECISION_HEADING = "## Decision Required"
 VERIFICATION_OUTCOMES = {
     "Approval Required": Outcome.CLEAN,
     "Changes Required": Outcome.FINDINGS,
     "Decision Required": Outcome.DECISION,
 }
+VERDICTS = {
+    "Approval Required": ReviewVerdict.PASS,
+    "Changes Required": ReviewVerdict.CHANGES_REQUIRED,
+    "Decision Required": ReviewVerdict.DECISION_REQUIRED,
+}
 
 
-def _lines_from(source: str | None) -> list[str]:
-    if not source:
-        return []
-    return [line.strip() for line in resolve_text(source, label="findings").splitlines() if line.strip()]
+def _load(source: str) -> object:
+    text = resolve_text(source, label="report")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise PdlcError(f"report is not valid JSON: {error}") from None
 
 
-def _fixed_bullet(line: str) -> str:
-    description, sep, commit = line.partition("|")
-    if not sep:
-        raise PdlcError(f"--fixed line missing '| commit': {line!r}")
-    description = description.strip()
-    commit = commit.strip()
-    if not description or not commit:
-        raise PdlcError(f"--fixed line missing description or commit: {line!r}")
-    return f"- {description} (Verified @ {commit})"
-
-
-def post_verify(
-    issue: str,
-    report: str,
-    recommendation: str,
-    fixed: str | None,
-    deferred: str | None,
-    decision: str | None,
-    bounce: str | None = None,
-    attachment_inputs: list[dict] | None = None,
-) -> dict:
-    if recommendation not in RECOMMENDATIONS:
-        raise PdlcError(f"--recommendation must be one of: {', '.join(RECOMMENDATIONS)}")
-
-    is_decision = recommendation == "Decision Required"
-    if is_decision and not decision:
-        raise PdlcError("--decision is required when --recommendation is 'Decision Required'")
-    if decision and not is_decision:
-        raise PdlcError("--decision is only valid with --recommendation 'Decision Required'")
-    if bounce and recommendation != "Changes Required":
-        raise PdlcError("--bounce is only valid with --recommendation 'Changes Required'")
-
-    stdin_sources = [
-        name
-        for name, source in (("report", report), ("--fixed", fixed), ("--deferred", deferred), ("--decision", decision))
-        if source is not None and is_stdin(source)
-    ]
-    if len(stdin_sources) > 1:
-        raise PdlcError(f"stdin can supply only one input, not: {', '.join(stdin_sources)}")
+def post_verify(issue: str, report: str, attachment_inputs: list[dict] | None = None) -> dict:
+    data = _load(report)
 
     record = item_for_issue(issue)
     pipeline, state = workflow_for_item(record)
+    # Refuse a record not at Verification / Pending|Changes Required|Stale
+    # before any git or code-host work; the real outcome is checked below.
     try:
-        target = pipeline.next_state(state, Event.VERIFIED, VERIFICATION_OUTCOMES[recommendation])
-        if bounce:
-            pipeline.next_state(target, Event.BOUNCED, requested_target=bounce)
+        pipeline.next_state(state, Event.VERIFIED, Outcome.FINDINGS)
     except ValueError as error:
         raise PdlcError(str(error)) from None
 
-    report_text = resolve_text(report, label="report").strip()
+    if has_tracked_changes():
+        raise PdlcError("tracked files differ from HEAD; verification must run against a clean checkout so HEAD is what was checked")
+    tasks = task_tree(issue)
+    pull_requests = record_pull_requests(issue, record=record, tasks=tasks)
+    gaps = stack_gaps(pull_requests)
+    if gaps:
+        raise PdlcError(
+            "HEAD does not include every open task PR — check out the top of the task stack, restacked: "
+            + ", ".join(gaps)
+        )
+    open_comments = record_open_review_comments(issue, record=record, tasks=tasks)
+    all_reports, _ = reports(issue, comments_for_issue(issue))
+    known = ledger(all_reports)
+    built = build_report(data, context(head_commit(), tasks, record.get("issueBody") or "", open_comments, known))
+    recommendation = built.report.recommendation
 
-    decision_body = resolve_text(decision, label="--decision") if is_decision else ""
-    if is_decision and DECISION_HEADING not in decision_body:
-        raise PdlcError(f"a decision-required verification must include a '{DECISION_HEADING}' section")
-
-    fixed_items = _lines_from(fixed)
-    deferred_items = _lines_from(deferred)
-
-    findings_block = "\n".join(_fixed_bullet(line) for line in fixed_items) if fixed_items else "None"
-
-    run_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    sections = [
-        f"## Verification Run Results\nRun at {run_at}",
-        report_text,
-        f"### Findings\n\n{findings_block}",
-        f"Recommendation: {recommendation}",
-    ]
-
-    comment_body = "\n\n".join(sections) + "\n"
-
-    # A clean run's evidence must satisfy the one strict parser every
-    # downstream gate (verify inspection, completion) reads it back through —
-    # non-clean runs are not asserting the record is done, so they only need
-    # a non-empty report.
-    if recommendation == "Approval Required":
-        try:
-            parse_verification_report(comment_body)
-        except PdlcError as error:
-            raise PdlcError(f"clean verification evidence is not valid: {error}") from None
+    try:
+        target = pipeline.next_state(state, Event.VERIFIED, VERIFICATION_OUTCOMES[recommendation])
+        if built.bounce:
+            pipeline.next_state(target, Event.BOUNCED, requested_target=built.bounce)
+    except ValueError as error:
+        raise PdlcError(str(error)) from None
 
     policy = pipeline.rework_policy
-    if bounce and policy is None:
+    if built.bounce and policy is None:
         raise PdlcError("this pipeline has no rework loop")
-    verdict = {
-        "Approval Required": ReviewVerdict.PASS,
-        "Changes Required": ReviewVerdict.CHANGES_REQUIRED,
-        "Decision Required": ReviewVerdict.DECISION_REQUIRED,
-    }[recommendation]
     review_body = compose_review(
         "Verification",
-        verdict,
-        comment_body,
-        bounce=bounce,
-        loop=policy.name if bounce and policy is not None else None,
+        VERDICTS[recommendation],
+        render(built.report),
+        bounce=built.bounce,
+        loop=policy.name if built.bounce and policy is not None else None,
     )
 
     attachments = save_attachments(work_item_number(record), attachment_inputs or [])
     post_comment(issue, review_body, "REVIEW")
 
-    append_to_section(issue, "Open Questions", [f"Deferred — {line}" for line in deferred_items])
+    append_to_section(issue, "Open Questions", [f"Deferred — {line}" for line in built.deferred])
 
-    if is_decision:
-        post_blocker(issue, decision_body, "DECISION")
+    if built.decisions:
+        post_blocker(issue, render_decisions(built.decisions), "DECISION")
 
-    # --bounce routes a Changes Required run straight back to an upstream stage.
+    result: dict = {
+        "posted": True, "workItem": int(issue), "itemId": record["id"],
+        "recommendation": recommendation, "head": built.report.head,
+        "findings": [entry.id for entry in built.report.findings if entry.raised],
+        "attachments": attachments,
+    }
+
+    # A bounce routes a Changes Required run straight back to an upstream stage.
     # Its provenance and loop identity live in the PDLC-REVIEW comment above;
     # PDLC-INVALIDATED remains reserved for explicit driver invalidation.
-    if bounce:
-        bounced = bounce_stage(
-            record,
-            pipeline,
-            target,
-            bounce,
-        )
-        return {"posted": True, "workItem": int(issue), "itemId": record["id"],
-                "gateState": bounced.gate.value, "bouncedTo": bounced.stage, "attachments": attachments}
+    if built.bounce:
+        bounced = bounce_stage(record, pipeline, target, built.bounce)
+        return {**result, "gateState": bounced.gate.value, "bouncedTo": bounced.stage}
 
     set_gate(record["id"], target.gate.value)
-    result = {"posted": True, "workItem": int(issue), "itemId": record["id"], "gateState": target.gate.value, "attachments": attachments}
+    result["gateState"] = target.gate.value
 
     # A clean run is CI-gated, same as Implementation/Testing: it parks at CI
     # Pending rather than Approval Required. Resolving it here immediately
@@ -293,30 +297,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        script_args, attachment_inputs = parse_attachment_arguments(raw_args)
+        args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-
-    parser = argparse.ArgumentParser(description="Post a PDLC verification report")
-    parser.add_argument("work_item")
-    parser.add_argument("report", help="Claims Audit / User Journeys / UX / Cumulative Review sections — a file path, or - for stdin")
-    parser.add_argument("--recommendation", required=True, choices=list(RECOMMENDATIONS))
-    parser.add_argument("--fixed", help="File of fixed findings, one per line, or - for stdin")
-    parser.add_argument("--deferred", help="File of deferred findings, one per line, or - for stdin")
-    parser.add_argument("--decision", help="File of '## Decision Required' blocks, or - for stdin (Decision Required only)")
-    parser.add_argument(
-        "--bounce",
-        metavar="STAGE",
-        help="Return this stage to Stale instead of parking at Changes Required (Changes Required only)",
-    )
-    args = parser.parse_args(script_args)
+    if len(args) != 2:
+        print("usage: pdlc post verify WORK_ITEM REPORT_FILE|text:JSON|-", file=sys.stderr)
+        return 1
 
     try:
-        result = post_verify(
-            args.work_item, args.report, args.recommendation, args.fixed, args.deferred, args.decision, args.bounce,
-            attachment_inputs,
-        )
+        result = post_verify(args[0], args[1], attachment_inputs)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

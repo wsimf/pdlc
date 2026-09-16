@@ -22,7 +22,7 @@ Run:
 pdlc inspect complete WORK_ITEM
 ```
 
-Any `Not ready` line in `## Readiness` means stop, report it verbatim, and do nothing further. When it reports `Ready`, read every listed item's actual wording in `## Task Completion`, `## Verification Evidence`, and `## Open Questions` yourself: every claims row must read `Confirmed`, every journey `Accepted` or `Deferred`, UX `reviewed` or `Not applicable`, cumulative review `clean`. A line that passes the check but doesn't actually say that is still not ready. `## Open Questions` lists the live entries your completion evidence must disposition.
+Any `Not ready` line in `## Readiness` means stop, report it verbatim, and do nothing further. When it reports `Ready`, the verification rows and findings are already machine-checked; read `## Task Completion` and `## Open Questions` yourself. `## Open Questions` lists the live entries your completion evidence must disposition.
 
 This step is complete when the driver's instruction is in hand, `## Readiness` reads `Ready`, and every listed item's wording has been read.
 

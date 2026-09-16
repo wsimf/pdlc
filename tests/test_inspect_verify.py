@@ -1,11 +1,14 @@
 """`pdlc inspect verify` on a populated Verification-stage record: readiness,
-task completion, the evidence timeline, journeys-to-review, and the git-backed
-reuse/staleness pass."""
+task completion, the evidence timeline, the source guard, journeys-to-review,
+the finding ledger, and the pre-filled report with its carried-forward rows."""
 
 import json
+from pathlib import Path
 from unittest import mock
 
 from _support import FileBackendTest
+from pdlc.domain.evidence import ReviewVerdict, compose_review
+from pdlc.domain.verification import FindingEntry, Report, Row, render
 
 BODY_WITH_JOURNEY = """## Product
 
@@ -42,44 +45,67 @@ class InspectVerifyTests(FileBackendTest):
         self.seed_prs(50, [{
             "number": 148, "title": "impl", "url": "u", "state": "MERGED", "isDraft": False,
             "branch": "b", "mergedAt": "2026-01-02T00:00:00Z", "checks": "SUCCESS", "relation": "closes",
+            "files": ["src/pdlc/cli.py"],
         }])
-        # A prior verification pass — its claims-audit anchor is HEAD, so the
-        # reuse pass finds nothing touched it since and keeps it valid.
-        prior = (
-            "PDLC-REVIEW\n\n---\nstage: Verification\nverdict: Changes Required\nbounce: null\nloop: null\n---\n\n"
-            "## Verification Run Results\n\n"
-            "### Claims Audit\n\n"
-            f"- FR-1 holds (Verified @ {sha})\n\n"
-            f"### User Journeys\n\n- None yet (Verified @ {sha})\n\n"
-            "### UX\n\n- Reviewed — clean\n\n### Cumulative Review\n\n- Clean\n\n"
-            "### Findings\n\n- Fixed the drift calculation\n"
-            "### Findings\n\n- Fixed the drift calculation\n\nRecommendation: Changes Required\n"
+        self.register_prs(501, [148])
+        # A prior pass checked at HEAD: the claims row, UX, and cumulative
+        # review settle and nothing has changed since, so they carry forward;
+        # UJ-1 failed with F-1 open, so it is queued for a fresh review.
+        prior = Report(
+            head=sha, run_at="2026-02-01 00:00 UTC", recommendation="Changes Required",
+            claims=(Row("TASK-001", "confirmed", "first run shipped as claimed"),),
+            journeys=(Row("UJ-1", "failed", "map not interactive in time"),),
+            ux=Row("ux", "clean"), cumulative=Row("cumulative", "clean"),
+            findings=(
+                FindingEntry("F-1", "open", about="UJ-1", text="Map takes 4s to become interactive"),
+                FindingEntry("F-2", "deferred", "driver accepted: cosmetic", about="cumulative", text="Duplicated constant"),
+            ),
         )
+        body = "PDLC-REVIEW\n\n" + compose_review("Verification", ReviewVerdict.CHANGES_REQUIRED, render(prior))
         with (self.records_dir() / "50" / "comments.jsonl").open("a") as handle:
             handle.write(json.dumps({
-                "body": prior, "createdAt": "2026-02-01T00:00:00Z",
+                "body": body, "createdAt": "2026-02-01T00:00:00Z",
                 "url": "file://x/50#comment-1", "author": {"login": "v"},
             }) + "\n")
         return sha
 
     def test_ready_record_renders_every_section(self):
-        self._seed_verification_record()
+        sha = self._seed_verification_record()
         result = self.invoke("inspect_verify", 50)
         self.assertEqual(result.code, 0, result.stderr)
         for heading in (
-            "## Readiness",
-            "## Task Completion",
-            "# Timeline",
-            "## Journeys to review",
-            "## Still valid",
-            "## Fixed by previous runs",
+            "## Readiness", "## Task Completion", "# Timeline", "## Source",
+            "## Journeys to review", "## Findings", "## Report",
         ):
             self.assertIn(heading, result.stdout)
-        # UJ-1 is new since the last pass, so it is queued for a fresh review.
+        self.assertIn(f"Verifying at HEAD {sha} — every open task PR's head is included.", result.stdout)
+        # UJ-1 failed last pass, so it is queued for a fresh review; UX carries.
         self.assertIn("### UJ-1: First run", result.stdout)
-        # The prior claims-audit anchor still holds against HEAD.
-        self.assertIn("FR-1 holds", result.stdout.split("## Still valid", 1)[1])
-        self.assertIn("Fixed the drift calculation", result.stdout)
+        self.assertIn("UX: carried forward", result.stdout)
+        findings = result.stdout.split("## Findings", 1)[1]
+        self.assertIn("- F-1 · open · UJ-1 — Map takes 4s to become interactive", findings)
+        self.assertIn("Closed — do not raise these again:\n\n- F-2 · deferred — Duplicated constant", findings)
+        self.assertIn("3 row(s) carried forward, 1 to check", result.stdout)
+
+    def test_report_is_prefilled_with_carried_rows_and_open_findings(self):
+        sha = self._seed_verification_record()
+        result = self.invoke("inspect_verify", 50)
+        path = result.stdout.split("Filled in at ", 1)[1].split(" ", 1)[0]
+        report = json.loads(Path(path).read_text())
+        self.assertEqual(report["head"], sha)
+        self.assertEqual(report["claims"][0]["result"], "confirmed")
+        self.assertEqual(report["claims"][0]["reuse"], f"valid — checked at {sha[:12]}")
+        self.assertEqual(report["journeys"], [{"journey": "UJ-1", "reuse": "check", "result": None, "note": ""}])
+        self.assertEqual([f["id"] for f in report["findings"]], ["F-1"])
+        self.assertEqual(report["newFindings"], [])
+
+    def test_a_task_touched_since_its_check_is_not_carried_forward(self):
+        self._seed_verification_record()
+        with mock.patch("pdlc.internal.verification.changed_files", return_value={"src/pdlc/cli.py"}):
+            result = self.invoke("inspect_verify", 50)
+        # The UI task changed, so its claims row, UX, and the cumulative review all need a fresh check.
+        self.assertIn("0 row(s) carried forward, 4 to check", result.stdout)
+        self.assertIn("UX: needs re-review", result.stdout)
 
     def test_open_comments_reports_none_when_every_thread_is_resolved(self):
         # The file code host has no live review-thread state, so this is the
@@ -155,24 +181,34 @@ class InspectVerifyTests(FileBackendTest):
         # pdlc-complete is next" — while `pdlc inspect complete` blocked the
         # same record as `verification-stale`, naming no command to break the tie.
         self._seed_verification_record(gate="Approval Required")
-        with mock.patch("pdlc.commands.inspect_verify.stale_commits", side_effect=lambda commits: set(commits)):
+        with mock.patch("pdlc.internal.verification.changed_files", return_value={"src/pdlc/cli.py"}):
             result = self.invoke("inspect_verify", 50)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("no longer holds against current source", result.stdout)
-        # The offending anchor is named, not just counted.
-        self.assertIn("FR-1 holds", result.stdout)
+        # The offending row is named, not just counted.
+        self.assertIn("- claims TASK-001 · confirmed — first run shipped as claimed", result.stdout)
         # And the only command that can actually reopen the stage is named.
         self.assertIn("pdlc post invalidate", result.stdout)
         self.assertNotIn("pdlc-complete is next", result.stdout)
 
     def test_stale_evidence_is_not_checked_for_a_record_at_another_stage(self):
-        # The staleness lookup costs a comment read plus a git pair per anchor;
-        # a record that plainly is not at Verification must not pay for it.
+        # The staleness lookup costs a comment read, a PR file lookup per task,
+        # and a git diff; a record that plainly is not at Verification must not pay for it.
         self.seed_record(53, "Implementation", "Pending")
-        with mock.patch("pdlc.commands.inspect_verify._stale_anchors") as anchors:
+        with mock.patch("pdlc.commands.inspect_verify._stale_rows") as stale_rows:
             result = self.invoke("inspect_verify", 53)
         self.assertEqual(result.code, 0, result.stderr)
-        anchors.assert_not_called()
+        stale_rows.assert_not_called()
+
+    def test_an_approved_record_whose_report_predates_the_schema_is_not_called_clean(self):
+        self.seed_record(54, "Verification", "Approval Required")
+        with (self.records_dir() / "54" / "comments.jsonl").open("a") as handle:
+            legacy = "PDLC-REVIEW\n\n" + compose_review(
+                "Verification", ReviewVerdict.PASS, "## Verification Run Results\n\n### Claims Audit\n\n- FR-1 (Verified @ abc)\n")
+            handle.write(json.dumps({"body": legacy, "createdAt": "2026-02-01T00:00:00Z", "url": "", "author": {"login": "v"}}) + "\n")
+        result = self.invoke("inspect_verify", 54)
+        self.assertIn("predates pdlc.verify/1", result.stdout)
+        self.assertNotIn("pdlc-complete is next", result.stdout)
 
     def test_no_ui_task_marks_journeys_not_applicable(self):
         self.seed_record(52, "Verification", "Pending")
