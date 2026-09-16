@@ -28,8 +28,9 @@ Author the breakdown directly and return the task files and manifest to the call
 
 - `Status`: Tasks — `Gate State`: `<Pending | Stale>`.
 - Why it is `Stale` (if it is): `<reason, or "n/a — first pass">`.
-- Existing task tree, if any — reconcile against it rather than rewriting from
-  scratch: `<...>`.
+- Existing task tree, if any — the `# Tasks` blocks verbatim, so each task's
+  `completed`, `hasPlan`, and `hasImplementation` are visible. Reconcile against
+  it rather than rewriting from scratch: `<...>`.
 
 ## Driver follow-up
 
@@ -57,6 +58,15 @@ One body file per task, plus a manifest:
   `ui`, so `ui` must be a strict, accurate `true` / `false`.
 - `id` is optional: supply it to update an existing task, omit it for a new one
   (the script assigns the next number).
+- Preserve settled or implemented task scope unless the parent's requirements
+  actually changed it. Carry such a task forward with `{"id": "TASK-002",
+  "unchanged": true, "ui": false, "covers": [...], "depends": [...]}` — no
+  `title`, no `body`. It stays in the breakdown and its coverage still counts,
+  but nothing about it is rewritten and no later stage revisits it.
+- Supplying a `title` or `body` for a task whose work already landed rewrites
+  it: a rewritten task that was closed is reopened and its plan and
+  implementation evidence retired, so it is planned and built again. Do that
+  only when the requirements moved and the task genuinely has to change.
 - `covers` / `depends` are machine-checked against the parent's own identifiers
   and against the graph — they must match what each task body actually says.
 

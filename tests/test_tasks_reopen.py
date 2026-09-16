@@ -1,4 +1,5 @@
-"""`pdlc post tasks` reopening delivery tasks a re-landed breakdown rewrites."""
+"""`pdlc post tasks` reopening delivery tasks a re-landed breakdown rewrites,
+and carrying landed tasks forward untouched with `"unchanged": true`."""
 
 import json
 
@@ -93,3 +94,81 @@ class TasksReopenTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["reopenCandidates"], ["TASK-004"])
         self.assertEqual(self.task_meta(40, 404)["state"], "CLOSED")
+
+
+class TasksCarryForwardTests(FileBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.seed_record(41, "Tasks", "Pending", body=NO_UI_BODY)
+        self.body_file = self.write_file("task-body.md", "reworked task body\n")
+        self.seed_task(41, 411, "TASK-001", "CLOSED", "WORK-41-TASK-001 [CORE] one")
+        self.seed_plan_comment(41, 411, "Add the validation helper.")
+        self.seed_implementation_comment(41, 411, "Shipped the endpoint.")
+
+    def _land(self, tasks):
+        manifest = self.write_file("m.json", json.dumps(tasks))
+        return self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
+                           "--manifest", manifest, "--evidence", self.evidence_file())
+
+    def test_carried_task_keeps_its_state_title_and_evidence(self):
+        result = self._land([
+            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1"]},
+            {"title": "two", "body": self.body_file, "ui": False,
+             "covers": ["FR-2"], "depends": ["TASK-001"]},
+        ])
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["unchanged"], ["TASK-001"])
+        self.assertEqual(result.json["created"], ["TASK-002"])
+        self.assertEqual(result.json["reopened"], [])
+        self.assertEqual(result.json["orphans"], [])
+        self.assertEqual(result.json["order"], ["TASK-001", "TASK-002"])
+
+        meta = self.task_meta(41, 411)
+        self.assertEqual(meta["state"], "CLOSED")
+        self.assertEqual(meta["title"], "WORK-41-TASK-001 [CORE] one")
+        comments = self.task_comments_text(41, 411)
+        self.assertIn("Add the validation helper.", comments)
+        self.assertIn("Shipped the endpoint.", comments)
+
+    def test_carried_task_reads_its_title_back_for_duplicate_detection(self):
+        result = self._land([
+            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1"]},
+            {"title": "one", "body": self.body_file, "ui": False, "covers": ["FR-2"]},
+        ])
+        self.assertEqual(result.code, 1)
+        self.assertIn("duplicate task title: one", result.stderr)
+
+    def test_carried_task_rejections(self):
+        cases = [
+            ("the record has no such delivery task",
+             [{"id": "TASK-009", "unchanged": True, "ui": False, "covers": ["FR-1"]}]),
+            ("cannot also set a title",
+             [{"id": "TASK-001", "unchanged": True, "title": "renamed", "ui": False, "covers": ["FR-1"]}]),
+            ("unchanged must be true or false",
+             [{"id": "TASK-001", "unchanged": "yes", "ui": False, "covers": ["FR-1"]}]),
+        ]
+        for expected, tasks in cases:
+            with self.subTest(expected=expected):
+                result = self._land(tasks)
+                self.assertEqual(result.code, 1)
+                self.assertIn(expected, result.stderr)
+                self.assertEqual(self.task_meta(41, 411)["state"], "CLOSED")
+
+    def test_carried_task_cannot_also_name_a_body(self):
+        result = self._land([
+            {"id": "TASK-001", "unchanged": True, "body": self.body_file,
+             "ui": False, "covers": ["FR-1"]},
+        ])
+        self.assertEqual(result.code, 1)
+        self.assertIn("cannot also set a body", result.stderr)
+
+    def test_dry_run_flags_the_carried_entry_and_omits_it_from_candidates(self):
+        manifest = self.write_file("m.json", json.dumps([
+            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1"]},
+        ]))
+        result = self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
+                             "--manifest", manifest, "--dry-run")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["tasks"][0]["unchanged"], True)
+        self.assertEqual(result.json["tasks"][0]["title"], "[CORE] one")
+        self.assertEqual(result.json["reopenCandidates"], [])

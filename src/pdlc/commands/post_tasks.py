@@ -42,6 +42,15 @@ typo'd requirement or a dependency cycle fails without having touched the
 record. --dry-run stops after validation and prints the plan, which is how a
 breakdown is checked before it is worth landing.
 
+An entry may instead carry a landed task forward untouched with
+`"unchanged": true`. It still declares `ui`, `covers`, and `depends`, so the
+breakdown stays complete and its coverage still counts, but it names no `title`
+and no `body` — both are read back from the record — and the task is never
+handed to the backend, so it cannot be rewritten, retitled, or reopened by this
+call. `"unchanged": true` on an id the record does not have is refused. This is
+how a breakdown says a task needs no rework, without restating a body
+byte-for-byte to avoid rewriting it.
+
 A Tasks manifest entry matching a delivery task that is already closed re-lands
 onto that task. When the re-land changes its title or body, the task is
 reopened and its `## Technical Plan` and `## Implementation` comments are
@@ -69,7 +78,10 @@ Tasks --manifest is a JSON array, one entry per delivery task:
         "body": "/tmp/task-001.md",    the delivery task body
         "ui": false,                   true when the task delivers UI
         "covers": ["FR-2", "C-1"],     FR-*/C-*/UJ-* this task delivers
-        "depends": ["TASK-001"]        tasks that must land first
+        "depends": ["TASK-001"],       tasks that must land first
+        "unchanged": false             true to carry a landed task forward
+                                       untouched; requires "id", forbids
+                                       "title" and "body"
       }
     ]
 """
@@ -170,6 +182,12 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             raise PdlcError(f"manifest entry {index} body must be a file path string")
         if not isinstance(task.get("title", ""), str):
             raise PdlcError(f"manifest entry {index} title must be a string")
+        if "unchanged" in task and not isinstance(task["unchanged"], bool):
+            raise PdlcError(f"manifest entry {index} unchanged must be true or false")
+        if task.get("unchanged") is True:
+            if task.get("body") is not None:
+                raise PdlcError(f"manifest entry {index} is marked \"unchanged\" and cannot also set a body")
+            continue
         task["bodyText"] = require_file("task body file", task.get("body")).read_text(encoding="utf-8")
 
     existing = subissues_for(issue)
@@ -190,9 +208,11 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     # A closed task named by the breakdown is only actually reopened when this
     # call changes its title or body; the dry run cannot know that yet, so it
     # reports the candidates rather than a prediction.
+    carried_ids = {task["id"] for task in plan["tasks"] if task.get("unchanged")}
+    writable = [task for task in plan["tasks"] if not task.get("unchanged")]
     closed_in_breakdown = sorted(
         task["taskId"] for task in existing
-        if task.get("taskId") and task["taskId"] in {t["id"] for t in plan["tasks"]} and task.get("state") == "CLOSED"
+        if task.get("taskId") and task["taskId"] in {t["id"] for t in writable} and task.get("state") == "CLOSED"
     )
 
     if dry_run:
@@ -206,6 +226,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
                     "ui": task.get("ui"),
                     "covers": task.get("covers"),
                     "depends": task.get("depends") or [],
+                    "unchanged": bool(task.get("unchanged")),
                 }
                 for task in plan["tasks"]
             ],
@@ -221,8 +242,22 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
 
     attachments = save_attachments(issue, attachment_inputs)
     results = upsert_tasks(issue, [
-        {**task, "title": tagged_title(task)} for task in plan["tasks"]
+        {**task, "title": tagged_title(task)} for task in writable
     ], existing)
+    # A carried task is never handed to the backend, so it cannot be rewritten,
+    # retitled, or reopened by this call; it is still reported, because the
+    # breakdown declares it and its coverage counts.
+    existing_by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
+    results += [
+        {
+            "action": "unchanged",
+            "taskId": task_id,
+            "number": existing_by_id[task_id]["number"],
+            "title": existing_by_id[task_id]["title"],
+            "url": existing_by_id[task_id].get("url", ""),
+        }
+        for task_id in sorted(carried_ids)
+    ]
 
     created = [r["taskId"] for r in results if r["action"] == "created"]
     updated = [r["taskId"] for r in results if r["action"] == "updated"]
