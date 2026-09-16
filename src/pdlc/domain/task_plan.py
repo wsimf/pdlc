@@ -23,6 +23,18 @@ def tagged_title(task: dict) -> str:
     return f"{tag} {task.get('title') or ''}"
 
 
+# The human half of a landed task's stable `WORK-N-TASK-NNN [TAG] title`.
+# A carried-forward entry supplies no title of its own, so validation and the
+# printed plan read the landed one back rather than a manifest restatement that
+# could quietly disagree with it.
+def carried_title(stored_title: str) -> str:
+    without_id = stored_title.split(" ", 1)[1] if " " in stored_title else stored_title
+    for tag in (UI_TAG, CORE_TAG):
+        if without_id.startswith(f"{tag} "):
+            return without_id[len(tag) + 1:]
+    return without_id
+
+
 def resolve_task_ids(tasks: list[dict], existing_ids: list[str]) -> list[dict]:
     malformed = [task["id"] for task in tasks if task.get("id") and not TASK_ID_FORMAT.fullmatch(task["id"])]
     if malformed:
@@ -53,6 +65,8 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
             errors.append(f"manifest entry {index} covers must be an array of strings")
         if not isinstance(task.get("depends", []), list) or not all(isinstance(v, str) for v in task.get("depends", [])):
             errors.append(f"manifest entry {index} depends must be an array of strings")
+        if "unchanged" in task and not isinstance(task["unchanged"], bool):
+            errors.append(f"manifest entry {index} unchanged must be true or false")
     if errors:
         return {"tasks": resolved, "order": [], "cycle": [], "orphans": [], "errors": errors}
 
@@ -60,7 +74,21 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
     id_set = set(ids)
     existing_ids = [task["taskId"] for task in existing if task.get("taskId")]
     existing_id_set = set(existing_ids)
+    existing_by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
     coverage_set = set(requirements) | set(journeys)
+
+    # A carried-forward task declares its own coverage and dependencies like any
+    # other, but names no title or body: it is landed work the breakdown still
+    # claims, so its title comes from the record and nothing is rewritten.
+    for task in resolved:
+        if not task.get("unchanged"):
+            continue
+        if task["id"] not in existing_id_set:
+            errors.append(f"{task['id']} is marked \"unchanged\" but the record has no such delivery task")
+            continue
+        if task.get("title"):
+            errors.append(f"{task['id']} is marked \"unchanged\" and cannot also set a title")
+        task["title"] = carried_title(existing_by_id[task["id"]].get("title") or "")
 
     ui_covered: set[str] = set()
     for task in resolved:

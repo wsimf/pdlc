@@ -84,12 +84,15 @@ def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) ->
     return target
 
 
-def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) -> list[str]:
+def reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None, reason: str = "Reopened for rework.") -> list[str]:
     """Reopen closed delivery tasks so they are back in scope for the
     invalidated stage's own gate (`needsPlan` for Technical Plan,
     `implementationInvalidated` for Implementation). `task_refs` narrows the
     scope to specific tasks; omitted, every closed task under the record is
-    reopened. Returns the numbers actually reopened."""
+    reopened. An already-open task in `task_refs` is left alone, so a caller
+    may pass a mixed set. `reason` is the line the task's own
+    PDLC-INVALIDATED comment carries under the stage line, naming what put it
+    back in scope. Returns the numbers actually reopened."""
     tasks = subissues_for(issue)
     if task_refs:
         wanted = {str(ref) for ref in task_refs}
@@ -105,7 +108,7 @@ def _reopen_tasks(issue: str, target_stage: str, task_refs: list[str] | None) ->
             continue
         number = str(task["number"])
         reopen_task(number)
-        post_comment(number, f"Invalidated stage: {target_stage}\n\nReopened for rework.\n", "INVALIDATED")
+        post_comment(number, f"Invalidated stage: {target_stage}\n\n{reason.strip()}\n", "INVALIDATED")
 
         # Reopening alone leaves the task's own `## Implementation`/`## Technical
         # Plan` comments in place, so `implementationInvalidated`/`needsPlan`
@@ -151,4 +154,4 @@ def invalidate_stage(issue: str, record: dict, stage: str, evidence_body: str, t
     _record_invalidation(issue, record, target, evidence_body)
 
     if target.stage in TASK_SCOPED_STAGES:
-        _reopen_tasks(issue, target.stage, task_refs)
+        reopen_tasks(issue, target.stage, task_refs)
