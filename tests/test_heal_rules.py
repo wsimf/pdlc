@@ -155,14 +155,7 @@ class HealCommandTwinTests(FileBackendTest):
         self.assertEqual(self.invoke("continue_", 85).code, 0)
         self.assertEqual(self.state(85), ("Verification", "CI Pending"))
         self.assertEqual(self.invoke("post_ci", 85).code, 0)
-        sha = self.head_sha()
-        report = self.write_file("report.md", (
-            f"### Claims Audit\n\n- FR-1 confirmed (Verified @ {sha})\n\n"
-            f"### User Journeys\n\n- UJ-1 confirmed (Verified @ {sha})\n\n"
-            "### UX\n\n- Reviewed — no critical findings\n\n"
-            "### Cumulative Review\n\n- Clean — no findings\n"
-        ))
-        verified = self.invoke("post_verify", 86, report, "--recommendation", "Approval Required")
+        verified = self.invoke("post_verify", 86, self.verify_report(86))
         self.assertEqual(verified.code, 0, verified.stderr)
         self.assertEqual(self.state(85), ("Verification", "Changes Required"))
         self.assertEqual(self.state(85), self.state(86))

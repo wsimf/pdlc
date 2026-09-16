@@ -142,7 +142,7 @@ class CompletionPolicy:
     require_task_implementation: bool = True
     require_prs_merged: bool = True
     require_checks_green: bool = True
-    verification_parser: str | None = "parse_verification_report"
+    verification_parser: str | None = "pdlc.verify/1"
 
     def __post_init__(self) -> None:
         if not isinstance(self.boundary_gate, Gate):

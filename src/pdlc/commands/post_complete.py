@@ -94,7 +94,7 @@ from pdlc.domain.completion import completion_blockers
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
-from pdlc.internal.vcs import stale_verification_rows
+from pdlc.internal.verification import verification_state
 from pdlc.internal.worktree import prune_merged_branches
 from pdlc.internal.workitem import (
     comments_for_issue,
@@ -109,21 +109,10 @@ from pdlc.internal.workitem import (
     set_state,
     task_tree,
     update_section,
-    verification_evidence_comments,
     workflow_for_item,
 )
 
 OPEN_QUESTIONS_SETTLED = "_Resolved at completion — see the completion comment._"
-
-
-def _stale_rows(verification_body: str) -> list[str]:
-    """Rows in the latest verification comment whose commit anchor no longer
-    holds against HEAD. Empty when the body does not parse — the malformed
-    blocker covers that case."""
-    try:
-        return stale_verification_rows(verification_body)
-    except PdlcError:
-        return []
 
 
 def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
@@ -136,11 +125,9 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     body = record.get("issueBody") or ""
     comments = comments_for_issue(issue)
 
-    verification_comments = verification_evidence_comments(issue, comments=comments)
-    verification_body = verification_comments[-1]["body"] if verification_comments else None
-
     tasks = task_tree(issue)
     pull_requests = record_pull_requests(issue, record=record, tasks=tasks)
+    verification_body, _, stale_rows, open_findings = verification_state(issue, comments, tasks)
     blockers = completion_blockers(
         pipeline=pipeline,
         status=item_status(record),
@@ -150,7 +137,8 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
         timeline_markers=[comment["marker"] for comment in marked_comments(issue, comments=comments)],
         skipped_states=item_skipped_states(record),
         verification_body=verification_body,
-        stale_rows=_stale_rows(verification_body) if verification_body else None,
+        stale_rows=stale_rows,
+        open_findings=open_findings,
         open_questions=read_section(body, "Open Questions"),
         evidence_body=evidence_body,
     )

@@ -25,7 +25,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertTrue(policy.require_task_implementation)
         self.assertTrue(policy.require_prs_merged)
         self.assertTrue(policy.require_checks_green)
-        self.assertEqual(policy.verification_parser, "parse_verification_report")
+        self.assertEqual(policy.verification_parser, "pdlc.verify/1")
 
     def test_feature_invalidation_policy_separates_dependencies_and_reentry(self):
         policy = FEATURE_PIPELINE.invalidation_policy

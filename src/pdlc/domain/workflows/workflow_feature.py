@@ -59,7 +59,7 @@ _FEATURE_COMPLETION_POLICY = CompletionPolicy(
     require_task_implementation=True,
     require_prs_merged=True,
     require_checks_green=True,
-    verification_parser="parse_verification_report",
+    verification_parser="pdlc.verify/1",
 )
 
 _FEATURE_INVALIDATION_POLICY = InvalidationPolicy(

@@ -1,5 +1,5 @@
 """Backend-independent domain logic: the routing table, GitHub ref
-neutralization, the verification-report parser, the completion-evidence
+neutralization, the review front matter, the completion-evidence
 parser, and the completion-readiness policy."""
 
 import unittest
@@ -10,35 +10,17 @@ from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Event, Lifecycle, State
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
-from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review, parse_verification_report
+from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.verification import Report, Row, render
 from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
 from pdlc.hosts.lib.github.transport import neutralize_refs
 
-GOOD_VERIFICATION = """## Verification Run Results
-
-### Claims Audit
-
-- FR-1 holds (Verified @ abc123)
-
-### User Journeys
-
-- UJ-1 confirmed (Verified @ abc123)
-
-### UX
-
-- Reviewed — clean
-
-### Cumulative Review
-
-- Clean
-
-### Findings
-
-None
-
-Recommendation: Approval Required
-"""
+GOOD_VERIFICATION = render(Report(
+    head="abc123" + "0" * 34, run_at="2026-01-01 00:00 UTC", recommendation="Approval Required",
+    claims=(Row("TASK-001", "confirmed", "holds"),), journeys=(Row("UJ-1", "accepted"),),
+    ux=Row("ux", "clean"), cumulative=Row("cumulative", "clean"),
+))
 
 GOOD_COMPLETION = """## Shipped
 
@@ -404,7 +386,7 @@ class NeutralizeRefsTests(unittest.TestCase):
         )
 
 
-class VerificationReportTests(unittest.TestCase):
+class ReviewEvidenceTests(unittest.TestCase):
     @staticmethod
     def review_comment(
         stage: str,
@@ -458,25 +440,6 @@ class VerificationReportTests(unittest.TestCase):
             [comment["createdAt"] for comment in verification_evidence_comments(comments)],
             ["2026-01-03T00:00:00Z"],
         )
-
-    def test_parses_a_clean_report(self):
-        report = parse_verification_report(GOOD_VERIFICATION)
-        self.assertEqual(report.recommendation, "Approval Required")
-        self.assertEqual(report.verified_commits, ("abc123", "abc123"))
-        self.assertEqual(report.findings, ())
-
-    def test_rejections(self):
-        cases = [
-            (GOOD_VERIFICATION.replace("### UX\n\n- Reviewed — clean\n\n", ""), "missing required section"),
-            (GOOD_VERIFICATION.replace("- FR-1 holds (Verified @ abc123)", "- FR-1 holds"), "Verified @"),
-            (GOOD_VERIFICATION.replace("Recommendation: Approval Required", "Recommendation: Ship it"),
-             "recommendation must be one of"),
-        ]
-        for body, needle in cases:
-            with self.subTest(needle=needle):
-                with self.assertRaises(PdlcError) as caught:
-                    parse_verification_report(body)
-                self.assertIn(needle, str(caught.exception))
 
 
 class CompletionEvidenceTests(unittest.TestCase):
@@ -555,6 +518,17 @@ class CompletionBlockersTests(unittest.TestCase):
             open_questions="- a lingering question", evidence_body=GOOD_COMPLETION,
         )}
         self.assertEqual(codes, {"open-questions"})
+
+    def test_unsettled_findings_and_unreadable_reports_block_completion(self):
+        def codes(body, **extra):
+            return {b.code for b in completion_blockers(
+                pipeline=FEATURE_PIPELINE,
+                status="Verification", gate="Approval Required", tasks=[CLOSED_TASK],
+                pull_requests=[MERGED_PR], timeline_markers=MARKERS, skipped_states="",
+                verification_body=body, stale_rows=[], open_questions="- none", **extra,
+            )}
+        self.assertEqual(codes(GOOD_VERIFICATION, open_findings=["F-1 · open — 503s"]), {"verification-findings"})
+        self.assertIn("verification-malformed", codes("## Verification Run Results\n\n- FR-1 (Verified @ abc)"))
 
     def test_autoapproved_and_skipped_count_as_settlement(self):
         markers = ["PRODUCT", "APPROVED", "UI", "APPROVED", "TASKS", "APPROVED",

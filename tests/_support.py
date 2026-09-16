@@ -19,6 +19,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -98,6 +99,11 @@ class FileBackendTest(unittest.TestCase):
         (self.home / "seq").write_text("40")
 
         self._reset_hosts()
+        # The suite runs inside a developer checkout whose own uncommitted edits
+        # must not trip `pdlc post verify`'s clean-tree guard.
+        clean_tree = mock.patch("pdlc.commands.post_verify.has_tracked_changes", return_value=False)
+        clean_tree.start()
+        self.addCleanup(clean_tree.stop)
         self.addCleanup(self._restore_env)
         self.addCleanup(reset_config)
         self.addCleanup(self._reset_hosts)
@@ -332,6 +338,26 @@ class FileBackendTest(unittest.TestCase):
         return subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         ).stdout.strip()
+
+    def verify_report(self, record: int, **overrides: object) -> str:
+        """A `pdlc.verify/1` report file for `record`: `pdlc inspect verify`'s
+        own pre-filled report with every open result settled clean, then
+        `overrides` applied over its top-level fields."""
+        inspected = self.invoke("inspect_verify", record)
+        match = re.search(r"Filled in at (\S+\.json)", inspected.stdout)
+        if match is None:
+            raise AssertionError(f"inspect verify wrote no report:\n{inspected.stdout}{inspected.stderr}")
+        report = json.loads(Path(match.group(1)).read_text())
+        for row in report["claims"]:
+            row["result"] = row["result"] or "confirmed"
+        for row in report["journeys"] or []:
+            row["result"] = row["result"] or "accepted"
+        report["ux"]["result"] = report["ux"]["result"] or "clean"
+        report["cumulativeReview"]["result"] = report["cumulativeReview"]["result"] or "clean"
+        for comment in report["openComments"]:
+            comment.update(action=comment["action"] or "no_action", note=comment["note"] or "out of scope")
+        report.update(overrides)
+        return self.write_file(f"verify-{record}.json", json.dumps(report))
 
     # --- invocation ---
 

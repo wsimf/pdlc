@@ -1,73 +1,63 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc inspect verify - read-only: verification readiness and reuse analysis
+    pdlc inspect verify - read-only: verification readiness, open findings, and a pre-filled report
 
 USAGE
     pdlc inspect verify WORK_ITEM
 
 DESCRIPTION
-    Checks whether the Work Item is actually ready to audit
-right now, then — only if it is — gives a resuming verification pass the
-full picture it needs to avoid redoing settled work: every task and PR's
-raw completion state, any still-unresolved PR review comment, the evidence
-timeline, which journeys and UX still
-need a fresh `user-journey-reviewer` pass and their full text ready to
-copy, what still holds from the last pass, what's gone stale, what's
-already fixed, and what's already deferred. The agent supplies judgment
-only where the data is genuinely ambiguous (is this deferral durable, is
-this PR's disposition acceptable); every mechanical fact is resolved here,
-never by the agent querying the work-item store or `git`, or re-deriving it
-from the raw work item body itself.
+    Checks whether the Work Item is ready to verify right now, then — only if
+    it is — gives the verification pass everything it needs to audit without
+    redoing settled work, and writes the report for this pass with every
+    mechanical field already filled in.
 
-1. Readiness: resolves the Work Item's `Status`/`Gate State` and applies the
-   verification readiness table. Not `Status: Verification`, or a `Gate State` other than `Pending`
-   / `Changes Required` / `Stale`, stops right here with why — nothing below
-   is computed, since none of it matters if this pass shouldn't be running.
-   The one exception is `Approval Required`: that gate means a clean pass is
-   awaiting the driver, but source can move under the evidence afterwards, so
-   the reuse check in 5 runs against the last report's anchors first. Stale
-   anchors are named in the readiness verdict along with the driver-only
+The agent supplies judgment only where the data is genuinely ambiguous (is
+this deferral durable, is this PR's disposition acceptable); every mechanical
+fact is resolved here, never by the agent querying the work-item store or
+`git`, or re-deriving it from the raw work item body itself.
+
+1. Readiness: resolves the Work Item's `Status`/`Gate State`. Not
+   `Status: Verification`, or a `Gate State` other than `Pending` /
+   `Changes Required` / `Stale`, stops right here with why — nothing below
+   is computed. The one exception is `Approval Required`: that gate means a
+   clean pass is awaiting the driver, but source can move under the evidence
+   afterwards, so the latest report's rows are checked for staleness first.
+   Stale rows are named in the readiness verdict along with the driver-only
    command that reopens the stage, because `pdlc inspect complete` refuses the
    same record for the same reason and neither command may call it clean while
    the other calls it unproven.
-2. Task completion: every delivery task's own state — mechanical facts
-   only (closed, implementation recorded). An open task, a closed task with
-   no implementation recorded, and any Open Questions line that mentions an
-   open task are surfaced as-is with what to go confirm — never silently
-   passed or silently blocked. Linked PRs that are not yet merged and green
-   are listed too, but only as diff-base context: merge is a completion bar,
-   not a verification one, so an unmerged or CI-pending stack does not block
-   this pass.
+2. Task completion: every delivery task's own state — mechanical facts only
+   (closed, implementation recorded). An open task, a closed task with no
+   implementation recorded, and any Open Questions line that mentions an open
+   task are surfaced as-is with what to go confirm. Linked PRs that are not
+   yet merged and green are listed too, but only as diff-base context: merge
+   is a completion bar, not a verification one.
 3. Open Comments: every still-unresolved review-thread comment across the
-   registered PR stack, live off the code host — never inferred from PDLC's
-   own evidence. Not a blocker here, the same as an unmerged PR in Task
-   Completion: whether a thread is in scope, needs a fix, or can be waived is
-   a judgment call left to the caller.
+   registered PR stack, live off the code host. Each needs an action in the
+   report.
 4. Timeline: every PDLC evidence comment, rendered exactly as
    `pdlc inspect timeline` does by default — full bodies written to a temp
-   file, a compact per-comment index inline so a long history stays out of
-   context.
-5. Journeys to review: not applicable when no task is tagged `isUI`. Else,
-   every `UJ-*` journey block from the parent's own `UI` section that is
-   either new since the last verification pass or was marked stale by the
-   reuse check below, copied in full — ready to paste straight into the
-   `user-journey-reviewer` TODO list, since that agent cannot look a
-   journey up from just its id. Plus whether UX itself needs a fresh pass.
-   Empty when every journey and UX are still valid, telling the agent to
-   skip the dispatch entirely rather than deciding that itself.
-6. Reuse: every item in the latest Verification `PDLC-REVIEW` comment's Claims
-   Audit, User Journeys, UX, and Cumulative Review sections carries a
-   `(Verified @ <commit>)` marker. Since a delivery task is exactly one
-   commit touching only its own files, that commit's own diff *is* the
-   item's scope — no manual file list needed. For each item this runs
-   `git diff-tree --no-commit-id --name-only -r <commit>` to find its
-   files, then `git log <commit>..HEAD -- <files>` to see if anything's
-   touched them since. The agent never runs or reads git itself.
-7. Fixed: bullets listed under a `### Findings` heading in any past
-   Verification `PDLC-REVIEW` comment — every one is fixed, since that section
-   only ever lists fixed items.
-8. Deferred: findings recorded as deferred in the parent work item body's Open
-   Questions section (`"Deferred — <finding>, accepted because <reason>"`).
+   file, a compact per-comment index inline.
+5. Source: the HEAD this pass verifies. A report records that one commit, so
+   HEAD must be the top of the task stack: every open task PR's head commit
+   must be in it, and any that is not is named with what to check out.
+6. Journeys to review: not applicable when no task is tagged `isUI`. Else,
+   every `UJ-*` journey block from the parent's own `UI` section that is not
+   carried forward from an earlier report, copied in full — ready to paste
+   into the `user-journey-reviewer` TODO list — plus whether UX needs a fresh
+   pass.
+7. Findings: every finding raised by an earlier report, by `F-<n>` id, with
+   its latest status. Open and decision findings are listed in full, with the
+   rework-stage evidence published since the latest report; fixed and
+   deferred ones compactly, so they are not raised again.
+8. Report: the path of this pass's `pdlc.verify/1` report. A row is carried
+   forward — result and note already filled in — when an earlier report
+   settled it (confirmed, accepted, clean) and nothing it covers has changed
+   since that report's HEAD: a task's claims row by the files its PRs touch,
+   journeys and UX by every UI task, the cumulative review by any change.
+   Changed means the file content differs between that HEAD and this one, so
+   a restack alone changes nothing. Every other result is null for the pass
+   to fill in; `pdlc post verify --help` documents each field.
 
     ## Readiness
 
@@ -75,18 +65,7 @@ from the raw work item body itself.
 
     ## Task Completion
 
-    Open tasks — each needs a durable, on-record deferral reason, or this isn't ready:
-
-    - #47 WORK-142-TASK-004 [CORE] Add regional cache eviction
-
-    Open Questions lines mentioning one of these tasks — confirm each is a genuine, durable deferral, not just a passing note:
-
-    - Deferred — TASK-004 postponed to a follow-up work item, accepted because it's out of scope for this release
-
-    Linked PRs not yet merged and green — expected at Verification; the stack
-    merges after a clean pass. Use them to pick the cumulative review's diff base, not as a blocker:
-
-    - #148 OPEN checks: PENDING
+    All tasks closed with their implementation recorded.
 
     ## Open Comments
 
@@ -94,11 +73,11 @@ from the raw work item body itself.
     - @reviewer on src/cache.py:42 — this drops the lock before the write completes (https://github.com/acme/repo/pull/148#discussion_r1)
 
     # Timeline — 3 evidence comment(s); full bodies in /tmp/pdlc-timeline-50.md
-
-    ## PRODUCT — 2026-08-01 21:14 UTC (@sudara)
-       Scope: full product specification.
-       Read lines 3-48 in /tmp/pdlc-timeline-50.md for the full comment.
     ...
+
+    ## Source
+
+    Verifying at HEAD c47d0ae13f2b… — every open task PR's head is included.
 
     ## Journeys to review
 
@@ -106,29 +85,26 @@ from the raw work item body itself.
 
     ### UJ-3: Offline retry
     - **User moment and goal:** ...
-    - **Entry points:** ...
-    ...
 
     UX: needs re-review
 
-    ## Still valid
+    ## Findings
 
-    - WORK-142-TASK-007 — Confirmed: RouteShapeAnimator matches Result (Verified @ a1b2c3d)
+    Open:
 
-    ## Stale — re-verify
+    - F-1 · open · TASK-007 — 503s are not retried (raised at 9f3e21c0a1b2, source: https://github.com/acme/repo/pull/148#discussion_r1)
 
-    - UJ-3 — Accepted: offline retry confirmed in the running app (Verified @ a1b2c3d)
+    Published since the latest report:
 
-    ## Fixed by previous runs
+    - PDLC-IMPLEMENT 2026-09-15 18:02 UTC (https://github.com/acme/repo/issues/50#issuecomment-9)
 
-    - Route line snapped to wrong profile on regen (Verified @ b2c3d4e)
+    Closed — do not raise these again:
 
-    ## Deferred
+    - F-2 · deferred — Backoff jitter constant duplicated (driver accepted: cosmetic)
 
-    - Elevation gain rounding drifts by 2m, accepted because it's within tolerance
+    ## Report
 
-    Important: do not report these deferred items again — they are already
-    known and were decided to be skipped.
+    Filled in at /tmp/pdlc-verify-50.json — 3 row(s) carried forward, 2 to check.
 
 or, when not ready:
 
@@ -140,64 +116,50 @@ or, when a clean pass has gone stale underneath the driver:
 
     ## Readiness
 
-    Not ready: verified clean, but that evidence no longer holds against current source — something has touched these since they were verified:
+    Not ready: verified clean, but that evidence no longer holds against current source — something has changed under these since they were verified:
 
-    - FR-1 holds (Verified @ 0a1a3cb)
+    - claims TASK-007 · confirmed — RouteSyncClient retries 503 with backoff
 
     Do not run pdlc-complete; it blocks on this same evidence. Re-verification is a driver call: `pdlc post invalidate WORK_ITEM Verification EVIDENCE_FILE` returns the gate to Stale, after which pdlc-verify runs against the changed source.
 
-Task Completion reads
+Source reads, when HEAD misses a task:
 
-    ## Task Completion
+    ## Source
 
-    All tasks closed with their implementation recorded.
+    Verifying at HEAD c47d0ae13f2b… — but HEAD does not include these open task PRs; check out the top of the task stack, restacked, before auditing (pdlc post verify refuses otherwise):
 
-when there's no task to flag (an unmerged-PR list may still follow as diff-base
-context). Open Comments reads
+    - #149 (feature/142-task-8) @ 3a1f9e2d7c4b
 
-    ## Open Comments
-
-    None.
-
-when every review thread on the registered PR stack is resolved (or none is
-registered — nothing distinguishes the two, since neither is a finding).
-Journeys to review reads
+Open Comments reads `None.` when every review thread on the registered PR
+stack is resolved. Journeys to review reads
 
     ## Journeys to review
 
-    Not applicable — no UI tasks; record journeys and UX as not applicable and skip the `user-journey-reviewer` dispatch.
+    Not applicable — no UI tasks; journeys and UX are pre-filled as not applicable. Skip the `user-journey-reviewer` dispatch.
 
-when no task is tagged `isUI`, or
-
-    ## Journeys to review
-
-    Every journey and UX are still valid — skip the `user-journey-reviewer` dispatch entirely.
-
-when nothing needs a fresh pass. Still valid / Stale are omitted when the
-latest verification comment has no `(Verified @ ...)` items to check.
-Fixed by previous runs and Deferred read `None` when there's nothing for
-them, or with no verification run yet at all, everything after Readiness,
-Task Completion, Open Comments, Timeline, and Journeys to review is just:
-
-    No verification step found
+when no task is tagged `isUI`, or that every journey and UX are carried
+forward when nothing needs a fresh pass. Findings reads `None.` before any
+report raised one.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
 from pathlib import Path
 from typing import Callable
-from pdlc.domain.evidence import parse_verification_report
-from pdlc.internal.reporting import older_comments_notice
 
-
-from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
-from pdlc.internal.attachments import attachments_for_item, attachments_markdown
-from pdlc.internal.vcs import stale_commits
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.model import marked_comments, timeline_formatted_at
+from pdlc.domain.verification import CLOSED_STATUSES, Finding, ledger
+from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
+from pdlc.internal.reporting import older_comments_notice
+from pdlc.internal.vcs import head_commit
+from pdlc.internal.verification import reports, reusable, skeleton, stack_gaps, stale, ui_journeys
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
@@ -207,6 +169,7 @@ from pdlc.internal.workitem import (
     timeline_compact,
     timeline_markdown,
     verification_evidence_comments,
+    workflow_for_item,
 )
 
 NO_EVIDENCE = "No PDLC evidence comments found\n"
@@ -217,125 +180,7 @@ READY_GATES = {
     "Stale": "Something upstream changed under the existing evidence — treat that evidence as unproven.",
 }
 
-
-VERIFIED_AT = re.compile(r"\(Verified @ ([^)]+)\)\s*$")
-DEFERRED_PATTERN = re.compile(r"^-?\s*Deferred\s*[—-]\s*(.+?)\s*$")
 TASK_MENTION = re.compile(r"TASK-\d{3}")
-JOURNEY_HEADING = re.compile(r"^#{1,6}\s*(UJ-\d+)\b")
-JOURNEY_ID_IN_BULLET = re.compile(r"^(UJ-\d+)\b")
-
-
-# Every bullet here is fixed by construction, since Findings only ever
-# lists what a pass fixed and re-verified. The `(Verified @ ...)` marker on
-# each line is pdlc post verify's, not the agent's — strip it here
-# rather than exposing it as something the caller must parse itself.
-def _fixed_findings_in(body: str) -> list[str]:
-    return list(parse_verification_report(body).findings)
-
-
-def _deferred_findings_in(body: str) -> list[str]:
-    open_questions = read_section(body, "Open Questions")
-    deferred = []
-    for line in open_questions.splitlines():
-        match = DEFERRED_PATTERN.match(line.strip())
-        if match:
-            deferred.append(match.group(1))
-    return deferred
-
-
-# Every item in the latest verification comment's Claims Audit / User
-# Journeys / UX / Cumulative Review sections, judged valid or stale from its own
-# `(Verified @ <commit>)` commit's diff against HEAD. Section names are kept
-# per item so callers can filter by kind (e.g. journeys-to-review needs just
-# User Journeys and UX) without re-parsing.
-def _reuse_items(latest_verification_body: str) -> list[dict]:
-    report = parse_verification_report(latest_verification_body)
-    stale = stale_commits(list(report.verified_commits))
-    return [
-        {"section": row.section, "text": row.text, "stale": row.commit in stale}
-        for row in report.rows
-        if row.commit
-    ]
-
-
-def _reuse_sections(items: list[dict]) -> list[str]:
-    valid = [item["text"] for item in items if not item["stale"]]
-    stale = [item["text"] for item in items if item["stale"]]
-
-    if not valid and not stale:
-        return []
-
-    sections = ["## Still valid", ""]
-    sections.append("\n".join(f"- {item}" for item in valid) if valid else "None")
-    sections += ["", "## Stale — re-verify", ""]
-    sections.append("\n".join(f"- {item}" for item in stale) if stale else "None")
-    return sections
-
-
-# Every `### UJ-N: ...` journey block in the parent's own UI section, keyed
-# by id, full text included — pdlc-ui-planner's own fragment format. This is
-# what lets journeys-to-review hand the agent a journey ready to paste into
-# the user-journey-reviewer TODO list instead of a bare id it can't look up.
-def _ui_journeys(body: str) -> dict[str, str]:
-    ui_section = read_section(body, "UI")
-    journeys: dict[str, list[str]] = {}
-    journey_id: str | None = None
-    for raw_line in ui_section.splitlines():
-        match = JOURNEY_HEADING.match(raw_line.strip())
-        if match:
-            journey_id = match.group(1)
-            journeys[journey_id] = [raw_line.rstrip()]
-            continue
-        if journey_id:
-            journeys[journey_id].append(raw_line.rstrip())
-    return {jid: "\n".join(lines).strip() for jid, lines in journeys.items()}
-
-
-# Not a judgment call for anything it lists: a journey is either new since
-# the last pass (absent from every previous report) or the reuse check
-# above marked it stale — either way it needs a fresh look. What stays with
-# the agent is only using this to fill the user-journey-reviewer template.
-def _journeys_to_review_section(tasks: list[dict], body: str, reuse_items: list[dict]) -> list[str]:
-    if not any(task["isUI"] for task in tasks):
-        return ["## Journeys to review", "", "Not applicable — no UI tasks; record journeys and UX as not applicable and skip the `user-journey-reviewer` dispatch."]
-
-    ui_journeys = _ui_journeys(body)
-    journey_items = [item for item in reuse_items if item["section"] == "User Journeys"]
-
-    seen_ids: set[str] = set()
-    stale_ids: list[str] = []
-    for item in journey_items:
-        match = JOURNEY_ID_IN_BULLET.match(item["text"])
-        if not match:
-            continue
-        journey_id = match.group(1)
-        seen_ids.add(journey_id)
-        if item["stale"]:
-            stale_ids.append(journey_id)
-
-    to_review = [jid for jid in ui_journeys if jid in stale_ids or jid not in seen_ids]
-
-    ux_items = [item for item in reuse_items if item["section"] == "UX"]
-    ux_stale = not ux_items or any(item["stale"] for item in ux_items)
-
-    if not to_review and not ux_stale:
-        return ["## Journeys to review", "", "Every journey and UX are still valid — skip the `user-journey-reviewer` dispatch entirely."]
-
-    sections = ["## Journeys to review"]
-
-    if to_review:
-        sections += ["", "Copy each of these verbatim into the TODO list; the agent cannot look them up:", ""]
-        for journey_id in to_review:
-            text = ui_journeys.get(journey_id)
-            if text:
-                sections += [text, ""]
-            else:
-                sections += [f"{journey_id} — referenced by a previous report but not found in the current UI section; confirm the mapping manually.", ""]
-    else:
-        sections += ["", "Every journey is still valid — omit the journey TODO bullet group; dispatch only for UX.", ""]
-
-    sections.append("UX: " + ("needs re-review" if ux_stale else "still valid — omit the UX TODO bullet"))
-    return sections
 
 
 # Every check here is a mechanical fact off task_tree / the code host's pull
@@ -426,12 +271,104 @@ def _open_comments_section(open_comments: list[dict]) -> list[str]:
     return sections[:-1] if sections[-1] == "" else sections
 
 
-def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool, str]:
+def _source_section(head: str, gaps: list[str]) -> list[str]:
+    if not gaps:
+        return ["## Source", "", f"Verifying at HEAD {head} — every open task PR's head is included."]
+    return [
+        "## Source",
+        "",
+        f"Verifying at HEAD {head} — but HEAD does not include these open task PRs; check out the top of the "
+        "task stack, restacked, before auditing (pdlc post verify refuses otherwise):",
+        "",
+        *[f"- {gap}" for gap in gaps],
+    ]
+
+
+# Not a judgment call for anything it lists: a journey is listed because no
+# earlier report carries it forward. What stays with the agent is only using
+# this to fill the user-journey-reviewer template.
+def _journeys_to_review_section(report: dict, body: str) -> list[str]:
+    if report["journeys"] is None:
+        return ["## Journeys to review", "", "Not applicable — no UI tasks; journeys and UX are pre-filled as not applicable. Skip the `user-journey-reviewer` dispatch."]
+
+    journeys = ui_journeys(body)
+    to_review = [row["journey"] for row in report["journeys"] if row["result"] is None]
+    ux_stale = report["ux"]["result"] is None
+
+    if not to_review and not ux_stale:
+        return ["## Journeys to review", "", "Every journey and UX are carried forward — skip the `user-journey-reviewer` dispatch entirely."]
+
+    sections = ["## Journeys to review"]
+    if to_review:
+        sections += ["", "Copy each of these verbatim into the TODO list; the agent cannot look them up:", ""]
+        for journey_id in to_review:
+            sections += [journeys[journey_id], ""]
+    else:
+        sections += ["", "Every journey is carried forward — omit the journey TODO bullet group; dispatch only for UX.", ""]
+    sections.append("UX: " + ("needs re-review" if ux_stale else "carried forward — omit the UX TODO bullet"))
+    return sections
+
+
+def _finding_line(finding: Finding) -> str:
+    detail = [f"raised at {finding.raised_at[:12]}"]
+    if finding.source:
+        detail.append(f"source: {finding.source}")
+    if finding.note:
+        detail.append(f"note: {finding.note}")
+    return f"- {finding.id} · {finding.status} · {finding.about} — {finding.text} ({', '.join(detail)})"
+
+
+# Rework-stage evidence posted after the latest verification comment: where a
+# stage claims to have addressed the open findings, so the pass knows what to
+# re-check. The rework stages come from the pipeline, never named here.
+def _published_since(pipeline, comments: list[dict], latest: dict | None) -> list[str]:
+    policy = pipeline.rework_policy
+    if latest is None or policy is None:
+        return []
+    markers = set()
+    for stage in policy.autoapprove_stages:
+        try:
+            markers.add(pipeline.marker_for_stage(stage))
+        except ValueError:
+            continue
+    return [
+        f"- PDLC-{comment['marker']} {timeline_formatted_at(comment['createdAt'])} ({comment.get('url', '')})"
+        for comment in marked_comments(comments)
+        if comment["marker"] in markers and comment["createdAt"] > latest["createdAt"]
+    ]
+
+
+def _findings_section(known: dict[str, Finding], published: list[str]) -> list[str]:
+    if not known:
+        return ["## Findings", "", "None."]
+    active = [f for f in known.values() if f.status not in CLOSED_STATUSES]
+    closed = [f for f in known.values() if f.status in CLOSED_STATUSES]
+    sections = ["## Findings"]
+    if active:
+        sections += ["", "Open:", "", *[_finding_line(f) for f in active]]
+        if published:
+            sections += ["", "Published since the latest report:", "", *published]
+    if closed:
+        sections += ["", "Closed — do not raise these again:", ""]
+        sections += [f"- {f.id} · {f.status} — {f.text}" + (f" ({f.note})" if f.note else "") for f in closed]
+    return sections
+
+
+def _report_section(issue: str, report: dict) -> list[str]:
+    path = Path(tempfile.gettempdir()) / f"{ref_label()}-verify-{issue}.json"
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    rows = [*report["claims"], *(report["journeys"] or []), report["ux"], report["cumulativeReview"]]
+    carried = sum(1 for row in rows if row.get("reuse", "").startswith("valid"))
+    to_check = sum(1 for row in rows if row["result"] is None)
+    return ["## Report", "", f"Filled in at {path} — {carried} row(s) carried forward, {to_check} to check."]
+
+
+def _readiness(item: dict, stale_rows: Callable[[], list[str]]) -> tuple[bool, str]:
     """The readiness verdict, and the one sentence explaining it.
 
-    `stale_anchors` is a callable rather than a value because only the
-    Approval Required branch needs it, and resolving it costs a comment read
-    plus one `git` pair per verified commit.
+    `stale_rows` is a callable rather than a value because only the
+    Approval Required branch needs it, and resolving it costs a comment read,
+    a code-host file lookup per task PR, and a `git diff`.
     """
     status = item.get("Status")
     gate = item.get("Gate State")
@@ -448,12 +385,12 @@ def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool
         # is what stops the two commands answering the same question
         # differently — this one calling the record clean while completion
         # refuses it as unproven, with no command named that can break the tie.
-        stale = stale_anchors()
-        if stale:
+        stale_now = stale_rows()
+        if stale_now:
             return False, (
                 "Not ready: verified clean, but that evidence no longer holds against "
-                "current source — something has touched these since they were verified:\n\n"
-                + "\n".join(f"- {row}" for row in stale)
+                "current source — something has changed under these since they were verified:\n\n"
+                + "\n".join(f"- {row}" for row in stale_now)
                 + "\n\nDo not run pdlc-complete; it blocks on this same evidence. "
                 "Re-verification is a driver call: `pdlc post invalidate WORK_ITEM "
                 "Verification EVIDENCE_FILE` returns the gate to Stale, after which "
@@ -472,13 +409,23 @@ def _readiness(item: dict, stale_anchors: Callable[[], list[str]]) -> tuple[bool
 
 
 # Only the Approval Required branch of `_readiness` calls this, so a record
-# that is plainly not at Verification never pays for the comment read or the
-# git work.
-def _stale_anchors(issue: str) -> list[str]:
-    comments = verification_evidence_comments(issue)
-    if not comments:
+# that is plainly not at Verification never pays for the reads or the git work.
+# A latest report that does not parse (one from before pdlc.verify/1) cannot
+# prove anything, so the whole of it reads as stale.
+def _stale_rows(issue: str) -> list[str]:
+    comments = comments_for_issue(issue)
+    all_reports, latest_ok = reports(issue, comments)
+    if not verification_evidence_comments(issue, comments=comments):
         return []
-    return [item["text"] for item in _reuse_items(comments[-1]["body"]) if item["stale"]]
+    if not latest_ok:
+        return ["the latest verification report predates pdlc.verify/1 or no longer parses"]
+    latest = all_reports[-1]
+    stale_now = stale(latest, task_tree(issue))
+    return [
+        f"{section} {row.key} · {row.result}" + (f" — {row.note}" if row.note else "")
+        for section, row in latest.rows()
+        if (section, row.key) in stale_now
+    ]
 
 
 # The evidence timeline as `pdlc inspect timeline` renders it by default: full
@@ -496,48 +443,33 @@ def _timeline_block(issue: str, comments: list[dict]) -> str:
 
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
-    ready, readiness_message = _readiness(item, lambda: _stale_anchors(issue))
+    ready, readiness_message = _readiness(item, lambda: _stale_rows(issue))
     sections = ["## Readiness", "", readiness_message, "", attachments_markdown(attachments_for_item(item))]
     if not ready:
         return "\n".join(sections) + "\n"
 
+    pipeline, _ = workflow_for_item(item)
     tasks = task_tree(issue)
     pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
+    open_comments = record_open_review_comments(issue, record=item, tasks=tasks)
+    head = head_commit()
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
-    sections += ["", *_open_comments_section(record_open_review_comments(issue, record=item, tasks=tasks))]
+    sections += ["", *_open_comments_section(open_comments)]
     sections += ["", _timeline_block(issue, comments)]
+    sections += ["", *_source_section(head, stack_gaps(pull_requests))]
 
+    all_reports, _ = reports(issue, comments)
+    known = ledger(all_reports)
+    report = skeleton(issue, head, tasks, body, open_comments, known, reusable(all_reports, tasks))
     verification_comments = verification_evidence_comments(issue, comments=comments)
-    reuse_items = _reuse_items(verification_comments[-1]["body"]) if verification_comments else []
+    latest = verification_comments[-1] if verification_comments else None
 
-    sections += ["", *_journeys_to_review_section(tasks, body, reuse_items)]
-
-    if not verification_comments:
-        sections += ["", "No verification step found"]
-        return "\n".join(sections) + "\n"
-
-    fixed: dict[str, str] = {}
-    for comment in verification_comments:
-        for text in _fixed_findings_in(comment["body"]):
-            fixed[VERIFIED_AT.sub("", text).strip()] = text
-
-    deferred = _deferred_findings_in(body)
-
-    reuse = _reuse_sections(reuse_items)
-    if reuse:
-        sections += ["", *reuse]
-
-    sections += ["", "## Fixed by previous runs", ""]
-    sections.append("\n".join(f"- {text}" for text in fixed.values()) if fixed else "None")
-    sections += ["", "## Deferred", ""]
-    sections.append("\n".join(f"- {text}" for text in deferred) if deferred else "None")
-
-    if deferred:
-        sections += ["", "Important: do not report these deferred items again — they are already known and were decided to be skipped."]
-
+    sections += ["", *_journeys_to_review_section(report, body)]
+    sections += ["", *_findings_section(known, _published_since(pipeline, comments, latest))]
+    sections += ["", *_report_section(issue, report)]
     return "\n".join(sections) + "\n"
 
 

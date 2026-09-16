@@ -80,11 +80,11 @@ flowchart TD
     PlanLand --> Human
     Test --> Publish
 
-    Verify --> VResult{"pdlc post verify<br/>--recommendation"}
+    Verify --> VResult{"pdlc post verify<br/>derived recommendation"}
     VResult -->|"Approval Required (clean run)"| CIGate
     VResult -->|Decision Required| Decision
     VResult -->|Changes Required| Verify
-    VResult -->|"Changes Required --bounce STAGE"| Bounce["PDLC-REVIEW records Bounce + Loop<br/>STAGE → Stale, no driver step<br/>(advances the rework count)"]
+    VResult -->|"Changes Required + bounce STAGE"| Bounce["PDLC-REVIEW records Bounce + Loop<br/>STAGE → Stale, no driver step<br/>(advances the rework count)"]
     Bounce --> Next
 
     Implement --> TaskWork["Implement one task<br/>task-depth review<br/>PR + task evidence"]
@@ -134,17 +134,17 @@ A landed, approved artifact is reworked by returning it to `Stale`. At
 `Pending` across multiple task loops before its first `Review Required`;
 `Verification` skips `Review Required` entirely.
 
-`Implementation`, `Testing`, and `Verification` are CI-gated: a clean stage review (`pdlc post review`) or a clean verification run (`pdlc post verify --recommendation "Approval Required"`) lands `CI Pending`, not `Approval Required`, because the reviewer judges the work without waiting on the registered PR stack's CI.
+`Implementation`, `Testing`, and `Verification` are CI-gated: a clean stage review (`pdlc post review`) or a clean verification run (`pdlc post verify` with a report that derives `Approval Required`) lands `CI Pending`, not `Approval Required`, because the reviewer judges the work without waiting on the registered PR stack's CI.
 The same command reconciles that CI straight away; while checks are still running the record stays at `CI Pending` until `pdlc post ci` reconciles it against the live check rollup — green (or nothing to wait on: no checks configured, or no registered PR on Verification) → `Approval Required`, red → `Changes Required` with a `PDLC-REVIEW` note naming the failed checks, which the stage's owning skill fixes; with no registered PR on Implementation or Testing it refuses and the record stays at `CI Pending`.
 It is mechanical, carries no identity check, and the autonomous loop runs it unattended once checks finish; while they run, `pdlc next` reports the record as no work so the loop backs off.
 
-Both `Implementation` and `Testing` approval gates are auto-cleared on a record that has demonstrably iterated the rework loop. The count comes only from Verification `PDLC-REVIEW` comments whose `verdict` is `Changes Required`, whose `bounce` names an upstream stage, and whose `loop` matches the pipeline's named rework policy. Between 1 and the selected pipeline's rework cap (three for Feature), the script that would set the gate advances straight past it instead: the CI gate on green CI posts a `PDLC-AUTOAPPROVED` comment and `set_state` to the next stage's `Pending`, so no human step and no later routing pass is involved. On the first pass, past the cap, and for `Verification` always, the gate still stops for the driver. `pdlc post verify --bounce STAGE` advances the count and returns the named upstream stage to `Stale` without a driver step or `PDLC-INVALIDATED`; explicit driver invalidation remains separate and does not affect the loop count.
+Both `Implementation` and `Testing` approval gates are auto-cleared on a record that has demonstrably iterated the rework loop. The count comes only from Verification `PDLC-REVIEW` comments whose `verdict` is `Changes Required`, whose `bounce` names an upstream stage, and whose `loop` matches the pipeline's named rework policy. Between 1 and the selected pipeline's rework cap (three for Feature), the script that would set the gate advances straight past it instead: the CI gate on green CI posts a `PDLC-AUTOAPPROVED` comment and `set_state` to the next stage's `Pending`, so no human step and no later routing pass is involved. On the first pass, past the cap, and for `Verification` always, the gate still stops for the driver. A `pdlc post verify` report with a `bounce` stage advances the count and returns the named upstream stage to `Stale` without a driver step or `PDLC-INVALIDATED`; explicit driver invalidation remains separate and does not affect the loop count.
 
 Both post-publication reviews (`Implementation`, `Testing`) can also land at
 `Decision Required` instead of `Changes Required` when a finding needs a
 product, architecture, UX, safety, or scope call from the driver, and
 `Verification` can reach the same gate from its own audit
-(`pdlc post verify --recommendation "Decision Required" --decision`). That
+(`pdlc post verify` with a finding at `decision`). That
 gate stops the autonomous loop with no reconciliation attempt;
 `pdlc next` routes it to `human-decision`. The driver clears it through
 `pdlc guide decisions`: `pdlc post decision` lands a
@@ -257,7 +257,7 @@ stateDiagram-v2
         V_CIPending --> V_Approval : pdlc post ci — CI green, or nothing to wait on
         V_CIPending --> V_Changes : pdlc post ci — CI red, PDLC-REVIEW note
     }
-    Verification --> Implementation : pdlc post verify --bounce STAGE — Changes Required, autonomous (STAGE → Stale, PDLC-REVIEW Bounce + Loop)
+    Verification --> Implementation : pdlc post verify with bounce STAGE — Changes Required, autonomous (STAGE → Stale, PDLC-REVIEW Bounce + Loop)
     Verification --> Complete : pdlc post complete — explicit human instruction
 
     Complete --> [*]
@@ -266,8 +266,8 @@ stateDiagram-v2
         Any stage's Approved/settled state can return to that
         stage's Stale via pdlc post invalidate (human) when
         upstream intent changes, or — for a Verification
-        Changes Required run — via pdlc post verify --bounce
-        STAGE with no driver step.
+        Changes Required run — via a pdlc post verify report
+        whose bounce names STAGE, with no driver step.
         A stage declared in Skipped States (pdlc post skip, human)
         is auto-advanced Pending/Changes/Stale straight to the
         next stage's Pending by pdlc next, bypassing its
@@ -299,7 +299,7 @@ reset their own stage's `Approval Required` gate to `Stale` when re-landing on a
 driver change request (a bare gate transition, no comment), so that rework needs
 no separate `pdlc post invalidate` step.
 `pdlc next`'s skip-cascade and `pdlc post ci`'s CI reconciliation are fully automatic gate transitions with no live actor — both record an external fact rather than a judgement, so the loop runs them unattended and a driver may also run `pdlc post ci` directly when resuming a `CI Pending` record.
-The churn gate is the other one: the CI gate (green CI) clears the `Implementation` / `Testing` `Approval Required` step with a `PDLC-AUTOAPPROVED` comment on a record within the selected pipeline's rework cap, and `pdlc post verify --bounce STAGE` performs the matching `Verification → upstream` re-entry autonomously. Both still stop the loop the moment a reviewer or the audit returns `Decision Required`, and the churn gate reverts to a human stop past the cap and for `Verification` always.
+The churn gate is the other one: the CI gate (green CI) clears the `Implementation` / `Testing` `Approval Required` step with a `PDLC-AUTOAPPROVED` comment on a record within the selected pipeline's rework cap, and a `pdlc post verify` report whose `bounce` names a stage performs the matching `Verification → upstream` re-entry autonomously. Both still stop the loop the moment a reviewer or the audit returns `Decision Required`, and the churn gate reverts to a human stop past the cap and for `Verification` always.
 
 ## Implementation aggregation
 
