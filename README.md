@@ -74,6 +74,14 @@ cd "$(pdlc prepare 142)"
 
 This creates `<worktree.root>/<repo-name>/142` on a `pdlc/record-142` branch (from the repo's default branch), optionally runs your init script, and prints the path so the subshell `cd`s into it. Point the agent at that directory and let it run the `gh stack` implementation loop there. Re-running `pdlc prepare 142` just reprints the existing path.
 
+To build on another work item that has not merged yet, prepare with `--after`, before the new work item even exists:
+
+```bash
+cd "$(pdlc prepare my-feature --after 141)"
+```
+
+The branch starts from 141's latest implemented task branch, so writing, planning, and implementation all see its code, and `141` is recorded in the worktree's own Git config (local only; `extensions.worktreeConfig` is enabled the first time). When `pdlc inspect implement` runs there for the new work item's first task, it stacks onto 141's latest task pull request instead of starting a fresh stack, and `gh stack sync --prune` rebases the new work onto the default branch once 141 lands. If 141 has no implemented task pull request yet, the worktree starts from the default branch and the first task is blocked until one exists; if 141 is already Complete, the new work starts a fresh stack.
+
 Run `pdlc cleanup` **after the record is complete**, from your main checkout:
 
 ```bash
