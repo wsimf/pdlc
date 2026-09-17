@@ -5,6 +5,7 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from _support import FileBackendTest, _file_config
 from pdlc.config import install_config, load_config
@@ -264,6 +265,77 @@ class InspectImplementTests(FileBackendTest):
         """Stack setup lines come from the code host, and only GitHub has a
         stacked-PR mechanism; the suite's default file host has none."""
         self.configure(code_host="github")
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Isolate from the developer checkout's own worktree config.
+        self._after(None)
+
+    def _after(self, value: str | None) -> None:
+        patcher = patch("pdlc.commands.inspect_implement.worktree_after", return_value=value)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _predecessor(self, status: str = "Implementation", gate: str = "Pending", *, prs: bool = True) -> None:
+        self.seed_record(50, status, gate, slug="record-50")
+        self.seed_task(50, 501, "TASK-001", "CLOSED", "WORK-50-TASK-001 [CORE] Base")
+        self.seed_task(50, 502, "TASK-002", "CLOSED", "WORK-50-TASK-002 [CORE] Top")
+        self._implemented(50, 501)
+        self._implemented(50, 502)
+        if prs:
+            self.register_prs(501, [29])
+            self.register_prs(502, [30])
+
+    def _first_task(self) -> None:
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._plan(60, 601)
+
+    def test_first_task_after_a_predecessor_enters_its_latest_task_pr(self):
+        self._github_code_host()
+        self._predecessor()
+        self._first_task()
+        self._after("50")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("stackSetup: gh stack checkout 30 && gh stack add pdlc/record-60/task-001", result.stdout)
+        self.assertIn("stackAfter: 50", result.stdout)
+
+    def test_predecessor_without_a_task_pr_blocks_the_first_task(self):
+        self._github_code_host()
+        self._predecessor(prs=False)
+        self._first_task()
+        self._after("50")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("blocked: this worktree stacks after work item 50", result.stdout)
+        self.assertNotIn("stackSetup", result.stdout)
+
+    def test_complete_predecessor_falls_back_to_a_fresh_stack(self):
+        self._github_code_host()
+        self._predecessor(status="Complete", gate="Approved")
+        self._first_task()
+        self._after("50")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
+        self.assertNotIn("stackAfter", result.stdout)
+
+    def test_own_previous_task_pr_wins_over_the_predecessor(self):
+        self._github_code_host()
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
+        self._implemented(60, 601)
+        self._plan(60, 602)
+        self.register_prs(601, [40])
+        self._after("50")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
+        self.assertNotIn("stackAfter", result.stdout)
 
     def test_reports_the_next_eligible_core_task_before_ui(self):
         self._github_code_host()

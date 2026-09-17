@@ -11,6 +11,7 @@ from unittest.mock import patch
 from pdlc.cli import _usage
 from pdlc.commands import prepare
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.stack import Predecessor
 from pdlc.internal.worktree import sanitize_workitem, target_path, worktree_root
 
 
@@ -100,6 +101,57 @@ class PrepareCommandTests(unittest.TestCase):
         code, _, err = self._run(["142", "--from", "HEAD"], {"worktree_root": str(self.wt_root)})
         self.assertEqual(code, 1)
         self.assertIn("not a Git worktree", err)
+
+    def _predecessor(self, **fields):
+        values = {"ref": "50", "complete": False, "branch": None, "pr": None, **fields}
+        return patch.object(prepare, "resolve_predecessor", lambda ref: Predecessor(**values))
+
+    def _worktree_git(self, path, *args):
+        return subprocess.check_output(["git", *args], cwd=path, text=True).strip()
+
+    def test_after_starts_from_the_predecessors_task_branch_and_records_it(self):
+        self._git("switch", "-qc", "pdlc/record-50/task-002")
+        self._git("commit", "-qm", "task 2", "--allow-empty")
+        task_tip = self._git("rev-parse", "HEAD")
+        self._git("switch", "-q", "-")
+        with self._predecessor(branch="pdlc/record-50/task-002", pr=30):
+            code, out, err = self._run(["draft", "--after", "50"], {"worktree_root": str(self.wt_root)})
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self._worktree_git(out, "rev-parse", "HEAD"), task_tip)
+        self.assertEqual(self._worktree_git(out, "config", "--worktree", "--get", "pdlc.after"), "50")
+        self.assertEqual(self._git("config", "--get", "extensions.worktreeConfig"), "true")
+        # The main checkout does not inherit the worktree's predecessor.
+        self.assertNotIn("pdlc.after", self._git("config", "--list"))
+
+    def test_after_without_a_task_pr_falls_back_to_the_default_base(self):
+        root_tip = self._git("rev-parse", "HEAD")
+        with self._predecessor(), patch.object(prepare, "default_base_ref", lambda: "HEAD"):
+            code, out, err = self._run(["draft", "--after", "50"], {"worktree_root": str(self.wt_root)})
+        self.assertEqual(code, 0, err)
+        self.assertIn("no implemented task", err)
+        self.assertEqual(self._worktree_git(out, "rev-parse", "HEAD"), root_tip)
+        self.assertEqual(self._worktree_git(out, "config", "--get", "pdlc.after"), "50")
+
+    def test_after_with_an_unfindable_branch_falls_back_to_the_default_base(self):
+        with self._predecessor(branch="pdlc/record-50/task-009", pr=30), \
+                patch.object(prepare, "default_base_ref", lambda: "HEAD"):
+            code, out, err = self._run(["draft", "--after", "50"], {"worktree_root": str(self.wt_root)})
+        self.assertEqual(code, 0, err)
+        self.assertIn("pdlc/record-50/task-009 not found", err)
+        self.assertEqual(self._worktree_git(out, "config", "--get", "pdlc.after"), "50")
+
+    def test_after_on_an_existing_worktree_records_without_moving_it(self):
+        config = {"worktree_root": str(self.wt_root)}
+        _, out, _ = self._run(["draft", "--from", "HEAD"], config)
+        with self._predecessor(branch="missing", pr=30):
+            code, _, err = self._run(["draft", "--after", "50"], config)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self._worktree_git(out, "config", "--get", "pdlc.after"), "50")
+
+    def test_after_and_from_cannot_combine(self):
+        code, _, err = self._run(["draft", "--from", "HEAD", "--after", "50"], {"worktree_root": str(self.wt_root)})
+        self.assertEqual(code, 1)
+        self.assertIn("cannot be combined", err)
 
     def test_absent_from_usage(self):
         self.assertNotIn("prepare", _usage())

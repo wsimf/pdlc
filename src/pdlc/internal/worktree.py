@@ -5,7 +5,9 @@ runs.
 ``prepare`` scaffolds a dedicated Git worktree for one work item so an agent
 can run the PDLC loop in it without disturbing the driver's main checkout. The
 work item token is opaque here: it is never resolved or validated against a
-backend, only sanitised into a path and branch segment.
+backend, only sanitised into a path and branch segment. A ``--after``
+predecessor is stored in the worktree's own Git config for ``pdlc inspect
+implement`` to stack on.
 """
 
 from __future__ import annotations
@@ -119,6 +121,53 @@ def create_worktree(path: Path, branch: str, base_ref: str) -> None:
         _git(["worktree", "add", str(path), branch])
     else:
         _git(["worktree", "add", "-b", branch, str(path), base_ref])
+
+
+def fetch_remote_branch(branch: str, remote: str = "origin") -> str | None:
+    """``<remote>/<branch>`` once fetched, or None when the remote or branch is
+    unavailable."""
+    try:
+        _git(["fetch", remote, f"{branch}:refs/remotes/{remote}/{branch}"])
+    except PdlcError:
+        return None
+    return f"{remote}/{branch}"
+
+
+# --- stacking predecessor (pdlc prepare --after / pdlc inspect implement) ---
+
+_AFTER_KEY = "pdlc.after"
+
+
+def set_worktree_after(path: Path, workitem: str) -> None:
+    """Record in ``path``'s own worktree config that its work item stacks after
+    ``workitem``. Local only: git config is never pushed.
+
+    Per-worktree config needs the repo-wide ``extensions.worktreeConfig``, which
+    is switched on the first time. Git requires ``core.bare``/``core.worktree``
+    to move out of the shared config before that, so a repo that sets either is
+    refused rather than silently reconfigured."""
+    enabled = _config_value(["--bool", "extensions.worktreeConfig"])
+    if enabled != "true":
+        if _config_value(["--local", "--bool", "core.bare"]) == "true" or _config_value(["--local", "core.worktree"]):
+            raise PdlcError(
+                "cannot enable extensions.worktreeConfig: core.bare or core.worktree is set in "
+                "the shared .git/config; move it to the main worktree's config.worktree first"
+            )
+        _git(["config", "extensions.worktreeConfig", "true"])
+    _git(["config", "--worktree", _AFTER_KEY, sanitize_workitem(workitem)], cwd=path)
+
+
+def worktree_after() -> str | None:
+    """The work item the current worktree stacks after, if it was prepared with
+    ``--after``; None outside a Git checkout or when unset."""
+    return _config_value([_AFTER_KEY]) or None
+
+
+def _config_value(args: list[str]) -> str:
+    try:
+        return _git(["config", "--get", *args])
+    except (PdlcError, OSError):
+        return ""
 
 
 def run_init_script(path: Path, script: str) -> None:

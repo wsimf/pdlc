@@ -3,7 +3,12 @@
     pdlc prepare - human-only: scaffold a dedicated Git worktree for one work item
 
 USAGE
-    pdlc prepare WORKITEM [--from REF] [--yes]
+    pdlc prepare WORKITEM [--from REF | --after WORKITEM] [--yes]
+
+FLAGS
+    --from REF           ref the new branch starts from, overriding `worktree.base_ref`
+    --after WORKITEM     stack this worktree's work on WORKITEM's latest implemented task; cannot combine with --from
+    --yes                run the configured init script without prompting
 
 DESCRIPTION
     Creates `<worktree.root>/<repo-name>/<WORKITEM>` on a new `pdlc/record-<WORKITEM>`
@@ -16,6 +21,18 @@ WORKITEM is an opaque token: it is only sanitised into the path and branch, neve
 resolved or validated against a backend. Re-running for the same WORKITEM is a
 no-op that just reprints the path. This command is not part of the agent
 workflow and is intentionally absent from `pdlc --help`.
+
+`--after WORKITEM` is for work that builds on another, not-yet-merged work item.
+It is the one case that reads the backend: the new branch starts from the
+predecessor's latest implemented task branch (local, else fetched from
+`origin`), so every stage in the worktree sees that code. When the predecessor
+is Complete, has no implemented task with a registered pull request, or its
+branch cannot be found, the branch starts from the default base instead, with a
+note on stderr. Either way the predecessor is recorded in the worktree's own Git
+config (`pdlc.after`, enabling `extensions.worktreeConfig` the first time), and
+`pdlc inspect implement` run in the worktree stacks the first task onto the
+predecessor's latest pull request. The record is local only; re-running with
+`--after` on an existing worktree updates it without moving the branch.
 
 Config (`[worktree]` table, merged from ~/.pdlc/config.toml then .pdlc/config.toml):
 
@@ -32,21 +49,26 @@ import sys
 from pdlc.config import get_config, repository_root
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help
+from pdlc.internal.stack import resolve_predecessor
 from pdlc.internal.worktree import (
+    branch_exists,
     branch_name,
     create_worktree,
     default_base_ref,
     existing_worktree,
     fetch_base,
+    fetch_remote_branch,
     run_init_script,
+    set_worktree_after,
     target_path,
     worktree_root,
 )
 
 
-def _parse(argv: list[str]) -> tuple[str, str | None, bool]:
+def _parse(argv: list[str]) -> tuple[str, str | None, str | None, bool]:
     workitem: str | None = None
     from_ref: str | None = None
+    after: str | None = None
     assume_yes = False
     index = 0
     while index < len(argv):
@@ -58,6 +80,11 @@ def _parse(argv: list[str]) -> tuple[str, str | None, bool]:
                 raise PdlcError("--from requires a ref")
             from_ref = argv[index + 1]
             index += 1
+        elif argument == "--after":
+            if index + 1 >= len(argv):
+                raise PdlcError("--after requires a work item")
+            after = argv[index + 1]
+            index += 1
         elif argument.startswith("-"):
             raise PdlcError(f"unknown option {argument}")
         elif workitem is None:
@@ -66,8 +93,32 @@ def _parse(argv: list[str]) -> tuple[str, str | None, bool]:
             raise PdlcError(f"unexpected argument {argument}")
         index += 1
     if workitem is None:
-        raise PdlcError("usage: pdlc prepare WORKITEM [--from REF] [--yes]")
-    return workitem, from_ref, assume_yes
+        raise PdlcError("usage: pdlc prepare WORKITEM [--from REF | --after WORKITEM] [--yes]")
+    if from_ref and after:
+        raise PdlcError("--from and --after cannot be combined")
+    return workitem, from_ref, after, assume_yes
+
+
+def _after_base(after: str) -> str | None:
+    """The ref a worktree prepared ``--after`` starts from: the predecessor's
+    latest implemented task branch, or None to fall back to the default base."""
+    predecessor = resolve_predecessor(after)
+    if predecessor.complete:
+        print(f"pdlc: work item {after} is Complete; starting from the default base", file=sys.stderr)
+        return None
+    if predecessor.branch is None:
+        print(
+            f"pdlc: work item {after} has no implemented task with a registered pull request yet; "
+            "starting from the default base",
+            file=sys.stderr,
+        )
+        return None
+    if branch_exists(predecessor.branch):
+        return predecessor.branch
+    remote = fetch_remote_branch(predecessor.branch)
+    if remote is None:
+        print(f"pdlc: branch {predecessor.branch} not found; starting from the default base", file=sys.stderr)
+    return remote
 
 
 def _should_run_script(path, script: str, assume_yes: bool) -> bool:
@@ -90,20 +141,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        workitem, from_ref, assume_yes = _parse(args)
+        workitem, from_ref, after, assume_yes = _parse(args)
         config = get_config()
         repo = repository_root()
         path = target_path(worktree_root(config.worktree_root), repo.name, workitem)
 
         if existing_worktree(path):
+            if after:
+                set_worktree_after(path, after)
             print(f"pdlc: worktree already present at {path}", file=sys.stderr)
             print(path)
             return 0
 
-        base_ref = from_ref or config.worktree_base_ref or default_base_ref()
-        fetch_base(base_ref)
+        after_ref = _after_base(after) if after else None
+        base_ref = from_ref or after_ref or config.worktree_base_ref or default_base_ref()
+        if after_ref is None:
+            fetch_base(base_ref)
         create_worktree(path, branch_name(workitem), base_ref)
-        print(f"pdlc: created worktree at {path} on {branch_name(workitem)}", file=sys.stderr)
+        if after:
+            set_worktree_after(path, after)
+        print(f"pdlc: created worktree at {path} on {branch_name(workitem)} from {base_ref}", file=sys.stderr)
 
         if config.worktree_init_script and _should_run_script(
             path, config.worktree_init_script, assume_yes
