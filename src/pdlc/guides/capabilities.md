@@ -33,7 +33,7 @@ Capability selection does not select workflow policy. The resolved record's `wor
 |---|---|---|---|
 | `core-implementer` | agent | `pdlc-implement` dispatch for `[CORE]` tasks | dispatch to `general-purpose` |
 | `ui-implementer` | agent | `pdlc-implement` dispatch for `[UI]` tasks | dispatch to `general-purpose` |
-| `build-run` | skill | `pdlc-tasks` acceptance criteria, `pdlc-verify` UI-journey pass | agent builds and runs the app per `AGENTS.md` |
+| `build-run` | skill | `pdlc-tasks` acceptance criteria, `pdlc-implement` task dispatch, `pdlc-verify` UI-journey pass | agent builds and runs the app per `AGENTS.md` |
 | `ux-design` | skill | `pdlc-ui-planner` | agent resolves design from `AGENTS.md` references and platform conventions |
 | `cumulative-review` | skill | `pdlc-verify` cumulative review, `pdlc-implement` task review | agent performs the review inline over the change scope |
 | `test-authoring` | skill | `pdlc-test-writer` | agent follows the existing test suite's conventions |

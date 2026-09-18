@@ -62,7 +62,7 @@ Stop and report instead of dispatching when a judgment line fails, the plan cont
 ## Implement
 
 1. **Branch.** Check `git status --short`; the tree must be clean before branching, with all unrelated staged, unstaged, and untracked work preserved. Run the `stackSetup:` line verbatim: it is the code host's own stack vocabulary, and a hand-rolled branch or base breaks it. A `Changes Required` re-run needs no new branch: `gh stack checkout <branch>` puts you back on it, and the fix lands as a new commit on top.
-2. **Dispatch** the agent `## Agent` names, and only that one, for this one task. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, the upstream dependency summaries, and the Gate evidence. The template limits it to one commit on the current branch; the branch and PR stay with this skill and the CLI.
+2. **Dispatch** the agent `## Agent` names, and only that one, for this one task. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, the upstream dependency summaries, the Gate evidence, and the capability line from `pdlc inspect capability build-run`. The template limits it to one commit on the current branch; the branch and PR stay with this skill and the CLI. It also has the agent build, run, and verify the task's acceptance criteria against the running app before that commit, fixing what it finds.
 3. **Wait** for it to return before inspecting or changing its files.
 4. **Inspect the commit** against the task's plan, acceptance criteria, and the approved requirements it covers.
 5. **Validate what you did not author**: `git diff --check`, targeted diagnostics, existing focused tests, and the affected build unless the driver limits validation.
@@ -109,6 +109,7 @@ Relay the command JSON, plus:
 
 - the task implemented and its `taskPr`;
 - the task-depth review verdict and pass count;
+- the acceptance criteria verified against the running app, and their outcome;
 - the unit coverage added;
 - any material exception or accepted non-blocking finding;
 - `## Remaining` and the current `Status`/`Gate State`.

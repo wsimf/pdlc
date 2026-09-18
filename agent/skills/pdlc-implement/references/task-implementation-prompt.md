@@ -14,13 +14,15 @@ addressable.
 ---
 
 ```md
+<the line from `pdlc inspect capability build-run`>
+
 You are implementing one delivery task's production code. Make exactly one commit
 for this dispatch and report back; do not push, branch, or open a pull request.
 
 ## Execution boundary
 
 You are being invoked as a leaf worker for this one task.
-Do not invoke any `pdlc-*` skill.
+Do not invoke any `pdlc-*` skill; invoke only the build-run capability named in the line above.
 Do not re-run the calling skill or rediscover the lifecycle stage.
 Do not spawn, dispatch, or ask another agent to do this work.
 Implement the task below directly and return one report to the calling `pdlc-implement` skill.
@@ -63,8 +65,17 @@ rendered by `pdlc inspect task` after the body>
 - Stay inside the approved contract. If the plan is insufficient or wrong, stop
   and report rather than expanding scope.
 
+## Verify
+
+Before your commit, invoke the build-run capability named above to build and
+run the app, then exercise this task's acceptance criteria against the running
+app. Fix any failure yourself and re-verify; only commit once the criteria
+hold. If the capability says it cannot build or run, say so in your report
+rather than committing unverified.
+
 ## Report back
 
-The files changed, the validation actually run, and any point where the plan did
-not fit the code.
+The files changed, the validation actually run, the acceptance criteria
+verified against the running app and their outcome, and any point where the
+plan did not fit the code.
 ```
