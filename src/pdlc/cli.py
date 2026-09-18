@@ -86,7 +86,7 @@ def _usage() -> str:
         "  post plan                              land the Technical Plan\n"
         "  post implement WI EVIDENCE             register the branch's PR and complete Implementation\n"
         "  post implement-task TASK FILE          land one task's implementation; closes it when open, re-lands when closed\n"
-        "  post test WI EVIDENCE --traceability FILE  record PR + traceability, set Review Required\n"
+        "  post test WI EVIDENCE --traceability FILE  push the stack, record PR + traceability, set Review Required\n"
         "  post verify WI REPORT                  post a verification report and move the gate\n"
         "  post review WI VERDICT EVIDENCE        reviewer verdict (changes/approval/decision-required)\n"
         "  post ci WI                             resolve CI Pending against live check state\n"

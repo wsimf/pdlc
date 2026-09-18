@@ -52,6 +52,12 @@ Requests`) ends with a `Next:` sentence naming the one read-only hop before
 doing the work; `## Publish` is always last and holds the one mutating command
 that lands the unit or the stage.
 
+`## Next Fix` names the implemented task, its pull request, and the live
+threads and red checks on it. When the driver has answered a decision since
+the stage last published, the resolution is printed under `#### Decisions` so a
+thread that was escalated is settled per the answer on this pass instead of
+escalated again.
+
 `## Next Task` names the task with its `branch:` and whatever setup lines the
 configured code host needs to put that branch on its stack. For GitHub, the
 setup lines are `gh stack` invocations entered at the previous implemented
@@ -95,13 +101,15 @@ Not ready, or nothing to do, is reported plainly rather than raised.
 
     This task is already implemented and its current changes are published in
     PR #151. Run `pdlc checkout 49` to put the working tree on that PR's
-    branch; every fix below lands as a new commit on top of it.
+    branch; every fix below lands as a new commit on top of it, after the
+    implementer has investigated the current implementation.
 
     #### Unresolved threads (1)
     - @reviewer on src/chart.py:42 — this drops the retry (https://.../#discussion_r1)
 
-    Next: Run `pdlc inspect task 49` for the implementer agent, then fix every
-    thread and failing check above on the checked-out branch.
+    Next: Run `pdlc inspect task 49` for the implementer sub-agent under
+    `## Agent`, then dispatch that sub-agent to fix every thread and failing
+    check above on the checked-out branch.
 
     ## Publish
 
@@ -285,12 +293,13 @@ def _next_task_section(item: dict, delivery: list[dict], chosen: dict, comments:
     lines += [
         "",
         f"Next: Run `pdlc inspect task {chosen['number']}` for the task body, acceptance criteria, technical "
-        f"plan, and the implementer agent, then `pdlc checkout {chosen['number']}` and implement it on that branch.",
+        f"plan, and the implementer sub-agent under `## Agent`, then `pdlc checkout {chosen['number']}` and "
+        "dispatch that sub-agent to implement the task on the checked-out branch.",
     ]
     return "\n".join(lines)
 
 
-def _next_fix_section(item: dict, fix: _Fix) -> str:
+def _next_fix_section(item: dict, fix: _Fix, decisions: list[ChangeRequest]) -> str:
     task = fix.task
     number = task["number"]
     lines = [
@@ -305,7 +314,7 @@ def _next_fix_section(item: dict, fix: _Fix) -> str:
         "",
         f"This task is already implemented and its current changes are published in PR #{fix.pr}. "
         f"Run `pdlc checkout {number}` to put the working tree on that PR's branch; every fix below lands "
-        "as a new commit on top of it.",
+        "as a new commit on top of it, after the implementer has investigated the current implementation.",
     ]
     if fix.threads:
         lines += ["", f"#### Unresolved threads ({len(fix.threads)})"]
@@ -316,10 +325,26 @@ def _next_fix_section(item: dict, fix: _Fix) -> str:
         lines += ["", f"#### Failing checks ({len(fix.red)})"]
         for pr in fix.red:
             lines.append(f"- PR #{pr['number']}: {pr.get('checks')} ({pr['url']})")
+    if decisions:
+        # A thread escalated to the driver stays unresolved on the host, so
+        # this unit comes round again once the decision is answered; the answer
+        # rides with the unit so the fix can apply it rather than escalate twice.
+        lines += [
+            "",
+            f"#### Decisions ({len(decisions)})",
+            "The driver has answered these decisions since the stage last published. A thread named in them "
+            "that is still unresolved is approved for implementation: fix it per the answer, not escalate it "
+            "again. One the driver resolved on the host is no longer listed above.",
+        ]
+        for request in decisions:
+            comment = request.comment
+            when = timeline_formatted_at(comment["createdAt"]) if comment.get("createdAt") else "undated"
+            url = f" ({comment['url']})" if comment.get("url") else ""
+            lines += ["", f"##### Decision resolution — {when}{url}", _nested(evidence_comment_text(comment), 3)]
     lines += [
         "",
-        f"Next: Run `pdlc inspect task {number}` for the implementer agent, then fix every thread and "
-        "failing check above on the checked-out branch.",
+        f"Next: Run `pdlc inspect task {number}` for the implementer sub-agent under `## Agent`, then "
+        "dispatch that sub-agent to fix every thread and failing check above on the checked-out branch.",
     ]
     return "\n".join(lines)
 
@@ -331,8 +356,9 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
         "",
         "Every delivery task is already implemented and published in the PR stack below; these requests ask "
         "for changes to that implemented work. Run `pdlc checkout NUMBER` with the owning task's number to put "
-        "the working tree on that task's PR branch, fix there, and land it as a new commit on top. Work lowest "
-        "in the stack first, since re-landing a task rebases every branch above it.",
+        "the working tree on that task's PR branch; its fix lands there as a new commit on top, after the "
+        "implementer has investigated the current implementation. Work lowest in the stack first, since "
+        "re-landing a task rebases every branch above it.",
     ]
     for request in requests:
         comment = request.comment
@@ -348,16 +374,17 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
     lines += [
         "",
         "Next: Split the requests above into findings and give each an owning task from the stack. For each "
-        "owning task, run `pdlc inspect task NUMBER` for its implementer agent, check out its branch, and fix "
-        "its findings there.",
+        "owning task, run `pdlc inspect task NUMBER` for the implementer sub-agent under `## Agent`, check out "
+        "its branch, and dispatch that sub-agent with the task's findings.",
     ]
     return "\n".join(lines)
 
 
-def _nested(body: str) -> str:
-    """A request body quoted under its `###` heading: its own headings drop two
-    levels so they never read as this command's `##` sections."""
-    return "\n".join(f"##{line}" if line.startswith("#") else line for line in body.strip().splitlines())
+def _nested(body: str, depth: int = 2) -> str:
+    """A request body quoted under a `###` (or deeper) heading: its own headings
+    drop `depth` levels so they never read as this command's `##` sections."""
+    prefix = "#" * depth
+    return "\n".join(f"{prefix}{line}" if line.startswith("#") else line for line in body.strip().splitlines())
 
 
 def _checks_section(pull_requests: list[dict]) -> str:
@@ -417,7 +444,7 @@ def inspect(issue: str) -> str:
         if fixes:
             mode = "rework"
             fix = fixes[0]
-            unit = _next_fix_section(item, fix)
+            unit = _next_fix_section(item, fix, [r for r in requests if r.source == "resolution"])
             publish = (
                 "After every thread and failing check above is fixed and the files are committed, run "
                 f"`pdlc post implement-task {fix.task['number']} SUMMARY` to re-land the fix on the task's PR; "

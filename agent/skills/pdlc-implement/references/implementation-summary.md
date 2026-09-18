@@ -38,3 +38,10 @@ routine passes.>
 
 Keep each section plain and tight. Keep every heading even when a section is one
 line; do not pad it.
+
+A re-land replaces the comment and the PR description outright, so the summary
+is the task's whole implementation, starting from its current `## Implementation`
+in `pdlc inspect task`, not just the fix. Add one Evidence bullet per thread,
+check, or finding the fix addressed, naming it; on the top task, name the
+request a cross-cutting fix came from, so reviewers see why code outside the
+task is there.

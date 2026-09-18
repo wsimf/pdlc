@@ -366,7 +366,7 @@ class InspectImplementTests(FileBackendTest):
         # The Technical Plan is not rendered here; the handoff routes to `inspect task` for it.
         self.assertNotIn("Do the thing.", result.stdout)
         self.assertIn("Next: Run `pdlc inspect task 601`", result.stdout)
-        self.assertIn("then `pdlc checkout 601`", result.stdout)
+        self.assertIn("then `pdlc checkout 601` and dispatch that sub-agent to implement the task", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to record the implementation, open the task's PR, and close the task.", result.stdout)
         self.assertIn("- every task this one depends on is closed", result.stdout)
         self.assertIn("- if this task is HITL", result.stdout)
@@ -550,7 +550,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("#### Unresolved threads (1)\n- @reviewer on src/chart.py:42 — this drops the retry (u1)", result.stdout)
         self.assertNotIn("top comment", result.stdout)
         self.assertNotIn("#### Failing checks", result.stdout)
-        self.assertIn("Next: Run `pdlc inspect task 601` for the implementer agent", result.stdout)
+        self.assertIn("Next: Run `pdlc inspect task 601` for the implementer sub-agent under `## Agent`, then dispatch that sub-agent", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to re-land the fix on the task's PR; the task stays closed.", result.stdout)
         self.assertIn("- a thread or finding that turns on a product, architecture, UX, safety, or scope call is the driver's", result.stdout)
 
@@ -586,6 +586,35 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: rework", result.stdout)
         self.assertIn("### WORK-60-TASK-002 [UI] Second", result.stdout)
         self.assertIn("- @reviewer — stray (u3)", result.stdout)
+
+    def test_rework_carries_open_decision_resolutions_with_the_unit(self):
+        # An escalated thread stays open on the host, so its unit comes round
+        # again after the driver answers; the answer must ride with it.
+        self._implemented_stack()
+        log = self.records_dir() / "60" / "comments.jsonl"
+        with log.open("a") as handle:
+            handle.write(json.dumps({
+                "body": "PDLC-RESOLUTION\n\nResolved stage: Implementation\n\n### Retry on load\nDecision: keep the retry\nRationale: offline-first\nAffects: TASK-001\n",
+                "createdAt": "2026-04-02T00:00:00Z", "url": "r1", "author": {"login": "driver"},
+            }) + "\n")
+        self._threads([{"pr": 40, "author": "reviewer", "body": "this drops the retry", "url": "u1", "path": None, "line": None}])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertIn("#### Decisions (1)", result.stdout)
+        self.assertIn("##### Decision resolution — ", result.stdout)
+        self.assertIn("(r1)", result.stdout)
+        self.assertIn("###### Retry on load\nDecision: keep the retry\nRationale: offline-first\nAffects: TASK-001", result.stdout)
+        self.assertLess(result.stdout.index("#### Decisions"), result.stdout.index("Next: Run"))
+        self.assertNotIn("## Open Requests", result.stdout)
+
+    def test_rework_without_a_resolution_prints_no_decisions_block(self):
+        self._implemented_stack()
+        self.add_rework_review(60)
+        self._threads([{"pr": 40, "author": "reviewer", "body": "fix me", "url": "u1", "path": None, "line": None}])
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertNotIn("#### Decisions", result.stdout)
 
     def test_rework_comes_before_triage(self):
         self._implemented_stack()

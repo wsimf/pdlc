@@ -1,6 +1,6 @@
 # Implementation modes — CLI-driven `inspect implement` / `post implement-task`
 
-Status: CLI implemented (inspect implement, post implement-task, ci_gate.check_state). Skills and the rework / fix-pr-comments references still describe the old contract and follow next.
+Status: implemented, CLI and skill. `pdlc-implement` and its references follow this contract; `rework.md` is gone.
 
 ## Goal
 
@@ -93,8 +93,8 @@ sequenceDiagram
         alt implement / rework
             S->>S: pdlc checkout TASK
             S->>W: brief for this unit
-            W-->>S: one commit
-            S->>S: validate, task-depth review
+            W-->>S: committed work
+            S->>S: validate, task-depth review, unit tests
             S->>P: post implement-task TASK SUMMARY
             P-->>S: landed (closed or re-landed)
         else triage
@@ -162,7 +162,7 @@ branch: pdlc/record-142/task-004
 stackSetup: gh stack checkout 151 && gh stack add pdlc/record-142/task-004
 stackEntryPr: 151
 
-Next: Run `pdlc inspect task 51` for the task body, acceptance criteria, technical plan, and the implementer agent, then `pdlc checkout 51` and implement it on that branch.
+Next: Run `pdlc inspect task 51` for the task body, acceptance criteria, technical plan, and the implementer sub-agent under `## Agent`, then `pdlc checkout 51` and dispatch that sub-agent to implement the task on the checked-out branch.
 
 ## Publish
 
@@ -206,7 +206,7 @@ pr: 151
 branch: pdlc/record-142/task-002
 state: CLOSED
 
-This task is already implemented and its current changes are published in PR #151. Run `pdlc checkout 49` to put the working tree on that PR's branch; investigate the current implementation before any work.
+This task is already implemented and its current changes are published in PR #151. Run `pdlc checkout 49` to put the working tree on that PR's branch; every fix below lands as a new commit on top of it, after the implementer has investigated the current implementation.
 
 #### Unresolved threads (2)
 - @reviewer on src/chart.py:42 — this drops the retry (https://.../#discussion_r1)
@@ -215,14 +215,14 @@ This task is already implemented and its current changes are published in PR #15
 #### Failing checks (1)
 - build (https://.../checks/123)
 
-Next: Run `pdlc inspect task 49` for the implementer agent, then fix every thread and failing check above on the checked-out branch.
+Next: Run `pdlc inspect task 49` for the implementer sub-agent under `## Agent`, then dispatch that sub-agent to fix every thread and failing check above on the checked-out branch.
 
 ## Publish
 
 After every thread and failing check above is fixed and the files are committed, run `pdlc post implement-task 49 SUMMARY` to re-land the fix on the task's PR; the task stays closed.
 ```
 
-`#### Unresolved threads` and `#### Failing checks` are omitted when empty. Thread and check state is live host state, so the next call moves on by itself. A PR with only pending checks is never the unit.
+`#### Unresolved threads` and `#### Failing checks` are omitted when empty. `#### Decisions` appears when a `PDLC-RESOLUTION` is open against the stage: each resolution comment in full, so a thread the agent escalated on an earlier pass (skipped, left untouched, raised through `pdlc post review decision-required`) is settled per the driver's answer when its unit comes round again rather than escalated twice. Thread and check state is live host state, so the next call moves on by itself. A PR with only pending checks is never the unit.
 
 ### `mode: triage`
 
@@ -247,7 +247,7 @@ None
 
 ## Open Requests
 
-Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the owning task's number to put the working tree on that task's PR branch, fix there, and land it as a new commit on top. Work lowest in the stack first, since re-landing a task rebases every branch above it. Investigate the current implementation of the task before working on any fixes.
+Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the owning task's number to put the working tree on that task's PR branch; its fix lands there as a new commit on top, after the implementer has investigated the current implementation. Work lowest in the stack first, since re-landing a task rebases every branch above it.
 
 ### Review findings — 2026-09-14 (https://.../comment-1)
 <full comment body>
@@ -260,7 +260,7 @@ Every delivery task is already implemented and published in the PR stack below; 
 - WORK-142-TASK-003 (number 50, PR #152)
 - WORK-142-TASK-004 (number 51, PR #153, top)
 
-Next: Split the requests above into findings and give each an owning task from the stack. For each owning task, run `pdlc inspect task NUMBER` for its implementer agent, check out its branch, and fix its findings there.
+Next: Split the requests above into findings and give each an owning task from the stack. For each owning task, run `pdlc inspect task NUMBER` for the implementer sub-agent under `## Agent`, check out its branch, and dispatch that sub-agent with the task's findings.
 
 ## Publish
 
@@ -398,3 +398,4 @@ Unchanged in shape. It refuses while any delivery task is open. Under `Changes R
 
 - `Stale` prints the invalidation comment inline under `reconcile:`, so the unit is self-contained like `rework` and `triage` are.
 - `post implement-task` always takes the whole summary; there is no append form. One contract, the summary is the whole implementation.
+- A review thread the implementer judges invalid or out of plan is skipped and left untouched on the host; the skill lands the other fixes, then escalates every skipped thread as `decision-required` with the agent's response. The driver closes a thread that does not apply or leaves it open to have it applied. The `PDLC-RESOLUTION` rides with the rework unit under `#### Decisions`, and a thread named there that is still open is approved. No new markers.

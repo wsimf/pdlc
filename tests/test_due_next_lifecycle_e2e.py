@@ -121,7 +121,15 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.inspect_due(issue, "Testing.Pending", "pdlc-test")
         self.next_action(issue, "pdlc-test")
         trace = self.write_file("trace.md", "FR-1 -> core_service.py\n")
-        tested = self.invoke("post_test", issue, evidence, "--traceability", trace)
+        test_host = Mock()
+        test_host.ensure_pull_request_linked.return_value = {
+            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "state": "OPEN", "isDraft": False, "branch": "feature/task",
+            "mergedAt": None, "checks": "SUCCESS",
+        }
+        with patch("pdlc.commands.post_test.get_code_host", return_value=test_host):
+            tested = self.invoke("post_test", issue, evidence, "--traceability", trace)
+        test_host.submit_task_stack.assert_called_once_with()
         self.assertEqual(tested.code, 0, tested.stderr)
         self.assertEqual(self.invoke("post_review", issue, "approval-required", evidence).code, 0)
         self.inspect_due(issue, "Testing.ApprovalRequired", "pdlc post approve")

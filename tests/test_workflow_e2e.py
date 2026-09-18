@@ -130,9 +130,17 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- Testing ---
         trace = self.write_file("trace.md", "FR-1 -> record lands -> core_service.py lands()\n")
-        self.assertEqual(
-            self.invoke("post_test", issue, evidence, "--traceability", trace).code, 0
-        )
+        test_host = Mock()
+        test_host.ensure_pull_request_linked.return_value = {
+            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "state": "OPEN", "isDraft": False, "branch": "feature/task",
+            "mergedAt": None, "checks": "SUCCESS",
+        }
+        with patch("pdlc.commands.post_test.get_code_host", return_value=test_host):
+            self.assertEqual(
+                self.invoke("post_test", issue, evidence, "--traceability", trace).code, 0
+            )
+        test_host.submit_task_stack.assert_called_once_with()
         self.assertIn("## Traceability", self.comments_text(issue))
         self.assertIn("core_service.py lands", self.comments_text(issue))
         self.invoke("post_review", issue, "approval-required", evidence)

@@ -1,6 +1,8 @@
 """Rejected publications must not touch PRs or record their linkage."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from pdlc.domain.lifecycle import PdlcError
 
 from _support import FileBackendTest
 
@@ -33,6 +35,22 @@ class PublicationPreflightTests(FileBackendTest):
         self.assertEqual(self.state(82), ("UI", "Approval Required"))
         self.assertEqual(self.body(82), before)
         self.assertEqual(self.comments_text(82), "")
+
+    def test_post_test_pushes_the_stack_before_posting_and_a_failed_push_posts_nothing(self):
+        evidence = self.evidence_file()
+        traceability = self.write_file("trace.md", "FR-1: covered.\n")
+        self.seed_record(40, "Testing", "Pending")
+        host = Mock()
+        host.submit_task_stack.side_effect = PdlcError("push refused")
+        with patch("pdlc.commands.post_test.get_code_host", return_value=host), \
+                patch("pdlc.commands.post_test.attach_pr") as register:
+            result = self.invoke("post_test", 40, evidence, "--traceability", traceability)
+        self.assertEqual(result.code, 1, result.stdout)
+        self.assertIn("push refused", result.stderr)
+        host.ensure_pull_request_linked.assert_not_called()
+        register.assert_not_called()
+        self.assertEqual(self.state(40), ("Testing", "Pending"))
+        self.assertEqual(self.comments_text(40), "")
 
     def test_invalid_workflows_stop_before_pr_writes(self):
         evidence = self.evidence_file()

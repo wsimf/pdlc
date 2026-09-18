@@ -1,23 +1,34 @@
-# Fix PR Comments Procedure
+# Fix PR comments prompt
 
-Sends the block below to the task's implementer sub-agent, one dispatch per pull request with unresolved review threads, after checking out that task's branch. Fill `<PR_NUMBER>`, `OWNER`, and `REPO` from the PR the dispatch covers; the agent triages the live threads itself, so the skill does not paste the comment bodies in.
+`pdlc-implement` Implement sends the block below to the task's implementer sub-agent when the unit's `#### Unresolved threads` lists review threads, after checking out that task's branch. Fill `<PR_NUMBER>`, `OWNER`, and `REPO` from the unit's `pr:` line, and the `## Task` and `## Technical Plan` sections from `pdlc inspect task`, so the agent knows what the code was meant to do before it judges a comment; the agent triages the live threads itself, so the skill does not paste the thread bodies in. When the same unit also lists `#### Failing checks`, append the code causes from [`fix-ci.md`](fix-ci.md) under a `## Failing checks` heading at the end of the block. Fill `## Decisions` from the unit's `#### Decisions`, verbatim, or leave its "no previously recorded decisions" line when the unit has none; they are the driver's answers to threads escalated on an earlier pass, and a thread named there that is still open has been approved for implementation.
 
 The agent knows nothing about the PDLC pipeline: it sees one PR, its open threads, and the working tree. Tell it nothing about stages, gates, or the parent work item. It commits but never pushes — the branch, the re-land, and the stage evidence stay with the skill.
 
-Per PR, lowest in the stack first, since re-landing a task rebases every branch above it:
-
-1. **Map** the PR to its delivery task. `pdlc inspect test WORK_ITEM` lists every closed task with its linked PRs; `pdlc inspect implement WORK_ITEM` names an open one.
-2. **Branch.** With the tree clean, `pdlc checkout DELIVERY_TASK`.
-3. **Dispatch** that task's `## Agent` implementer, from `pdlc inspect task DELIVERY_TASK`, with the block below.
-4. **Validate** the returned commit as in Implement, and review it at task depth as in Review.
-5. **Re-land** as in Land, omitting `--close` when the task is already closed, with a summary naming each thread the fix addressed.
-
-A comment that turns on a product, architecture, UX, safety, or scope call is not this skill's to settle: report it to the driver with the thread's link and stop, leaving the thread open. A comment asking for a change to approved intent follows Requirement corrections. Publish once every PR's threads are resolved or reported; evidence names each PR, its fix commit, and any thread left open with why.
+A comment the agent judges invalid, or one that diverges from the agreed Technical Plan or acceptance criteria or turns on a product, architecture, UX, safety, or scope call, is not this skill's to settle. The agent skips it, leaves the thread untouched, and reports it back with its reasoning; the skill lands the other fixes, then escalates every skipped thread as a decision (see `SKILL.md` Escalate). The driver closes a thread that does not apply, or leaves it open to have it applied on the next pass.
 
 ```md
-## Quick start
+## Objective
 
-You are resolving the unresolved review comments on pull request `<PR_NUMBER>` in `OWNER/REPO`. Its branch is already checked out. Triage and explore the comments, then implement.
+You are resolving the unresolved review comments on pull request `<PR_NUMBER>` in `OWNER/REPO`. Its branch is already checked out and holds the implementation the comments are about. Investigate the current implementation thoroughly before implementing any fix: read the changed files, their callers, and their tests so each comment is judged against what the code does now, not against the diff alone. Then triage the comments and implement.
+
+## Task
+
+`<WORK-NNN-TASK-NNN>` (tag included) — `<title>`
+
+<full task body: scope, non-goals, dependencies, FR/C/UJ coverage, acceptance
+criteria — the contract the implementation on this branch was built to>
+
+## Technical Plan
+
+<the task's `## Technical Plan` comment, verbatim — the approach the
+implementation follows; a fix stays inside it unless a comment shows it wrong>
+
+## Decisions
+
+<the unit's `#### Decisions` blocks, verbatim — each is a human's answer to a
+review thread that was skipped on an earlier pass; a thread named here that is
+still unresolved is approved for implementation — or the single line:
+"No previously recorded decisions.">
 
 ## Execution boundary
 
@@ -63,20 +74,32 @@ Triage rules:
 - Read every comment in each unresolved thread.
 - Browse code at path around line; expand to helpers, callers, tests, or docs
   when needed.
-- Treat a comment as valid only when the current code still has the issue or the
-  requested change is required by project standards.
-- Treat a comment as invalid when the code already handles it, the suggestion no
-  longer matches the current diff, it would regress behavior, or it conflicts
-  with explicit project conventions.
+- Treat a comment as **valid** only when the current code still has the issue
+  or the requested change is required by project standards, and the fix stays
+  inside the Technical Plan and acceptance criteria above.
+- Treat a comment as **invalid** when the code already handles it, the
+  suggestion no longer matches the current diff, it would regress behavior, or
+  it conflicts with explicit project conventions.
+- Treat a comment as **out of scope** when doing what it asks would change the
+  Technical Plan's file ownership, interfaces, or approach, or an acceptance
+  criterion above.
+- **Approved**: a thread named under `## Decisions` above that is still
+  unresolved has been reviewed by a human and approved for implementation.
+  Treat it as valid whatever the rules above say, and follow the answer's
+  wording where it gives one. "No previously recorded decisions." means no
+  thread is approved this way.
 
-If a comment is invalid, obsolete, already addressed, or not required by the current code, post a concise GitHub thread reply explaining why no fix is needed. Resolve those threads as well.
+Only a valid or approved comment is acted on. An invalid or out-of-scope
+comment is skipped: do not fix it, do not reply, do not resolve it, and do not
+touch the thread in any way; a human decides it later. Note the thread, what it
+asks, and why you judged it invalid or out of scope for the report.
 
-For each item note down:
-thread id, path, line, reviewer request, why it is valid, concrete fix needed,
+For each valid or approved item note down:
+thread id, path, line, reviewer request, why it applies, concrete fix needed,
 and suggested verification.
 
 ### 2. Implementation
-For each valid item returned by the above step:
+For each valid or approved item returned by the above step:
 1. Implement the requested change surgically.
 2. Add or update focused tests when the risk justifies it.
 3. Verify with the relevant project command.
@@ -84,9 +107,11 @@ For each valid item returned by the above step:
 
 ### 3. Finalization
 Once **ALL** unresolved comments have been processed:
-1. Commit with a meaningful summary of the changes.
+1. Commit everything with a meaningful summary of the changes; leave nothing uncommitted.
 2. Do not attempt to push any code.
-3. Report every thread and its disposition: fixed (with the change), replied as not needed (with the reason), or left open (with why), plus the commit and the validation actually run.
+3. Report every thread and its disposition, plus the commits and the validation actually run:
+   - fixed, with the change;
+   - **skipped**, one entry per thread, with the thread's link, what the reviewer asks for in one sentence, whether you judged it invalid or out of scope, and why — naming the code that already handles it, or the plan or criterion it diverges from.
 
 ### 4. GitHub Actions
 
@@ -114,6 +139,8 @@ gh api graphql -f query='
 
 ## Guidelines
 - **Context first**: Do not edit until unresolved threads have been triaged.
+- **Skipped means untouched**: no reply, no resolve, no reaction on a skipped
+  thread; it is handed to a human as it stands.
 - **Verification**: Run the relevant project test/build command before resolving
   fixed threads.
 - **Communication**: Keep GitHub replies concise, technical, and thread-specific.
