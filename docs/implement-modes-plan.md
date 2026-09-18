@@ -1,6 +1,6 @@
 # Implementation modes — CLI-driven `inspect implement` / `post implement-task`
 
-Status: proposal, CLI first. Skills follow once the CLI output is stable.
+Status: CLI implemented (inspect implement, post implement-task, ci_gate.check_state). Skills and the rework / fix-pr-comments references still describe the old contract and follow next.
 
 ## Goal
 

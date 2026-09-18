@@ -247,7 +247,7 @@ class InspectTaskAgentTests(FileBackendTest):
 
 
 class InspectImplementTests(FileBackendTest):
-    """`pdlc inspect implement`: readiness + the single next eligible task."""
+    """`pdlc inspect implement`: readiness, the mode, and the one unit to work next."""
 
     def _plan(self, record: int, task_number: int, text: str = "## Technical Plan\n\nDo the thing.\n") -> None:
         log = self.records_dir() / str(record) / "tasks" / str(task_number) / "comments.jsonl"
@@ -258,18 +258,25 @@ class InspectImplementTests(FileBackendTest):
     def _implemented(self, record: int, task_number: int) -> None:
         self._plan(record, task_number, "## Implementation\n\nShipped.\n")
 
-    def _seed(self, record: int = 60, slug: str = "record-60", **kw) -> None:
-        self.seed_record(record, "Implementation", "Pending", slug=slug, **kw)
+    def _seed(self, record: int = 60, slug: str = "record-60", gate: str = "Pending", **kw) -> None:
+        self.seed_record(record, "Implementation", gate, slug=slug, **kw)
 
     def _github_code_host(self) -> None:
         """Stack setup lines come from the code host, and only GitHub has a
         stacked-PR mechanism; the suite's default file host has none. Live
-        review-thread state would need a real `gh`, so it reads as clean unless
-        a test says otherwise."""
+        review-thread and PR state would need a real `gh`, so both read as
+        clean unless a test says otherwise."""
         self.configure(code_host="github")
-        patcher = patch(
-            "pdlc.commands.inspect_implement.record_open_review_comments", return_value=[]
-        )
+        for target, value in (
+            ("pdlc.commands.inspect_implement.record_open_review_comments", []),
+            ("pdlc.commands.inspect_implement.record_pull_requests", []),
+        ):
+            patcher = patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _threads(self, threads: list[dict]) -> None:
+        patcher = patch("pdlc.commands.inspect_implement.record_open_review_comments", return_value=threads)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -298,6 +305,118 @@ class InspectImplementTests(FileBackendTest):
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
         self._plan(60, 601)
 
+    def _implemented_stack(self, gate: str = "Changes Required", checks: tuple[str, str] = ("SUCCESS", "SUCCESS")) -> None:
+        """Two closed, implemented tasks on PRs 40 (bottom) and 41 (top), with
+        the record itself also registering the top PR as `post implement` does."""
+        self._seed(gate=gate)
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "CLOSED", "WORK-60-TASK-002 [UI] Second")
+        self._implemented(60, 601)
+        self._implemented(60, 602)
+        self.seed_prs(60, [
+            {"number": 40, "title": "First", "url": "u40", "state": "OPEN", "isDraft": True, "branch": "pdlc/record-60/task-001", "mergedAt": None, "checks": checks[0]},
+            {"number": 41, "title": "Second", "url": "u41", "state": "OPEN", "isDraft": True, "branch": "pdlc/record-60/task-002", "mergedAt": None, "checks": checks[1]},
+        ], register=False)
+        self.register_prs(601, [40])
+        self.register_prs(602, [41])
+        self.register_prs(60, [41])
+
+    def _sections(self, output: str) -> list[str]:
+        return [line[3:] for line in output.splitlines() if line.startswith("## ")]
+
+    # --- section layout ---
+
+    def test_sections_come_in_a_fixed_order_ending_with_publish(self):
+        self._first_task()
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(
+            self._sections(result.stdout),
+            ["Readiness", "Mode", "Judgment Required", "Attachments", "Next Task", "Publish"],
+        )
+        self.assertNotIn("## Remaining", result.stdout)
+        self.assertNotIn("## Open Comments", result.stdout)
+
+    def test_the_scoping_flags_are_gone(self):
+        self._first_task()
+        for flag in (("--task", "1"), ("--phase", "ui")):
+            with self.subTest(flag=flag[0]):
+                result = self.invoke("inspect_implement", 60, *flag)
+                self.assertNotEqual(result.code, 0)
+
+    # --- mode: implement ---
+
+    def test_implement_mode_names_the_next_core_task_before_ui(self):
+        self._github_code_host()
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] UI work")
+        self._plan(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Ready — Gate State: Pending.", result.stdout)
+        self.assertIn("mode: implement", result.stdout)
+        self.assertIn("### WORK-60-TASK-001 [CORE] Core work", result.stdout)
+        self.assertNotIn("### WORK-60-TASK-002", result.stdout)
+        self.assertIn("taskId: TASK-001", result.stdout)
+        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
+        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
+        # The Technical Plan is not rendered here; the handoff routes to `inspect task` for it.
+        self.assertNotIn("Do the thing.", result.stdout)
+        self.assertIn("Next: Run `pdlc inspect task 601`", result.stdout)
+        self.assertIn("then `pdlc checkout 601`", result.stdout)
+        self.assertIn("run `pdlc post implement-task 601 SUMMARY` to record the implementation, open the task's PR, and close the task.", result.stdout)
+        self.assertIn("- every task this one depends on is closed", result.stdout)
+        self.assertIn("- if this task is HITL", result.stdout)
+
+    def test_implement_mode_ignores_open_threads_while_a_task_is_eligible(self):
+        # New tasks come first under Pending; threads are picked up once none is left.
+        self._first_task()
+        self._threads([{"pr": 151, "author": "reviewer", "body": "this drops the retry", "url": "u1", "path": "src/chart.py", "line": 42}])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: implement", result.stdout)
+        self.assertNotIn("this drops the retry", result.stdout)
+
+    def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):
+        self._github_code_host()
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
+        self._implemented(60, 601)
+        self._plan(60, 602)
+        self.register_prs(601, [40])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("### WORK-60-TASK-002 [CORE] Second", result.stdout)
+        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
+        self.assertIn("stackEntryPr: 40", result.stdout)
+
+    def test_predecessor_without_a_registered_pr_gives_no_entry_point(self):
+        # `gh stack checkout` needs a PR to discover the stack from. An
+        # implemented task that never registered one cannot serve as one, so the
+        # inspector says so by falling back to `init` rather than guessing.
+        self._github_code_host()
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
+        self._implemented(60, 601)
+        self._plan(60, 602)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-002", result.stdout)
+        self.assertNotIn("stackEntryPr", result.stdout)
+
+    def test_a_code_host_without_a_stack_contributes_no_setup_line(self):
+        # The suite's default file code host cannot submit stacked PRs, so it
+        # offers no setup vocabulary either — the branch is still named.
+        self._first_task()
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
+        self.assertNotIn("stackSetup", result.stdout)
+
     def test_first_task_after_a_predecessor_enters_its_latest_task_pr(self):
         self._github_code_host()
         self._predecessor()
@@ -321,6 +440,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("blocked: this worktree stacks after work item 50", result.stdout)
         self.assertNotIn("stackSetup", result.stdout)
+        self.assertNotIn("Next: Run", result.stdout)
 
     def test_complete_predecessor_falls_back_to_a_fresh_stack(self):
         self._github_code_host()
@@ -346,164 +466,192 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
         self.assertNotIn("stackAfter", result.stdout)
 
-    def test_reports_the_next_eligible_core_task_before_ui(self):
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] UI work")
-        self._plan(60, 601)
-        self._plan(60, 602)
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("Ready — Gate State: Pending.", result.stdout)
-        self.assertIn("### WORK-60-TASK-001 [CORE] Core work", result.stdout)
-        self.assertIn("taskId: TASK-001", result.stdout)
-        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
-        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
-        # The Technical Plan is not rendered here; the handoff routes to `inspect task` for it.
-        self.assertNotIn("Do the thing.", result.stdout)
-        self.assertIn("its `## Technical Plan`", result.stdout)
-        self.assertIn("Judgment Required", result.stdout)
-
-    def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
-        self._implemented(60, 601)
-        self._plan(60, 602)
-        self.register_prs(601, [40])
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("### WORK-60-TASK-002 [CORE] Second", result.stdout)
-        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
-        self.assertIn("stackEntryPr: 40", result.stdout)
-        self.assertIn("1 of 2 delivery tasks closed.", result.stdout)
-
-    def test_predecessor_without_a_registered_pr_gives_no_entry_point(self):
-        # `gh stack checkout` needs a PR to discover the stack from. An
-        # implemented task that never registered one cannot serve as one, so the
-        # inspector says so by falling back to `init` rather than guessing.
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
-        self._implemented(60, 601)
-        self._plan(60, 602)
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-002", result.stdout)
-        self.assertNotIn("stackEntryPr", result.stdout)
-
-    def test_unplanned_task_is_not_eligible(self):
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] No plan yet")
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("no task is OPEN, planned, and not yet implemented", result.stdout)
-        self.assertIn("not yet planned", result.stdout)
-        self.assertNotIn("Judgment Required", result.stdout)
-
-    def test_implementation_invalidated_task_is_still_eligible(self):
+    def test_stale_task_is_eligible_and_carries_its_invalidation(self):
         # A PR stays attached across invalidation, so `hasImplementation` alone
         # would wrongly hide the task; `implementationInvalidated` (comment
-        # missing while the PR is attached) is what re-offers it for rework.
-        self._seed()
+        # missing while the PR is attached) is what re-offers it for rework,
+        # with the task's own PDLC-INVALIDATED comment inline for the brief.
+        self._seed(gate="Stale")
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Rework me")
         self._plan(60, 601)
+        self._plan(60, 601, "PDLC-INVALIDATED\n\nInvalidated stage: Implementation\n\nThe loader contract changed.\n")
         self.register_prs(601, [40])
 
         result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("mode: implement", result.stdout)
         self.assertIn("### WORK-60-TASK-001 [CORE] Rework me", result.stdout)
+        self.assertIn("reconcile: implementation invalidated on ", result.stdout)
+        self.assertIn("#### Invalidation\nInvalidated stage: Implementation\n\nThe loader contract changed.", result.stdout)
+        self.assertLess(result.stdout.index("#### Invalidation"), result.stdout.index("Next: Run"))
 
-    def test_task_filter_scopes_to_one_task(self):
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] One")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Two")
-        self._plan(60, 601)
-        self._plan(60, 602)
+    # --- mode: none ---
 
-        result = self.invoke("inspect_implement", 60, "--task", "2")
-        self.assertIn("### WORK-60-TASK-002 [CORE] Two", result.stdout)
-        self.assertNotIn("### WORK-60-TASK-001", result.stdout)
-
-    def test_phase_filter_selects_ui(self):
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Interface")
-        self._plan(60, 601)
-        self._plan(60, 602)
-
-        result = self.invoke("inspect_implement", 60, "--phase", "ui")
-        self.assertIn("### WORK-60-TASK-002 [UI] Interface", result.stdout)
-
-    def test_a_code_host_without_a_stack_contributes_no_setup_line(self):
-        # The suite's default file code host cannot submit stacked PRs, so it
-        # offers no setup vocabulary either — the branch is still named.
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        self._plan(60, 601)
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
-        self.assertNotIn("stackSetup", result.stdout)
-
-    def test_output_ends_by_handing_off_to_inspect_task(self):
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        self._plan(60, 601)
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("Next: run `pdlc inspect task 601`", result.stdout.strip().splitlines()[-1])
-
-    def test_no_handoff_line_when_nothing_is_eligible(self):
+    def test_unplanned_task_waits_on_planning(self):
         self._seed()
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] No plan yet")
 
         result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: none", result.stdout)
+        self.assertIn("## Judgment Required\n\nNone", result.stdout)
+        self.assertIn("None. WORK-60-TASK-001 [CORE] No plan yet has no technical plan yet.", result.stdout)
+        self.assertIn("Nothing to publish yet.", result.stdout)
+        self.assertNotIn("## Checks", result.stdout)
         self.assertNotIn("pdlc inspect task", result.stdout)
 
-    def test_open_comments_reports_none_when_no_thread_is_unresolved(self):
-        # The file code host has no live review-thread state, so this is the
-        # default for a file-backend scenario without mocking the code host.
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        self._plan(60, 601)
+    def test_all_settled_names_the_stage_publish(self):
+        self._implemented_stack(gate="Pending")
 
         result = self.invoke("inspect_implement", 60)
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("## Open Comments\n\nNone.", result.stdout)
-        self.assertNotIn("Unresolved PR comments found", result.stdout)
-
-    def test_unresolved_pr_comments_are_reported_ahead_of_the_next_task(self):
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        self._plan(60, 601)
-
-        with patch(
-            "pdlc.commands.inspect_implement.record_open_review_comments",
-            return_value=[{
-                "pr": 151, "author": "reviewer", "body": "this drops the retry",
-                "url": "u1", "path": "src/chart.py", "line": 42,
-            }],
-        ):
-            result = self.invoke("inspect_implement", 60)
-
-        self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("Unresolved PR comments found", result.stdout)
-        self.assertIn("PR #151:", result.stdout)
-        self.assertIn("@reviewer on src/chart.py:42 — this drops the retry (u1)", result.stdout)
-        self.assertLess(
-            result.stdout.index("## Open Comments"), result.stdout.index("## Next Task")
+        self.assertIn("mode: none", result.stdout)
+        self.assertEqual(
+            self._sections(result.stdout),
+            ["Readiness", "Mode", "Judgment Required", "Attachments", "Checks", "Next Task", "Publish"],
         )
+        self.assertIn("- PR #40: green\n- PR #41: green", result.stdout)
+        self.assertIn("None. Every delivery task is closed and all checks are settled.", result.stdout)
+        self.assertIn("Run `pdlc post implement 60 EVIDENCE` to publish the stage at Review Required.", result.stdout)
 
-    def test_not_ready_skips_the_open_comments_check(self):
+    def test_pending_checks_are_never_a_unit_and_hold_only_the_publish(self):
+        self._implemented_stack(gate="Pending", checks=("SUCCESS", "IN_PROGRESS"))
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: none", result.stdout)
+        self.assertIn("- PR #41: pending", result.stdout)
+        self.assertIn("None. Wait for the pending checks, then re-run `pdlc inspect implement 60`.", result.stdout)
+        self.assertIn("Nothing to publish while checks are pending.", result.stdout)
+
+    def test_no_checks_configured_counts_as_settled(self):
+        self._implemented_stack(gate="Pending", checks=("NONE", "NONE"))
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: none", result.stdout)
+        self.assertIn("Run `pdlc post implement 60 EVIDENCE`", result.stdout)
+
+    # --- mode: rework ---
+
+    def test_rework_takes_the_lowest_task_with_an_open_thread_first(self):
+        self._implemented_stack()
+        self._threads([
+            {"pr": 41, "author": "reviewer", "body": "top comment", "url": "u2", "path": None, "line": None},
+            {"pr": 40, "author": "reviewer", "body": "this drops the retry", "url": "u1", "path": "src/chart.py", "line": 42},
+        ])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Ready — Gate State: Changes Required.", result.stdout)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertEqual(
+            self._sections(result.stdout),
+            ["Readiness", "Mode", "Judgment Required", "Attachments", "Next Fix", "Publish"],
+        )
+        self.assertIn("### WORK-60-TASK-001 [CORE] First\nnumber: 601\ntaskId: TASK-001\npr: 40\nbranch: pdlc/record-60/task-001\nstate: CLOSED", result.stdout)
+        self.assertIn("published in PR #40. Run `pdlc checkout 601`", result.stdout)
+        self.assertIn("#### Unresolved threads (1)\n- @reviewer on src/chart.py:42 — this drops the retry (u1)", result.stdout)
+        self.assertNotIn("top comment", result.stdout)
+        self.assertNotIn("#### Failing checks", result.stdout)
+        self.assertIn("Next: Run `pdlc inspect task 601` for the implementer agent", result.stdout)
+        self.assertIn("run `pdlc post implement-task 601 SUMMARY` to re-land the fix on the task's PR; the task stays closed.", result.stdout)
+        self.assertIn("- a thread or finding that turns on a product, architecture, UX, safety, or scope call is the driver's", result.stdout)
+
+    def test_rework_takes_a_red_check_as_a_unit(self):
+        self._implemented_stack(checks=("SUCCESS", "FAILURE"))
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertIn("### WORK-60-TASK-002 [UI] Second", result.stdout)
+        self.assertIn("#### Failing checks (1)\n- PR #41: FAILURE (u41)", result.stdout)
+        self.assertNotIn("#### Unresolved threads", result.stdout)
+
+    def test_rework_runs_under_pending_once_every_task_is_closed(self):
+        self._implemented_stack(gate="Pending")
+        self._threads([{"pr": 40, "author": "reviewer", "body": "early comment", "url": "u1", "path": None, "line": None}])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("Ready — Gate State: Pending.", result.stdout)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertIn("- @reviewer — early comment (u1)", result.stdout)
+
+    def test_a_thread_on_a_pr_no_task_owns_is_charged_to_the_top_task(self):
+        self._implemented_stack()
+        self.register_prs(60, [42])
+        self.seed_prs(60, [
+            {"number": 40, "title": "First", "url": "u40", "state": "OPEN", "isDraft": True, "branch": "b1", "mergedAt": None, "checks": "SUCCESS"},
+            {"number": 41, "title": "Second", "url": "u41", "state": "OPEN", "isDraft": True, "branch": "b2", "mergedAt": None, "checks": "SUCCESS"},
+            {"number": 42, "title": "Stray", "url": "u42", "state": "OPEN", "isDraft": True, "branch": "b3", "mergedAt": None, "checks": "SUCCESS"},
+        ], register=False)
+        self._threads([{"pr": 42, "author": "reviewer", "body": "stray", "url": "u3", "path": None, "line": None}])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertIn("### WORK-60-TASK-002 [UI] Second", result.stdout)
+        self.assertIn("- @reviewer — stray (u3)", result.stdout)
+
+    def test_rework_comes_before_triage(self):
+        self._implemented_stack()
+        self.add_rework_review(60)
+        self._threads([{"pr": 40, "author": "reviewer", "body": "fix me", "url": "u1", "path": None, "line": None}])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: rework", result.stdout)
+        self.assertNotIn("## Open Requests", result.stdout)
+
+    # --- mode: triage ---
+
+    def test_triage_prints_every_open_request_in_full_with_the_stack(self):
+        self._implemented_stack()
+        self.add_rework_review(60)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("mode: triage", result.stdout)
+        self.assertEqual(
+            self._sections(result.stdout),
+            ["Readiness", "Mode", "Judgment Required", "Attachments", "Open Requests", "Publish"],
+        )
+        self.assertIn("Every delivery task is already implemented and published in the PR stack below", result.stdout)
+        self.assertIn("### Verification bounce — ", result.stdout)
+        self.assertIn("#### Findings\n\n- detail", result.stdout)
+        self.assertNotIn("\n## Findings", result.stdout)
+        self.assertIn("#### Stack\n- WORK-60-TASK-001 [CORE] First (number 601, PR #40)\n- WORK-60-TASK-002 [UI] Second (number 602, PR #41, top)", result.stdout)
+        self.assertIn("Next: Split the requests above into findings", result.stdout)
+        self.assertIn("run `pdlc post implement-task NUMBER SUMMARY` to re-land it. Once every request is handled, run `pdlc post implement 60 EVIDENCE`", result.stdout)
+        self.assertIn("- give each request an owning task; a cross-cutting one goes on the top task", result.stdout)
+
+    def test_a_published_request_is_not_triaged_again(self):
+        self._implemented_stack(gate="Pending")
+        self.add_rework_review(60)
+        self.seed_publication(60, "Implementation", passed_review=False)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertIn("mode: none", result.stdout)
+        self.assertNotIn("## Open Requests", result.stdout)
+
+    # --- readiness ---
+
+    def test_an_open_task_with_a_live_implementation_is_not_routed_around(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Half landed")
+        self._plan(60, 601)
+        self._implemented(60, 601)
+        self.register_prs(601, [40])
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Not ready: WORK-60-TASK-001 [CORE] Half landed (number 601) has an implementation recorded but is still open.", result.stdout)
+        self.assertIn("`pdlc post implement-task 601 SUMMARY`", result.stdout)
+        self.assertNotIn("## Mode", result.stdout)
+
+    def test_not_ready_skips_the_live_host_reads(self):
         # Another stage owns the record, so its PR threads are not this
         # command's business — and the host is not queried for them.
         self.seed_record(63, "Testing", "Pending", slug="record-63")
-        result = self.invoke("inspect_implement", 63)
-        self.assertNotIn("## Open Comments", result.stdout)
+        with patch("pdlc.commands.inspect_implement.record_open_review_comments") as threads, \
+                patch("pdlc.commands.inspect_implement.record_pull_requests") as prs:
+            result = self.invoke("inspect_implement", 63)
+        threads.assert_not_called()
+        prs.assert_not_called()
+        self.assertNotIn("## Mode", result.stdout)
 
     def test_not_ready_when_stage_is_not_implementation(self):
         self.seed_record(61, "Testing", "Pending", slug="record-61")

@@ -39,15 +39,13 @@ Carry the driver's follow-up verbatim. This step is complete when the gate, its 
 
 ## Scope
 
-The driver may narrow the run: "do TASK-004 next" is `--task TASK-004`, "just the UI tasks" is `--phase ui`.
-
 ```bash
-pdlc inspect implement WORK_ITEM [--task TASK-NNN | --phase core|ui]
+pdlc inspect implement WORK_ITEM
 ```
 
 `## Open Comments` reporting unresolved PR comments makes them this run's scope, ahead of any next task: follow [`references/fix-pr-comments.md`](references/fix-pr-comments.md) in place of the rest of Scope through Review, then Land, Publish, and Report.
 
-`## Next Task` names the single eligible task and the branch it belongs on. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
+`## Next Task` names the single eligible task and the branch it belongs on. It is the task, whether or not you would have picked it. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
 
 Settle every `## Judgment Required` line from the task body and the record's comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one. Keep `## Remaining` for the report.
 

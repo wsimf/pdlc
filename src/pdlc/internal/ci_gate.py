@@ -31,6 +31,20 @@ _RED = {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTU
 _PENDING = {"PENDING", "EXPECTED", "IN_PROGRESS", "QUEUED", "WAITING", "REQUESTED"}
 
 
+def check_state(checks: str | None) -> str:
+    """One pull request's rollup as "red", "pending", "green", or "none" (no
+    checks configured). The single reading of the host's rollup vocabulary,
+    shared by the CI gate and by `pdlc inspect implement`'s per-task view."""
+    state = checks or "NONE"
+    if state in _RED:
+        return "red"
+    if state in _PENDING:
+        return "pending"
+    if state == "SUCCESS":
+        return "green"
+    return "none"
+
+
 def ci_state(issue: str) -> tuple[str, list[dict]]:
     """One of "pending", "red", "green", "untracked", plus the pull requests it
     was read from. "untracked" means no registered PR, or none with CI
@@ -40,15 +54,15 @@ def ci_state(issue: str) -> tuple[str, list[dict]]:
     if not pull_requests:
         return "untracked", []
 
-    checks = [pr.get("checks") or "NONE" for pr in pull_requests]
-    if any(state in _RED for state in checks):
+    states = [check_state(pr.get("checks")) for pr in pull_requests]
+    if "red" in states:
         return "red", pull_requests
-    if any(state in _PENDING for state in checks):
+    if "pending" in states:
         return "pending", pull_requests
-    # "NONE" (no checks configured on that PR) is neutral, not disqualifying: a
+    # "none" (no checks configured on that PR) is neutral, not disqualifying: a
     # stack where every tracked PR is green and the rest have no CI is green.
-    tracked = [state for state in checks if state != "NONE"]
-    if tracked and all(state == "SUCCESS" for state in tracked):
+    tracked = [state for state in states if state != "none"]
+    if tracked and all(state == "green" for state in tracked):
         return "green", pull_requests
     return "untracked", pull_requests
 
