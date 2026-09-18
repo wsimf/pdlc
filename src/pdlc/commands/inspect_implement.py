@@ -21,11 +21,15 @@ lines the configured code host needs to put that branch on its stack — its
 `## Technical Plan` is not rendered here; the `pdlc inspect task` handoff below
 renders it. For GitHub, the setup lines are `gh stack` invocations entered at the
 previous implemented task's registered pull request. For the first task of a
-worktree prepared with `pdlc prepare --after`, the entry is instead the
-predecessor work item's latest implemented task PR, reported as `stackAfter:`;
-a predecessor with no such PR yet blocks the task, and a Complete one falls back
-to a fresh stack. The stack vocabulary is the
-host's own: nothing here computes a base branch or checks whether a
+worktree prepared with `pdlc prepare --after`, the predecessor work item's
+latest implemented task PR is reported as `stackAfter:` and `stackSetup:` tells
+the caller to implement directly on the worktree's current branch instead —
+that branch may already be checked out in the predecessor's own, still-active
+worktree, so `gh stack checkout` cannot claim it here; `pdlc post
+implement-task` renames the branch and links it onto the predecessor's stack
+once the task is committed. A predecessor with no such PR yet blocks the task,
+and a Complete one falls back to a fresh stack. The stack vocabulary is the
+host's own otherwise: nothing here computes a base branch or checks whether a
 predecessor's branch still exists. A code host with no stacked-PR mechanism
 contributes no setup line and the branch is the caller's to create.
 `## Judgment Required` lists what the skill must still
@@ -76,8 +80,7 @@ from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.hosts.code_host import get_code_host
-from pdlc.internal.stack import resolve_predecessor, stack_entry_pr, task_branch_name
-from pdlc.internal.worktree import worktree_after
+from pdlc.internal.stack import after_predecessor, stack_entry_pr, task_branch_name
 from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree
 
 _PHASES = {"core": False, "ui": True}
@@ -168,22 +171,30 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
     slug = item_slug(item)
     branch = task_branch_name(slug, chosen["taskId"])
     entry_pr = stack_entry_pr(delivery, chosen)
-    after_lines: list[str] = []
-    after = worktree_after() if entry_pr is None else None
-    if after:
-        predecessor = resolve_predecessor(after)
-        if not predecessor.complete:
-            if predecessor.pr is None:
-                reason = (
-                    f"blocked: this worktree stacks after work item {after}, which has no "
-                    "implemented task with a registered pull request yet"
-                )
-                return f"## Next Task\n\n{reason}.", None
-            entry_pr = predecessor.pr
-            after_lines = [f"stackAfter: {after}  (this worktree's predecessor work item; entry is its latest task PR)"]
-    # The stack is the code host's mechanism, so the setup lines come from it —
-    # this only supplies the branch and the entry point PDLC itself owns.
-    setup = get_code_host().task_stack_setup(branch, entry_pr)
+    predecessor = after_predecessor(delivery, chosen)
+    if predecessor and not predecessor.complete:
+        if predecessor.pr is None:
+            reason = (
+                f"blocked: this worktree stacks after work item {predecessor.ref}, which has no "
+                "implemented task with a registered pull request yet"
+            )
+            return f"## Next Task\n\n{reason}.", None
+        # This worktree's own branch already sits on the predecessor's latest
+        # task, and that branch may be checked out in the predecessor's own,
+        # still-active worktree — `gh stack checkout` cannot claim it here. The
+        # task is implemented directly on the current branch; `pdlc post
+        # implement-task` links it onto the predecessor's stack at submit time.
+        setup = [
+            "stackSetup: none — stay on this worktree's current branch and implement "
+            "directly here; do not create or check out the `branch` above yourself. "
+            "`pdlc post implement-task` renames the current branch to it and links it "
+            "onto the predecessor's stack when this task is submitted",
+            f"stackAfter: {predecessor.ref}  (this worktree's predecessor work item; entry is its latest task PR {predecessor.pr})",
+        ]
+    else:
+        # The stack is the code host's mechanism, so the setup lines come from
+        # it — this only supplies the branch and the entry point PDLC owns.
+        setup = get_code_host().task_stack_setup(branch, entry_pr)
 
     # The `## Technical Plan` is not rendered here: the handoff line below routes
     # to `pdlc inspect task`, which renders it in full alongside the task body.
@@ -196,7 +207,6 @@ def _next_task_section(item: dict, delivery: list[dict], task_filter: str | None
         f"isUI: {'true' if chosen['isUI'] else 'false'}",
         f"branch: {branch}",
         *setup,
-        *after_lines,
     ]
     return "\n".join(lines), chosen
 

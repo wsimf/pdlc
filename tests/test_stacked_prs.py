@@ -172,6 +172,42 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertIn("gh extension install github/gh-stack", str(caught.exception))
         self.assertFalse(any(args[0] == "stack" for args, _ in self.gh.calls))
 
+    def test_link_renames_the_current_branch_then_links_it_onto_the_entry_pr(self):
+        # `git branch -m` never runs against the live repo in tests: it is
+        # patched out here, just like `run_gh` is faked for every `gh` call.
+        self.gh.gh("extension", "list", response="gh\tgithub/gh-stack\tv0.1.0\n")
+        linked: list[list[str]] = []
+        self.gh.route(
+            lambda args, _input: args[:2] == ["stack", "link"],
+            lambda args, _input: (linked.append(args), "")[1],
+        )
+        self.gh.gh("pr", "view", response={
+            "number": 148, "title": "stack link", "url": "u148", "state": "OPEN",
+            "isDraft": True, "headRefName": "pdlc/record-60/task-001", "mergedAt": None,
+            "statusCheckRollup": [],
+        })
+
+        renamed: list[list[str]] = []
+        with patch(
+            "pdlc.hosts.lib.github.code_host.run_process",
+            side_effect=lambda args, **kw: (renamed.append(list(args)), "")[1],
+        ):
+            pr = self.host.link_task_stack(30, "pdlc/record-60/task-001")
+
+        self.assertEqual(renamed, [["git", "branch", "-m", "pdlc/record-60/task-001"]])
+        self.assertEqual(linked, [["stack", "link", "30", "pdlc/record-60/task-001"]])
+        self.assertEqual(pr["number"], 148)
+        self.assertEqual(pr["branch"], "pdlc/record-60/task-001")
+        view = next(args for args, _ in self.gh.calls if args[:2] == ["pr", "view"])
+        self.assertEqual(view[2], "pdlc/record-60/task-001")
+
+    def test_link_requires_the_stack_extension(self):
+        self.gh.gh("extension", "list", response="gh\tsome/other\tv1\n")
+        with self.assertRaises(PdlcError) as caught:
+            self.host.link_task_stack(30, "pdlc/record-60/task-001")
+        self.assertIn("gh extension install github/gh-stack", str(caught.exception))
+        self.assertFalse(any(args[0] == "stack" for args, _ in self.gh.calls))
+
 
 class ImplementTaskStackTests(FileBackendTest):
     """`pdlc post implement-task` always submits and registers the task PR."""
@@ -266,6 +302,32 @@ class ImplementTaskStackTests(FileBackendTest):
         host.submit_task_stack.assert_not_called()
         self.assertEqual(task_dir.joinpath("comments.jsonl").read_text(), before)
         self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
+
+    def test_after_first_task_links_instead_of_submitting(self):
+        # A worktree's first task prepared with `pdlc prepare --after` has no
+        # local `gh stack` tracking to sync/submit: the predecessor's branch
+        # may be checked out in the predecessor's own, still-active worktree.
+        self._seed()
+        self.seed_record(50, "Implementation", "Pending", slug="record-50")
+        self.seed_task(50, 501, "TASK-001", "CLOSED", "WORK-50-TASK-001 [CORE] Base")
+        task_dir = self.records_dir() / "50" / "tasks" / "501"
+        task_dir.joinpath("comments.jsonl").write_text(
+            json.dumps({"body": "## Implementation\n\nShipped.\n"}) + "\n"
+        )
+        self.register_prs(501, [29])
+
+        host = Mock()
+        host.link_task_stack.return_value = {"number": 148, "branch": "pdlc/record-70/task-001"}
+        with (
+            patch("pdlc.commands.post_implement_task.get_code_host", return_value=host),
+            patch("pdlc.internal.stack.worktree_after", return_value="50"),
+        ):
+            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+
+        self.assertEqual(result.code, 0, result.stderr)
+        host.link_task_stack.assert_called_once_with(29, "pdlc/record-70/task-001")
+        host.submit_task_stack.assert_not_called()
+        self.assertEqual(result.json["taskPr"]["number"], 148)
 
     def test_changes_required_remains_eligible(self):
         self._seed()

@@ -272,7 +272,7 @@ class InspectImplementTests(FileBackendTest):
         self._after(None)
 
     def _after(self, value: str | None) -> None:
-        patcher = patch("pdlc.commands.inspect_implement.worktree_after", return_value=value)
+        patcher = patch("pdlc.internal.stack.worktree_after", return_value=value)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -299,8 +299,10 @@ class InspectImplementTests(FileBackendTest):
 
         result = self.invoke("inspect_implement", 60)
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("stackSetup: gh stack checkout 30 && gh stack add pdlc/record-60/task-001", result.stdout)
+        self.assertIn("stackSetup: none", result.stdout)
+        self.assertNotIn("gh stack checkout", result.stdout)
         self.assertIn("stackAfter: 50", result.stdout)
+        self.assertIn("entry is its latest task PR 30", result.stdout)
 
     def test_predecessor_without_a_task_pr_blocks_the_first_task(self):
         self._github_code_host()
