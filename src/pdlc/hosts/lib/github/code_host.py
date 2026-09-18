@@ -29,6 +29,7 @@ from pdlc.hosts.lib.github.transport import (
     run_gh_json,
     run_graphql,
 )
+from pdlc.hosts.lib.process import run_process
 from pdlc.domain.lifecycle import PdlcError
 
 # Every review thread on the pull request, oldest first, with only its root
@@ -237,6 +238,30 @@ class GitHubCodeHost(CodeHost):
         run_gh(["stack", "sync", "--prune"])
         run_gh(["stack", "submit", "--auto"])
         return self.pull_requests_by_number(self.stack_pr_numbers())
+
+    def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
+        # `gh stack checkout <entry_pr>` (the ordinary `task_stack_setup` path)
+        # would `git checkout` the predecessor's branch, which fails when that
+        # branch is checked out in the predecessor's own, still-active
+        # worktree. `gh stack link` needs no local tracking of the predecessor
+        # at all: renaming the current branch (already sitting on the
+        # predecessor's tip) to its deterministic task name, then linking it
+        # onto `entry_pr`, pushes it and creates its pull request chained onto
+        # the predecessor without ever touching the predecessor's branch.
+        self._require_stack_extension()
+        run_process(["git", "branch", "-m", branch])
+        run_gh(["stack", "link", str(entry_pr), branch])
+        return self._pull_request_view_by_branch(branch)
+
+    @staticmethod
+    def _pull_request_view_by_branch(branch: str) -> PullRequest:
+        try:
+            pr = run_gh_json(["pr", "view", branch, *repo_args(), "--json", _PR_FIELDS])
+        except PdlcError as error:
+            if _is_pr_not_found(error):
+                raise PdlcError(f"no pull request found for {branch} after linking it into the stack") from error
+            raise PdlcError(f"could not resolve pull request for {branch}: {error}") from error
+        return _pr_dict(pr)
 
     def set_pull_request_content(self, number: int, title: str, body: str) -> None:
         # `gh pr edit --title --body-file` replaces both fields wholesale. This

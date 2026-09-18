@@ -57,6 +57,19 @@ class CodeHost(ABC):
         Hosts without a stacked-PR mechanism raise PdlcError."""
 
     @abstractmethod
+    def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
+        """Rename the current branch to ``branch``, publish it, and link it onto
+        ``entry_pr``'s stack — the worktree-safe alternative to
+        ``task_stack_setup``'s checkout/add for a `pdlc prepare --after`
+        worktree's first task, whose predecessor branch may be checked out in
+        the predecessor's own, still-active worktree and so cannot be checked
+        out here too. Needs no local stack tracking: it pushes the branch and
+        creates its pull request itself, chained onto ``entry_pr``.
+
+        Hosts without a stacked-PR mechanism raise PdlcError, matching
+        ``submit_task_stack``."""
+
+    @abstractmethod
     def set_pull_request_content(self, number: int, title: str, body: str) -> None:
         """Overwrite one pull request's title and description outright.
 

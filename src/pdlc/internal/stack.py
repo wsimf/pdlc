@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from pdlc.domain.workflow import Lifecycle
 from pdlc.internal.workitem import item_slug, resolve_item, task_tree, workflow_for_item
+from pdlc.internal.worktree import worktree_after
 
 
 def task_branch_name(slug: str, task_id: str) -> str:
@@ -78,3 +79,19 @@ def resolve_predecessor(ref: str) -> Predecessor:
     if latest is None:
         return Predecessor(ref, False, None, None)
     return Predecessor(ref, False, task_branch_name(item_slug(item), latest["taskId"]), max(latest["prs"]))
+
+
+def after_predecessor(delivery_tasks: list[dict], chosen: dict) -> Predecessor | None:
+    """The `pdlc prepare --after` predecessor ``chosen`` stacks onto, or None
+    when ``chosen`` is not the first task of such a worktree (it already has an
+    ordinary stack entry point — see `stack_entry_pr`) or the worktree was not
+    prepared with `--after`.
+
+    A predecessor whose branch may live in another, still-active worktree
+    cannot be `gh stack checkout`-ed here, so callers route this case to
+    `CodeHost.link_task_stack` instead of the ordinary checkout/add or
+    sync/submit calls."""
+    if stack_entry_pr(delivery_tasks, chosen) is not None:
+        return None
+    after = worktree_after()
+    return resolve_predecessor(after) if after else None

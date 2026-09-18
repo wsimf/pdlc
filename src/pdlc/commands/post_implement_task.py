@@ -29,7 +29,12 @@ already has one, such as a review or CI fix on a closed task, edits the newest
 in place and removes any older duplicates, so the comment always reads as what
 finally shipped.
 
-This first submits the task's stacked pull request via `gh stack`, sets that PR's
+This first submits the task's stacked pull request via `gh stack` — or, for a
+worktree's first task prepared with `pdlc prepare --after` (reported at `pdlc
+inspect implement` as `stackSetup: none`), renames the current branch to its
+deterministic name and links it onto the predecessor's stack instead, since
+there is no local `gh stack` tracking to submit in that case. Either way this
+then sets that PR's
 title (the delivery task's own title with its `WORK-N-TASK-N` id prefix and
 `[CORE]`/`[UI]` tag stripped, or the optional `[code_host] pr_title_format`
 applied to it) and its body to this evidence (prefixed with the optional
@@ -57,7 +62,7 @@ from pdlc.internal.attachments import parent_number_for_task, parse_attachment_a
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
-from pdlc.internal.stack import task_branch_name
+from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
     close_task,
@@ -69,6 +74,7 @@ from pdlc.internal.workitem import (
     attach_pr,
     resolve_item,
     task_title,
+    task_tree,
     workflow_for_item,
     due_next,
     item_status,
@@ -84,9 +90,20 @@ def _submit_task_stack(task: dict) -> dict:
     The stack itself is `gh stack`'s: the skill built it with `gh stack
     init`/`add`, and the host submits it as-is. All this does is pick out the PR
     whose head is this task's branch.
+
+    The one exception is a worktree's first task prepared with `pdlc prepare
+    --after`, reported to the caller at `pdlc inspect implement` time as
+    `stackSetup: none` — there is no local `gh stack` tracking to sync/submit,
+    since the predecessor's branch may live in another, still-active worktree
+    and was never checked out here. That case renames the current branch to
+    its deterministic name and links it onto the predecessor's stack instead.
     """
-    slug = item_slug(resolve_item(parent_number_for_task(task)))
+    parent = parent_number_for_task(task)
+    slug = item_slug(resolve_item(parent))
     branch = task_branch_name(slug, task["taskId"])
+    predecessor = after_predecessor(task_tree(parent), task)
+    if predecessor and not predecessor.complete and predecessor.pr is not None:
+        return get_code_host().link_task_stack(predecessor.pr, branch)
     prs = get_code_host().submit_task_stack()
     match = next((pr for pr in prs if pr["branch"] == branch), None)
     if match is None:

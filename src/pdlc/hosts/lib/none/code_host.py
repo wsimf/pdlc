@@ -29,6 +29,9 @@ class NoneCodeHost(CodeHost):
     def submit_task_stack(self) -> list[PullRequest]:
         raise PdlcError("no code host is configured; cannot submit a stacked pull request")
 
+    def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
+        raise PdlcError("no code host is configured; cannot link a stacked pull request")
+
     def set_pull_request_content(self, number: int, title: str, body: str) -> None:
         raise PdlcError("no code host is configured; cannot edit a pull request")
 
