@@ -109,6 +109,16 @@ def fetch_base(base_ref: str) -> None:
         print(f"pdlc: could not fetch {base_ref}: {error}", flush=True)
 
 
+def working_tree_dirty() -> bool:
+    """Whether the current checkout has staged or unstaged changes. Untracked
+    files do not count: they survive a branch switch untouched. False outside a
+    Git checkout, where there is no tree to protect."""
+    try:
+        return bool(_git(["status", "--porcelain", "--untracked-files=no"]))
+    except (PdlcError, OSError):
+        return False
+
+
 def branch_exists(branch: str) -> bool:
     args = ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]
     record_external_call("git", args)

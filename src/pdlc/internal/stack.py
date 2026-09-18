@@ -12,8 +12,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.model import TASK_TITLE_PATTERN
 from pdlc.domain.workflow import Lifecycle
-from pdlc.internal.workitem import item_slug, resolve_item, task_tree, workflow_for_item
+from pdlc.internal.workitem import (
+    item_slug,
+    resolve_item,
+    task_tree,
+    tasks_by_number,
+    workflow_for_item,
+)
 from pdlc.internal.worktree import worktree_after
 
 
@@ -79,6 +87,66 @@ def resolve_predecessor(ref: str) -> Predecessor:
     if latest is None:
         return Predecessor(ref, False, None, None)
     return Predecessor(ref, False, task_branch_name(item_slug(item), latest["taskId"]), max(latest["prs"]))
+
+
+@dataclass(frozen=True)
+class TaskCheckout:
+    """One delivery task translated into the arguments a checkout needs.
+
+    ``pr`` is the task's own registered pull request, ``entry_pr`` the previous
+    implemented task's, and ``predecessor`` the `pdlc prepare --after` work item
+    this task's worktree already sits on — in which case the branch is the
+    current one and there is nothing to check out."""
+
+    task: dict
+    branch: str
+    pr: int | None
+    entry_pr: int | None
+    predecessor: Predecessor | None
+
+
+def parse_task_name(ref: str) -> tuple[str, str] | None:
+    """``(parent work item, TASK-NNN)`` for a ``WORK-N-TASK-NNN`` name, else None."""
+    match = TASK_TITLE_PATTERN.match(ref.strip().upper())
+    return (match.group(1), match.group(2)) if match else None
+
+
+def resolve_task_checkout(ref: str) -> TaskCheckout:
+    """Resolve a delivery task by ``WORK-N-TASK-NNN`` name or by its own issue
+    number, and return where its branch sits on the stack.
+
+    A bare ``TASK-NNN`` is refused: it names no work item, and inferring one
+    from the current checkout would make the same argument mean different tasks
+    in different trees."""
+    parsed = parse_task_name(ref)
+    if parsed is None:
+        if not ref.strip().isdigit():
+            raise PdlcError(
+                f"cannot resolve delivery task {ref!r}: pass its WORK-N-TASK-NNN name "
+                "or its own issue number"
+            )
+        resolved = tasks_by_number([ref.strip()])
+        if not resolved:
+            raise PdlcError(f"no delivery task found for {ref!r}")
+        parsed = parse_task_name(resolved[0].get("title") or "")
+        if parsed is None:
+            raise PdlcError(f"{ref} is not a delivery task: its title carries no WORK-N-TASK-NNN identity")
+
+    parent, task_id = parsed
+    item = resolve_item(parent)
+    delivery = [task for task in task_tree(parent) if task.get("taskId")]
+    chosen = next((task for task in delivery if task["taskId"] == task_id), None)
+    if chosen is None:
+        raise PdlcError(f"work item {parent} has no delivery task {task_id}")
+
+    prs = chosen.get("prs") or []
+    return TaskCheckout(
+        task=chosen,
+        branch=task_branch_name(item_slug(item), task_id),
+        pr=max(prs) if prs else None,
+        entry_pr=stack_entry_pr(delivery, chosen),
+        predecessor=after_predecessor(delivery, chosen),
+    )
 
 
 def after_predecessor(delivery_tasks: list[dict], chosen: dict) -> Predecessor | None:

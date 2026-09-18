@@ -62,6 +62,9 @@ class FileCodeHost(CodeHost):
     def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
         return []
 
+    def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
+        raise PdlcError("the file code host cannot check out stacked task branches")
+
     def submit_task_stack(self) -> list[PullRequest]:
         raise PdlcError("the file code host cannot submit stacked pull requests")
 

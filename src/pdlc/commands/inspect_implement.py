@@ -14,7 +14,12 @@ DESCRIPTION
     next delivery task to implement.
 
 `## Readiness` reports whether the stage is due (Status Implementation, gate
-Pending / Changes Required / Stale, not skipped). `## Next Task` names the first
+Pending / Changes Required / Stale, not skipped). `## Open Comments` lists every
+still-unresolved review thread across the record's registered pull requests,
+grouped by PR — live host state, read fresh, not evidence PDLC recorded. With
+any thread open it leads with `Unresolved PR comments found`; with none it reads
+`None.`. Nothing here resolves a thread or decides it is in scope; that judgment
+stays with the caller. `## Next Task` names the first
 eligible task in scope — OPEN, technically planned, not yet implemented — in
 CORE-before-UI then task-number order, with its `branch:` and whatever setup
 lines the configured code host needs to put that branch on its stack — its
@@ -31,7 +36,9 @@ once the task is committed. A predecessor with no such PR yet blocks the task,
 and a Complete one falls back to a fresh stack. The stack vocabulary is the
 host's own otherwise: nothing here computes a base branch or checks whether a
 predecessor's branch still exists. A code host with no stacked-PR mechanism
-contributes no setup line and the branch is the caller's to create.
+contributes no setup line and the branch is the caller's to create. `pdlc
+checkout` performs that same move for a task, so these lines are here to read
+rather than to run by hand.
 `## Judgment Required` lists what the skill must still
 confirm from the task body and record comments (dependency closure by Result,
 HITL approval) — this script stops short of that judgment, exactly as
@@ -45,6 +52,13 @@ Not ready, or nothing eligible, is reported plainly rather than raised.
     ## Readiness
 
     Ready — Gate State: Pending.
+
+    ## Open Comments
+
+    Unresolved PR comments found — address these before the next task.
+
+    PR #151:
+    - @reviewer on src/chart.py:42 — this drops the retry (https://.../#discussion_r1)
 
     ## Next Task
 
@@ -80,10 +94,16 @@ from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.hosts.code_host import get_code_host
+from pdlc.internal.pull_requests import open_review_comments_section, record_open_review_comments
 from pdlc.internal.stack import after_predecessor, stack_entry_pr, task_branch_name
 from pdlc.internal.workitem import due_next, item_slug, resolve_item, task_tree
 
 _PHASES = {"core": False, "ui": True}
+
+# The routing line the calling skill keys on: unresolved review threads on the
+# record's own PR stack are rework this stage owns, whether or not Verification
+# has bounced them back yet.
+_COMMENTS_LEAD = "Unresolved PR comments found — address these before the next task."
 
 _JUDGMENT = (
     "## Judgment Required\n\n"
@@ -222,8 +242,11 @@ def inspect(issue: str, task_filter: str | None, phase: bool | None) -> str:
     delivery = [t for t in task_tree(issue) if t.get("taskId")]
     closed = sum(1 for t in delivery if t["state"] == "CLOSED")
 
+    open_comments = record_open_review_comments(issue, record=item, tasks=delivery)
+    comments_section = open_review_comments_section(open_comments, lead=_COMMENTS_LEAD)
+
     next_section, chosen = _next_task_section(item, delivery, task_filter, phase)
-    sections += ["", attachments, "", next_section]
+    sections += ["", *comments_section, "", attachments, "", next_section]
     if chosen is not None:
         sections += ["", _JUDGMENT]
     sections += ["", _remaining_section(delivery, chosen, closed)]

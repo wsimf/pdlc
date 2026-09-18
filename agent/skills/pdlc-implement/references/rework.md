@@ -29,7 +29,7 @@ This step is complete when every finding has an owning task, or an unclear one h
 
 Work through the owning tasks in stack order, lowest first: re-landing a task rebases every branch above it. For each task:
 
-1. **Branch.** With the tree clean, as in Implement, run `gh stack checkout <branch>`.
+1. **Branch.** With the tree clean, as in Implement, run `pdlc checkout DELIVERY_TASK`.
 2. **Dispatch** the task's `## Agent` implementer, from `pdlc inspect task DELIVERY_TASK`, with [`task-implementation-prompt.md`](task-implementation-prompt.md). The Gate evidence is this task's findings verbatim; a cross-cutting finding also says it spans tasks and names the files. The fix is one new commit on top.
 3. **Validate** as in Implement.
 4. **Review** the fix commit at task depth, as in Review.

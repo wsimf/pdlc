@@ -5,6 +5,7 @@
 USAGE
     pdlc inspect capability                 # dump every slot and its resolution
     pdlc inspect capability build-run       # one line, ready to paste
+    pdlc inspect capability build-run --name   # the configured name, or nothing
 
 DESCRIPTION
     Resolve the project's PDLC capability routing so a calling skill can paste
@@ -18,6 +19,24 @@ DESCRIPTION
     (``general-purpose`` when the slot is unset). For a ``skills`` slot the output
     is an instruction: invoke the configured skill first, or — when the slot is
     unset — the fallback that tells the agent to handle that seam inline.
+
+    ``--name`` answers the narrower question "did the project configure this
+    slot at all?". It prints the configured name alone, with no surrounding
+    instruction, and prints nothing when the slot is unset — including for an
+    ``agents`` slot, where the ``general-purpose`` default is suppressed. A
+    calling skill uses it to drop a whole section of a brief when the project
+    has no specialist for that seam, rather than pasting a fallback sentence.
+
+FLAGS
+    --name    action="store_true": print only the configured skill or sub-agent
+              name for SLOT, or nothing when the slot is unset. Requires SLOT.
+
+EXAMPLES
+    # Paste-ready routing line for a sub-agent brief.
+    pdlc inspect capability build-run
+
+    # Include a verification section only when the project configures build-run.
+    pdlc inspect capability build-run --name
 """
 
 from __future__ import annotations
@@ -67,14 +86,28 @@ def _skill_line(slot: str, name: str | None) -> str:
     return _SKILL_FALLBACK.get(slot, "")
 
 
-def _one(slot: str) -> str:
-    caps = get_capabilities()
-    if slot in CAPABILITY_SLOTS["agents"]:
-        return caps.agent(slot)
-    if slot in CAPABILITY_SLOTS["skills"]:
-        return _skill_line(slot, caps.skill(slot))
+def _known(slot: str) -> str:
+    """The table a slot belongs to, or a ValueError naming every known slot."""
+    for section in ("agents", "skills"):
+        if slot in CAPABILITY_SLOTS[section]:
+            return section
     known = ", ".join(CAPABILITY_SLOTS["agents"] + CAPABILITY_SLOTS["skills"])
     raise ValueError(f"unknown capability slot {slot!r}. Known slots: {known}")
+
+
+def _one(slot: str) -> str:
+    caps = get_capabilities()
+    if _known(slot) == "agents":
+        return caps.agent(slot)
+    return _skill_line(slot, caps.skill(slot))
+
+
+def _name(slot: str) -> str:
+    """The configured name for a slot, or empty when the project left it unset.
+    Callers use the empty answer to omit a section, so no default is applied."""
+    caps = get_capabilities()
+    table = caps.agents if _known(slot) == "agents" else caps.skills
+    return table.get(slot) or ""
 
 
 def _dump() -> str:
@@ -98,12 +131,19 @@ def main(argv: list[str] | None = None) -> int:
     if any(a in ("-h", "--help") for a in args):
         print_help(__doc__)
         return 0
-    if len(args) > 1:
-        print("usage: pdlc inspect capability [SLOT]", file=sys.stderr)
+    name_only = "--name" in args
+    args = [a for a in args if a != "--name"]
+    if len(args) > 1 or (name_only and not args):
+        print("usage: pdlc inspect capability [SLOT] [--name]", file=sys.stderr)
         return 1
 
     try:
-        output = _dump() if not args else _one(args[0]) + "\n"
+        if not args:
+            output = _dump()
+        elif name_only:
+            output = _name(args[0]) + "\n"
+        else:
+            output = _one(args[0]) + "\n"
     except ValueError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

@@ -263,8 +263,15 @@ class InspectImplementTests(FileBackendTest):
 
     def _github_code_host(self) -> None:
         """Stack setup lines come from the code host, and only GitHub has a
-        stacked-PR mechanism; the suite's default file host has none."""
+        stacked-PR mechanism; the suite's default file host has none. Live
+        review-thread state would need a real `gh`, so it reads as clean unless
+        a test says otherwise."""
         self.configure(code_host="github")
+        patcher = patch(
+            "pdlc.commands.inspect_implement.record_open_review_comments", return_value=[]
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def setUp(self) -> None:
         super().setUp()
@@ -456,6 +463,47 @@ class InspectImplementTests(FileBackendTest):
 
         result = self.invoke("inspect_implement", 60)
         self.assertNotIn("pdlc inspect task", result.stdout)
+
+    def test_open_comments_reports_none_when_no_thread_is_unresolved(self):
+        # The file code host has no live review-thread state, so this is the
+        # default for a file-backend scenario without mocking the code host.
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._plan(60, 601)
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Open Comments\n\nNone.", result.stdout)
+        self.assertNotIn("Unresolved PR comments found", result.stdout)
+
+    def test_unresolved_pr_comments_are_reported_ahead_of_the_next_task(self):
+        self._seed()
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._plan(60, 601)
+
+        with patch(
+            "pdlc.commands.inspect_implement.record_open_review_comments",
+            return_value=[{
+                "pr": 151, "author": "reviewer", "body": "this drops the retry",
+                "url": "u1", "path": "src/chart.py", "line": 42,
+            }],
+        ):
+            result = self.invoke("inspect_implement", 60)
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Unresolved PR comments found", result.stdout)
+        self.assertIn("PR #151:", result.stdout)
+        self.assertIn("@reviewer on src/chart.py:42 — this drops the retry (u1)", result.stdout)
+        self.assertLess(
+            result.stdout.index("## Open Comments"), result.stdout.index("## Next Task")
+        )
+
+    def test_not_ready_skips_the_open_comments_check(self):
+        # Another stage owns the record, so its PR threads are not this
+        # command's business — and the host is not queried for them.
+        self.seed_record(63, "Testing", "Pending", slug="record-63")
+        result = self.invoke("inspect_implement", 63)
+        self.assertNotIn("## Open Comments", result.stdout)
 
     def test_not_ready_when_stage_is_not_implementation(self):
         self.seed_record(61, "Testing", "Pending", slug="record-61")

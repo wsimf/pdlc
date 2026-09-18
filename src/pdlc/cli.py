@@ -19,6 +19,7 @@ COMMANDS = {
     # additionally resolves the work item to confirm it is Complete.
     ("prepare",): "pdlc.commands.prepare",
     ("cleanup",): "pdlc.commands.cleanup",
+    ("checkout",): "pdlc.commands.checkout",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "task", "timeline"): "pdlc.commands.inspect_task_timeline",
@@ -74,10 +75,11 @@ def _usage() -> str:
         "  inspect test WI             whether testing is due; testable scope and files the PRs touched\n"
         "  inspect verify WI           verification readiness, open findings, and a pre-filled report\n"
         "  inspect complete WI         completion readiness: open tasks, unmerged/red PRs, open questions\n"
-        "  inspect capability [SLOT]  resolve the project's agent/skill routing for a seam\n"
+        "  inspect capability [SLOT] [--name]  resolve the project's agent/skill routing for a seam\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"
+        "  checkout TASK                          put the working tree on one delivery task's branch (local only)\n"
         "  continue WI                            self-heal a stray Approved/CI Pending gate; errors otherwise\n"
         "  post write                             publish the Product artifact\n"
         "  post tasks                             land a UI or Tasks stage\n"
@@ -102,6 +104,7 @@ def _usage() -> str:
         "  --home PATH                 override PDLC_HOME for this run\n"
         "\nARGUMENTS\n"
         "  WI, ISSUE, WORK_ITEM        the parent work item number\n"
+        "  TASK, DELIVERY_TASK         a delivery task's WORK-N-TASK-NNN name or its own issue number\n"
         "  Most post stage/gate commands also take --attachment PATH [--attachment-description TEXT].\n"
         "\nEXAMPLES\n"
         "  pdlc inspect 236\n"

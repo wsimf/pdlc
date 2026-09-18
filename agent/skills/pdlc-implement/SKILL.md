@@ -45,7 +45,9 @@ The driver may narrow the run: "do TASK-004 next" is `--task TASK-004`, "just th
 pdlc inspect implement WORK_ITEM [--task TASK-NNN | --phase core|ui]
 ```
 
-`## Next Task` names the single eligible task with its `branch:` and `stackSetup:` line. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
+`## Open Comments` reporting unresolved PR comments makes them this run's scope, ahead of any next task: follow [`references/fix-pr-comments.md`](references/fix-pr-comments.md) in place of the rest of Scope through Review, then Land, Publish, and Report.
+
+`## Next Task` names the single eligible task and the branch it belongs on. It is the task, whether or not you would have picked it; `--task` and `--phase` only narrow the scan. When nothing is eligible and `### Open Changes` lists requests, every task they touch is closed: follow [`references/rework.md`](references/rework.md) in place of the rest of Scope through Land; it ends at Publish, then Report. When nothing is eligible and nothing is open, report `## Remaining` and stop; the record is waiting on planning, or on tasks outside this run's scope.
 
 Settle every `## Judgment Required` line from the task body and the record's comments: a dependency counts as closed only when its Result and current source say so, and a HITL task needs the driver's recorded approval, never an inferred one. Keep `## Remaining` for the report.
 
@@ -61,8 +63,8 @@ Stop and report instead of dispatching when a judgment line fails, the plan cont
 
 ## Implement
 
-1. **Branch.** Check `git status --short`; the tree must be clean before branching, with all unrelated staged, unstaged, and untracked work preserved. Run the `stackSetup:` line verbatim: it is the code host's own stack vocabulary, and a hand-rolled branch or base breaks it. A `Changes Required` re-run needs no new branch: `gh stack checkout <branch>` puts you back on it, and the fix lands as a new commit on top.
-2. **Dispatch** the agent `## Agent` names, and only that one, for this one task. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, the upstream dependency summaries, the Gate evidence, and the capability line from `pdlc inspect capability build-run`. The template limits it to one commit on the current branch; the branch and PR stay with this skill and the CLI. It also has the agent build, run, and verify the task's acceptance criteria against the running app before that commit, fixing what it finds.
+1. **Branch.** Check `git status --short`; the tree must be clean, with all unrelated staged, unstaged, and untracked work preserved. Then `pdlc checkout DELIVERY_TASK`, which puts you on that task's branch whether it exists yet or not; never hand-roll a branch or a base. A `Changes Required` re-run puts you back on the same branch, and the fix lands as a new commit on top.
+2. **Dispatch** the agent `## Agent` names, and only that one, for this one task. Build its prompt from [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the covered requirement text, the upstream dependency summaries, the Gate evidence, and `pdlc inspect capability build-run --name`. The template limits it to one commit on the current branch; the branch and PR stay with this skill and the CLI. When the project configures a build-run capability, it also has the agent build, run, and verify the task's acceptance criteria against the running app before that commit, fixing what it finds; the template says how to tell and what to drop when it does not.
 3. **Wait** for it to return before inspecting or changing its files.
 4. **Inspect the commit** against the task's plan, acceptance criteria, and the approved requirements it covers.
 5. **Validate what you did not author**: `git diff --check`, targeted diagnostics, existing focused tests, and the affected build unless the driver limits validation.
@@ -124,7 +126,7 @@ Surface a requirement, constraint, plan, or acceptance criterion that is factual
 
 - Keep code with the `## Agent` implementer, review judgement with `pdlc-implementation-reviewer`, and unit coverage with `pdlc-test-writer`; this skill writes no code and authors no acceptance tests.
 - Use the CLI as the only work-item interface; lifecycle state, evidence markers, and the parent's Product, UI, Decisions, and Open Questions sections belong to other owners.
-- Branches come only from `stackSetup:` and `gh stack`, and PRs only from `pdlc post implement-task`; keep task work off the base branch and other tasks' branches, and leave pushing, rebasing, and merging to those tools and the driver.
+- Branches come only from `pdlc checkout`, and PRs only from `pdlc post implement-task`; keep task work off the base branch and other tasks' branches, and leave pushing, rebasing, and merging to those tools and the driver.
 - Claim only implementation, build, test, PR, or check evidence that exists.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
 - Preserve unrelated staged, unstaged, and untracked work.

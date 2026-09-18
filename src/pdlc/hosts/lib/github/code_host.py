@@ -87,6 +87,16 @@ def _is_pr_not_found(error: PdlcError) -> bool:
     return any(phrase in message for phrase in _PR_NOT_FOUND)
 
 
+def _local_branch_exists(branch: str) -> bool:
+    """Whether ``branch`` is already a local ref. Only asked when the task has
+    no pull request to check out from — an implemented-but-unsubmitted task."""
+    try:
+        run_process(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"])
+    except PdlcError:
+        return False
+    return True
+
+
 def _graphql_rollup(pull_request: dict) -> list[dict] | None:
     """The head commit's check contexts in `gh pr view` shape, `[]` when the
     commit has no rollup, or None when more than one page of contexts exists
@@ -222,6 +232,26 @@ class GitHubCodeHost(CodeHost):
             f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
             f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
         ]
+
+    def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
+        # `gh stack checkout` takes either a pull request or a branch and
+        # fetches the rest of the stack from GitHub itself, so a fresh clone
+        # needs no local tracking to land on the right branch. The PR is
+        # preferred over the branch for exactly that reason: the branch may not
+        # exist locally yet.
+        self._require_stack_extension()
+        if pr is not None:
+            run_gh(["stack", "checkout", str(pr)])
+            return f"checked out {branch} from its pull request #{pr}"
+        if _local_branch_exists(branch):
+            run_gh(["stack", "checkout", branch])
+            return f"checked out the existing local branch {branch}"
+        if entry_pr is not None:
+            run_gh(["stack", "checkout", str(entry_pr)])
+            run_gh(["stack", "add", branch])
+            return f"created {branch} on the stack entered at pull request #{entry_pr}"
+        run_gh(["stack", "init", branch])
+        return f"created {branch} as the first branch of a new stack"
 
     def submit_task_stack(self) -> list[PullRequest]:
         """Sync, push, and create/update the current local stack's pull requests.

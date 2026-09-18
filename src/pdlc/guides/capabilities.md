@@ -51,6 +51,10 @@ Capability selection does not select workflow policy. The resolved record's `wor
   The calling skill pastes that line verbatim into the sub-agent brief.
 - **skill slots**, when unset, resolve to a fallback sentence that tells the
   agent to handle the seam itself. The seam always runs.
+- **`--name`** on any slot prints the configured name alone, or nothing when
+  the slot is unset — no instruction, no `general-purpose` default. A skill
+  uses it to include or omit a whole section of a brief based on whether the
+  project has a specialist for that seam.
 
 A project supplying its own capability skill owns that skill's own input and
 output contract; PDLC only guarantees it is named in the brief and required
