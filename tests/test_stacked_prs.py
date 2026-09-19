@@ -550,8 +550,27 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
             result = self.invoke("post_implement", 70, self.evidence_file())
 
         self.assertEqual(result.code, 0, result.stderr)
+        host.submit_task_stack.assert_called_once_with()
         host.mark_pull_requests_ready.assert_called_once_with([148, 149])
         self.assertEqual(self.state(70), ("Implementation", "Review Required"))
+
+    def test_publication_pushes_the_stack_before_marking_ready_and_a_failed_push_posts_nothing(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [148])
+        host = self._host([self._pr(148, "OPEN", is_draft=True)])
+        host.submit_task_stack.side_effect = PdlcError("push refused")
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file())
+
+        self.assertEqual(result.code, 1)
+        self.assertIn("push refused", result.stderr)
+        host.ensure_pull_request_linked.assert_not_called()
+        host.mark_pull_requests_ready.assert_not_called()
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
+        self.assertEqual(self.comments_text(70), "")
 
     def test_publication_fails_cleanly_when_marking_ready_errors(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")

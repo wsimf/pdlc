@@ -106,6 +106,7 @@ When checks fail, the current stage moves to `Changes Required` and the failure 
 
 `Decision Required` means a product, architecture, UX, safety, or scope decision is needed.
 It stops autonomous routing until the driver resolves or defers each recorded decision with `pdlc post decision`.
+A reviewer raises it with `pdlc post review decision-required` from `Review Required`; a stage owner raises it with `pdlc post escalate` from its own work gate when the work itself needs the driver's call.
 Resolution records every answer under `PDLC-RESOLUTION` and creates a separate `Product / Pending` work item for each deferred decision.
 
 In the Feature pipeline, Product, UI, Tasks, and Technical Plan land directly at `Approval Required`.

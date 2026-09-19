@@ -44,10 +44,7 @@ it at the end. Review threads and check state are live host state, read fresh
 each call, not evidence PDLC recorded; nothing here resolves a thread or
 judges a request.
 
-`## Judgment Required` lists what the caller must still confirm for this mode's
-unit — dependency closure by Result and HITL approval for a task, ownership and
-driver-level calls for a fix or a request. `## Attachments` lists the record's
-attachments. The unit section (`## Next Task`, `## Next Fix`, or `## Open
+`## Attachments` lists the record's attachments. The unit section (`## Next Task`, `## Next Fix`, or `## Open
 Requests`) ends with a `Next:` sentence naming the one read-only hop before
 doing the work; `## Publish` is always last and holds the one mutating command
 that lands the unit or the stage.
@@ -80,11 +77,6 @@ Not ready, or nothing to do, is reported plainly rather than raised.
     ## Mode
 
     mode: rework
-
-    ## Judgment Required
-
-    - a thread or finding that turns on a product, architecture, UX, safety,
-      or scope call is the driver's; report it and leave the thread open
 
     ## Attachments
 
@@ -138,23 +130,6 @@ from pdlc.internal.workitem import due_next, item_slug, pipeline_for_item, recor
 # The change-request sources whose text is the whole record's, not one task's:
 # they cannot be attributed to a pull request, so they form the triage unit.
 _TRIAGE_SOURCES = ("review", "bounce", "resolution")
-
-_DRIVER_CALL = "a thread or finding that turns on a product, architecture, UX, safety, or scope call is the driver's; report it and leave the thread open"
-
-_JUDGMENT = {
-    "implement": [
-        "every task this one depends on is closed, proven by its Result and current source — not its state alone",
-        "if this task is HITL, the driver's approval for it is recorded on the record",
-    ],
-    "rework": [_DRIVER_CALL],
-    "triage": [
-        "give each request an owning task; a cross-cutting one goes on the top task",
-        "a request already met by current source needs no fix; say so in the evidence",
-        "a request that needs a product, architecture, UX, safety, or scope call is the driver's; report it and stop",
-    ],
-    "none": [],
-}
-
 
 @dataclass(frozen=True)
 class _Fix:
@@ -355,10 +330,11 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
         "## Open Requests",
         "",
         "Every delivery task is already implemented and published in the PR stack below; these requests ask "
-        "for changes to that implemented work. Run `pdlc checkout NUMBER` with the owning task's number to put "
-        "the working tree on that task's PR branch; its fix lands there as a new commit on top, after the "
-        "implementer has investigated the current implementation. Work lowest in the stack first, since "
-        "re-landing a task rebases every branch above it.",
+        "for changes to that implemented work. Run `pdlc checkout NUMBER` with the top task's number to put "
+        "the working tree on the top branch with every task branch of the stack local. Each fix lands as a "
+        "new commit on the branch of the task it belongs to, lowest first; a fix with no clear owner, or one "
+        "that needs a lower fix to build on, goes on the top branch. These requests stay listed until the "
+        "stage publishes, so this unit is offered again until then.",
     ]
     for request in requests:
         comment = request.comment
@@ -373,9 +349,9 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
         lines.append("- no implemented task has a registered pull request")
     lines += [
         "",
-        "Next: Split the requests above into findings and give each an owning task from the stack. For each "
-        "owning task, run `pdlc inspect task NUMBER` for the implementer sub-agent under `## Agent`, check out "
-        "its branch, and dispatch that sub-agent with the task's findings.",
+        "Next: Run `pdlc inspect task NUMBER` for each task in the stack for its technical plan, and for the "
+        "top task's implementer sub-agent under `## Agent`; then dispatch that sub-agent once with every "
+        "request above and the stack, to place and fix each finding on its owning task's branch.",
     ]
     return "\n".join(lines)
 
@@ -394,11 +370,6 @@ def _checks_section(pull_requests: list[dict]) -> str:
     if not pull_requests:
         lines.append("- no registered pull request")
     return "\n".join(lines)
-
-
-def _judgment_section(mode: str) -> str:
-    lines = _JUDGMENT[mode]
-    return "## Judgment Required\n\n" + ("\n".join(f"- {line}" for line in lines) if lines else "None")
 
 
 def inspect(issue: str) -> str:
@@ -454,9 +425,9 @@ def inspect(issue: str) -> str:
             mode = "triage"
             unit = _open_requests_section(item, delivery, requests)
             publish = (
-                "After each owning task's fix is committed, run `pdlc post implement-task NUMBER SUMMARY` to "
-                f"re-land it. Once every request is handled, run `pdlc post implement {number} EVIDENCE` to "
-                "publish the stage; the evidence names how each request was addressed."
+                f"After every fix is committed on its task branch, run `pdlc post implement {number} EVIDENCE` "
+                "from the top branch to push the whole stack and publish the stage; the evidence names how each "
+                "request was addressed."
             )
         else:
             mode = "none"
@@ -468,7 +439,7 @@ def inspect(issue: str) -> str:
                 unit = "## Next Task\n\nNone. Every delivery task is closed and all checks are settled."
                 publish = f"Run `pdlc post implement {number} EVIDENCE` to publish the stage at Review Required."
 
-    sections = ["## Readiness", "", message, "", "## Mode", "", f"mode: {mode}", "", _judgment_section(mode), "", attachments]
+    sections = ["## Readiness", "", message, "", "## Mode", "", f"mode: {mode}", "", attachments]
     if checks is not None:
         sections += ["", checks]
     sections += ["", unit, "", "## Publish", "", publish]

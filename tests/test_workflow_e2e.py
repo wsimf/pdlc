@@ -123,7 +123,15 @@ class WorkflowEndToEndTests(FileBackendTest):
             "state": "OPEN", "isDraft": False, "branch": "feature/x",
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
-        self.assertEqual(self.invoke("post_implement", issue, evidence).code, 0)
+        stage_host = Mock()
+        stage_host.ensure_pull_request_linked.return_value = {
+            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "state": "OPEN", "isDraft": False, "branch": "feature/task",
+            "mergedAt": None, "checks": "SUCCESS",
+        }
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=stage_host):
+            self.assertEqual(self.invoke("post_implement", issue, evidence).code, 0)
+        stage_host.submit_task_stack.assert_called_once_with()
         self.invoke("post_review", issue, "approval-required", evidence)
         self.invoke("post_approve", issue, evidence)
         self.assertEqual(self.next("--work-item", issue).front_matter("action"), "pdlc-test")

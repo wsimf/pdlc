@@ -10,7 +10,7 @@ argument-hint: "Parent work item number to implement"
 
 The sub-agents know nothing about the PDLC pipeline, so every brief this skill builds must stand on its own.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), [`references/fix-pr-comments.md`](references/fix-pr-comments.md), [`references/task-review-prompt.md`](references/task-review-prompt.md), [`references/task-test-prompt.md`](references/task-test-prompt.md), and [`references/implementation-summary.md`](references/implementation-summary.md) as templates.
+Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), [`references/fix-pr-comments.md`](references/fix-pr-comments.md), [`references/task-review-prompt.md`](references/task-review-prompt.md), [`references/task-test-prompt.md`](references/task-test-prompt.md), [`references/triage-prompt.md`](references/triage-prompt.md), and [`references/implementation-summary.md`](references/implementation-summary.md) as templates.
 
 ## Resolve
 
@@ -28,20 +28,19 @@ Carry the driver's follow-up verbatim. This step is complete when the record is 
 
 ## Loop
 
-Each pass starts from the latest `pdlc inspect implement` output. Read `## Mode`, settle every `## Judgment Required` line from the task body and the record's comments (a dependency counts as closed only when its Result and current source say so; a HITL task needs the driver's recorded approval, never an inferred one; a driver-level call stops the run), then take the unit under the mode's heading below. After Land, re-run `pdlc inspect implement WORK_ITEM` and take the next pass. Never predict the next unit from the last one, and never skip a unit because you would have picked another; the output is the queue.
+Each pass starts from the latest `pdlc inspect implement` output. Read `## Mode`, then take the unit under the mode's heading below. Before dispatching a task, confirm from its body and the record's comments that every task it depends on is closed, proven by its Result and current source rather than its state alone, and that a `HITL` task has the driver's recorded approval, never an inferred one. After Land, re-run `pdlc inspect implement WORK_ITEM` and take the next pass; a `triage` pass ends in Publish instead, since its requests stay open until the stage publishes. Never predict the next unit from the last one, and never skip a unit because you would have picked another; the output is the queue.
 
-Stop and report instead of dispatching when a judgment line fails, the plan contradicts current source, acceptance criteria are ambiguous, or the work needs a new product, architecture, safety, or UX decision.
+Stop and report instead of dispatching when one of those checks fails, the plan contradicts current source, acceptance criteria are ambiguous, or the work needs a new product, architecture, safety, or UX decision.
 
 Every unit that touches a task follows the same mechanics; only the brief differs:
 
 1. **Task.** `pdlc inspect task DELIVERY_TASK` renders the task's front matter, full body with acceptance criteria, `## Technical Plan`, and `## Agent`, the implementer sub-agent this project routes the task to.
 2. **Branch.** Check `git status --short`; the tree must be clean, with all unrelated staged, unstaged, and untracked work preserved. Then `pdlc checkout DELIVERY_TASK`, which puts you on that task's branch whether it exists yet or not; never hand-roll a branch or a base.
 3. **Dispatch** the agent `## Agent` names, and only that one, with the mode's brief. The templates have the agent commit on the current branch and never push; the branch and PR stay with this skill and the CLI.
-4. **Wait** for it to return before inspecting or changing its files.
-5. **Inspect the commits** against the task's plan, acceptance criteria, and the approved requirements it covers; for a fix, against the findings it was handed.
-6. **Validate what you did not author**: `git diff --check`, targeted diagnostics, existing focused tests, and the affected build unless the driver limits validation. A fix for a red check also reruns the command that reproduced it.
+4. **Wait** for it to return before touching its files.
+5. **Check the result**, mechanically only: the tree is clean, the new commits sit on the task branch and touch only this task's owned files, and the report names the validation it ran. Judging the code is Review's job, not this skill's; for a red-check fix, the reproducing command passing is part of the report, since the check is the unit's done signal.
 
-The dispatch is complete when its work is committed on the task branch with a clean tree, touching only this task's owned files, and every validation above has run with its result noted. Then continue with the mode's remaining steps.
+The dispatch is complete when its work is committed on the task branch with a clean tree and its report is in. Then continue with the mode's remaining steps.
 
 ### `implement`
 
@@ -64,13 +63,17 @@ The unit is the task under `## Next Fix`; the branch already holds its landed co
 
 ### `triage`
 
-`## Open Requests` prints every open change request in full and the task stack under `#### Stack`. The requests are the whole record's, so ownership is this skill's call:
+`## Open Requests` prints every open change request in full and the task stack under `#### Stack`. The requests are the whole record's; the implementer decides which task each finding belongs to with the code in front of it, and one publish pushes every branch:
 
-1. **Split** each request into findings. A finding current source already meets needs no fix; keep it for the evidence. A finding that changes approved intent follows Requirement corrections. A finding that needs a product, architecture, UX, safety, or scope call is the driver's: report it with the request's link and stop.
-2. **Assign** each remaining finding an owning task: the task it names, the task whose PR touched the files it names (`pdlc inspect test WORK_ITEM` lists every closed task with its PRs and the files they touched), or, when it spans tasks or only new files, the top task in `#### Stack`.
-3. **Fix** each owning task in stack order, lowest first, since re-landing a task rebases every branch above it: Dispatch with the task's findings verbatim in the findings section of [`references/task-implementation-prompt.md`](references/task-implementation-prompt.md), then Review, Test, and Land. On the top task, give each cross-cutting finding its own summary line naming its request, so the PR's reviewers see why code outside the task is there.
+1. **Task.** `pdlc inspect task` for every task in the stack, for its `## Technical Plan`, and for the top task's `## Agent`.
+2. **Branch.** Check `git status --short`; the tree must be clean. Then `pdlc checkout TOP_TASK`, which puts you on the top branch with every task branch of the stack local.
+3. **Dispatch** the top task's agent once with [`references/triage-prompt.md`](references/triage-prompt.md), filling the requests verbatim and the stack with each task's branch and plan. The brief has it place each finding on its owning task's branch, lowest first, fall back to the top branch when ownership is unclear or a fix depends on a lower one, commit per branch, and never push, rebase, or amend. A finding that needs a product, architecture, UX, safety, or scope call, or that would change what a task was specified to do, stops it: report that finding with the request's link and stop; a finding that changes approved intent follows Requirement corrections.
+4. **Wait**, then **check the result** as in the shared mechanics: every branch it names is clean, its commits are on the branches its report says, and the report gives each finding a disposition.
+5. Review, over every commit the agent made, with the requests as the criteria to trace.
+6. Test, on the top branch, with each fixed finding under `## What changed`.
+7. Publish. The evidence carries the agent's report: every finding with its request, disposition, branch, and commit.
 
-The pass is complete when every finding has a reviewed, re-landed fix, is noted as already met, or has stopped the run; the next `pdlc inspect implement` settles the checks and names the publish.
+The pass is complete when every finding is fixed and committed on its branch, noted as already met, or has stopped the run, and Publish has pushed the stack.
 
 ### `none`
 
@@ -80,11 +83,11 @@ Nothing to work. Run Publish.
 
 Dispatch `pdlc-implementation-reviewer` at `task` depth with [`references/task-review-prompt.md`](references/task-review-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, and `git log`/`git show` for the dispatch's commits. For a fix, the criteria to trace are the findings it addressed. It is read-only and returns findings plus a verdict; this is a shallow task pass, not the stage review `pdlc-review` owns.
 
-On `Changes Required`, hand the findings verbatim to the same implementing agent. The fix is new commits on top, never an amend or rebase, so the history of what the reviewer asked for stays legible; validate and review it again. On `Approval Required`, carry every non-blocking finding you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
+On `Changes Required`, hand the findings verbatim to the same implementing agent. The fix is new commits on top, never an amend or rebase, so the history of what the reviewer asked for stays legible; review it again. On `Approval Required`, carry every non-blocking finding you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
 
 ## Test
 
-Dispatch `pdlc-test-writer` once with [`references/task-test-prompt.md`](references/task-test-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the diff of the implementer's commits, its report-back and the threads, checks, or findings it addressed under `## What changed`, and the test capabilities it names; the brief scopes the agent to this task's unit coverage and to what this dispatch changed, since whole-feature acceptance coverage belongs to `pdlc-test`. It commits onto the same task branch and does not push. This step is complete when its report is in and the commit(s) it added are on the task branch and inspected.
+Dispatch `pdlc-test-writer` once with [`references/task-test-prompt.md`](references/task-test-prompt.md), filling every placeholder from the task body, its `## Technical Plan`, the diff of the implementer's commits, its report-back and the threads, checks, or findings it addressed under `## What changed`, and the test capabilities it names; the brief scopes the agent to this task's unit coverage and to what this dispatch changed, since whole-feature acceptance coverage belongs to `pdlc-test`. It commits onto the same task branch and does not push. This step is complete when its report is in and the commit(s) it added are on the task branch.
 
 ## Land
 
@@ -103,10 +106,10 @@ The command records the summary as the task's `## Implementation` comment and as
 A thread the agent skipped, as invalid or as diverging from the agreed plan or acceptance criteria, is the driver's call, not this skill's. Land the other fixes first, then park the record:
 
 ```bash
-pdlc post review WORK_ITEM decision-required /tmp/pdlc-implement-decision.md
+pdlc post escalate WORK_ITEM /tmp/pdlc-implement-decision.md
 ```
 
-The evidence carries a `## Decision Required` section with one block per skipped thread: the thread's link, the reviewer's ask in one sentence, and the agent's response verbatim (invalid or out of scope, and why). Open the section by telling the driver how to answer: close the thread on GitHub when the comment does not apply; leave it open to have it implemented on the next pass, in which case the answer may say how; and change the plan through `pdlc post invalidate` when the comment is right about the plan being wrong. Leave the threads untouched yourself: no reply, no resolution. The command halts the loop at `Decision Required`; report it and stop.
+The evidence carries a `## Decision Required` section with one block per skipped thread, in the layout `pdlc guide decisions` reads: a `###` label naming the thread, then `Question` (the reviewer's ask in one sentence, with the thread's link), `Options` (apply it; close the thread as not applicable; change the plan), `Recommendation` (the agent's response verbatim: invalid or out of scope, and why), `Blocks` (the task), and `Why not mechanical`. Open the section by telling the driver how each option is carried out: close the thread on GitHub when the comment does not apply; leave it open to have it implemented on the next pass, in which case the answer may say how; and change the plan through `pdlc post invalidate` when the comment is right about the plan being wrong. Leave the threads untouched yourself: no reply, no resolution. The command halts the loop at `Decision Required`; report it and stop.
 
 When the driver answers, the next `pdlc inspect implement` offers the same unit with the resolution under `#### Decisions`. A thread named there that is still open is approved: the fix brief carries the resolution, and the agent implements that thread whatever its earlier judgement was.
 
@@ -122,7 +125,7 @@ Write the stage evidence to a local file, or pass a short one as `text:<body>`: 
 pdlc post implement WORK_ITEM /tmp/pdlc-implement-evidence.md
 ```
 
-The command refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns the registered `pullRequest`; a failure leaves the stage unpublished, so a re-run is clean. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
+The command pushes the whole stack first, so any commit still local on a task branch reaches its PR here; a push failure changes no state. It refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns the registered `pullRequest`; a failure leaves the stage unpublished, so a re-run is clean. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
 
 ## Report
 
@@ -148,5 +151,5 @@ Surface a requirement, constraint, plan, or acceptance criterion that is factual
 - Branches come only from `pdlc checkout`, and PRs only from `pdlc post implement-task`; keep task work off the base branch and other tasks' branches, and leave pushing, rebasing, and merging to those tools and the driver.
 - Claim only implementation, build, test, PR, or check evidence that exists.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
-- The only review verdict this skill posts is `decision-required`, and only from Escalate for a thread the agent skipped; `changes-required` and `approval-required` belong to `pdlc-review`.
+- Do not run `pdlc post review`; verdicts belong to `pdlc-review`. The only gate this skill sets besides its own publish is `Decision Required`, through `pdlc post escalate` from Escalate, for a thread the agent skipped.
 - Preserve unrelated staged, unstaged, and untracked work.

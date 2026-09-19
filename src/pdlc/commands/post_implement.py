@@ -10,8 +10,17 @@ FLAGS
     --attachment-description TEXT       description for the --attachment immediately before it
 
 DESCRIPTION
-    Register the top task pull request for the current branch, then complete the
-    Implementation stage.
+    Publish every task branch of the current stack, register the top task pull
+    request for the current branch, and complete the Implementation stage.
+
+The current branch must be the top task branch of the implementation stack.
+The command syncs and pushes that stack itself, so commits made on any task
+branch since its last land — a triage fix, for instance — reach their pull
+requests with every base still chained; no skill or sub-agent pushes a task
+branch by hand. The push runs after the record has been validated for the
+transition and before anything is marked ready or posted: a failed push leaves
+the record and the pull requests untouched, while a failure after it is safe to
+re-run.
 
 The PR number is recorded on the record — later stages read the record's pull
 requests from that registry, not from a `Closes #N` keyword in the PR body.
@@ -51,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         publication = prepare_transition(issue, "Implementation")
         code_host = get_code_host()
+        # The stack mechanism owns bases and rebases, so any commit left on a
+        # task branch is published through it rather than a bare `git push`.
+        code_host.submit_task_stack()
         pull_request = code_host.ensure_pull_request_linked(issue)
         attach_pr(issue, pull_request["number"])
         # Every task PR was opened as a draft while the stack was still being

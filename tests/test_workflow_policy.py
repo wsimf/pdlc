@@ -1,7 +1,7 @@
 import unittest
 
 from pdlc.domain.stages import Gate
-from pdlc.domain.workflow import InvalidationPolicy, State, WorkType
+from pdlc.domain.workflow import Event, InvalidationPolicy, Lifecycle, State, WorkType
 from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
 from pdlc.domain.workflows.workflow_bug import BUG_PIPELINE
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
@@ -52,5 +52,12 @@ class WorkflowPolicyTests(unittest.TestCase):
             policy.evidence_dependencies["A"] = ("C",)  # type: ignore[index]
 
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_escalation_parks_a_work_gate_at_decision_required_and_nothing_else(self):
+        for gate in (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE):
+            with self.subTest(gate=gate):
+                target = FEATURE_PIPELINE.next_state(State("Implementation", gate, Lifecycle.DELIVERY), Event.ESCALATED)
+                self.assertEqual((target.stage, target.gate, target.lifecycle), ("Implementation", Gate.DECISION_REQUIRED, Lifecycle.DELIVERY))
+        for gate in (Gate.REVIEW_REQUIRED, Gate.APPROVAL_REQUIRED, Gate.CI_PENDING, Gate.DECISION_REQUIRED):
+            with self.subTest(gate=gate):
+                with self.assertRaises(ValueError):
+                    FEATURE_PIPELINE.next_state(State("Implementation", gate, Lifecycle.DELIVERY), Event.ESCALATED)

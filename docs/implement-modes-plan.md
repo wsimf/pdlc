@@ -16,7 +16,7 @@ Status: implemented, CLI and skill. `pdlc-implement` and its references follow t
 |---|---|---|---|
 | `implement` | gate `Pending` or `Stale`, an eligible task exists | one task, CORE-before-UI then number | that task lands and closes |
 | `rework` | a task with unresolved threads or a red check exists; under `Pending` / `Stale` only once no eligible task remains | one task, lowest PR in the stack first | its threads are resolved and its PR is not red |
-| `triage` | gate `Changes Required`, no task unit left, open prose requests exist | the whole-item change requests, once | the stage publishes |
+| `triage` | gate `Changes Required`, no task unit left, open prose requests exist | the whole-item change requests, once: one dispatch places and fixes each finding on its owning branch, `post implement` pushes the stack | the stage publishes |
 | `none` | nothing eligible, no task unit, nothing open | nothing | prints the CI gate result: publish, wait, or the reason nothing is due |
 
 Under `Pending` and `Stale`, new tasks come first. Threads and red checks are consulted only once no eligible task remains, so a pending run stays single-purpose until the last task lands, then the same rework loop runs before publishing. Under `Changes Required` there are no new tasks, so rework units come first.
@@ -98,12 +98,14 @@ sequenceDiagram
             S->>P: post implement-task TASK SUMMARY
             P-->>S: landed (closed or re-landed)
         else triage
-            S->>S: split requests, pick owning tasks
-            Note over S,P: per owning task: checkout, dispatch with the request text, review, post implement-task
+            S->>S: pdlc checkout TOP (whole stack local)
+            S->>W: every request + the stack, one dispatch
+            W-->>S: fixes committed per owning branch, lowest first
+            S->>S: review all commits, unit tests on top
         end
     end
     S->>Q: post implement WORK_ITEM EVIDENCE
-    Q-->>S: gateState Review Required
+    Q-->>S: stack pushed, gateState Review Required
 ```
 
 ### What each mode tells the agent
@@ -119,9 +121,9 @@ flowchart LR
         r1[inspect task N] --> r2[checkout N] --> r3[dispatch threads + red checks, review] --> r4[post implement-task N] --> r5[inspect implement]
     end
     subgraph triage
-        d1[read Open Requests] --> d2{owning task clear?}
-        d2 -- yes --> d3[checkout N, dispatch, post implement-task N]
-        d2 -- no --> d4[report to driver, stop]
+        d1[read Open Requests] --> d2[checkout TOP] --> d3[one dispatch: place + fix per branch] --> d4{driver-level finding?}
+        d4 -- no --> d5[review, test, post implement WORK_ITEM]
+        d4 -- yes --> d6[report to driver, stop]
     end
     subgraph none
         n1[post implement WORK_ITEM]
@@ -130,7 +132,7 @@ flowchart LR
 
 ## `pdlc inspect implement` output per mode
 
-Section order is fixed across modes: `## Readiness`, `## Mode`, `## Judgment Required`, `## Attachments`, `## Checks` (only at the CI gate), the unit section (`## Next Task`, `## Next Fix`, or `## Open Requests`), then `## Publish` last. The unit section ends, after a blank line, with a `Next:` sentence summarising the hop to make and what to do there; `## Publish` holds the one mutating command.
+Section order is fixed across modes: `## Readiness`, `## Mode`, `## Attachments`, `## Checks` (only at the CI gate), the unit section (`## Next Task`, `## Next Fix`, or `## Open Requests`), then `## Publish` last. The unit section ends, after a blank line, with a `Next:` sentence summarising the hop to make and what to do there; `## Publish` holds the one mutating command.
 
 ### `mode: implement`
 
@@ -142,11 +144,6 @@ Ready — Gate State: Pending.
 ## Mode
 
 mode: implement
-
-## Judgment Required
-
-- every task this one depends on is closed, proven by its Result and current source
-- if this task is HITL, the driver's approval for it is recorded on the record
 
 ## Attachments
 
@@ -189,10 +186,6 @@ Ready — Gate State: Changes Required.
 
 mode: rework
 
-## Judgment Required
-
-- a thread or finding that turns on a product, architecture, UX, safety, or scope call is the driver's; report it and leave the thread open
-
 ## Attachments
 
 None
@@ -222,7 +215,7 @@ Next: Run `pdlc inspect task 49` for the implementer sub-agent under `## Agent`,
 After every thread and failing check above is fixed and the files are committed, run `pdlc post implement-task 49 SUMMARY` to re-land the fix on the task's PR; the task stays closed.
 ```
 
-`#### Unresolved threads` and `#### Failing checks` are omitted when empty. `#### Decisions` appears when a `PDLC-RESOLUTION` is open against the stage: each resolution comment in full, so a thread the agent escalated on an earlier pass (skipped, left untouched, raised through `pdlc post review decision-required`) is settled per the driver's answer when its unit comes round again rather than escalated twice. Thread and check state is live host state, so the next call moves on by itself. A PR with only pending checks is never the unit.
+`#### Unresolved threads` and `#### Failing checks` are omitted when empty. `#### Decisions` appears when a `PDLC-RESOLUTION` is open against the stage: each resolution comment in full, so a thread the agent escalated on an earlier pass (skipped, left untouched, raised through `pdlc post escalate`) is settled per the driver's answer when its unit comes round again rather than escalated twice. Thread and check state is live host state, so the next call moves on by itself. A PR with only pending checks is never the unit.
 
 ### `mode: triage`
 
@@ -235,19 +228,13 @@ Ready — Gate State: Changes Required.
 
 mode: triage
 
-## Judgment Required
-
-- give each request an owning task; a cross-cutting one goes on the top task
-- a request already met by current source needs no fix; say so in the evidence
-- a request that needs a product, architecture, UX, safety, or scope call is the driver's; report it and stop
-
 ## Attachments
 
 None
 
 ## Open Requests
 
-Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the owning task's number to put the working tree on that task's PR branch; its fix lands there as a new commit on top, after the implementer has investigated the current implementation. Work lowest in the stack first, since re-landing a task rebases every branch above it.
+Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the top task's number to put the working tree on the top branch with every task branch of the stack local. Each fix lands as a new commit on the branch of the task it belongs to, lowest first; a fix with no clear owner, or one that needs a lower fix to build on, goes on the top branch. These requests stay listed until the stage publishes, so this unit is offered again until then.
 
 ### Review findings — 2026-09-14 (https://.../comment-1)
 <full comment body>
@@ -260,11 +247,11 @@ Every delivery task is already implemented and published in the PR stack below; 
 - WORK-142-TASK-003 (number 50, PR #152)
 - WORK-142-TASK-004 (number 51, PR #153, top)
 
-Next: Split the requests above into findings and give each an owning task from the stack. For each owning task, run `pdlc inspect task NUMBER` for the implementer sub-agent under `## Agent`, check out its branch, and dispatch that sub-agent with the task's findings.
+Next: Run `pdlc inspect task NUMBER` for each task in the stack for its technical plan, and for the top task's implementer sub-agent under `## Agent`; then dispatch that sub-agent once with every request above and the stack, to place and fix each finding on its owning task's branch.
 
 ## Publish
 
-After each owning task's fix is committed, run `pdlc post implement-task N SUMMARY` to re-land it. Once every request is handled, run `pdlc post implement 142 EVIDENCE` to publish the stage; the evidence names how each request was addressed.
+After every fix is committed on its task branch, run `pdlc post implement 142 EVIDENCE` from the top branch to push the whole stack and publish the stage; the evidence names how each request was addressed.
 ```
 
 ### `mode: none`
@@ -277,10 +264,6 @@ Ready — Gate State: Pending.
 ## Mode
 
 mode: none
-
-## Judgment Required
-
-None
 
 ## Attachments
 
@@ -387,7 +370,7 @@ Unchanged in shape. It refuses while any delivery task is open. Under `Changes R
 
 ## Implementation steps (CLI only)
 
-1. `src/pdlc/commands/inspect_implement.py`: add mode resolution, `## Mode`, `## Next Fix`, `## Open Requests`, `#### Stack`, `## Checks`, per-mode `## Publish` and `Next:` lines, and the inconsistent-record readiness refusal. Drop `## Remaining`, `## Judgment Required` stays, drop the always-on `## Open Comments` and the `--task` / `--phase` flags with their scoping code and tests. Reuse `open_change_requests` for the prose requests and `record_open_review_comments` plus a new live check read for task units.
+1. `src/pdlc/commands/inspect_implement.py`: add mode resolution, `## Mode`, `## Next Fix`, `## Open Requests`, `#### Stack`, `## Checks`, per-mode `## Publish` and `Next:` lines, and the inconsistent-record readiness refusal. Drop `## Remaining` and `## Judgment Required` (its checks live in the skill), drop the always-on `## Open Comments` and the `--task` / `--phase` flags with their scoping code and tests. Reuse `open_change_requests` for the prose requests and `record_open_review_comments` plus a new live check read for task units.
 2. `src/pdlc/hosts/code_host/base.py` and the GitHub / file / none implementations: a `pull_request_checks(numbers)` read returning green / red / pending per PR, if `post ci` does not already expose one reusable here. The `none` host reports every PR as green so the CI gate is a no-op without a code host.
 3. `src/pdlc/commands/post_implement_task.py`: derive mode from task state alone, make close implicit, add `mode`, `relanded`, `openThreads`, `checks` to the JSON. Keep `--close` as a no-op.
 4. Docstrings for both commands and the top-level `_usage()` one-liners; `inspect implement` becomes `pdlc inspect implement WORK_ITEM` with no flags.
@@ -398,4 +381,4 @@ Unchanged in shape. It refuses while any delivery task is open. Under `Changes R
 
 - `Stale` prints the invalidation comment inline under `reconcile:`, so the unit is self-contained like `rework` and `triage` are.
 - `post implement-task` always takes the whole summary; there is no append form. One contract, the summary is the whole implementation.
-- A review thread the implementer judges invalid or out of plan is skipped and left untouched on the host; the skill lands the other fixes, then escalates every skipped thread as `decision-required` with the agent's response. The driver closes a thread that does not apply or leaves it open to have it applied. The `PDLC-RESOLUTION` rides with the rework unit under `#### Decisions`, and a thread named there that is still open is approved. No new markers.
+- A review thread the implementer judges invalid or out of plan is skipped and left untouched on the host; the skill lands the other fixes, then escalates every skipped thread with `pdlc post escalate` (a stage owner's move from a work gate to `Decision Required`, since `pdlc post review decision-required` needs `Review Required`), carrying the agent's response. The driver closes a thread that does not apply or leaves it open to have it applied. The `PDLC-RESOLUTION` rides with the rework unit under `#### Decisions`, and a thread named there that is still open is approved. No new markers; one new transition, `escalated`.

@@ -332,7 +332,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Judgment Required", "Attachments", "Next Task", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Next Task", "Publish"],
         )
         self.assertNotIn("## Remaining", result.stdout)
         self.assertNotIn("## Open Comments", result.stdout)
@@ -368,8 +368,6 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("Next: Run `pdlc inspect task 601`", result.stdout)
         self.assertIn("then `pdlc checkout 601` and dispatch that sub-agent to implement the task", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to record the implementation, open the task's PR, and close the task.", result.stdout)
-        self.assertIn("- every task this one depends on is closed", result.stdout)
-        self.assertIn("- if this task is HITL", result.stdout)
 
     def test_implement_mode_ignores_open_threads_while_a_task_is_eligible(self):
         # New tasks come first under Pending; threads are picked up once none is left.
@@ -493,7 +491,6 @@ class InspectImplementTests(FileBackendTest):
 
         result = self.invoke("inspect_implement", 60)
         self.assertIn("mode: none", result.stdout)
-        self.assertIn("## Judgment Required\n\nNone", result.stdout)
         self.assertIn("None. WORK-60-TASK-001 [CORE] No plan yet has no technical plan yet.", result.stdout)
         self.assertIn("Nothing to publish yet.", result.stdout)
         self.assertNotIn("## Checks", result.stdout)
@@ -507,7 +504,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: none", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Judgment Required", "Attachments", "Checks", "Next Task", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Checks", "Next Task", "Publish"],
         )
         self.assertIn("- PR #40: green\n- PR #41: green", result.stdout)
         self.assertIn("None. Every delivery task is closed and all checks are settled.", result.stdout)
@@ -543,7 +540,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: rework", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Judgment Required", "Attachments", "Next Fix", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Next Fix", "Publish"],
         )
         self.assertIn("### WORK-60-TASK-001 [CORE] First\nnumber: 601\ntaskId: TASK-001\npr: 40\nbranch: pdlc/record-60/task-001\nstate: CLOSED", result.stdout)
         self.assertIn("published in PR #40. Run `pdlc checkout 601`", result.stdout)
@@ -552,7 +549,6 @@ class InspectImplementTests(FileBackendTest):
         self.assertNotIn("#### Failing checks", result.stdout)
         self.assertIn("Next: Run `pdlc inspect task 601` for the implementer sub-agent under `## Agent`, then dispatch that sub-agent", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to re-land the fix on the task's PR; the task stays closed.", result.stdout)
-        self.assertIn("- a thread or finding that turns on a product, architecture, UX, safety, or scope call is the driver's", result.stdout)
 
     def test_rework_takes_a_red_check_as_a_unit(self):
         self._implemented_stack(checks=("SUCCESS", "FAILURE"))
@@ -636,16 +632,17 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: triage", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Judgment Required", "Attachments", "Open Requests", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Open Requests", "Publish"],
         )
         self.assertIn("Every delivery task is already implemented and published in the PR stack below", result.stdout)
         self.assertIn("### Verification bounce — ", result.stdout)
         self.assertIn("#### Findings\n\n- detail", result.stdout)
         self.assertNotIn("\n## Findings", result.stdout)
         self.assertIn("#### Stack\n- WORK-60-TASK-001 [CORE] First (number 601, PR #40)\n- WORK-60-TASK-002 [UI] Second (number 602, PR #41, top)", result.stdout)
-        self.assertIn("Next: Split the requests above into findings", result.stdout)
-        self.assertIn("run `pdlc post implement-task NUMBER SUMMARY` to re-land it. Once every request is handled, run `pdlc post implement 60 EVIDENCE`", result.stdout)
-        self.assertIn("- give each request an owning task; a cross-cutting one goes on the top task", result.stdout)
+        self.assertIn("These requests stay listed until the stage publishes", result.stdout)
+        self.assertIn("dispatch that sub-agent once with every request above and the stack", result.stdout)
+        self.assertIn("run `pdlc post implement 60 EVIDENCE` from the top branch to push the whole stack", result.stdout)
+        self.assertNotIn("post implement-task", result.stdout)
 
     def test_a_published_request_is_not_triaged_again(self):
         self._implemented_stack(gate="Pending")

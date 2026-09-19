@@ -40,6 +40,7 @@ class Event(StrEnum):
     SKIPPED = "skipped"
     REAUTHORED = "reauthored"
     DECISION_RESOLVED = "decision-resolved"
+    ESCALATED = "escalated"
     INVALIDATED = "invalidated"
     VERIFIED = "verified"
     BOUNCED = "bounced"
@@ -583,6 +584,13 @@ class Pipeline:
             if state.gate not in _REAUTHOR_GATES or not stage.reauthor_in_place:
                 raise ValueError(f"reauthor is not allowed from {state.stage} / {state.gate.value}")
             return State(stage.name, Gate.STALE, state.lifecycle)
+        if event == Event.ESCALATED:
+            # A stage owner parks its own work on a driver decision it cannot
+            # make; the only ways out are the driver's resolution or an
+            # invalidation, exactly as for a reviewer's decision-required.
+            if state.gate not in _WORK_GATES:
+                raise ValueError(f"escalation requires a work gate from {state.stage}")
+            return State(stage.name, Gate.DECISION_REQUIRED, state.lifecycle)
         if event == Event.DECISION_RESOLVED:
             if state.gate != Gate.DECISION_REQUIRED:
                 raise ValueError(f"decision resolution requires Decision Required from {state.stage}")

@@ -39,6 +39,7 @@ COMMANDS = {
     ("post", "ci"): "pdlc.commands.post_ci",
     ("post", "complete"): "pdlc.commands.post_complete",
     ("post", "decision"): "pdlc.commands.post_decision",
+    ("post", "escalate"): "pdlc.commands.post_escalate",
     ("post", "implement-task"): "pdlc.commands.post_implement_task",
     ("post", "implement"): "pdlc.commands.post_implement",
     ("post", "invalidate"): "pdlc.commands.post_invalidate",
@@ -84,12 +85,13 @@ def _usage() -> str:
         "  post write                             publish the Product artifact\n"
         "  post tasks                             land a UI or Tasks stage\n"
         "  post plan                              land the Technical Plan\n"
-        "  post implement WI EVIDENCE             register the branch's PR and complete Implementation\n"
+        "  post implement WI EVIDENCE             push the stack, register the branch's PR, complete Implementation\n"
         "  post implement-task TASK FILE          land one task's implementation; closes it when open, re-lands when closed\n"
         "  post test WI EVIDENCE --traceability FILE  push the stack, record PR + traceability, set Review Required\n"
         "  post verify WI REPORT                  post a verification report and move the gate\n"
         "  post review WI VERDICT EVIDENCE        reviewer verdict (changes/approval/decision-required)\n"
         "  post ci WI                             resolve CI Pending against live check state\n"
+        "  post escalate WI EVIDENCE              park the current stage on a driver decision (stage owner)\n"
         "  post decision WI --manifest FILE       close a Decision Required gate\n"
         "  post approve WI EVIDENCE [--force]     human approval, advance to next stage (driver-only)\n"
         "  post complete WI EVIDENCE              final lock to Complete (driver-only)\n"

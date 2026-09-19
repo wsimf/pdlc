@@ -20,6 +20,8 @@ reconcile — one that needs a product, architecture, UX, or scope call from the
 driver. It halts the autonomous loop immediately (no reconciliation passes) and
 posts the evidence through the backend's blocker channel under a PDLC-DECISION
 marker. The evidence body must carry a `## Decision Required` section.
+It is a reviewer's move from `Review Required`; a stage owner that hits the same
+kind of call mid-work raises it from its work gate with `pdlc post escalate`.
 
 A clean `approval-required` review of a CI-gated stage (Implementation, Testing) lands
 `CI Pending`, not `Approval Required`: the reviewer judged the work while the registered PR
