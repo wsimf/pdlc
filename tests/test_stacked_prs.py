@@ -530,7 +530,6 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
     def _host(self, prs: list[dict]) -> Mock:
         host = Mock()
-        host.ensure_pull_request_linked.return_value = {"number": prs[-1]["number"]}
         by_number = {pr["number"]: pr for pr in prs}
         host.pull_requests_by_number.side_effect = lambda numbers: [by_number[n] for n in numbers]
         return host
@@ -553,6 +552,15 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
         host.submit_task_stack.assert_called_once_with()
         host.mark_pull_requests_ready.assert_called_once_with([148, 149])
         self.assertEqual(self.state(70), ("Implementation", "Review Required"))
+        # The record's pull requests come from the registry its tasks carry, so
+        # nothing is resolved from whichever branch of the stack is checked out
+        # — publishing right after a fix on a lower task must not register that
+        # task's pull request as the stage's.
+        host.ensure_pull_request_linked.assert_not_called()
+        self.assertEqual(
+            result.json["readyPullRequests"],
+            [{"number": 148, "url": "https://x/148"}, {"number": 149, "url": "https://x/149"}],
+        )
 
     def test_publication_pushes_the_stack_before_marking_ready_and_a_failed_push_posts_nothing(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")
@@ -567,7 +575,6 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
         self.assertEqual(result.code, 1)
         self.assertIn("push refused", result.stderr)
-        host.ensure_pull_request_linked.assert_not_called()
         host.mark_pull_requests_ready.assert_not_called()
         self.assertEqual(self.state(70), ("Implementation", "Pending"))
         self.assertEqual(self.comments_text(70), "")

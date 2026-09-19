@@ -364,9 +364,14 @@ There is no gate-based refusal and no guard against re-landing a closed task nob
 Unchanged in shape. It refuses while any delivery task is open. Under `Changes Required` the evidence is expected to name each open request and how it was addressed; the command does not check that, the stage review does.
 
 ```json
-{"commented": true, "workItem": 142, "stage": "Implementation",
- "gateState": "Review Required", "pullRequest": {"number": 153, "url": "..."}}
+{"completed": true, "itemId": "PVTI_x", "work_item": 142, "stage": "Implementation",
+ "gateState": "Review Required", "attachments": [],
+ "readyPullRequests": [{"number": 151, "url": "..."}, {"number": 153, "url": "..."}]}
 ```
+
+It resolves no pull request from the working tree: the record's pull requests come
+from the registry its delivery tasks carry, so the branch left checked out by the
+last pass — a `rework` fix on a lower task, for instance — does not matter.
 
 ## Implementation steps (CLI only)
 

@@ -112,11 +112,6 @@ class DueNextLifecycleE2ETests(FileBackendTest):
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
         stage_host = Mock()
-        stage_host.ensure_pull_request_linked.return_value = {
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
-            "state": "OPEN", "isDraft": False, "branch": "feature/task",
-            "mergedAt": None, "checks": "SUCCESS",
-        }
         with patch("pdlc.commands.post_implement.get_code_host", return_value=stage_host):
             self.assertEqual(self.invoke("post_implement", issue, evidence).code, 0)
         stage_host.submit_task_stack.assert_called_once_with()

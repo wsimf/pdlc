@@ -85,7 +85,7 @@ def _usage() -> str:
         "  post write                             publish the Product artifact\n"
         "  post tasks                             land a UI or Tasks stage\n"
         "  post plan                              land the Technical Plan\n"
-        "  post implement WI EVIDENCE             push the stack, register the branch's PR, complete Implementation\n"
+        "  post implement WI EVIDENCE             push the task PR stack, ready it for review, complete Implementation\n"
         "  post implement-task TASK FILE          land one task's implementation; closes it when open, re-lands when closed\n"
         "  post test WI EVIDENCE --traceability FILE  push the stack, record PR + traceability, set Review Required\n"
         "  post verify WI REPORT                  post a verification report and move the gate\n"

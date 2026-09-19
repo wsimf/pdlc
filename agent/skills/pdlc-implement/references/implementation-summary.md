@@ -6,42 +6,48 @@ body and its `## Technical Plan` are never touched. The same text also becomes
 the task PR's description, and the task's own title becomes the PR title, so
 write the summary to read on the pull request too.
 
-Write it so a reviewer who has not read the task or its `## Technical Plan` can
-follow it. Use this structure exactly:
+Write what the diff cannot tell a reviewer who has not read the task or its
+`## Technical Plan`: why the change exists, and anything about it they would
+otherwise stop and question.
 
 ```md
-Task: TASK-NNN. Base: pdlc/<slug>/task-<prev> (or trunk if first in the stack).
+### Why
 
-<What & why — the problem this task solves and the change, in 2-3 short
-sentences.>
+- <the problem this task solves>
 
-<Scope — what this task does and does not cover, including anything deferred to a
-later task. 3-4 sentences.>
+### What changed
 
-### Approach
+- <behaviour a reviewer can observe, not the files that moved>
 
-<Key implementation decisions, tradeoffs, and any rejected alternative and why.
-Skip mechanical detail the diff already shows. One line if there was nothing to
-weigh.>
+### Decisions
 
-### Testing
+- <a call a reviewer would question, with the alternative rejected and why>
+- <a constraint or workaround that explains a shape that looks wrong>
+- <anything deliberately left undone, and what it waits on>
 
-<What was run and the result — static checks, tests, build, runtime. Call out
-failed or decision-relevant checks explicitly; "full suite green" is enough for
-routine passes.>
+### Verified
 
-### Evidence
+- <what was run and its result>
 
-- Commit <sha> on the task PR for TASK-NNN.
-- <anything worked around or left open, or omit this bullet if none>
+---
+Stacked on #NNN; this task's work starts at <sha>.
 ```
 
-Keep each section plain and tight. Keep every heading even when a section is one
-line; do not pad it.
+One sentence per bullet, two where a decision needs its alternative named. A
+bullet that runs to a paragraph belongs in the task's `## Technical Plan` or in a
+comment next to the code, not here. Most headings carry one or two bullets.
+
+`### Why`, `### What changed`, and `### Verified` are always present. Drop
+`### Decisions`, heading included, when the task had no call to explain; never
+leave a heading standing over a placeholder. Never write a bullet that restates
+the diff, names files, or lists commits — the pull request already shows those.
+Under `### Verified`, one line covers a routine green run, while a failure, a
+skipped check, or a workaround gets the detail a reviewer needs to judge it. Omit
+the footer for the first task in a stack, whose base is trunk.
 
 A re-land replaces the comment and the PR description outright, so the summary
 is the task's whole implementation, starting from its current `## Implementation`
-in `pdlc inspect task`, not just the fix. Add one Evidence bullet per thread,
-check, or finding the fix addressed, naming it; on the top task, name the
-request a cross-cutting fix came from, so reviewers see why code outside the
-task is there.
+in `pdlc inspect task`, not just the fix. What the fix answered — a review
+thread, a failing check — stays in the pull request's own history; repeat it
+here only where it changed the implementation in a way the bullets above need to
+explain.

@@ -1,5 +1,6 @@
 """Rejected publications must not touch PRs or record their linkage."""
 
+from contextlib import ExitStack
 from unittest.mock import Mock, patch
 
 from pdlc.domain.lifecycle import PdlcError
@@ -69,11 +70,17 @@ class PublicationPreflightTests(FileBackendTest):
                     if command == "post_test":
                         args += ["--traceability", traceability]
                     module = f"pdlc.commands.{command}"
-                    with patch(f"{module}.get_code_host") as host, patch(f"{module}.attach_pr") as register:
+                    # `post implement` resolves no pull request of its own — the
+                    # registry its delivery tasks carry is the whole answer — so
+                    # only `post test` has an `attach_pr` to guard here.
+                    registers = ExitStack()
+                    with patch(f"{module}.get_code_host") as host, registers:
+                        register = registers.enter_context(patch(f"{module}.attach_pr")) if command == "post_test" else None
                         result = self.invoke(command, *args)
                     self.assertEqual(result.code, 1, result.stdout)
                     self.assertIn(error, result.stderr)
                     host.assert_not_called()
-                    register.assert_not_called()
+                    if register is not None:
+                        register.assert_not_called()
                     self.assertEqual(self.state(issue), (stage, gate))
                     self.assertEqual(self.comments_text(issue), "")
