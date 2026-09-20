@@ -28,6 +28,8 @@ with new commits on top; do not rewrite what is already there.
 
 {{FINDINGS_TEXT}}
 
+{{INCLUDE:shared/root-cause.md}}
+
 {{/IF}}
 ## Ownership and rules
 
@@ -37,6 +39,8 @@ with new commits on top; do not rewrite what is already there.
 - Commit on top of what is already on the branch — never amend, rebase, or squash existing commits, including your own from an earlier dispatch. Do not push; do not open or touch a pull request.
 - Implement production code only. Do not create, edit, or delegate tests — coverage is owned separately.
 - Stay inside the approved contract. If the plan is insufficient or wrong, stop and report rather than expanding scope.
+
+{{INCLUDE:shared/change-shape.md}}
 
 {{INCLUDE:shared/code-comments.md}}
 

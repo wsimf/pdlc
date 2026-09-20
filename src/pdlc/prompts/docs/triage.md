@@ -43,6 +43,10 @@ do not create, rename, rebase, or merge a branch, and do not push.
    came from and its link, so the call can be put to a human as it stands.
 6. Finish on the top branch, with a clean tree on every branch you touched.
 
+{{INCLUDE:shared/root-cause.md}}
+
+{{INCLUDE:shared/change-shape.md}}
+
 {{INCLUDE:shared/code-comments.md}}
 
 ## Report back

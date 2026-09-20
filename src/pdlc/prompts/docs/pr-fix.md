@@ -123,6 +123,10 @@ gh api graphql -f query='
   fixed threads.
 - **Communication**: Keep GitHub replies concise, technical, and thread-specific.
 
+{{INCLUDE:shared/root-cause.md}}
+
+{{INCLUDE:shared/change-shape.md}}
+
 {{INCLUDE:shared/code-comments.md}}
 {{#IF FAILING_CHECKS}}
 
