@@ -33,6 +33,9 @@ COMMANDS = {
     ("inspect", "capability"): "pdlc.commands.inspect_capability",
     ("inspect", "review"): "pdlc.commands.inspect_review",
     ("prompt",): "pdlc.commands.prompt",
+    ("prompt", "task-implementer"): "pdlc.commands.prompt_task_implementer",
+    ("prompt", "task-reviewer"): "pdlc.commands.prompt_task_reviewer",
+    ("prompt", "task-test-writer"): "pdlc.commands.prompt_task_test_writer",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -78,7 +81,10 @@ def _usage() -> str:
         "  inspect verify WI           verification readiness, open findings, and a pre-filled report\n"
         "  inspect complete WI         completion readiness: open tasks, unmerged/red PRs, open questions\n"
         "  inspect capability [SLOT] [--name]  resolve the project's agent/skill routing for a seam\n"
-        "  prompt WI --agent AGENT [--commits REVISIONS]  the ready-to-send brief for the record's next unit\n"
+        "  prompt                      index of the sub-agent briefs for the record's next unit\n"
+        "  prompt task-implementer WI  the brief for the sub-agent that writes that unit's code\n"
+        "  prompt task-reviewer WI --commits REVISIONS  the brief for the reviewer of one dispatch's commits\n"
+        "  prompt task-test-writer WI --commits REVISIONS --report FILE --traceability FILE  the test writer's brief\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"

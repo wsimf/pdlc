@@ -43,14 +43,14 @@ class PromptGoldenTest(PromptHarness):
         self.assertEqual(result.stdout, path.read_text(encoding="utf-8"), f"brief drifted from {path}")
 
     def _implementer(self):
-        return self.invoke("prompt", 60, "--agent", "implementer")
+        return self.invoke("prompt_task_implementer", 60)
 
     def _reviewer(self):
-        return self.invoke("prompt", 60, "--agent", "reviewer", "--commits", "HEAD~1..HEAD")
+        return self.invoke("prompt_task_reviewer", 60, "--commits", "HEAD~1..HEAD")
 
     def _test_writer(self, *extra: str):
         return self.invoke(
-            "prompt", 60, "--agent", "test-writer", "--commits", "HEAD~1..HEAD",
+            "prompt_task_test_writer", 60, "--commits", "HEAD~1..HEAD",
             "--report", "text:Built the seam; criteria verified.",
             "--traceability", "text:FR-1 -> loads -> src/a.py",
             *extra,

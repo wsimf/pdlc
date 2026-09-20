@@ -38,6 +38,8 @@ with new commits on top; do not rewrite what is already there.
 - Implement production code only. Do not create, edit, or delegate tests — coverage is owned separately.
 - Stay inside the approved contract. If the plan is insufficient or wrong, stop and report rather than expanding scope.
 
+{{INCLUDE:shared/code-comments.md}}
+
 {{#IF BUILD_RUN_SKILL}}
 ## Verify
 

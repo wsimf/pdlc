@@ -122,6 +122,8 @@ gh api graphql -f query='
 - **Verification**: Run the relevant project test/build command before resolving
   fixed threads.
 - **Communication**: Keep GitHub replies concise, technical, and thread-specific.
+
+{{INCLUDE:shared/code-comments.md}}
 {{#IF FAILING_CHECKS}}
 
 ## Failing checks

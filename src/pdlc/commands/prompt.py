@@ -3,14 +3,12 @@
     pdlc prompt - read-only: print the ready-to-send brief for a work item's next unit
 
 USAGE
-    - if --agent implementer:
-        pdlc prompt WORK_ITEM --agent implementer [--file]
-    - if --agent reviewer:
-        pdlc prompt WORK_ITEM --agent reviewer --commits REVISIONS [--file]
-    - if --agent test-writer:
-        pdlc prompt WORK_ITEM --agent test-writer --commits REVISIONS
-            --report FILE|text:BODY --traceability FILE|text:BODY
-            [--findings FILE|text:BODY] [--file]
+    pdlc prompt COMMAND WORK_ITEM [flags]
+
+COMMANDS
+    task-implementer   brief the sub-agent that writes one delivery task's code
+    task-reviewer      brief the reviewer that reads one dispatch's commits
+    task-test-writer   brief the test writer that covers one dispatch's change
 
 DESCRIPTION
     Prints one complete sub-agent brief for the unit of work a record has next,
@@ -19,64 +17,33 @@ DESCRIPTION
     boundaries the agent works inside, and it names no PDLC command, stage, or
     gate.
 
-    Every agent's brief describes the same unit, so the implementer, the
+    Every command above describes the same unit, so the implementer, the
     reviewer, and the test writer are held to one task, one plan, and one set
-    of acceptance criteria on a given pass. `implementer` needs nothing but the
-    record. `reviewer` and `test-writer` read a change that exists only in the
-    working tree, so they take the revisions to read; `test-writer` also takes
-    the two artifacts no record carries — what the implementing agent reported
-    it did, and the traceability map the coverage is written against.
-
-    The implementer's brief is chosen from the same unit the Implementation
-    loop is on, so it always matches the work that is actually due:
-
-    - a task to implement, or one whose implementation was invalidated, gets the
-      implementation brief, with the invalidation carried as findings to address;
-    - a task whose pull request has unresolved review threads gets the
-      review-comment brief, carrying the driver's answers to anything escalated
-      earlier, and the red checks on that pull request when it has them;
-    - a task whose pull request is only failing its checks gets the
-      implementation brief, with those checks as the findings to address;
-    - open change requests against the stage get the triage brief, carrying every
-      request and the whole task stack with each branch and plan.
+    of acceptance criteria on a given pass. They differ only in what each
+    sub-agent needs that the record cannot supply, which is why they take
+    different flags.
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
-    caller never dispatches an agent against an empty unit. The command reads the
-    record and its live pull-request state; it changes nothing.
+    caller never dispatches an agent against an empty unit. Every command reads
+    the record and its live pull-request state; none of them changes anything.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
     found" inside the brief instead of leaving the agent a hole it cannot see.
 
-FLAGS
-    --agent AGENT           which seam's brief to build: `implementer`,
-                            `reviewer`, or `test-writer`. The implementer to
-                            send it to is the one `pdlc inspect task` names
-                            under `## Agent`; the other two are the project's
-                            configured reviewer and test-writer agents
-    --commits REVISIONS     the revision or range the brief reads, as `git show`
-                            accepts it; required for reviewer and test-writer
-    --report FILE|text:BODY the implementing agent's report-back, carried into
-                            the test brief's `## What changed`; test-writer only
-    --traceability FILE|text:BODY  the traceability map the coverage is written
-                            against; test-writer only
-    --findings FILE|text:BODY  reviewer findings accepted as non-blocking;
-                            test-writer only, and "none" when omitted
-    --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-{work item}.md and print that
-                            path, instead of stdout
-
 EXAMPLES
-    pdlc prompt 236 --agent implementer
-    pdlc prompt 236 --agent reviewer --commits HEAD~2..HEAD
-    pdlc prompt 236 --agent test-writer --commits HEAD~2..HEAD \\
-        --report /tmp/impl-report.md --traceability /tmp/trace.md
+    pdlc prompt task-implementer 236
+    pdlc prompt task-reviewer 236 --commits HEAD~2..HEAD
+
+LEARN MORE
+    Run `pdlc prompt COMMAND --help` for that command's own usage and flags.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from pdlc.commands.inspect_capability import _name as capability_name
@@ -114,7 +81,7 @@ from pdlc.commands.inspect_implement import (
     _stack_order,
 )
 
-AGENTS = ("implementer", "reviewer", "test-writer")
+BRIEF_COMMANDS = ("task-implementer", "task-reviewer", "task-test-writer")
 
 
 def _parent_body(item: dict) -> str:
@@ -323,60 +290,74 @@ def _test_brief(unit: _Unit, commits: str, changed: str, traceability: str, find
     )
 
 
-def build(issue: str, agent: str, args: argparse.Namespace) -> str:
-    """Resolve the record's next unit and render that agent's brief in full."""
-    if agent not in AGENTS:
-        raise PdlcError(f"unknown agent {agent!r}; this command builds briefs for: {', '.join(AGENTS)}")
-    unit = _resolve(issue)
-    if agent == "implementer":
-        return _implementer_brief(unit)
-    if agent == "reviewer":
-        return _review_brief(unit, _require(args.commits, "--commits"))
+def implementer_brief(work_item: str) -> str:
+    """The brief for the sub-agent writing this pass's code."""
+    return _implementer_brief(_resolve(work_item))
+
+
+def reviewer_brief(work_item: str, commits: str) -> str:
+    """The brief for the reviewer reading `commits` against this pass's task."""
+    return _review_brief(_resolve(work_item), commits)
+
+
+def test_writer_brief(
+    work_item: str, commits: str, report: str, traceability: str, findings: str | None,
+) -> str:
+    """The brief for the test writer covering what `commits` changed."""
     return _test_brief(
-        unit,
-        _require(args.commits, "--commits"),
-        resolve_text(_require(args.report, "--report"), label="--report"),
-        resolve_text(_require(args.traceability, "--traceability"), label="--traceability"),
-        resolve_text(args.findings, label="--findings") if args.findings else "",
+        _resolve(work_item),
+        commits,
+        resolve_text(report, label="--report"),
+        resolve_text(traceability, label="--traceability"),
+        resolve_text(findings, label="--findings") if findings else "",
     )
 
 
-def _require(value: str | None, flag: str) -> str:
-    if not value:
-        raise PdlcError(f"{flag} is required for this agent; see `pdlc prompt --help`")
-    return value
-
-
-def main(argv: list[str] | None = None) -> int:
-    command_args = list(sys.argv[1:] if argv is None else argv)
-    if wants_help(command_args):
-        print_help(__doc__)
-        return 0
-
-    parser = argparse.ArgumentParser(description="Print the ready-to-send brief for a work item's next unit")
+def add_common_arguments(parser: argparse.ArgumentParser, command: str) -> None:
+    """The work item and `--file`, which every brief command takes alike."""
     parser.add_argument("work_item")
-    parser.add_argument("--agent", required=True, choices=AGENTS)
-    parser.add_argument("--commits", help="revision or range the review/test brief reads")
-    parser.add_argument("--report", help="the implementing agent's report-back (FILE or text:BODY)")
-    parser.add_argument("--traceability", help="the traceability map (FILE or text:BODY)")
-    parser.add_argument("--findings", help="accepted non-blocking review findings (FILE or text:BODY)")
     parser.add_argument(
         "--file", action="store_true",
-        help="write to {TEMPDIR}/{repo}-prompt-{work item}.md and print that path instead of stdout",
+        help=f"write to {{TEMPDIR}}/{{repo}}-prompt-{command}-{{work item}}.md and print that path",
     )
-    args = parser.parse_args(command_args)
 
+
+def emit(brief: str, work_item: str, command: str, to_file: bool) -> None:
+    """Print the brief, or the path of the scratch file now holding it.
+
+    The command name is part of that path so one pass's three briefs cannot
+    overwrite each other: a caller that still held the implementer's path would
+    otherwise read the reviewer's brief back out of it.
+    """
+    if to_file:
+        print(write_scratch(scratch_path(f"prompt-{command}-{work_item}"), brief))
+    else:
+        sys.stdout.write(brief)
+
+
+def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int:
+    """Render one brief, reporting a refusal without writing or printing it."""
     try:
-        output = build(args.work_item, args.agent, args)
+        brief = build()
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-
-    if args.file:
-        print(write_scratch(scratch_path(f"prompt-{args.work_item}"), output))
-    else:
-        sys.stdout.write(output)
+    emit(brief, args.work_item, command, args.file)
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`pdlc prompt` alone is the index; every brief is one of its commands."""
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    if not command_args or wants_help(command_args):
+        print_help(__doc__)
+        return 0
+    print(
+        f"pdlc: `pdlc prompt` takes one of: {', '.join(BRIEF_COMMANDS)}\n\n"
+        + (__doc__ or "").strip(),
+        file=sys.stderr,
+    )
+    return 1
 
 
 if __name__ == "__main__":

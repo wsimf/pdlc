@@ -6,7 +6,6 @@ and a verdict; change nothing.
 You are being invoked as a leaf worker for this one review.
 
 Do not invoke any `pdlc-*` skill.
-Do not re-run the calling skill or rediscover the lifecycle stage.
 Do not spawn, dispatch, or ask another agent to do this work.
 Review the change below directly and return one report.
 
