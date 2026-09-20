@@ -32,6 +32,7 @@ COMMANDS = {
     ("inspect", "implement"): "pdlc.commands.inspect_implement",
     ("inspect", "capability"): "pdlc.commands.inspect_capability",
     ("inspect", "review"): "pdlc.commands.inspect_review",
+    ("prompt",): "pdlc.commands.prompt",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -77,6 +78,7 @@ def _usage() -> str:
         "  inspect verify WI           verification readiness, open findings, and a pre-filled report\n"
         "  inspect complete WI         completion readiness: open tasks, unmerged/red PRs, open questions\n"
         "  inspect capability [SLOT] [--name]  resolve the project's agent/skill routing for a seam\n"
+        "  prompt WI --agent AGENT [--commits REVISIONS]  the ready-to-send brief for the record's next unit\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"

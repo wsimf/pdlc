@@ -19,6 +19,7 @@ Done means every modified behavior has a caller, a regression check or an explic
 - `src/pdlc/domain/` owns pure lifecycle, evidence, model, and completion policy.
 - `src/pdlc/hosts/*_provider.py` exposes concrete providers; `hosts/lib/{azure,github,file,none}/` owns their implementations, and `workitem_host/`, `code_host/`, and `attachment_host/` retain neutral ports and selection.
 - `src/pdlc/internal/` owns shared facades and implementation helpers; callers should use these seams instead of reaching into a backend.
+- `src/pdlc/prompts/` owns the sub-agent prompts: `docs/` holds the Markdown fragments, one file per prompt plus the `shared/` fragments more than one prompt includes, and `assemble.py` is the engine that renders them. The fragments are the contract and belong beside the prompt they build, not in `internal/`; a prompt's wording is changed there, never by assembling strings in a command.
 - `tests/` contains package-level Python tests.
 - `agent/skills/` contains the agent-facing PDLC skills and their references; they drive the workflow through the installed `pdlc` CLI, which is expected on `PATH`.
 - `agent/sub-agents/` contains Claude and Codex specialist declarations.

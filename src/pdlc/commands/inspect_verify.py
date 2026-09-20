@@ -147,8 +147,6 @@ from __future__ import annotations
 import json
 import re
 import sys
-import tempfile
-from pathlib import Path
 from typing import Callable
 
 from pdlc.domain.lifecycle import PdlcError
@@ -162,12 +160,12 @@ from pdlc.internal.pull_requests import (
     record_pull_requests,
 )
 from pdlc.internal.reporting import older_comments_notice
+from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.vcs import head_commit
 from pdlc.internal.verification import reports, reusable, skeleton, stack_gaps, stale, ui_journeys
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
-    ref_label,
     resolve_item,
     task_tree,
     timeline_compact,
@@ -337,8 +335,7 @@ def _findings_section(known: dict[str, Finding], published: list[str]) -> list[s
 
 
 def _report_section(issue: str, report: dict) -> list[str]:
-    path = Path(tempfile.gettempdir()) / f"{ref_label()}-verify-{issue}.json"
-    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    path = write_scratch(scratch_path(f"verify-{issue}", ".json"), json.dumps(report, indent=2) + "\n")
     rows = [*report["claims"], *(report["journeys"] or []), report["ux"], report["cumulativeReview"]]
     carried = sum(1 for row in rows if row.get("reuse", "").startswith("valid"))
     to_check = sum(1 for row in rows if row["result"] is None)
@@ -418,8 +415,7 @@ def _timeline_block(issue: str, comments: list[dict]) -> str:
     text = timeline_markdown(issue, comments=comments)
     if text == NO_EVIDENCE:
         return text.rstrip("\n")
-    path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
-    path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
+    path = write_scratch(scratch_path(f"timeline-{issue}"), text.rstrip("\n") + "\n")
     return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
 
 

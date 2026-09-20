@@ -88,8 +88,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
-from pathlib import Path
 
 
 from pdlc.config import get_capabilities
@@ -98,7 +96,8 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, user_comments_markdown
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
-from pdlc.internal.workitem import ref_label, resolve_item, tasks_by_number
+from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.workitem import resolve_item, tasks_by_number
 
 
 # The implementer slot a task's own `isUI` routes to. Resolved here, on the task,
@@ -180,9 +179,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.file:
         suffix = "-".join(args.numbers)
-        path = Path(tempfile.gettempdir()) / f"{ref_label()}-task-{suffix}.md"
-        path.write_text(output, encoding="utf-8")
-        print(path)
+        print(write_scratch(scratch_path(f"task-{suffix}"), output))
     else:
         sys.stdout.write(output)
 

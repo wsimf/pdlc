@@ -6,6 +6,9 @@ body and its `## Technical Plan` are never touched. The same text also becomes
 the task PR's description, and the task's own title becomes the PR title, so
 write the summary to read on the pull request too.
 
+The skill fills this outline itself, from the agents' reports and the validation
+it saw, and hands the resulting file to `pdlc post implement-task`.
+
 Write what the diff cannot tell a reviewer who has not read the task or its
 `## Technical Plan`: why the change exists, and anything about it they would
 otherwise stop and question.

@@ -54,3 +54,30 @@ def contains_commit(commit: str) -> bool:
     """True when `commit` exists locally and HEAD includes it."""
     result = _run_git(["merge-base", "--is-ancestor", commit, "HEAD"], capture_output=True)
     return result.returncode == 0
+
+
+def _show(revisions: str, *flags: str) -> str:
+    """One `git show` read over a revision or range, as text."""
+    result = _run_git(["show", *flags, revisions, "--"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise PdlcError(result.stderr.strip() or f"git show {revisions} failed")
+    return result.stdout.strip()
+
+
+def diff_stat(revisions: str) -> str:
+    """The `--stat` summary of a revision or range, for a review's header."""
+    return _show(revisions, "--stat", "--oneline")
+
+
+def diff_text(revisions: str) -> str:
+    """The full patch for a revision or range, for a review to read."""
+    return _show(revisions)
+
+
+def touched_files(revisions: str) -> list[str]:
+    """Source files a revision or range changed, paperwork excluded."""
+    names = _show(revisions, "--name-only", "--format=").splitlines()
+    return sorted({
+        name.strip() for name in names
+        if name.strip() and not name.startswith(_PAPERWORK_PREFIX)
+    })
