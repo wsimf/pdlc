@@ -339,10 +339,10 @@ def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int
     """Render one brief, reporting a refusal without writing or printing it."""
     try:
         brief = build()
+        emit(brief, args.work_item, command, args.file)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-    emit(brief, args.work_item, command, args.file)
     return 0
 
 

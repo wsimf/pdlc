@@ -173,15 +173,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         output = render(args.numbers)
+        if args.file:
+            suffix = "-".join(args.numbers)
+            print(write_scratch(scratch_path(f"task-{suffix}"), output))
+        else:
+            sys.stdout.write(output)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1
-
-    if args.file:
-        suffix = "-".join(args.numbers)
-        print(write_scratch(scratch_path(f"task-{suffix}"), output))
-    else:
-        sys.stdout.write(output)
 
     return 0
 
