@@ -307,6 +307,18 @@ class PostWriteReconstructionTests(FileBackendTest):
         self.assertIn("owned later", body)
         self.assertEqual(self.fields(50)["Gate State"], "Approval Required")
 
+    def test_omitted_open_questions_leaves_the_existing_section_untouched(self):
+        self.seed_record(54, "Product", "Stale", body=(
+            "## Product\nold\n\n## Decisions\nold\n\n## Open Questions\nkept question\n"
+        ))
+        rewrite = self.write_file("no-questions.md", "## Product\nnew product\n\n## Decisions\nnew decision\n")
+        result = self.invoke("post_write", "--work-item", 54,
+                             "--evidence", self.evidence_file(), "--body", rewrite)
+        self.assertEqual(result.code, 0, result.stderr)
+        body = self.body(54)
+        self.assertIn("new product", body)
+        self.assertIn("kept question", body)
+
     def test_approval_required_record_is_reauthored_in_place(self):
         self.seed_record(51, "Product", "Approval Required")
         reauthor = self.write_file(

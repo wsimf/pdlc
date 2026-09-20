@@ -555,6 +555,13 @@ class ProductFragmentsTests(unittest.TestCase):
             {"Product": "p", "Decisions": "d", "Open Questions": "q"},
         )
 
+        draft.write_text("## Product\np\n\n## Decisions\nd\n")
+        self.assertEqual(product_fragments(draft), {"Product": "p", "Decisions": "d"})
+
+        draft.write_text("## Product\np\n\n## Open Questions\nq\n")
+        with self.assertRaises(PdlcError):
+            product_fragments(draft)
+
         draft.write_text("Intro\n\n## Product\np\n\n## Decisions\nd\n\n## Open Questions\nq\n")
         with self.assertRaises(PdlcError) as caught:
             product_fragments(draft)

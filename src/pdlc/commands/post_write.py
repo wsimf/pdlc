@@ -13,7 +13,7 @@ FLAGS
     --slug SLUG                         required when creating a new record
     --work-item WORK_ITEM               required when updating an existing record
     --evidence FILE|-                   required; the review evidence body
-    --body FILE                         required; the Product/Decisions/Open Questions content
+    --body FILE                         required; the Product/Decisions[/Open Questions] content
     --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
     --attachment-description TEXT       description for the --attachment immediately before it
 
@@ -22,9 +22,10 @@ DESCRIPTION
 existing record's Product section in one body edit while preserving
 sections owned by later stages.
 
-The supplied body contains exactly the three sections owned by Product:
-`Product`, `Decisions`, and `Open Questions`. New records use it as their
-initial body.
+The supplied body contains the sections owned by Product, in order:
+`Product`, `Decisions`, and optionally `Open Questions`. New records use it as
+their initial body. When `Open Questions` is omitted, a new record is created
+without it and an existing record keeps its current Open Questions untouched.
 
 An existing record lands from `Product / Pending`, `Changes Required`, or
 `Stale`. A record at `Product / Review Required` (published without its local
@@ -68,16 +69,20 @@ from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")
+# Open Questions may be omitted: a record with none need not carry an empty section.
+REQUIRED_SECTIONS = ("Product", "Decisions")
 
 
+# Parses the --body draft into its Product-owned fragments; an omitted
+# Open Questions is absent from the result, so an update leaves it untouched.
 def product_fragments(body_path: Path) -> dict[str, str]:
     body = body_path.read_text(encoding="utf-8")
     headings = level_two_headings(body)
-    if not body.startswith("## Product") or headings != list(OWNED_SECTIONS):
-        expected = ", ".join(f"## {section}" for section in OWNED_SECTIONS)
+    if not body.startswith("## Product") or headings not in (list(REQUIRED_SECTIONS), list(OWNED_SECTIONS)):
+        expected = ", ".join(f"## {section}" for section in REQUIRED_SECTIONS) + ", optionally ## Open Questions"
         actual = ", ".join(f"## {section}" for section in headings) or "none"
         raise PdlcError(f"--body must contain only {expected}, in that order; found {actual}")
-    return {section: read_section(body, section).rstrip() for section in OWNED_SECTIONS}
+    return {section: read_section(body, section).rstrip() for section in headings}
 
 
 def level_two_headings(body: str) -> list[str]:

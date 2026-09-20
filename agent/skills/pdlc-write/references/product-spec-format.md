@@ -156,4 +156,4 @@ Numbering is positional and may be renumbered freely — unlike `FR-*` and `C-*`
 
 ## Section: `## Open Questions`
 
-Things nobody has decided yet. Every open question must be answered or explicitly deferred before the record can reach `Complete` — see `pdlc-complete`. Open Questions are undecided; Assumptions are decided without verification. Do not mix them.
+Things nobody has decided yet. Every open question must be answered or explicitly deferred before the record can reach `Complete` — see `pdlc-complete`. Open Questions are undecided; Assumptions are decided without verification. Do not mix them. Omit the section entirely when there are none; on an existing record, omitting it leaves the landed Open Questions unchanged.
