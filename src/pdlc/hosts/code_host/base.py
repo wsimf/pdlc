@@ -47,6 +47,23 @@ class CodeHost(ABC):
         ``submit_task_stack``, which such a host also refuses."""
 
     @abstractmethod
+    def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
+        """Put the working tree on ``branch``, creating it on this host's stack
+        when it does not exist yet, and return one line saying what was done.
+
+        The three inputs are the three states a delivery task can be in, and the
+        host decides which of its own mechanisms each needs: ``pr`` is the task's
+        own registered pull request (it has been implemented), ``entry_pr`` the
+        previous implemented task's (this task is next on that stack), and
+        neither means this is the stack's first task. It is the acting
+        counterpart of ``task_stack_setup``, which only describes the same move;
+        hosts without a stacked-PR mechanism raise PdlcError, as they do for
+        ``submit_task_stack``.
+
+        Callers must have a clean working tree: switching branches with local
+        changes is the caller's problem to resolve, not this method's to force."""
+
+    @abstractmethod
     def submit_task_stack(self) -> list[PullRequest]:
         """Submit the stack the current branch belongs to: sync it, push it, and
         create or update one pull request per branch. Returns every PR in the

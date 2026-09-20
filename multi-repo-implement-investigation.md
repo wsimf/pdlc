@@ -141,10 +141,10 @@ harness auto-loads that folder's `CLAUDE.md` / `AGENTS.md` as the agent reads
 files under it — **provided the dispatch prompt names the folder and tells the
 agent to stay in it**.
 
-The one skill change that matters: `references/task-implementation-prompt.md`
+The one prompt change that matters: `src/pdlc/prompts/docs/implement.md`
 gains a "Repository: `<path>` — work only in this folder, use its own build/test
 commands" section, populated from the task's `repo` field and its capability
-layer. `inspect implement` / `inspect task` must surface `repo:` and `repoPath:`.
+layer through `src/pdlc/prompts/context.py`. `inspect implement` / `inspect task` must surface `repo:` and `repoPath:`.
 
 The reviewer and verifier need the same repo pointer to run `git show` / diffs in
 the right checkout — ties back to the repo-qualified `(Verified @ <sha>)` anchors.

@@ -19,6 +19,7 @@ Done means every modified behavior has a caller, a regression check or an explic
 - `src/pdlc/domain/` owns pure lifecycle, evidence, model, and completion policy.
 - `src/pdlc/hosts/*_provider.py` exposes concrete providers; `hosts/lib/{azure,github,file,none}/` owns their implementations, and `workitem_host/`, `code_host/`, and `attachment_host/` retain neutral ports and selection.
 - `src/pdlc/internal/` owns shared facades and implementation helpers; callers should use these seams instead of reaching into a backend.
+- `src/pdlc/prompts/` owns the sub-agent prompts: `docs/` holds the Markdown fragments, one file per prompt plus the `shared/` fragments more than one prompt includes, and `assemble.py` is the engine that renders them. The fragments are the contract and belong beside the prompt they build, not in `internal/`; a prompt's wording is changed there, never by assembling strings in a command.
 - `tests/` contains package-level Python tests.
 - `agent/skills/` contains the agent-facing PDLC skills and their references; they drive the workflow through the installed `pdlc` CLI, which is expected on `PATH`.
 - `agent/sub-agents/` contains Claude and Codex specialist declarations.
@@ -67,11 +68,16 @@ Every command's printed `--help` (its module docstring under `src/pdlc/commands/
 top-level `pdlc --help` (`_usage()` in `src/pdlc/cli.py`) follow the same section convention,
 adapted from `gh`'s help layout to pdlc's own read-only/mutating split:
 
-- The top-level `pdlc --help` is the only "parent with children" surface in the CLI — every
-  other command is a leaf with no sub-commands of its own. Its sections are `USAGE`,
-  `READ-ONLY COMMANDS` (setup, inspect*, next), `MUTATING COMMANDS` (post*), `FLAGS` (the
+- The top-level `pdlc --help` is a "parent with children" surface. Its sections are `USAGE`,
+  `READ-ONLY COMMANDS` (setup, inspect*, prompt*, next), `MUTATING COMMANDS` (post*), `FLAGS` (the
   global `--repo`/`--project-number`/`--project-owner`/`--backend`/`--home` overrides),
   `ARGUMENTS`, `EXAMPLES`, and `LEARN MORE`.
+- `pdlc prompt --help` is the only other one. It is an index, not a brief builder: a `COMMANDS`
+  section naming each `prompt <brief>` leaf, the `DESCRIPTION` prose every brief shares, and a
+  `LEARN MORE` pointing at `pdlc prompt COMMAND --help` for that leaf's own flags. A flag belongs
+  to the leaf that accepts it and is documented there only, so no leaf carries another's flags and
+  the index carries none. Bare `pdlc prompt` with arguments it cannot route prints this index to
+  stderr and exits non-zero.
 - A leaf command's docstring never lists sub-commands: it has no `COMMANDS` section, only
   whatever subset of `NAME`, `USAGE`, `DESCRIPTION`, `FLAGS`, and `EXAMPLES` applies. `NAME` is
   one line, `pdlc <command> - <one-line summary>`. `USAGE` holds the invocation synopsis

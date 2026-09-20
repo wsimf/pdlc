@@ -24,7 +24,7 @@ pdlc inspect verify WORK_ITEM
 
 At `Changes Required`, also run `pdlc inspect changes WORK_ITEM`. When it lists a CI failure, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Open Comments through Post; it ends at Post, then Report.
 
-`## Source` names the commit this pass verifies. When it lists task PRs that HEAD does not include, check out the top of the task stack, restacked, and re-run `pdlc inspect verify` before auditing; keep the working tree clean until Post.
+`## Source` names the commit this pass verifies. When it lists task PRs that HEAD does not include, run `pdlc checkout DELIVERY_TASK` for the highest-numbered implemented task to get to the top of the stack, restack it, and re-run `pdlc inspect verify` before auditing; keep the working tree clean until Post.
 
 `## Report` names the report file for this pass. Rows it carries forward are already settled; every row left `null` is checked by the step below that owns it.
 
@@ -38,7 +38,7 @@ Judge each listed comment by the **Fix** / **Decision** split in Findings: does 
 
 Record each judgment on the comment's `openComments` entry in the report: `finding` when it raised one, citing the comment URL as the finding's source, or `no_action` with why.
 
-- Any comment needing a **Fix** — raise it as an open finding and bounce, as in Findings.
+- Any comment needing a **Fix** — raise it as an open finding, citing the comment URL, and bounce to `Implementation`, as in Findings. Implementation resolves the thread itself; do not reply to it or resolve it here.
 - No Fix, but at least one needing a **Decision** — raise it as a decision finding, as in Findings.
 - Leave the rows this pass did not reach `not_run` rather than inventing content.
 

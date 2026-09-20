@@ -1,0 +1,174 @@
+"""Whole-brief goldens: the assembled output is the contract a sub-agent acts
+on, so its wording, section order, and spacing are checked in full rather than
+sampled with substring assertions.
+
+A diff here is the point — it makes a prompt change reviewable as a prompt
+change. Regenerate after an intended edit with:
+
+    PDLC_UPDATE_GOLDENS=1 uv run python -m unittest tests.test_prompt_goldens
+
+then read the resulting diff before committing it.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+from pathlib import Path
+
+from tests._prompts import PromptHarness
+
+GOLDENS = Path(__file__).parent / "fixtures" / "prompts"
+
+
+class PromptGoldenTest(PromptHarness):
+    def setUp(self) -> None:
+        super().setUp()
+        # Evidence timestamps render in the local zone, so a golden recorded in
+        # one timezone would fail everywhere else; pin the process to UTC.
+        original = os.environ.get("TZ")
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        self.addCleanup(time.tzset)
+        self.addCleanup(lambda: os.environ.__setitem__("TZ", original) if original else os.environ.pop("TZ", None))
+
+    def assertGolden(self, name: str, result) -> None:
+        self.assertEqual(result.code, 0, result.stderr)
+        path = GOLDENS / f"{name}.md"
+        if os.environ.get("PDLC_UPDATE_GOLDENS"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(result.stdout, encoding="utf-8")
+            return
+        self.assertTrue(path.exists(), f"missing golden {path}; regenerate with PDLC_UPDATE_GOLDENS=1")
+        self.assertEqual(result.stdout, path.read_text(encoding="utf-8"), f"brief drifted from {path}")
+
+    def _implementer(self):
+        return self.invoke("prompt_task_implementer", 60)
+
+    def _reviewer(self):
+        return self.invoke("prompt_task_reviewer", 60, "--commits", "HEAD~1..HEAD")
+
+    def _test_writer(self, *extra: str):
+        return self.invoke(
+            "prompt_task_test_writer", 60, "--commits", "HEAD~1..HEAD",
+            "--report", "text:Built the seam; criteria verified.",
+            "--traceability", "text:FR-1 -> loads -> src/a.py",
+            *extra,
+        )
+
+    # --- implement ---
+
+    def test_implement_first_task(self):
+        self._eligible_task()
+        self.assertGolden("implement-first-task", self._implementer())
+
+    def test_implement_with_verify_step(self):
+        self._eligible_task()
+        self._build_run("build-run-ios")
+        self.assertGolden("implement-with-verify", self._implementer())
+
+    def test_implement_later_task_with_upstream(self):
+        self._second_task_eligible()
+        self.assertGolden("implement-later-task", self._implementer())
+
+    def test_implement_after_invalidation(self):
+        self._invalidated_task()
+        self.assertGolden("implement-invalidated", self._implementer())
+
+    def test_implement_with_a_requirement_the_record_lacks(self):
+        self._eligible_task(body="## Scope\nCovers FR-9.\n\n## Acceptance criteria\n- it works\n")
+        self.assertGolden("implement-missing-requirement", self._implementer())
+
+    def test_implement_from_red_checks_alone(self):
+        self._implemented_stack()
+        self._prs([
+            {"number": 40, "title": "t", "url": "u40", "state": "OPEN", "isDraft": False,
+             "branch": "b", "mergedAt": None, "checks": "FAILURE"},
+        ])
+        self.assertGolden("implement-red-checks", self._implementer())
+
+    # --- pr-fix ---
+
+    def test_pr_fix_single_thread(self):
+        self._implemented_stack()
+        self._threads([
+            {"pr": 40, "author": "reviewer", "path": "src/a.py", "line": 4, "body": "drops retry", "url": "u"},
+        ])
+        self.assertGolden("pr-fix-single-thread", self._implementer())
+
+    def test_pr_fix_several_threads(self):
+        self._implemented_stack()
+        self._threads([
+            {"pr": 40, "author": "reviewer", "path": "src/a.py", "line": 4, "body": "drops retry", "url": "u1"},
+            {"pr": 40, "author": "other", "path": "src/b.py", "line": 12, "body": "name is misleading", "url": "u2"},
+        ])
+        self.assertGolden("pr-fix-several-threads", self._implementer())
+
+    def test_pr_fix_with_failing_checks(self):
+        self._implemented_stack()
+        self._threads([{"pr": 40, "author": "r", "path": "a", "line": 1, "body": "b", "url": "u"}])
+        self._prs([
+            {"number": 40, "title": "t", "url": "u40", "state": "OPEN", "isDraft": False,
+             "branch": "b", "mergedAt": None, "checks": "FAILURE"},
+        ])
+        self.assertGolden("pr-fix-failing-checks", self._implementer())
+
+    # --- triage ---
+
+    def test_triage_two_task_stack(self):
+        self._implemented_stack()
+        self.add_rework_review(60)
+        self.assertGolden("triage-two-task-stack", self._implementer())
+
+    def test_triage_single_task_stack(self):
+        self.seed_record(60, "Implementation", "Changes Required", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self._plan(60, 601)
+        self.seed_implementation_comment(60, 601, "Shipped.")
+        self.register_prs(601, [40])
+        self.add_rework_review(60)
+        self.assertGolden("triage-single-task-stack", self._implementer())
+
+    # --- review ---
+
+    def test_review_first_task(self):
+        self._eligible_task()
+        self._git()
+        self.assertGolden("review-first-task", self._reviewer())
+
+    def test_review_later_task_with_dependencies(self):
+        self._second_task_eligible()
+        self._git()
+        self.assertGolden("review-later-task", self._reviewer())
+
+    def test_review_of_a_larger_diff(self):
+        self._eligible_task()
+        self._git(
+            stat="abc1234 impl\n 3 files changed, 40 insertions(+), 2 deletions(-)",
+            diff="diff --git a/src/a.py b/src/a.py\n@@\n+added line\n",
+        )
+        self.assertGolden("review-larger-diff", self._reviewer())
+
+    # --- test ---
+
+    def test_test_writer_without_findings(self):
+        self._eligible_task()
+        self._git()
+        self.assertGolden("test-no-findings", self._test_writer())
+
+    def test_test_writer_with_accepted_findings(self):
+        self._eligible_task()
+        self._git()
+        self.assertGolden("test-with-findings", self._test_writer("--findings", "text:Naming nit on the loader."))
+
+    def test_test_writer_with_a_configured_authoring_skill(self):
+        self._eligible_task()
+        self._git()
+        self._capabilities(**{"test-authoring": "acme-test-writer"})
+        self.assertGolden("test-with-authoring-skill", self._test_writer())
+
+    def test_test_writer_with_authoring_skill_and_framework(self):
+        self._eligible_task()
+        self._git()
+        self._capabilities(**{"test-authoring": "acme-test-writer", "test-framework": "swift-testing"})
+        self.assertGolden("test-with-framework", self._test_writer())

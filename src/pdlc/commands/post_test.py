@@ -11,9 +11,18 @@ FLAGS
     --attachment-description TEXT       description for the --attachment immediately before it
 
 DESCRIPTION
-    Resolves the current branch's top task PR, registers it on the record,
-    persists the requirement-to-source traceability map verbatim into the
-    evidence under a `## Traceability` heading, and sets `Review Required`.
+    Publishes the coverage committed on the current branch, registers the
+    branch's pull request on the record, persists the requirement-to-source
+    traceability map verbatim into the evidence under a `## Traceability`
+    heading, and sets `Review Required`.
+
+    The current branch must be the top task branch of the implementation
+    stack. The command syncs and pushes that stack itself, so the test commits
+    reach the top task's pull request with every base still chained; no skill
+    or sub-agent pushes a task branch by hand. The push runs only after the
+    record has been validated for the transition, and before the evidence is
+    posted: a failed push leaves the record untouched, while a failed post
+    after a successful push is safe to re-run.
 """
 
 from __future__ import annotations
@@ -40,7 +49,11 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
         f"{resolve_text(evidence, label='evidence').rstrip()}\n\n"
         f"## Traceability\n\n{resolve_text(traceability, label='--traceability').strip()}\n"
     )
-    pull_request = get_code_host().ensure_pull_request_linked(issue)
+    code_host = get_code_host()
+    # The stack mechanism owns bases and rebases, so the coverage commits are
+    # published through it rather than a bare `git push` of the top branch.
+    code_host.submit_task_stack()
+    pull_request = code_host.ensure_pull_request_linked(issue)
     attach_pr(issue, pull_request["number"])
     result = complete_transition(publication, body, attachment_inputs)
     result["pullRequest"] = pull_request

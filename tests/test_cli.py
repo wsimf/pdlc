@@ -52,6 +52,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(arguments, ["641"])
         self.assertEqual(_resolve(["inspect", "task", "641"])[0], "pdlc.commands.inspect_task")
 
+    def test_resolves_each_prompt_brief_command(self):
+        module, arguments = _resolve(["prompt", "task-reviewer", "236", "--commits", "HEAD~1..HEAD"])
+        self.assertEqual(module, "pdlc.commands.prompt_task_reviewer")
+        self.assertEqual(arguments, ["236", "--commits", "HEAD~1..HEAD"])
+        self.assertEqual(_resolve(["prompt", "task-implementer", "236"])[0], "pdlc.commands.prompt_task_implementer")
+        self.assertEqual(_resolve(["prompt", "task-test-writer", "236"])[0], "pdlc.commands.prompt_task_test_writer")
+        # Bare `prompt` is the index of those three, not a brief of its own.
+        self.assertEqual(_resolve(["prompt"])[0], "pdlc.commands.prompt")
+
     def test_resolves_doctor(self):
         self.assertEqual(_resolve(["doctor"])[0], "pdlc.commands.doctor")
 

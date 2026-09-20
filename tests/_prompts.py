@@ -1,0 +1,122 @@
+"""Shared seeding and host-state patching for the `pdlc prompt` suites.
+
+Not named `test_*.py` on purpose: this is a harness, not a suite, so discovery
+leaves it alone and both the behavioural tests and the golden tests inherit the
+same record, task, and pull-request fixtures. A brief that two suites disagree
+about the setup of would prove nothing.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from tests._support import FileBackendTest
+
+
+class _Capabilities:
+    """The subset of the capability facade the briefs touch."""
+
+    def __init__(self, skills: dict[str, str]):
+        self.skills = skills
+        self.agents: dict[str, str] = {}
+
+    def skill(self, slot: str) -> str:
+        return self.skills.get(slot, "")
+
+    def agent(self, slot: str) -> str:
+        return self.agents.get(slot) or "general-purpose"
+
+
+class PromptHarness(FileBackendTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.configure(code_host="github", repository="acme/widgets")
+        # Live PR and review-thread state would need a real `gh`; every test
+        # states the host state it needs, and reads clean otherwise.
+        self._prs([])
+        self._threads([])
+
+    # --- host state ---
+
+    def _prs(self, pull_requests: list[dict]) -> None:
+        patcher = patch("pdlc.commands.prompt.record_pull_requests", return_value=pull_requests)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _threads(self, threads: list[dict]) -> None:
+        patcher = patch("pdlc.commands.prompt.record_open_review_comments", return_value=threads)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _capabilities(self, **skills: str) -> None:
+        """Route skill slots the briefs read, which otherwise read unconfigured.
+
+        Both seams are patched because the briefs resolve capabilities two ways:
+        the implementation brief asks the config facade directly, while the test
+        brief goes through `pdlc inspect capability`'s own resolution to get the
+        sentence it prints. Slot names are dashed, so pass them as a mapping.
+        """
+        slots = {slot.replace("_", "-"): name for slot, name in skills.items()}
+        capabilities = _Capabilities(slots)
+        for target in ("pdlc.commands.prompt.get_capabilities", "pdlc.commands.inspect_capability.get_capabilities"):
+            patcher = patch(target, return_value=capabilities)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _build_run(self, name: str) -> None:
+        self._capabilities(**{"build-run": name})
+
+    def _git(self, stat: str = "abc1234 impl\n 1 file changed", diff: str = "diff --git a/x b/x") -> None:
+        for target, value in (
+            ("pdlc.commands.prompt.diff_stat", stat),
+            ("pdlc.commands.prompt.diff_text", diff),
+            ("pdlc.commands.prompt.touched_files", ["src/a.py", "src/b.py"]),
+        ):
+            patcher = patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    # --- seeding ---
+
+    def _plan(self, record: int, task: int, body: str = "## Technical Plan\n\nTouch one module.\n") -> None:
+        self.seed_plan_comment(record, task, body.split("\n\n", 1)[1].strip())
+
+    def _eligible_task(self, *, body: str | None = None) -> None:
+        self.seed_record(60, "Implementation", "Pending", slug="record-60")
+        self.seed_task(
+            60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work",
+            body=body or "## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
+        )
+        self._plan(60, 601)
+
+    def _implemented_stack(self, gate: str = "Changes Required") -> None:
+        self.seed_record(60, "Implementation", gate, slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
+        self.seed_task(60, 602, "TASK-002", "CLOSED", "WORK-60-TASK-002 [UI] Second")
+        for number in (601, 602):
+            self._plan(60, number)
+            self.seed_implementation_comment(60, number, "Shipped.")
+        self.register_prs(601, [40])
+        self.register_prs(602, [41])
+
+    def _second_task_eligible(self) -> None:
+        """TASK-001 implemented and closed, so TASK-002 is the unit and has an
+        upstream predecessor to summarise."""
+        self._eligible_task()
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Second")
+        self._plan(60, 602)
+        self.seed_implementation_comment(60, 601, "Added the loader.")
+        self.register_prs(601, [40])
+        path = self.records_dir() / "60" / "tasks" / "601" / "meta.json"
+        path.write_text(path.read_text().replace('"OPEN"', '"CLOSED"'))
+
+    def _invalidated_task(self) -> None:
+        """An implemented task returned for rework: the PR survives, the
+        `## Implementation` comment does not."""
+        self._eligible_task()
+        self.seed_implementation_comment(60, 601, "Shipped.")
+        self.register_prs(601, [40])
+        self.add_invalidation(60)
+        path = self.records_dir() / "60" / "tasks" / "601" / "comments.jsonl"
+        kept = [line for line in path.read_text().splitlines() if "## Implementation" not in line]
+        path.write_text("".join(f"{line}\n" for line in kept))

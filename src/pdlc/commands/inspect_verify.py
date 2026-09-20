@@ -147,8 +147,6 @@ from __future__ import annotations
 import json
 import re
 import sys
-import tempfile
-from pathlib import Path
 from typing import Callable
 
 from pdlc.domain.lifecycle import PdlcError
@@ -156,14 +154,18 @@ from pdlc.domain.model import marked_comments, timeline_formatted_at
 from pdlc.domain.verification import CLOSED_STATUSES, Finding, ledger
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.inputs import print_help, wants_help
-from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
+from pdlc.internal.pull_requests import (
+    open_review_comments_section,
+    record_open_review_comments,
+    record_pull_requests,
+)
 from pdlc.internal.reporting import older_comments_notice
+from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.vcs import head_commit
 from pdlc.internal.verification import reports, reusable, skeleton, stack_gaps, stale, ui_journeys
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
-    ref_label,
     resolve_item,
     task_tree,
     timeline_compact,
@@ -247,28 +249,6 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
         sections += ["", "> Older task comments are omitted from this view. " + "; ".join(notices) + "."]
 
     return sections
-
-
-# Live review-thread state off the registered PR stack, not evidence PDLC
-# itself recorded — this is the same "not a blocker, context to judge" shape
-# as the pending-PR note in Task Completion. Nothing here resolves a thread
-# or decides it's in scope; that judgment stays with the caller.
-def _open_comments_section(open_comments: list[dict]) -> list[str]:
-    if not open_comments:
-        return ["## Open Comments", "", "None."]
-
-    sections = ["## Open Comments", ""]
-    by_pr: dict[int, list[dict]] = {}
-    for comment in open_comments:
-        by_pr.setdefault(comment["pr"], []).append(comment)
-
-    for number in sorted(by_pr):
-        sections.append(f"PR #{number}:")
-        for comment in by_pr[number]:
-            where = f" on {comment['path']}:{comment['line']}" if comment.get("path") else ""
-            sections.append(f"- @{comment['author']}{where} — {comment['body']} ({comment['url']})")
-        sections.append("")
-    return sections[:-1] if sections[-1] == "" else sections
 
 
 def _source_section(head: str, gaps: list[str]) -> list[str]:
@@ -355,8 +335,7 @@ def _findings_section(known: dict[str, Finding], published: list[str]) -> list[s
 
 
 def _report_section(issue: str, report: dict) -> list[str]:
-    path = Path(tempfile.gettempdir()) / f"{ref_label()}-verify-{issue}.json"
-    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    path = write_scratch(scratch_path(f"verify-{issue}", ".json"), json.dumps(report, indent=2) + "\n")
     rows = [*report["claims"], *(report["journeys"] or []), report["ux"], report["cumulativeReview"]]
     carried = sum(1 for row in rows if row.get("reuse", "").startswith("valid"))
     to_check = sum(1 for row in rows if row["result"] is None)
@@ -436,8 +415,7 @@ def _timeline_block(issue: str, comments: list[dict]) -> str:
     text = timeline_markdown(issue, comments=comments)
     if text == NO_EVIDENCE:
         return text.rstrip("\n")
-    path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
-    path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
+    path = write_scratch(scratch_path(f"timeline-{issue}"), text.rstrip("\n") + "\n")
     return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
 
 
@@ -457,7 +435,7 @@ def inspect(issue: str) -> str:
     head = head_commit()
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
-    sections += ["", *_open_comments_section(open_comments)]
+    sections += ["", *open_review_comments_section(open_comments)]
     sections += ["", _timeline_block(issue, comments)]
     sections += ["", *_source_section(head, stack_gaps(pull_requests))]
 

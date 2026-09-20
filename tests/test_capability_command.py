@@ -34,6 +34,27 @@ class CapabilityCommandTests(unittest.TestCase):
         self.assertIn("No cumulative-review skill is configured",
                       inspect_capability._one("cumulative-review"))
 
+    def test_name_prints_configured_name_alone(self):
+        self.load('[skills]\nbuild-run = "my-build-run"\n')
+        self.assertEqual(inspect_capability._name("build-run"), "my-build-run")
+
+    def test_name_is_empty_for_an_unset_skill_slot(self):
+        self.load()
+        self.assertEqual(inspect_capability._name("build-run"), "")
+
+    def test_name_suppresses_the_agent_default(self):
+        self.load()
+        self.assertEqual(inspect_capability._name("ui-implementer"), "")
+
+    def test_name_of_an_unknown_slot_is_an_error(self):
+        self.load()
+        with self.assertRaises(ValueError):
+            inspect_capability._name("bogus")
+
+    def test_name_requires_a_slot(self):
+        self.load()
+        self.assertEqual(inspect_capability.main(["--name"]), 1)
+
     def test_unknown_slot_is_an_error(self):
         self.load()
         with self.assertRaises(ValueError):

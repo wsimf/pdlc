@@ -87,7 +87,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
             {event.value for event in Event},
             {
                 "published", "reviewed", "ci-reconciled", "approved", "skipped",
-                "reauthored", "decision-resolved", "invalidated", "verified", "bounced",
+                "reauthored", "decision-resolved", "escalated", "invalidated", "verified", "bounced",
                 "completed", "autoapproved",
             },
         )

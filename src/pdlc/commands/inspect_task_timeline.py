@@ -62,13 +62,12 @@ print:
 from __future__ import annotations
 
 import sys
-import tempfile
-from pathlib import Path
 
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
-from pdlc.internal.workitem import comments_for_issue, ref_label, task_timeline_compact, task_timeline_markdown
+from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.workitem import comments_for_issue, task_timeline_compact, task_timeline_markdown
 
 NO_EVIDENCE = "No task evidence comments found\n"
 
@@ -98,8 +97,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(full_text)
             return 0
 
-        path = Path(tempfile.gettempdir()) / f"{ref_label()}-task-timeline-{task}.md"
-        path.write_text(full_text, encoding="utf-8")
+        path = write_scratch(scratch_path(f"task-timeline-{task}"), full_text)
         sys.stdout.write(task_timeline_compact(task, str(path), comments=comments))
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

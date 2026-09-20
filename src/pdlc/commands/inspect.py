@@ -150,7 +150,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from pathlib import Path
 
 
@@ -161,6 +160,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, item_issue, latest_marked_comment, timeline_formatted_at
 from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
+from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.workitem import (
     comments_and_tasks,
     due_next,
@@ -170,7 +170,6 @@ from pdlc.internal.workitem import (
     item_status,
     pipeline_for_item,
     record_snapshot,
-    ref_label,
     user_comments_markdown,
 )
 from pdlc.domain.workflows.stages import (
@@ -909,7 +908,7 @@ def render(issue: str) -> tuple[str, str, Path]:
     sections.append(due_next_section)
 
     full_output = "\n\n".join(sections) + "\n"
-    path = Path(tempfile.gettempdir()) / f"{ref_label()}-{issue}.md"
+    path = scratch_path(str(issue))
     compact_output = _compact_render(
         item, pull_requests, tasks, attachments, user_comments_section, full_output, path, due_next_section, warnings_section
     )
@@ -940,12 +939,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.file:
-        path.write_text(full_output, encoding="utf-8")
-        print(path)
+        print(write_scratch(path, full_output))
     elif args.full:
         sys.stdout.write(full_output)
     else:
-        path.write_text(full_output, encoding="utf-8")
+        write_scratch(path, full_output)
         sys.stdout.write(compact_output)
 
     return 0

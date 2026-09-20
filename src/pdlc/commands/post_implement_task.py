@@ -1,31 +1,47 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc post implement-task - record one delivery task's implementation, optionally closing it
+    pdlc post implement-task - land one delivery task's implementation on its pull request
 
 USAGE
-    pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|text:STR|- [--close] [--attachment PATH [--attachment-description TEXT]]
+    pdlc post implement-task DELIVERY_TASK IMPLEMENTATION_FILE|text:STR|- [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
-    --close                              close the delivery task once its implementation is recorded
     --attachment PATH (repeatable)       attach a local file's contents to the implementation comment
     --attachment-description TEXT        description for the --attachment immediately before it
+    --close                              accepted and ignored; closing is decided by the task's state
 
 DESCRIPTION
-    Records one delivery task's implementation as a `## Implementation`
-    comment on the delivery task, and optionally closes it.
+    Lands one delivery task's implementation: submits its pull request, records
+    the summary as the task's `## Implementation` comment and the PR
+    description, and closes the task when it was open.
+
+The task's own state decides what this is; there is no mode flag and the
+record's gate is not consulted:
+
+- if the task is OPEN (first implementation, or reopened after invalidation):
+      the summary becomes its `## Implementation` comment and the task is closed.
+      Run it once the task review passed, its unit coverage landed, and its
+      criteria are met.
+- if the task is CLOSED (a fix for a review thread, a red check, or a change
+  request):
+      the fix is re-landed: the existing `## Implementation` comment and the PR
+      description are replaced by the summary, and the task stays closed. The
+      JSON adds `relanded: true`, the PR's still-unresolved thread count as
+      `openThreads`, and its check state as `checks`.
 
 The implementation summary is a file path, or `text:<body>` for a short one.
 Cover what shipped, the files touched, which acceptance criteria the evidence
-establishes, the validation run, the linked PR, and any limitation. The `## Implementation` heading is prepended
+establishes, the validation run, the linked PR, and any limitation. On a
+re-land the summary is the task's whole implementation, not just the fix. The
+`## Implementation` heading is prepended
 automatically when the summary does not already start with it; pdlc-inspect
 reads that heading to report the task as implemented.
 
 The implementation is recorded as its own artifact on the task, leaving the
-human-authored task body and its Technical Plan as they were. Pass --close once
-the task review passed, its unit coverage landed, and its criteria are met.
+human-authored task body and its Technical Plan as they were.
 
 A task carries one `## Implementation` comment. Re-recording a task that
-already has one, such as a review or CI fix on a closed task, edits the newest
+already has one edits the newest
 in place and removes any older duplicates, so the comment always reads as what
 finally shipped.
 
@@ -45,8 +61,12 @@ writes the comment. The attachment line is PR-body only and never appears in the
 leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
 still offers the task and a re-run is clean rather than a duplicate.
 
-    {"commented": true, "task": 47, "closed": true, "attachments": [],
-     "taskPr": {...}, "prs": [148]}
+    {"commented": true, "task": 47, "mode": "implement", "closed": true,
+     "attachments": [], "taskPr": {...}, "prs": [148]}
+
+    {"commented": true, "task": 47, "mode": "rework", "closed": true,
+     "relanded": true, "attachments": [], "taskPr": {...}, "prs": [148],
+     "openThreads": 0, "checks": "pending"}
 """
 
 from __future__ import annotations
@@ -59,6 +79,7 @@ import sys
 from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
+from pdlc.internal.ci_gate import check_state
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
@@ -171,7 +192,7 @@ def _record_implementation(delivery_task: str, comment_objects: list[dict], summ
             delete_comment(delivery_task, comment["url"])
 
 
-def post_implement_task(delivery_task: str, evidence: str, close: bool, attachment_inputs: list[dict]) -> dict:
+def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: list[dict]) -> dict:
     if not delivery_task.isdigit():
         raise PdlcError(f"delivery task number must be numeric: {delivery_task}")
 
@@ -206,7 +227,19 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
 
     attachments = save_attachments(parent_number_for_task(task), attachment_inputs)
 
-    result = {"commented": True, "task": int(delivery_task), "closed": close, "attachments": attachments}
+    # An open task is being implemented and closes here; a closed one is
+    # having a fix re-landed and stays closed. The task's state is the only
+    # input — the record's gate never decides which.
+    relanding = task["state"] == "CLOSED"
+    result: dict = {
+        "commented": True,
+        "task": int(delivery_task),
+        "mode": "rework" if relanding else "implement",
+        "closed": True,
+        "attachments": attachments,
+    }
+    if relanding:
+        result["relanded"] = True
     # Submit and register the task PR before recording the implementation: a
     # stack-submit failure then leaves the task with no `## Implementation`
     # comment and no closure, so `pdlc inspect implement` still offers it and a
@@ -226,7 +259,12 @@ def post_implement_task(delivery_task: str, evidence: str, close: bool, attachme
 
     _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
-    if close:
+    if relanding:
+        # Read back what the next `pdlc inspect implement` will see, so the
+        # caller knows whether this task will be offered again.
+        result["openThreads"] = len(get_code_host().unresolved_review_comments(task_pr["number"]))
+        result["checks"] = check_state(task_pr.get("checks"))
+    else:
         close_task(delivery_task)
 
     return result
@@ -248,11 +286,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Record one delivery task's implementation comment")
     parser.add_argument("delivery_task", help="Delivery task number")
     parser.add_argument("evidence", help="Implementation comment body — a file path, or text:<body> for a short one")
-    parser.add_argument("--close", action="store_true", help="Close the task after the comment lands")
+    # Closing is decided by the task's state; the flag stays accepted so older
+    # callers keep working, and does nothing.
+    parser.add_argument("--close", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(script_args)
 
     try:
-        result = post_implement_task(args.delivery_task, args.evidence, args.close, attachment_inputs)
+        result = post_implement_task(args.delivery_task, args.evidence, attachment_inputs)
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

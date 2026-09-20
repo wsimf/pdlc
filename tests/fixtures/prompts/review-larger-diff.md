@@ -1,49 +1,43 @@
-# Task-level implementation review prompt
-
-`pdlc-implement` Review fills the placeholders below and spawns
-`pdlc-implementation-reviewer` at `task` depth with the result — once per task,
-after local validation and before the task is checkpointed onto its stacked PR.
-
-This is a shallow, single-task review: does the change deliver the task's
-acceptance criteria, and is the code sound at a basic level. It is deliberately
-narrower than the project's `cumulative-review` capability — no multi-specialist
-audit, no rendered UX or runtime pass, no exhaustive architecture sweep, no
-review of any task but this one. That depth belongs to `pdlc-review` and
-`pdlc-verify` later.
-
----
-
-````md
 You are reviewing one delivery task's implementation, read-only. Report findings
 and a verdict; change nothing.
 
 ## Execution boundary
 
 You are being invoked as a leaf worker for this one review.
+
 Do not invoke any `pdlc-*` skill.
-Do not re-run the calling skill or rediscover the lifecycle stage.
 Do not spawn, dispatch, or ask another agent to do this work.
-Review the change below directly and return one report to the calling `pdlc-implement` skill.
+Review the change below directly and return one report.
 
 ## Task
 
-`<TASK-ID>` `<title>`
+`WORK-60-TASK-001` (tag included) — `[CORE] Core work`
 
-<full task body: scope, non-goals, dependencies, FR/C/UJ coverage, acceptance
-criteria>
+## Scope
+Build the seam.
+
+Covers FR-1.
+
+## Acceptance criteria
+- it works
 
 ## Technical Plan
 
-<the task's `## Technical Plan` comment, verbatim>
+Touch one module.
 
 ## Change under review
 
 Local commit, not yet pushed:
 
-<`git show --stat <sha>` then the full `git show <sha>` diff>
+abc1234 impl
+ 3 files changed, 40 insertions(+), 2 deletions(-)
 
-Upstream tasks it builds on: <one-line implementation summary per dependency, or
-"none">
+diff --git a/src/a.py b/src/a.py
+@@
++added line
+
+
+Upstream tasks it builds on: none
 
 ## What to check
 
@@ -74,7 +68,7 @@ than guessing.
 ## Report
 
 ```md
-Task review complete: <TASK-ID>
+Task review complete: WORK-60-TASK-001
 
 Criteria: <n of n traced to code>
 
@@ -93,4 +87,3 @@ Verdict: <Changes Required | Approval Required>
 
 No findings → say so plainly with the evidence scope. Never claim build, test,
 or runtime validation you did not run.
-````

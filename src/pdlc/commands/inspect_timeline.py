@@ -50,13 +50,12 @@ With no evidence comments at all, both modes print:
 from __future__ import annotations
 
 import sys
-import tempfile
-from pathlib import Path
 
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
-from pdlc.internal.workitem import comments_for_issue, ref_label, resolve_item, timeline_compact, timeline_markdown
+from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.workitem import comments_for_issue, resolve_item, timeline_compact, timeline_markdown
 
 NO_EVIDENCE = "No PDLC evidence comments found\n"
 
@@ -87,8 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(full_text)
             return 0
 
-        path = Path(tempfile.gettempdir()) / f"{ref_label()}-timeline-{issue}.md"
-        path.write_text(full_text, encoding="utf-8")
+        path = write_scratch(scratch_path(f"timeline-{issue}"), full_text)
         sys.stdout.write(timeline_compact(issue, str(path), comments=comments))
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

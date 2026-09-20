@@ -19,6 +19,7 @@ COMMANDS = {
     # additionally resolves the work item to confirm it is Complete.
     ("prepare",): "pdlc.commands.prepare",
     ("cleanup",): "pdlc.commands.cleanup",
+    ("checkout",): "pdlc.commands.checkout",
     ("inspect",): "pdlc.commands.inspect",
     ("inspect", "task"): "pdlc.commands.inspect_task",
     ("inspect", "task", "timeline"): "pdlc.commands.inspect_task_timeline",
@@ -31,6 +32,10 @@ COMMANDS = {
     ("inspect", "implement"): "pdlc.commands.inspect_implement",
     ("inspect", "capability"): "pdlc.commands.inspect_capability",
     ("inspect", "review"): "pdlc.commands.inspect_review",
+    ("prompt",): "pdlc.commands.prompt",
+    ("prompt", "task-implementer"): "pdlc.commands.prompt_task_implementer",
+    ("prompt", "task-reviewer"): "pdlc.commands.prompt_task_reviewer",
+    ("prompt", "task-test-writer"): "pdlc.commands.prompt_task_test_writer",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -38,6 +43,7 @@ COMMANDS = {
     ("post", "ci"): "pdlc.commands.post_ci",
     ("post", "complete"): "pdlc.commands.post_complete",
     ("post", "decision"): "pdlc.commands.post_decision",
+    ("post", "escalate"): "pdlc.commands.post_escalate",
     ("post", "implement-task"): "pdlc.commands.post_implement_task",
     ("post", "implement"): "pdlc.commands.post_implement",
     ("post", "invalidate"): "pdlc.commands.post_invalidate",
@@ -69,25 +75,31 @@ def _usage() -> str:
         "  inspect comments WI --page N  read one page of comments (100 per page)\n"
         "  inspect timeline WI         all evidence comments as a stage-by-stage timeline\n"
         "  inspect changes WI [--stage STAGE]  change requests the stage has not addressed since it last published\n"
-        "  inspect implement WI        whether Implementation is due and the next task to implement\n"
+        "  inspect implement WI        whether Implementation is due, its mode, and the one unit to work next\n"
         "  inspect review WI           whether review is due; which artifact and reviewer agent\n"
         "  inspect test WI             whether testing is due; testable scope and files the PRs touched\n"
         "  inspect verify WI           verification readiness, open findings, and a pre-filled report\n"
         "  inspect complete WI         completion readiness: open tasks, unmerged/red PRs, open questions\n"
-        "  inspect capability [SLOT]  resolve the project's agent/skill routing for a seam\n"
+        "  inspect capability [SLOT] [--name]  resolve the project's agent/skill routing for a seam\n"
+        "  prompt                      index of the sub-agent briefs for the record's next unit\n"
+        "  prompt task-implementer WI  the brief for the sub-agent that writes that unit's code\n"
+        "  prompt task-reviewer WI --commits REVISIONS  the brief for the reviewer of one dispatch's commits\n"
+        "  prompt task-test-writer WI --commits REVISIONS --report FILE --traceability FILE  the test writer's brief\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"
+        "  checkout TASK                          put the working tree on one delivery task's branch (local only)\n"
         "  continue WI                            self-heal a stray Approved/CI Pending gate; errors otherwise\n"
         "  post write                             publish the Product artifact\n"
         "  post tasks                             land a UI or Tasks stage\n"
         "  post plan                              land the Technical Plan\n"
-        "  post implement WI EVIDENCE             register the branch's PR and complete Implementation\n"
-        "  post implement-task TASK FILE [--close]  record one task's implementation\n"
-        "  post test WI EVIDENCE --traceability FILE  record PR + traceability, set Review Required\n"
+        "  post implement WI EVIDENCE             push the task PR stack, ready it for review, complete Implementation\n"
+        "  post implement-task TASK FILE          land one task's implementation; closes it when open, re-lands when closed\n"
+        "  post test WI EVIDENCE --traceability FILE  push the stack, record PR + traceability, set Review Required\n"
         "  post verify WI REPORT                  post a verification report and move the gate\n"
         "  post review WI VERDICT EVIDENCE        reviewer verdict (changes/approval/decision-required)\n"
         "  post ci WI                             resolve CI Pending against live check state\n"
+        "  post escalate WI EVIDENCE              park the current stage on a driver decision (stage owner)\n"
         "  post decision WI --manifest FILE       close a Decision Required gate\n"
         "  post approve WI EVIDENCE [--force]     human approval, advance to next stage (driver-only)\n"
         "  post complete WI EVIDENCE              final lock to Complete (driver-only)\n"
@@ -102,6 +114,7 @@ def _usage() -> str:
         "  --home PATH                 override PDLC_HOME for this run\n"
         "\nARGUMENTS\n"
         "  WI, ISSUE, WORK_ITEM        the parent work item number\n"
+        "  TASK, DELIVERY_TASK         a delivery task's WORK-N-TASK-NNN name or its own issue number\n"
         "  Most post stage/gate commands also take --attachment PATH [--attachment-description TEXT].\n"
         "\nEXAMPLES\n"
         "  pdlc inspect 236\n"

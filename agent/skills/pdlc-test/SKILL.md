@@ -52,15 +52,15 @@ Include every in-scope `FR-*` and task acceptance criterion. Include a `C-*` con
 
 Spawn `pdlc-test-writer` once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
 
-The writer commits and pushes its coverage on the current branch, so the top task PR carries the tests; there is no separate test PR.
+The writer commits its coverage on the current branch and never pushes; neither do you. `pdlc post test` publishes the stack, so the top task PR carries the tests; there is no separate test PR.
 
-Wait for its report. Do not write, edit, or run tests yourself, and do not spawn a second test author for the same scope. This step is complete when its report is in and its commits are pushed.
+Wait for its report and inspect the commits it names. Do not write, edit, or run tests yourself, and do not spawn a second test author for the same scope. This step is complete when its report is in and its commits are on the current branch.
 
 ## Check
 
 Do not take the report on trust:
 
-- Re-read the PR carrying the coverage and its checks. Missing coverage, a failing required check, or a PR not linked to the parent work item is `Changes Required` territory — report it and stop rather than publishing a clean claim.
+- Re-read the coverage commits on the current branch and the top task PR's existing checks. Missing coverage, a failing required check, or a PR not linked to the parent work item is `Changes Required` territory — report it and stop rather than publishing a clean claim. The new commits reach the PR only when Publish runs, so its checks for them land after that.
 - Confirm every in-scope requirement is either covered or recorded as an explicit coverage boundary.
 - A red test left deliberately to expose a real defect is a finding for the driver, not a reason to withhold the work. Report it plainly and let them decide whether implementation must be reopened.
 
@@ -83,7 +83,7 @@ pdlc post test WORK_ITEM /tmp/pdlc-test-evidence.md \
   --traceability /tmp/pdlc-traceability.md
 ```
 
-Pass any local files testing produced, such as screenshots, or the driver supplied, with `--attachment PATH`; see `pdlc guide attachments`. No PR for the current branch is `Changes Required` territory: the coverage was never pushed.
+Pass any local files testing produced, such as screenshots, or the driver supplied, with `--attachment PATH`; see `pdlc guide attachments`. The command pushes the stack before it posts, so the coverage commits reach the top task PR here and nowhere else; a push failure changes no state. No PR for the current branch is `Changes Required` territory.
 
 If the command fails, keep the evidence and map files, report the exact error, and re-read the record before retrying. This step is complete when the command's JSON shows `gateState: Review Required` and the registered `pullRequest`.
 
@@ -98,7 +98,7 @@ If the workflow stopped early, report only the exact blocking condition. The rep
 - Do not edit production source, the parent work item body, or any delivery task — never their requirements, plans, or Results.
 - Do not edit fixtures, package manifests, project files, agents, or other skills.
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
-- Do not create or switch branches; coverage is committed and pushed on the current branch.
+- Do not create, switch, or push branches; coverage is committed on the current branch by `pdlc-test-writer` and published by `pdlc post test`.
 - Use the CLI as the only work-item interface, and never write lifecycle state into any work item body.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. Never set `Approved`, and never claim the record is done from coverage alone.
 - Preserve unrelated staged, unstaged, and untracked work.

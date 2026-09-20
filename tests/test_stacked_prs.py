@@ -370,10 +370,13 @@ class ImplementTaskStackTests(FileBackendTest):
     def test_relanding_a_closed_task_edits_its_implementation_comment_in_place(self):
         self._seed()
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001", "checks": "PENDING"}]
+        host.unresolved_review_comments.return_value = []
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            first = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"), "--close")
+            first = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
             self.assertEqual(first.code, 0, first.stderr)
+            self.assertEqual(json.loads(first.stdout)["mode"], "implement")
+            self.assertNotIn("relanded", json.loads(first.stdout))
             original = self._implementation_comments()
             metadata = self.meta(70)
             metadata["fields"]["Gate State"] = "Changes Required"
@@ -385,6 +388,24 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertEqual(comments[0]["url"], original[0]["url"])
         self.assertIn("with the review fix", comments[0]["body"])
         self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
+        payload = json.loads(second.stdout)
+        self.assertEqual(payload["mode"], "rework")
+        self.assertTrue(payload["relanded"])
+        self.assertTrue(payload["closed"])
+        self.assertEqual(payload["openThreads"], 0)
+        self.assertEqual(payload["checks"], "pending")
+        host.unresolved_review_comments.assert_called_once_with(148)
+
+    def test_an_open_task_closes_without_the_close_flag(self):
+        # Closing is decided by the task's state; `--close` is accepted and ignored.
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
+        host.unresolved_review_comments.assert_not_called()
 
     def test_relanding_retires_older_duplicate_implementation_comments(self):
         self._seed()
@@ -509,7 +530,6 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
     def _host(self, prs: list[dict]) -> Mock:
         host = Mock()
-        host.ensure_pull_request_linked.return_value = {"number": prs[-1]["number"]}
         by_number = {pr["number"]: pr for pr in prs}
         host.pull_requests_by_number.side_effect = lambda numbers: [by_number[n] for n in numbers]
         return host
@@ -529,8 +549,35 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
             result = self.invoke("post_implement", 70, self.evidence_file())
 
         self.assertEqual(result.code, 0, result.stderr)
+        host.submit_task_stack.assert_called_once_with()
         host.mark_pull_requests_ready.assert_called_once_with([148, 149])
         self.assertEqual(self.state(70), ("Implementation", "Review Required"))
+        # The record's pull requests come from the registry its tasks carry, so
+        # nothing is resolved from whichever branch of the stack is checked out
+        # — publishing right after a fix on a lower task must not register that
+        # task's pull request as the stage's.
+        host.ensure_pull_request_linked.assert_not_called()
+        self.assertEqual(
+            result.json["readyPullRequests"],
+            [{"number": 148, "url": "https://x/148"}, {"number": 149, "url": "https://x/149"}],
+        )
+
+    def test_publication_pushes_the_stack_before_marking_ready_and_a_failed_push_posts_nothing(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [148])
+        host = self._host([self._pr(148, "OPEN", is_draft=True)])
+        host.submit_task_stack.side_effect = PdlcError("push refused")
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file())
+
+        self.assertEqual(result.code, 1)
+        self.assertIn("push refused", result.stderr)
+        host.mark_pull_requests_ready.assert_not_called()
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
+        self.assertEqual(self.comments_text(70), "")
 
     def test_publication_fails_cleanly_when_marking_ready_errors(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")

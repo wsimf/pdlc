@@ -51,3 +51,31 @@ def record_open_review_comments(ref: str, *, record: dict | None = None, tasks: 
         for comment in host.unresolved_review_comments(number):
             comments.append({"pr": number, **comment})
     return comments
+
+
+# One rendering of live review-thread state, shared by every command that
+# surfaces it, so a skill reads the same `## Open Comments` section wherever it
+# appears. Nothing here resolves a thread or decides it is in scope; that
+# judgment stays with the caller. `lead` is the one line a command adds to
+# route its own caller when threads are open.
+def open_review_comments_section(
+    comments: list[dict], *, lead: str | None = None, none_text: str = "None."
+) -> list[str]:
+    """The `## Open Comments` section for `comments`, as output lines."""
+    if not comments:
+        return ["## Open Comments", "", none_text]
+
+    sections = ["## Open Comments", ""]
+    if lead is not None:
+        sections += [lead, ""]
+    by_pr: dict[int, list[dict]] = {}
+    for comment in comments:
+        by_pr.setdefault(comment["pr"], []).append(comment)
+
+    for number in sorted(by_pr):
+        sections.append(f"PR #{number}:")
+        for comment in by_pr[number]:
+            where = f" on {comment['path']}:{comment['line']}" if comment.get("path") else ""
+            sections.append(f"- @{comment['author']}{where} — {comment['body']} ({comment['url']})")
+        sections.append("")
+    return sections[:-1] if sections[-1] == "" else sections
