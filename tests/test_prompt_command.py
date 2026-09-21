@@ -264,6 +264,7 @@ class PromptCommandTest(PromptHarness):
         self.assertEqual(result.code, 0, result.stderr)
         for command in (
             "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
+            "tech-planner",
         ):
             self.assertIn(command, result.stdout)
 
@@ -310,3 +311,43 @@ class PromptCommandTest(PromptHarness):
         self.assertEqual(result.code, 1)
         self.assertIn("not Tasks", result.stderr)
         self.assertEqual(result.stdout, "")
+
+    # --- tech planner ---
+
+    def _tech_brief(self, *extra: str):
+        return self.invoke("prompt_tech_planner", 60, *extra)
+
+    def test_tech_planner_carries_open_tasks_and_skips_implemented_ones(self):
+        self._plan_stage()
+        result = self._tech_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("### `WORK-60-TASK-001` [CORE] Core work (#601)\n\nNeeds a plan: no — already planned", result.stdout)
+        self.assertIn("Touch one module.", result.stdout)
+        self.assertIn("### `WORK-60-TASK-002` [UI] Second (#602)\n\nNeeds a plan: yes", result.stdout)
+        self.assertNotIn("WORK-60-TASK-003", result.stdout)
+        self.assertIn("## Shape of the change", result.stdout)
+        self.assertIn("Recorded evidence\n\nnone", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+        for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
+            self.assertNotIn(leak, result.stdout)
+
+    def test_tech_planner_carries_the_stage_evidence_and_follow_up(self):
+        self._plan_stage(gate="Stale")
+        self.add_invalidation(60, stage="Technical Plan")
+        result = self._tech_brief("--follow-up", "text:re-spike TASK-001")
+        self.assertIn("Invalidated stage: Technical Plan", result.stdout)
+        self.assertIn("Driver follow-up\n\nre-spike TASK-001", result.stdout)
+
+    def test_tech_planner_refuses_a_record_not_at_technical_plan(self):
+        self._tasks_stage_pending()
+        result = self._tech_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("not Technical Plan", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_tech_planner_refuses_when_every_task_is_implemented(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] Done")
+        result = self._tech_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("nothing to plan", result.stderr)

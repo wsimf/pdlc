@@ -38,6 +38,7 @@ COMMANDS = {
     ("prompt", "task-test-writer"): "pdlc.commands.prompt_task_test_writer",
     ("prompt", "acceptance-test-writer"): "pdlc.commands.prompt_acceptance_test_writer",
     ("prompt", "task-planner"): "pdlc.commands.prompt_task_planner",
+    ("prompt", "tech-planner"): "pdlc.commands.prompt_tech_planner",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -89,6 +90,7 @@ def _usage() -> str:
         "  prompt task-test-writer WI --commits REVISIONS --report FILE --traceability FILE  the test writer's brief\n"
         "  prompt acceptance-test-writer WI --traceability FILE  the brief for the test writer covering the whole implemented scope\n"
         "  prompt task-planner WI      the brief for the sub-agent that decomposes the record into delivery tasks\n"
+        "  prompt tech-planner WI      the brief for the sub-agent that spikes the open delivery tasks into plans\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"

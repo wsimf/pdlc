@@ -132,6 +132,23 @@ class PromptHarness(FileBackendTest):
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
         self.add_invalidation(60, stage="Tasks")
 
+    def _plan_stage(self, gate: str = "Pending") -> None:
+        """A Technical Plan record: one task planned, one needing a plan, and
+        one already implemented that the brief must leave out."""
+        self.seed_record(60, "Technical Plan", gate, slug="record-60")
+        self.seed_task(
+            60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work",
+            body="## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
+        )
+        self._plan(60, 601)
+        self.seed_task(
+            60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Second",
+            body="## Scope\nShow it.\n\nCovers FR-2, UJ-1.\n\n## Acceptance criteria\n- it shows\n",
+        )
+        self.seed_task(60, 603, "TASK-003", "CLOSED", "WORK-60-TASK-003 [CORE] Done")
+        self._plan(60, 603)
+        self.seed_implementation_comment(60, 603, "Shipped.")
+
     def _testing_stack(self, gate: str = "Pending") -> None:
         """Both tasks implemented and the record at Testing, each PR touching
         its own files plus one shared file, so the brief's source list must

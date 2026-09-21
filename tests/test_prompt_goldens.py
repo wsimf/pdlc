@@ -202,3 +202,17 @@ class PromptGoldenTest(PromptHarness):
     def test_task_planner_stale_with_existing_tree(self):
         self._tasks_stage_stale_with_existing_tree()
         self.assertGolden("task-planner-stale", self.invoke("prompt_task_planner", 60))
+
+    # --- tech planner ---
+
+    def test_tech_planner_first_pass(self):
+        self._plan_stage()
+        self.assertGolden("tech-planner-first-pass", self.invoke("prompt_tech_planner", 60))
+
+    def test_tech_planner_stale_with_follow_up(self):
+        self._plan_stage(gate="Stale")
+        self.add_invalidation(60, stage="Technical Plan")
+        self.assertGolden(
+            "tech-planner-stale",
+            self.invoke("prompt_tech_planner", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
+        )

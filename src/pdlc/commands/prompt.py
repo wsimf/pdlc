@@ -11,6 +11,7 @@ COMMANDS
     task-test-writer   brief the test writer that covers one dispatch's change
     acceptance-test-writer  brief the test writer that covers the whole implemented scope
     task-planner       brief the sub-agent that decomposes a record into delivery tasks
+    tech-planner       brief the sub-agent that spikes the open delivery tasks into plans
 
 DESCRIPTION
     Prints one complete sub-agent brief for the unit of work a record has next,
@@ -27,7 +28,8 @@ DESCRIPTION
     scope once every task has landed, rather than one task. `task-planner`
     describes the record itself, ahead of any delivery task existing, so it
     belongs to the Tasks stage rather than the Implementation loop the other
-    four cover.
+    four cover. `tech-planner` describes every open delivery task at once,
+    ahead of any of them being built.
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
@@ -42,6 +44,7 @@ EXAMPLES
     pdlc prompt task-reviewer 236 --commits HEAD~2..HEAD
     pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md
     pdlc prompt task-planner 236
+    pdlc prompt tech-planner 236
 
 LEARN MORE
     Run `pdlc prompt COMMAND --help` for that command's own usage and flags.
@@ -92,7 +95,10 @@ from pdlc.commands.inspect_implement import (
     _stack_order,
 )
 
-BRIEF_COMMANDS = ("task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner")
+BRIEF_COMMANDS = (
+    "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
+    "tech-planner",
+)
 
 
 def _parent_body(item: dict) -> str:
@@ -401,6 +407,49 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
             "GATE_STATE": gate or "unset",
             "STALE_REASON": stale_reason,
             "EXISTING_TASKS": existing_tasks,
+            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
+        },
+    )
+
+
+def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
+    """The brief for the sub-agent spiking the record's open tasks into plans.
+
+    Due only while `Status` is `Technical Plan`. Every open, unimplemented task
+    is carried with its existing plan, so a reconciling pass sees what it would
+    overwrite; which of them the evidence sends back is the planner's call.
+    """
+    item, tasks, comments = record_snapshot(work_item)
+    status = item_status(item)
+    if status != "Technical Plan":
+        raise PdlcError(f"no technical plan is due: the record is at {status or 'an unset status'}, not Technical Plan")
+
+    scope = sorted(
+        (
+            task for task in tasks
+            if task.get("taskId") and task["state"] != "CLOSED" and not task["hasImplementation"]
+        ),
+        key=_stack_order,
+    )
+    if not scope:
+        raise PdlcError("nothing to plan: no delivery task is open and unimplemented")
+
+    requests = open_change_requests(comments, pipeline_for_item(item), status).requests
+    return render(
+        "tech-planner",
+        {
+            "EXECUTION_SCOPE": "this one planning pass",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PARENT_BODY": _parent_body(item),
+            "TASKS": [
+                {
+                    **_task_context(task),
+                    "TASK_NUMBER": str(task["number"]),
+                    "NEEDS_PLAN": "yes" if task["needsPlan"] else "no — already planned",
+                }
+                for task in scope
+            ],
+            "EVIDENCE": _requests_text(list(requests)) or "none",
             "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
         },
     )
