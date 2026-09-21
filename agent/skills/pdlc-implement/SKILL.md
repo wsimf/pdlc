@@ -96,7 +96,7 @@ Dispatch `pdlc-test-writer` once with the brief `pdlc prompt task-test-writer WO
 
 ### Land
 
-Write the summary to a local file following [`references/implementation-summary.md`](references/implementation-summary.md), then run the command `## Publish` printed for this unit:
+Write the summary to a local file from the agents' reports and the validation you saw, following the template `pdlc template implementation-summary` prints, then run the command `## Publish` printed for this unit:
 
 ```bash
 pdlc post implement-task DELIVERY_TASK /tmp/pdlc-task-summary.md

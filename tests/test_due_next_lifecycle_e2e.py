@@ -96,7 +96,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.inspect_due(issue, "Implementation.Pending", "pdlc-implement")
         self.next_action(issue, "pdlc-implement")
 
-        implementation = self.write_file("implementation.md", "Shipped. FR-1 covered.\n")
+        implementation = self.write_file("implementation.md", self.implementation_summary("Shipped. FR-1 covered."))
         code_host = Mock()
         code_host.submit_task_stack.return_value = [{
             "number": 147, "title": "Task implementation", "url": "https://x/147",

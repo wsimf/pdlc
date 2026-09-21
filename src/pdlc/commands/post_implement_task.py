@@ -29,10 +29,12 @@ record's gate is not consulted:
       JSON adds `relanded: true`, the PR's still-unresolved thread count as
       `openThreads`, and its check state as `checks`.
 
-The implementation summary is a file path, or `text:<body>` for a short one.
-Cover what shipped, the files touched, which acceptance criteria the evidence
-establishes, the validation run, the linked PR, and any limitation. On a
-re-land the summary is the task's whole implementation, not just the fix. The
+The implementation summary is a file path, or `text:<body>` for a short one,
+and follows the template `pdlc template implementation-summary` prints. A
+summary missing a required section, with an empty section, or with an
+unfilled `- <placeholder>` bullet is refused before anything changes; the
+error lists every problem and prints the template. On a re-land the summary
+is the task's whole implementation, not just the fix. The
 `## Implementation` heading is prepended
 automatically when the summary does not already start with it; pdlc-inspect
 reads that heading to report the task as implemented.
@@ -84,6 +86,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
 from pdlc.internal.stack import after_predecessor, task_branch_name
+from pdlc.templates.template import require_template
 from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
     close_task,
@@ -220,6 +223,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     summary = text.strip()
     if not summary:
         raise PdlcError("the implementation summary is empty")
+    require_template("implementation-summary", summary, "implementation summary")
 
     first = next((line.strip() for line in summary.splitlines() if line.strip()), "")
     if first != IMPLEMENTATION_COMMENT_HEADING:
