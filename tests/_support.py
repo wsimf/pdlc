@@ -330,6 +330,11 @@ class FileBackendTest(unittest.TestCase):
     def evidence_file(self, content: str = "evidence body\n") -> str:
         return self.write_file("evidence.md", content)
 
+    @staticmethod
+    def implementation_summary(line: str = "Shipped it.") -> str:
+        """A body that satisfies the implementation-summary template, carrying `line`."""
+        return f"### Why\n\n- {line}\n\n### What changed\n\n- {line}\n\n### Verified\n\n- Tests pass.\n"
+
     def head_sha(self) -> str:
         """The real repository HEAD — verification/completion freshness checks
         shell out to git, and only a resolvable commit survives them."""

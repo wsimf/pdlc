@@ -100,7 +100,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(plan_comments.count("## Technical Plan"), 1)
 
         # --- Implementation ---
-        impl = self.write_file("impl.md", "## Implementation\n\nShipped. FR-1 covered.\n")
+        impl = self.write_file("impl.md", "## Implementation\n\n" + self.implementation_summary("Shipped. FR-1 covered."))
         stack_host = Mock()
         stack_host.submit_task_stack.return_value = [{
             "number": 147, "title": "Task implementation", "url": "https://x/147",

@@ -14,6 +14,7 @@ COMMANDS = {
     ("doctor",): "pdlc.commands.doctor",
     ("guide",): "pdlc.commands.guide",
     ("setup",): "pdlc.commands.setup",
+    ("template",): "pdlc.commands.template",
     # Human-only worktree scaffolding / teardown; deliberately omitted from
     # `_usage()` and the agent workflow. `prepare` is local Git only; `cleanup`
     # additionally resolves the work item to confirm it is Complete.
@@ -69,6 +70,7 @@ def _usage() -> str:
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
         "  doctor                      inspect config, derived values, backend CLI access, and all validation results\n"
         "  guide                       print a bundled Markdown guide for PDLC agents\n"
+        "  template NAME               print a bundled evidence template a post command checks its body against\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
         "  inspect task WI [TASK...]   full text and flags for specific delivery tasks\n"
         "  inspect task timeline TASK  one delivery task's plan/implementation/invalidation history\n"
@@ -174,7 +176,7 @@ def _dispatch(raw_arguments: list[str]) -> int:
         if module_name == "pdlc.commands.doctor":
             module = importlib.import_module(module_name)
             return int(module.main(argv=command_arguments, overrides=overrides))
-        if module_name == "pdlc.commands.guide":
+        if module_name in ("pdlc.commands.guide", "pdlc.commands.template"):
             module = importlib.import_module(module_name)
             return int(module.main(argv=command_arguments))
         config = load_config(overrides=overrides)

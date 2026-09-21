@@ -218,6 +218,22 @@ class ImplementTaskStackTests(FileBackendTest):
         task_dir = self.records_dir() / "70" / "tasks" / "701"
         (task_dir / "comments.jsonl").write_text(json.dumps({"body": "## Technical Plan\n\nImplement the core behavior.\n"}) + "\n")
 
+    def test_off_template_summary_is_refused_with_every_problem_and_the_template(self):
+        self._seed()
+        before = self.task_comments_text(70, 701)
+        host = Mock()
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
+            result = self.invoke("post_implement_task", 701, self.evidence_file("### Why\n\n- <the problem>\n\n### Decisions\n\n### Verified\n"))
+        self.assertEqual(result.code, 1)
+        self.assertIn("- no content under: ### Why", result.stderr)
+        self.assertIn("- missing section: ### What changed", result.stderr)
+        self.assertIn("- no content under: ### Decisions (fill it in or drop the heading)", result.stderr)
+        self.assertIn("- no content under: ### Verified", result.stderr)
+        self.assertIn("# Implementation summary", result.stderr)
+        host.submit_task_stack.assert_not_called()
+        self.assertEqual(self.task_comments_text(70, 701), before)
+        self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
+
     def _assert_rejected_before_stack(self, *, status="Implementation", gate="Pending", work_type=None, skipped="", body=None):
         if not (self.records_dir() / "70").exists():
             self.seed_record(70, status, gate, slug="record-70", work_type=work_type, skipped=skipped, body=body)
@@ -236,7 +252,7 @@ class ImplementTaskStackTests(FileBackendTest):
         before = self.task_comments_text(70, 701)
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
         self.assertEqual(result.code, 1)
         host.submit_task_stack.assert_not_called()
         self.assertEqual(self.task_comments_text(70, 701), before)
@@ -267,7 +283,7 @@ class ImplementTaskStackTests(FileBackendTest):
         metadata.write_text(json.dumps(value) + "\n")
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
         self.assertEqual(self.task_comments_text(70, 701), before)
         self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
         host.submit_task_stack.assert_not_called()
@@ -296,7 +312,7 @@ class ImplementTaskStackTests(FileBackendTest):
         before = task_dir.joinpath("comments.jsonl").read_text()
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
         self.assertEqual(result.code, 1)
         self.assertIn("has no Technical Plan", result.stderr)
         host.submit_task_stack.assert_not_called()
@@ -322,7 +338,7 @@ class ImplementTaskStackTests(FileBackendTest):
             patch("pdlc.commands.post_implement_task.get_code_host", return_value=host),
             patch("pdlc.internal.stack.worktree_after", return_value="50"),
         ):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
 
         self.assertEqual(result.code, 0, result.stderr)
         host.link_task_stack.assert_called_once_with(29, "pdlc/record-70/task-001")
@@ -337,7 +353,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["taskPr"]["number"], 148)
 
@@ -355,11 +371,11 @@ class ImplementTaskStackTests(FileBackendTest):
             [{"number": 148, "branch": "pdlc/record-70/task-001"}],
         ]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            failed = self.invoke("post_implement_task", 701, self.evidence_file("Retry failed.\n"), "--close")
+            failed = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry failed.")), "--close")
             self.assertEqual(failed.code, 1)
             self.assertEqual(self.task_comments_text(70, 701), prior)
             self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Retry succeeded.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry succeeded.")), "--close")
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
 
@@ -373,7 +389,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001", "checks": "PENDING"}]
         host.unresolved_review_comments.return_value = []
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            first = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+            first = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
             self.assertEqual(first.code, 0, first.stderr)
             self.assertEqual(json.loads(first.stdout)["mode"], "implement")
             self.assertNotIn("relanded", json.loads(first.stdout))
@@ -381,7 +397,7 @@ class ImplementTaskStackTests(FileBackendTest):
             metadata = self.meta(70)
             metadata["fields"]["Gate State"] = "Changes Required"
             (self.records_dir() / "70" / "meta.json").write_text(json.dumps(metadata) + "\n")
-            second = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it, with the review fix.\n"))
+            second = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it, with the review fix.")))
         self.assertEqual(second.code, 0, second.stderr)
         comments = self._implementation_comments()
         self.assertEqual(len(comments), 1)
@@ -402,7 +418,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
         host.unresolved_review_comments.assert_not_called()
@@ -419,7 +435,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file("Final.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Final.")), "--close")
         self.assertEqual(result.code, 0, result.stderr)
         remaining = self._implementation_comments()
         self.assertEqual([c["url"] for c in remaining], ["t#comment-3"])
@@ -436,7 +452,7 @@ class ImplementTaskStackTests(FileBackendTest):
             "url": "u148",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["taskPr"]["number"], 148)
         self.assertEqual(result.json["prs"], [148])
@@ -449,11 +465,11 @@ class ImplementTaskStackTests(FileBackendTest):
             "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         # The `[CORE]`/`[UI]` tag is stripped from the PR title unconditionally.
         host.set_pull_request_content.assert_called_once_with(
-            148, "Core", "## Implementation\n\nShipped it."
+            148, "Core", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
 
     def test_pr_title_format_config_resolves_placeholders(self):
@@ -467,10 +483,10 @@ class ImplementTaskStackTests(FileBackendTest):
                     "pdlc.commands.post_implement_task.get_config",
                     return_value=Config(pr_title_format="[{work.type} {work.number}] {task.title} ({task.id})"),
                 ):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         host.set_pull_request_content.assert_called_once_with(
-            148, "[feature 70] Core (TASK-001)", "## Implementation\n\nShipped it."
+            148, "[feature 70] Core (TASK-001)", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
 
     def test_pr_attachment_config_appends_a_line_with_the_bare_work_number(self):
@@ -484,13 +500,13 @@ class ImplementTaskStackTests(FileBackendTest):
                     "pdlc.commands.post_implement_task.get_config",
                     return_value=Config(pr_attachment="Fixes {work.number} / see {work.number}"),
                 ):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         # The attachment is the first line of the PR body, every `{work.number}`
         # resolved to the parent's bare number; the `## Implementation` comment
         # on the task never carries it.
         host.set_pull_request_content.assert_called_once_with(
-            148, "Core", "Fixes 70 / see 70\n\n## Implementation\n\nShipped it."
+            148, "Core", "Fixes 70 / see 70\n\n## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
         self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
 
@@ -501,7 +517,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         host.set_pull_request_content.side_effect = PdlcError("gh pr edit failed")
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"), "--close")
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")), "--close")
         self.assertEqual(result.code, 1)
         self.assertIn("gh pr edit failed", result.stderr)
         self.assertEqual(self.task_comments_text(70, 701), before)
@@ -510,7 +526,7 @@ class ImplementTaskStackTests(FileBackendTest):
     def test_file_backend_reports_no_stack_support_without_mutating_the_task(self):
         self._seed()
         before = self.task_comments_text(70, 701)
-        result = self.invoke("post_implement_task", 701, self.write_file("impl.md", "Shipped it.\n"))
+        result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 1)
         self.assertIn("cannot submit stacked pull requests", result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
