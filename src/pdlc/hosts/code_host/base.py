@@ -37,8 +37,9 @@ class CodeHost(ABC):
     @abstractmethod
     def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
         """The lines telling a caller how to put ``branch`` on this host's stack,
-        entering at ``entry_pr`` (the previous implemented task's pull request)
-        or starting a new stack when it is None.
+        entering at ``entry_pr`` (the previous implemented task's pull request).
+        When it is None, the host continues the stack the current branch already
+        belongs to, if any, else starts a new one.
 
         Returned as rendered `key: value` lines because the vocabulary is the
         host mechanism's own — PDLC supplies only the branch and the entry point.
@@ -55,7 +56,8 @@ class CodeHost(ABC):
         host decides which of its own mechanisms each needs: ``pr`` is the task's
         own registered pull request (it has been implemented), ``entry_pr`` the
         previous implemented task's (this task is next on that stack), and
-        neither means this is the stack's first task. It is the acting
+        neither means this is the work item's first task, which continues the
+        current branch's stack when there is one. It is the acting
         counterpart of ``task_stack_setup``, which only describes the same move;
         hosts without a stacked-PR mechanism raise PdlcError, as they do for
         ``submit_task_stack``.

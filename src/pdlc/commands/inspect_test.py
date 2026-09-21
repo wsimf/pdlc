@@ -57,17 +57,17 @@ def _files_for_pull_request(pr: dict) -> list[str]:
     return get_code_host().pull_request_files(pr["number"])
 
 
-def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
+def testable_scope(tasks: list[dict], pull_requests: list[dict]) -> list[tuple[dict, list[tuple[dict, list[str]]]]]:
+    """Every task closed with its implementation recorded, each with its
+    registered PRs and the files each PR touched. `pdlc prompt
+    acceptance-test-writer` reads the same scope, so the brief and this
+    command never disagree about what is under test."""
     in_scope = [t for t in tasks if t["state"] == "CLOSED" and t["hasImplementation"]]
-    if not in_scope:
-        return ["## Testable Scope", "", "No task has closed with its implementation recorded yet — nothing is implemented."]
-
     pr_by_number = {pr["number"]: pr for pr in pull_requests}
     files_by_number: dict[int, list[str]] = {}
 
-    sections = ["## Testable Scope"]
+    scope: list[tuple[dict, list[tuple[dict, list[str]]]]] = []
     for task in in_scope:
-        sections += ["", f"### {task['title']}"]
         # A task's scope is its explicitly registered PRs. The record-level
         # registry may include PRs for sibling tasks and must not leak them
         # into every testing prompt.
@@ -75,7 +75,19 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
         for pr in task_prs:
             if pr["number"] not in files_by_number:
                 files_by_number[pr["number"]] = _files_for_pull_request(pr)
-            files = files_by_number[pr["number"]]
+        scope.append((task, [(pr, files_by_number[pr["number"]]) for pr in task_prs]))
+    return scope
+
+
+def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
+    scope = testable_scope(tasks, pull_requests)
+    if not scope:
+        return ["## Testable Scope", "", "No task has closed with its implementation recorded yet — nothing is implemented."]
+
+    sections = ["## Testable Scope"]
+    for task, task_prs in scope:
+        sections += ["", f"### {task['title']}"]
+        for pr, files in task_prs:
             sections += [
                 "",
                 f"PR #{pr['number']} ({pr['state']}, checks: {pr['checks']})",
@@ -86,7 +98,7 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
     return sections
 
 
-def _readiness(item: dict) -> tuple[bool, str]:
+def readiness(item: dict) -> tuple[bool, str]:
     status = item.get("Status")
     gate = item.get("Gate State")
 
@@ -102,7 +114,7 @@ def _readiness(item: dict) -> tuple[bool, str]:
 
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
-    ready, readiness_message = _readiness(item)
+    ready, readiness_message = readiness(item)
     sections = ["## Readiness", "", readiness_message, "", attachments_markdown(attachments_for_item(item))]
     if not ready:
         return "\n".join(sections) + "\n"

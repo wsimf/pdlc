@@ -227,6 +227,12 @@ class GitHubCodeHost(CodeHost):
         # computes a base branch or asks whether a predecessor's branch still
         # exists: `gh stack checkout <pr>` fetches the stack from GitHub itself.
         if entry_pr is None:
+            current = self._current_stack()
+            if current is not None:
+                return [
+                    f"stackSetup: gh stack top && gh stack add {branch}  "
+                    f"(first task — continues the stack the current branch belongs to, on trunk {current['trunk']})"
+                ]
             return [f"stackSetup: gh stack init {branch}  (first task — creates the stack on the default branch)"]
         return [
             f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
@@ -250,8 +256,28 @@ class GitHubCodeHost(CodeHost):
             run_gh(["stack", "checkout", str(entry_pr)])
             run_gh(["stack", "add", branch])
             return f"created {branch} on the stack entered at pull request #{entry_pr}"
+        if self._current_stack() is not None:
+            # `gh stack add` only extends a stack from its top branch.
+            run_gh(["stack", "top"])
+            run_gh(["stack", "add", branch])
+            return f"created {branch} on top of the stack the current branch belongs to"
         run_gh(["stack", "init", branch])
         return f"created {branch} as the first branch of a new stack"
+
+    @staticmethod
+    def _current_stack() -> dict | None:
+        """The local stack the current branch belongs to, as `gh stack view
+        --json` reports it, or None when it belongs to none. A work item's first
+        task continues that stack rather than starting a new one, so it can
+        build on another work item's unmerged stack in the same checkout.
+
+        `gh stack view` exits non-zero off a stack; a missing extension fails
+        the same way and is left for the acting call to report."""
+        try:
+            data = run_gh_json(["stack", "view", "--json"])
+        except PdlcError:
+            return None
+        return data if isinstance(data, dict) and data.get("branches") else None
 
     def submit_task_stack(self) -> list[PullRequest]:
         """Sync, push, and create/update the current local stack's pull requests.

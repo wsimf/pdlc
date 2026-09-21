@@ -189,6 +189,54 @@ class PromptCommandTest(PromptHarness):
             self.assertEqual(brief.code, 0, brief.stderr)
             self.assertIn("`WORK-60-TASK-001` (tag included) — `[CORE] Core work`", brief.stdout)
 
+    # --- acceptance test writer ---
+
+    def _acceptance_brief(self, *extra: str):
+        return self.invoke(
+            "prompt_acceptance_test_writer", 60, "--traceability", "text:FR-1 -> loads -> src/a.py", *extra,
+        )
+
+    def test_acceptance_brief_carries_the_map_and_the_whole_implemented_scope(self):
+        self._testing_stack()
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Write requirement-to-source-traceable acceptance coverage", result.stdout)
+        self.assertIn("FR-1 -> loads -> src/a.py", result.stdout)
+        self.assertIn("- src/a.py\n- src/shared.py\n- src/b.py\n", result.stdout)
+        self.assertEqual(result.stdout.count("src/shared.py"), 1)
+        self.assertIn("- `WORK-60-TASK-001` [CORE] First", result.stdout)
+        self.assertIn("`601`, `602` in `60`", result.stdout)
+        self.assertIn("Implementation PRs: `#40`, `#41`.", result.stdout)
+        self.assertNotIn("## Findings to address", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+
+    def test_acceptance_brief_carries_the_stages_open_change_requests(self):
+        self._testing_stack(gate="Changes Required")
+        self.add_rework_review(60, stage="Testing")
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Findings to address", result.stdout)
+        self.assertIn("### Change request", result.stdout)
+        self.assertIn("- detail", result.stdout)
+
+    def test_acceptance_brief_appends_caller_findings(self):
+        self._testing_stack()
+        result = self._acceptance_brief("--findings", "text:unit-tests: assertion failed at test_a.py:12")
+        self.assertIn("### Additional findings\n\nunit-tests: assertion failed at test_a.py:12", result.stdout)
+
+    def test_acceptance_brief_refuses_outside_testing(self):
+        self._implemented_stack()
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("Not ready", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_acceptance_brief_requires_the_map(self):
+        self._testing_stack()
+        result = self.invoke("prompt_acceptance_test_writer", 60)
+        self.assertNotEqual(result.code, 0)
+        self.assertIn("--traceability", result.stderr)
+
     # --- refusals ---
 
     def test_a_record_that_is_not_due_refuses_rather_than_briefing(self):
@@ -206,7 +254,7 @@ class PromptCommandTest(PromptHarness):
 
     def test_an_unknown_brief_command_is_rejected(self):
         self._eligible_task()
-        result = self.invoke("prompt", "task-planner", 60)
+        result = self.invoke("prompt", "bogus-command", 60)
         self.assertEqual(result.code, 1)
         self.assertIn("task-implementer", result.stderr)
         self.assertEqual(result.stdout, "")
@@ -214,5 +262,132 @@ class PromptCommandTest(PromptHarness):
     def test_prompt_alone_names_the_brief_it_can_build(self):
         result = self.invoke("prompt", "--help")
         self.assertEqual(result.code, 0, result.stderr)
-        for command in ("task-implementer", "task-reviewer", "task-test-writer"):
+        for command in (
+            "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
+            "tech-planner",
+        ):
             self.assertIn(command, result.stdout)
+
+    # --- task planner ---
+
+    def _planner_brief(self, *extra: str):
+        return self.invoke("prompt_task_planner", 60, *extra)
+
+    def test_first_pass_tasks_record_renders_the_brief(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn(
+            "Break this work item into the smallest dependency-ordered set of independently verifiable delivery tasks.",
+            result.stdout,
+        )
+        self.assertIn("## Work item `60`", result.stdout)
+        self.assertIn("FR-1: The record lands.", result.stdout)
+        self.assertEqual(result.stdout.count("--- BEGIN WORK ITEM ---"), 1)
+        self.assertEqual(result.stdout.count("--- END WORK ITEM ---"), 1)
+        self.assertLess(
+            result.stdout.index("--- BEGIN WORK ITEM ---"),
+            result.stdout.index("FR-1: The record lands."),
+        )
+        self.assertLess(
+            result.stdout.index("FR-1: The record lands."),
+            result.stdout.index("--- END WORK ITEM ---"),
+        )
+        self.assertNotIn("## Existing tasks", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("## Return\n\nReturn one body file for each new or rewritten task", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+
+    def test_first_pass_brief_names_no_pdlc_command_or_stage(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief()
+        for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
+            self.assertNotIn(leak, result.stdout)
+
+    def test_stale_record_carries_the_reason_and_existing_tree(self):
+        self._tasks_stage_stale_with_existing_tree()
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Existing tasks", result.stdout)
+        self.assertIn("## Changes needed", result.stdout)
+        self.assertIn("Invalidated stage: Tasks", result.stdout)
+        self.assertIn("number: 601", result.stdout)
+        self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
+        self.assertIn("--- BEGIN TASK BODY ---\n\n## Scope\nx\n\n## Acceptance criteria\n- ok\n\n--- END TASK BODY ---", result.stdout)
+        self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
+
+    def test_follow_up_is_carried_verbatim(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief("--follow-up", "text:split the export task in two")
+        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("### Change requests", result.stdout)
+        self.assertIn(
+            "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
+            "verbatim.\n\nsplit the export task in two",
+            result.stdout,
+        )
+        self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
+
+    def test_changes_required_record_carries_open_review_findings(self):
+        self.seed_record(60, "Tasks", "Changes Required", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.add_rework_review(60, stage="Tasks")
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Changes needed", result.stdout)
+        self.assertIn("## Findings\n\n- detail", result.stdout)
+
+    def test_a_record_not_at_tasks_refuses(self):
+        self.seed_record(60, "Testing", "Pending", slug="record-60")
+        result = self._planner_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("not Tasks", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    # --- tech planner ---
+
+    def _tech_brief(self, *extra: str):
+        return self.invoke("prompt_tech_planner", 60, *extra)
+
+    def test_tech_planner_carries_open_tasks_and_skips_implemented_ones(self):
+        self._plan_stage()
+        result = self._tech_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("### `WORK-60-TASK-001` [CORE] Core work (#601)\n\n--- BEGIN TASK ---", result.stdout)
+        self.assertIn("--- BEGIN EXISTING PLAN ---\n\nTouch one module.\n\n--- END EXISTING PLAN ---", result.stdout)
+        self.assertIn("### `WORK-60-TASK-002` [UI] Second (#602)\n\n--- BEGIN TASK ---", result.stdout)
+        self.assertEqual(result.stdout.count("--- BEGIN EXISTING PLAN ---"), 1)
+        self.assertIn("- No plan yet (TASK-002): plan these from scratch.", result.stdout)
+        # Nothing to check a planned task against, so it is left alone.
+        self.assertIn("- Already planned (TASK-001): leave these alone.", result.stdout)
+        self.assertNotIn("WORK-60-TASK-003", result.stdout)
+        self.assertIn("## Designing the plan", result.stdout)
+        self.assertNotIn("## Shape of the change", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+        for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
+            self.assertNotIn(leak, result.stdout)
+
+    def test_tech_planner_carries_the_stage_evidence_and_follow_up(self):
+        self._plan_stage(gate="Stale")
+        self.add_invalidation(60, stage="Technical Plan")
+        result = self._tech_brief("--follow-up", "text:re-spike TASK-001")
+        self.assertIn("Invalidated stage: Technical Plan", result.stdout)
+        self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
+        self.assertIn("- Already planned (TASK-001): check each against the change requests and driver follow-up below.", result.stdout)
+        self.assertIn("The change requests and driver follow-up below apply to this pass.", result.stdout)
+        self.assertIn("### Driver follow-up\n\nA change the driver asked for, or findings from a review of your plans, verbatim.\n\nre-spike TASK-001\n", result.stdout)
+
+    def test_tech_planner_refuses_a_record_not_at_technical_plan(self):
+        self._tasks_stage_pending()
+        result = self._tech_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("not Technical Plan", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_tech_planner_refuses_when_every_task_is_implemented(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] Done")
+        result = self._tech_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("nothing to plan", result.stderr)

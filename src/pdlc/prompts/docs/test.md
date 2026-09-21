@@ -49,6 +49,8 @@ Write and run the coverage directly and return one report.
   green. The one exception: a new test that correctly exposes a genuine
   production defect stays red and is reported — never weakened to pass.
 
+{{INCLUDE:shared/test-behaviour.md}}
+
 {{INCLUDE:shared/code-comments.md}}
 
 ## Report back

@@ -7,7 +7,7 @@ Perform a technical feasibility spike for supplied unfinished delivery tasks and
 
 ## Required input
 
-Require the parent work item number and complete body; and, for every task in scope, its number, stable `TASK-NNN` id, full current body, dependencies, and acceptance criteria. Also require existing plan text when reconciling, the driver's follow-up verbatim, and relevant source-ownership and architecture constraints.
+Require the parent work item number and complete body; and, for every task in scope, its number, stable `TASK-NNN` id, full current body, dependencies, and acceptance criteria. Also require existing plan text when reconciling, and the driver's follow-up verbatim.
 
 If given a follow-up (e.g. "re-spike TASK-003", "the last plan was wrong about the tile cache"), scope your spike to it instead of re-planning every task — but you must not leave an open, unimplemented task with no plan at all, counting plans already recorded.
 

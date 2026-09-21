@@ -89,8 +89,8 @@ class PromptHarness(FileBackendTest):
         )
         self._plan(60, 601)
 
-    def _implemented_stack(self, gate: str = "Changes Required") -> None:
-        self.seed_record(60, "Implementation", gate, slug="record-60")
+    def _implemented_stack(self, gate: str = "Changes Required", status: str = "Implementation") -> None:
+        self.seed_record(60, status, gate, slug="record-60")
         self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
         self.seed_task(60, 602, "TASK-002", "CLOSED", "WORK-60-TASK-002 [UI] Second")
         for number in (601, 602):
@@ -120,3 +120,46 @@ class PromptHarness(FileBackendTest):
         path = self.records_dir() / "60" / "tasks" / "601" / "comments.jsonl"
         kept = [line for line in path.read_text().splitlines() if "## Implementation" not in line]
         path.write_text("".join(f"{line}\n" for line in kept))
+
+    def _tasks_stage_pending(self) -> None:
+        """A first-pass Tasks record with no delivery tasks yet."""
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+
+    def _tasks_stage_stale_with_existing_tree(self) -> None:
+        """A Tasks record returned for rework, with one existing task to
+        reconcile against and a recorded reason it went Stale."""
+        self.seed_record(60, "Tasks", "Stale", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.add_invalidation(60, stage="Tasks")
+
+    def _plan_stage(self, gate: str = "Pending") -> None:
+        """A Technical Plan record: one task planned, one needing a plan, and
+        one already implemented that the brief must leave out."""
+        self.seed_record(60, "Technical Plan", gate, slug="record-60")
+        self.seed_task(
+            60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work",
+            body="## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
+        )
+        self._plan(60, 601)
+        self.seed_task(
+            60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Second",
+            body="## Scope\nShow it.\n\nCovers FR-2, UJ-1.\n\n## Acceptance criteria\n- it shows\n",
+        )
+        self.seed_task(60, 603, "TASK-003", "CLOSED", "WORK-60-TASK-003 [CORE] Done")
+        self._plan(60, 603)
+        self.seed_implementation_comment(60, 603, "Shipped.")
+
+    def _testing_stack(self, gate: str = "Pending") -> None:
+        """Both tasks implemented and the record at Testing, each PR touching
+        its own files plus one shared file, so the brief's source list must
+        de-duplicate."""
+        self._implemented_stack(gate, status="Testing")
+        self._prs([
+            {"number": number, "title": "t", "url": f"u{number}", "state": "OPEN", "isDraft": False,
+             "branch": "b", "mergedAt": None, "checks": "SUCCESS"}
+            for number in (40, 41)
+        ])
+        files = {40: ["src/a.py", "src/shared.py"], 41: ["src/b.py", "src/shared.py"]}
+        patcher = patch("pdlc.commands.inspect_test._files_for_pull_request", side_effect=lambda pr: files[pr["number"]])
+        patcher.start()
+        self.addCleanup(patcher.stop)

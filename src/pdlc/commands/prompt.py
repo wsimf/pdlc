@@ -9,6 +9,9 @@ COMMANDS
     task-implementer   brief the sub-agent that writes one delivery task's code
     task-reviewer      brief the reviewer that reads one dispatch's commits
     task-test-writer   brief the test writer that covers one dispatch's change
+    acceptance-test-writer  brief the test writer that covers the whole implemented scope
+    task-planner       brief the sub-agent that decomposes a record into delivery tasks
+    tech-planner       brief the sub-agent that spikes the open delivery tasks into plans
 
 DESCRIPTION
     Prints one complete sub-agent brief for the unit of work a record has next,
@@ -17,11 +20,16 @@ DESCRIPTION
     boundaries the agent works inside, and it names no PDLC command, stage, or
     gate.
 
-    Every command above describes the same unit, so the implementer, the
-    reviewer, and the test writer are held to one task, one plan, and one set
-    of acceptance criteria on a given pass. They differ only in what each
+    The three `task-*` commands describe the same unit, so the implementer,
+    the reviewer, and the test writer are held to one task, one plan, and one
+    set of acceptance criteria on a given pass. They differ only in what each
     sub-agent needs that the record cannot supply, which is why they take
-    different flags.
+    different flags. `acceptance-test-writer` describes the whole implemented
+    scope once every task has landed, rather than one task. `task-planner`
+    describes the record itself, ahead of any delivery task existing, so it
+    belongs to the Tasks stage rather than the Implementation loop the other
+    four cover. `tech-planner` describes every open delivery task at once,
+    ahead of any of them being built.
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
@@ -34,6 +42,9 @@ DESCRIPTION
 EXAMPLES
     pdlc prompt task-implementer 236
     pdlc prompt task-reviewer 236 --commits HEAD~2..HEAD
+    pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md
+    pdlc prompt task-planner 236
+    pdlc prompt tech-planner 236
 
 LEARN MORE
     Run `pdlc prompt COMMAND --help` for that command's own usage and flags.
@@ -46,12 +57,15 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from pdlc.commands.inspect import _task_front_matter
 from pdlc.commands.inspect_capability import _name as capability_name
 from pdlc.commands.inspect_capability import _one as capability_line
+from pdlc.commands.inspect_test import readiness as testing_readiness
+from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import evidence_comment_text, item_gate, timeline_formatted_at
+from pdlc.domain.model import evidence_comment_text, item_gate, item_status, timeline_formatted_at
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.internal.vcs import diff_stat, diff_text, touched_files
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
@@ -81,7 +95,10 @@ from pdlc.commands.inspect_implement import (
     _stack_order,
 )
 
-BRIEF_COMMANDS = ("task-implementer", "task-reviewer", "task-test-writer")
+BRIEF_COMMANDS = (
+    "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
+    "tech-planner",
+)
 
 
 def _parent_body(item: dict) -> str:
@@ -278,8 +295,7 @@ def _test_brief(unit: _Unit, commits: str, changed: str, traceability: str, find
         {
             "EXECUTION_SCOPE": "this one task",
             **_task_context(unit.task),
-            "TEST_AUTHORING": capability_line("test-authoring"),
-            "TEST_FRAMEWORK": capability_name("test-framework") and capability_line("test-framework"),
+            **_capability_lines(),
             "TRACEABILITY_MAP": traceability,
             "IN_SCOPE_SOURCE": "\n".join(f"- {name}" for name in files) or "none",
             "WHAT_CHANGED": changed,
@@ -310,6 +326,149 @@ def test_writer_brief(
         resolve_text(report, label="--report"),
         resolve_text(traceability, label="--traceability"),
         resolve_text(findings, label="--findings") if findings else "",
+    )
+
+
+def _capability_lines() -> dict[str, object]:
+    """The test-authoring line, and the test-framework line when one is routed."""
+    return {
+        "TEST_AUTHORING": capability_line("test-authoring"),
+        "TEST_FRAMEWORK": capability_name("test-framework") and capability_line("test-framework"),
+    }
+
+
+def acceptance_test_writer_brief(work_item: str, traceability: str, findings: str | None) -> str:
+    """The brief for the test writer covering the record's whole implemented scope.
+
+    The scope and readiness are `pdlc inspect test`'s own, so the brief covers
+    exactly what that command lists. Findings are the stage's open change
+    requests off the record; `findings` adds what the record cannot carry, such
+    as a red check's log excerpt.
+    """
+    item, tasks, comments = record_snapshot(work_item)
+    ready, message = testing_readiness(item)
+    if not ready:
+        raise PdlcError(message)
+    scope = testable_scope(tasks, record_pull_requests(work_item, record=item, tasks=tasks))
+    if not scope:
+        raise PdlcError("no task has closed with its implementation recorded yet — nothing is implemented")
+
+    files = list(dict.fromkeys(name for _, prs in scope for _, touched in prs for name in touched))
+    numbers = [f"#{pr['number']}" for _, prs in scope for pr, _ in prs]
+    requests = open_change_requests(comments, pipeline_for_item(item), item["Status"]).requests
+    blocks = [_requests_text(list(requests))] if requests else []
+    if findings:
+        blocks.append(f"### Additional findings\n\n{resolve_text(findings, label='--findings').strip()}")
+    return render(
+        "acceptance-test",
+        {
+            "EXECUTION_SCOPE": "this one implemented scope",
+            **_capability_lines(),
+            "TRACEABILITY_MAP": resolve_text(traceability, label="--traceability").strip(),
+            "IN_SCOPE_SOURCE": "\n".join(f"- {name}" for name in files) or "none",
+            "IMPLEMENTED_TASKS": "\n".join(
+                f"- `{task_tag(task)}` {task_headline(task)}" for task, _ in scope
+            ),
+            "TASK_NUMBERS": ", ".join(f"`{task['number']}`" for task, _ in scope),
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PULL_REQUESTS": ", ".join(f"`{number}`" for number in dict.fromkeys(numbers)) or "none registered",
+            "FINDINGS": "\n\n".join(blocks),
+        },
+    )
+
+
+def task_planner_brief(work_item: str, follow_up: str | None) -> str:
+    """The brief for the sub-agent decomposing the record into delivery tasks.
+
+    Due only while `Status` is `Tasks`; `follow_up` carries the driver's
+    verbatim request on a re-authoring pass, read the same way `--findings`
+    reaches the test-writer briefs.
+    """
+    item, tasks, comments = record_snapshot(work_item)
+    status = item_status(item)
+    if status != "Tasks":
+        raise PdlcError(f"no task breakdown is due: the record is at {status or 'an unset status'}, not Tasks")
+
+    delivery = [task for task in tasks if task.get("taskId")]
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
+    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    change_sources = " and ".join(
+        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
+    )
+
+    return render(
+        "task-planner",
+        {
+            "EXECUTION_SCOPE": "this one breakdown",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "EXISTING_TASKS": [
+                {
+                    "TASK_ID": str(task["taskId"]),
+                    "TASK_METADATA": _task_front_matter(task),
+                    "TASK_BODY": (task.get("body") or "").strip(),
+                }
+                for task in delivery
+            ],
+            "CHANGE_SOURCES": change_sources,
+            "CHANGE_REQUESTS": change_requests,
+            "DRIVER_FOLLOWUP": driver_followup,
+        },
+    )
+
+
+def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
+    """The brief for the sub-agent spiking the record's open tasks into plans.
+
+    Due only while `Status` is `Technical Plan`. Every open, unimplemented task
+    is carried with its existing plan, so a reconciling pass sees what it would
+    overwrite; which of them the evidence sends back is the planner's call.
+    """
+    item, tasks, comments = record_snapshot(work_item)
+    status = item_status(item)
+    if status != "Technical Plan":
+        raise PdlcError(f"no technical plan is due: the record is at {status or 'an unset status'}, not Technical Plan")
+
+    scope = sorted(
+        (
+            task for task in tasks
+            if task.get("taskId") and task["state"] != "CLOSED" and not task["hasImplementation"]
+        ),
+        key=_stack_order,
+    )
+    if not scope:
+        raise PdlcError("nothing to plan: no delivery task is open and unimplemented")
+
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
+    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    # The sections a planned task is checked against; only those that render are named.
+    change_sources = " and ".join(
+        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
+    )
+    unplanned = ", ".join(task["taskId"] for task in scope if not task["hasPlan"])
+    planned = ", ".join(task["taskId"] for task in scope if task["hasPlan"])
+    return render(
+        "tech-planner",
+        {
+            "EXECUTION_SCOPE": "this one planning pass",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "UNPLANNED_TASKS": unplanned,
+            "PLANNED_TASKS": planned,
+            "PLANNED_TO_CHECK": bool(planned and change_sources),
+            "PLANNED_SETTLED": bool(planned and not change_sources),
+            "CHANGE_SOURCES": change_sources,
+            "TASKS": [
+                {
+                    **_task_context(task),
+                    "TASK_NUMBER": str(task["number"]),
+                    "EXISTING_PLAN": plan_body(task) if task["hasPlan"] else "",
+                }
+                for task in scope
+            ],
+            "CHANGE_REQUESTS": change_requests,
+            "DRIVER_FOLLOWUP": driver_followup,
+        },
     )
 
 

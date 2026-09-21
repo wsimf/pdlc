@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to plan"
 
 Prepare the Technical Plan for every delivery task that needs one. `pdlc-tech-planner` spikes the tasks against current source and authors the plans, `pdlc-plan-reviewer` checks the local plan files, and `pdlc post plan` validates and lands the reviewed plans at `Approval Required`. This skill owns orchestration; it never decides the plan's technical content. Review runs on the local files, before anything is landed.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/tech-planner-prompt.md`](references/tech-planner-prompt.md) and [`references/plan-review-prompt.md`](references/plan-review-prompt.md) as dispatch templates.
+Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/plan-review-prompt.md`](references/plan-review-prompt.md) as the review dispatch template. `pdlc prompt tech-planner` builds the tech planner's brief; this skill passes it through untouched and never writes a brief of its own.
 
 ## Resolve
 
@@ -34,23 +34,17 @@ Follow `# Due Next` for what to do, whatever produced that state, including a re
 
 Any other due next result, a malformed record, missing evidence, unavailable workflow, or backend error is a blocker: report it and stop.
 
-Carry the driver's follow-up verbatim. For `Stale` and `Changes Required`, reconcile against the existing plans and the recorded evidence; preserve plans the evidence does not touch. This step is complete when the valid authoring mode, the evidence, and the exact follow-up are included in the dispatch.
+Carry the driver's follow-up verbatim. For `Stale` and `Changes Required`, reconcile against the existing plans and the recorded evidence; preserve plans the evidence does not touch. This step is complete when the valid authoring mode is settled and the exact follow-up is in hand for the dispatch.
 
 ## Scope
 
 The `# Tasks` tree marks each task `needsPlan` (open with no Technical Plan), `hasPlan`, and `hasImplementation`. This pass plans every `needsPlan` task, plus any already-planned task the evidence or the driver's follow-up sends back for reconciliation. A tree with no tasks is a blocker: report it and stop.
 
-Fetch the full body of every task in scope:
-
-```bash
-pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]
-```
-
-This step is complete when every task in scope has its full body and any existing plan text in hand.
+The planner's brief carries every open task's body and existing plan itself. Fetch them with `pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]` only for the review-only path and for Review. This step is complete when the scope is known.
 
 ## Author
 
-Dispatch `pdlc-tech-planner` once, building the prompt from [`references/tech-planner-prompt.md`](references/tech-planner-prompt.md) with the complete parent body, every in-scope task body, existing plan text when reconciling, the recorded evidence, the driver's verbatim follow-up, and the source-ownership and architecture constraints. Keep the dispatch addressable: Review returns findings to the same planner.
+Dispatch `pdlc-tech-planner` once with the brief `pdlc prompt tech-planner WORK_ITEM [--follow-up FILE] --file` writes; `--follow-up` carries the driver's verbatim follow-up when there is one. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing. Keep the dispatch addressable: Review returns findings to the same planner.
 
 The planner is the leaf author: it returns heading-free plan content per task plus a manifest, and never retypes a task's scope or acceptance criteria. A missing prerequisite or a decision only the driver can make stops the pass; surface it exactly rather than re-dispatching with a guessed answer.
 
@@ -71,7 +65,7 @@ Call `pdlc post plan --help` for the checks it runs. It writes nothing. Send eve
 
 Dispatch `pdlc-plan-reviewer` with [`references/plan-review-prompt.md`](references/plan-review-prompt.md), the complete parent body, every plan file, and each in-scope task's current body and existing plan. The reviewer is read-only and must review the actual files, not a summary.
 
-On findings, send them verbatim to the same planner, then repeat Validate and Review on the same paths with the prior findings. On a clean verdict, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The verdict is a working step and is never posted to the record. This step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
+On findings, send them verbatim to the same planner by re-running `pdlc prompt tech-planner WORK_ITEM --follow-up FILE --file` with the findings as the follow-up, then repeat Validate and Review on the same paths with the prior findings. On a clean verdict, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The verdict is a working step and is never posted to the record. This step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 
 ## Land
 
