@@ -68,6 +68,7 @@ name = "file"
 | `organization` | Required for the `azure` backend | — | Azure DevOps organization URL. |
 | `project` | Required for the `azure` backend | — | Azure DevOps project; also the reference label on evidence. |
 | `record_type` | Optional | `Product Backlog Item` | Work-item type used for PDLC records. |
+| `area_path` | Optional | Project root | Area path new records are created under; delivery tasks inherit their parent record's area path. |
 | `open_state` | Optional | `To Do` | State written when a record opens. |
 | `closed_state` | Optional | `Done` | State written when `pdlc post complete` closes a record. |
 | `task_open_state` | Optional | `open_state` | Open state for delivery tasks, when their type uses a different vocabulary. |

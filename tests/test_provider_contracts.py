@@ -195,8 +195,8 @@ class AzureRecoveryTests(unittest.TestCase):
         with patch("pdlc.hosts.lib.azure.workitem_backend.azure.tasks_with_identity", side_effect=[[], [self.candidate]]), patch("pdlc.hosts.lib.azure.workitem_backend.azure.create", return_value={"id": 8}) as create, patch("pdlc.hosts.lib.azure.workitem_backend.azure.add_parent", side_effect=[PdlcError("link failed"), None]) as link, patch("pdlc.hosts.lib.azure.workitem_backend.azure.item_url", return_value="url"), patch("pdlc.hosts.lib.azure.workitem_backend._assignee", return_value="probe@example.com"):
             backend = AzureWorkItemBackend()
             with self.assertRaisesRegex(PdlcError, "link failed"):
-                backend._upsert(7, self.task, None)
-            result = backend._upsert(7, self.task, None)
+                backend._upsert(7, "", self.task, None)
+            result = backend._upsert(7, "", self.task, None)
         self.assertEqual(result["number"], 8)
         create.assert_called_once()
         self.assertEqual(link.call_count, 2)
@@ -206,13 +206,13 @@ class AzureRecoveryTests(unittest.TestCase):
         for candidates in ([self.candidate, self.candidate], [foreign]):
             with self.subTest(candidates=candidates), patch("pdlc.hosts.lib.azure.workitem_backend.azure.tasks_with_identity", return_value=candidates), patch("pdlc.hosts.lib.azure.workitem_backend.azure.create") as create:
                 with self.assertRaises(PdlcError):
-                    AzureWorkItemBackend()._upsert(7, self.task, None)
+                    AzureWorkItemBackend()._upsert(7, "", self.task, None)
                 create.assert_not_called()
 
     def test_recovery_does_not_repeat_an_existing_parent_link(self):
         linked = {**self.candidate, "fields": {**self.candidate["fields"], azure.PARENT_FIELD: 7}}
         with patch.object(azure, "tasks_with_identity", return_value=[linked]), patch.object(azure, "add_parent") as link, patch.object(azure, "item_url", return_value="url"):
-            result = AzureWorkItemBackend()._upsert(7, self.task, None)
+            result = AzureWorkItemBackend()._upsert(7, "", self.task, None)
         self.assertEqual(result["number"], 8)
         link.assert_not_called()
 

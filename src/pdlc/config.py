@@ -30,6 +30,7 @@ CONFIG_FIELDS = {
     ("backend.azure", "organization"): "azure_org",
     ("backend.azure", "project"): "azure_project",
     ("backend.azure", "record_type"): "azure_record_type",
+    ("backend.azure", "area_path"): "azure_area_path",
     ("backend.azure", "closed_state"): "azure_closed_state",
     ("backend.azure", "open_state"): "azure_open_state",
     ("backend.azure", "task_closed_state"): "azure_task_closed_state",
@@ -122,6 +123,9 @@ class Config:
     azure_org: str | None = None
     azure_project: str | None = None
     azure_record_type: str | None = None
+    # Area path new records are filed under; unset leaves Azure's default (the
+    # project root). Delivery tasks inherit their parent record's area path.
+    azure_area_path: str | None = None
     azure_closed_state: str | None = None
     azure_open_state: str | None = None
     # Delivery tasks (`Task`) commonly use a different state vocabulary than
