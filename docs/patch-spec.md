@@ -28,7 +28,7 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 1. A stage owner (or its reviewer) finds an issue in an upstream artifact.
 2. The owner drafts the corrected artifact in the same input form that artifact's landing command already takes.
 3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. This produces `--evidence`.
-4. If any non-skipped stage lies between the patched stage and the active stage, or the active stage already has landed work (closed tasks), `pdlc-patch-reviewer` reads the reviewed diff and every downstream artifact and returns the earliest affected stage, or `none`. This produces `--impact`.
+4. If any non-skipped stage lies between the patched stage and the active stage, or the active stage already has landed work (closed tasks), the internal patch reviewer (see below) reads the reviewed diff and every downstream artifact and returns the earliest affected stage, or `none`. This produces `--impact`.
 5. If the verdict is `none`: land with `--patch`. Otherwise: `pdlc post invalidate <stage> [--task N ...]` with the impact report as evidence, and the normal stage flow takes over.
 
 The patch reviewer runs after the stage review so it judges the diff that will actually land.
@@ -112,9 +112,17 @@ Patches do not count towards the rework / churn limit.
 
 Host I/O stays in the commands and one shared helper in `internal/invalidation.py` (`land_patch`), next to `reauthor_invalidate_stage`.
 
-## `pdlc-patch-reviewer` sub-agent
+## Patch reviewer (internal)
 
-A new read-only reviewer shipped with the other reviewers (`agent/sub-agents/{claude,codex}/pdlc-patch-reviewer.*`), dispatched the same way they are.
+The patch reviewer judges the PDLC process itself, not the work item's product or code, so PDLC owns it outright:
+
+- **Not shipped as a sub-agent declaration.** There is no `pdlc-patch-reviewer` file under `agent/sub-agents/`, so nothing is installed into a consuming repo's agent directory and nothing there can shadow or replace it.
+- **Not routable.** There is no `[agents]` / `[skills]` slot for it and `pdlc inspect capability` does not know it. Repo and machine config cannot override it.
+- **Brief owned by the package.** The prompt lives in `src/pdlc/prompts/docs/patch-review.md` and is rendered by a hidden `pdlc prompt patch-reviewer WORK_ITEM --stage STAGE --diff FILE --file` leaf. The leaf is absent from `pdlc --help` and the `pdlc prompt --help` index (like `prepare` / `cleanup`); only `pdlc guide patch` names it.
+- **Dispatched to the built-in `general-purpose` agent** with that brief, handed over by path exactly as `pdlc-implement` hands over its briefs. The brief is the whole reviewer: role, read-only rule, inputs, and output format.
+- **Read-only by instruction.** `general-purpose` has write tools, so the calling skill checks the working tree is unchanged after the dispatch and discards the verdict if it is not.
+
+Brief contents:
 
 - **Input:** the work item number, patched stage, active stage, and the reviewed patch (the diff between the landed artifact and the draft).
 - **Reads:** every landed artifact downstream of the patched stage, including the active stage's closed tasks and their PRs when the active stage is Implementation or Testing.
@@ -132,8 +140,6 @@ A new read-only reviewer shipped with the other reviewers (`agent/sub-agents/{cl
 
   When the earliest affected stage is Technical Plan or Implementation, it also names the affected task ids so the caller can pass `--task`.
 - It never edits the record, the draft, or source.
-
-The prompt lives in `src/pdlc/prompts/docs/` like the other briefs if a `pdlc prompt patch-reviewer` leaf is wanted; otherwise the owning skill dispatches it directly.
 
 ## Human boundary
 
@@ -156,6 +162,7 @@ Open question: whether a Product patch should instead require explicit driver ap
 - Domain: `Event.PATCHED` per gate; `can_patch` matrix; `intermediate_stages` with skipped stages.
 - Commands (file backend): each of the three commands lands under `--patch` without moving the pointer; resets `Review Required` / `Approval Required` to `Stale`; requires `--impact` exactly when intermediate stages or closed tasks exist; refuses a non-`none` verdict; each structural refusal leaves the record untouched; `PDLC-PATCHED` comment content; completion still passes after a patch.
 - `inspect`: patches since last approval render under Approval Required.
+- `prompt patch-reviewer`: golden brief fixtures; absent from `pdlc --help` and `pdlc prompt --help`; no capability slot resolves it.
 
 ## Open questions
 
