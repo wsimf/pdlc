@@ -277,12 +277,25 @@ class PromptCommandTest(PromptHarness):
         self._tasks_stage_pending()
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("Decompose this PDLC record into a dependency-ordered set of delivery tasks.", result.stdout)
-        self.assertIn("`60` — full body", result.stdout)
+        self.assertIn(
+            "Break this work item into the smallest dependency-ordered set of independently verifiable delivery tasks.",
+            result.stdout,
+        )
+        self.assertIn("## Work item `60`", result.stdout)
         self.assertIn("FR-1: The record lands.", result.stdout)
-        self.assertIn("n/a — first pass", result.stdout)
-        self.assertIn("No Tasks", result.stdout)
-        self.assertIn("Driver follow-up\n\nnone", result.stdout)
+        self.assertEqual(result.stdout.count("--- BEGIN WORK ITEM ---"), 1)
+        self.assertEqual(result.stdout.count("--- END WORK ITEM ---"), 1)
+        self.assertLess(
+            result.stdout.index("--- BEGIN WORK ITEM ---"),
+            result.stdout.index("FR-1: The record lands."),
+        )
+        self.assertLess(
+            result.stdout.index("FR-1: The record lands."),
+            result.stdout.index("--- END WORK ITEM ---"),
+        )
+        self.assertNotIn("## Existing tasks", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("## Return\n\nReturn one body file for each new or rewritten task", result.stdout)
         self.assertNotIn("{{", result.stdout)
 
     def test_first_pass_brief_names_no_pdlc_command_or_stage(self):
@@ -295,15 +308,34 @@ class PromptCommandTest(PromptHarness):
         self._tasks_stage_stale_with_existing_tree()
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("Gate State`: `Stale`", result.stdout)
+        self.assertIn("## Existing tasks", result.stdout)
+        self.assertIn("## Changes needed", result.stdout)
         self.assertIn("Invalidated stage: Tasks", result.stdout)
         self.assertIn("number: 601", result.stdout)
         self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
+        self.assertIn("--- BEGIN TASK BODY ---\n\n## Scope\nx\n\n## Acceptance criteria\n- ok\n\n--- END TASK BODY ---", result.stdout)
+        self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
 
     def test_follow_up_is_carried_verbatim(self):
         self._tasks_stage_pending()
         result = self._planner_brief("--follow-up", "text:split the export task in two")
-        self.assertIn("Driver follow-up\n\nsplit the export task in two", result.stdout)
+        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("### Change requests", result.stdout)
+        self.assertIn(
+            "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
+            "verbatim.\n\nsplit the export task in two",
+            result.stdout,
+        )
+        self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
+
+    def test_changes_required_record_carries_open_review_findings(self):
+        self.seed_record(60, "Tasks", "Changes Required", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.add_rework_review(60, stage="Tasks")
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Changes needed", result.stdout)
+        self.assertIn("## Findings\n\n- detail", result.stdout)
 
     def test_a_record_not_at_tasks_refuses(self):
         self.seed_record(60, "Testing", "Pending", slug="record-60")
@@ -321,12 +353,17 @@ class PromptCommandTest(PromptHarness):
         self._plan_stage()
         result = self._tech_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("### `WORK-60-TASK-001` [CORE] Core work (#601)\n\nNeeds a plan: no — already planned", result.stdout)
-        self.assertIn("Touch one module.", result.stdout)
-        self.assertIn("### `WORK-60-TASK-002` [UI] Second (#602)\n\nNeeds a plan: yes", result.stdout)
+        self.assertIn("### `WORK-60-TASK-001` [CORE] Core work (#601)\n\n--- BEGIN TASK ---", result.stdout)
+        self.assertIn("--- BEGIN EXISTING PLAN ---\n\nTouch one module.\n\n--- END EXISTING PLAN ---", result.stdout)
+        self.assertIn("### `WORK-60-TASK-002` [UI] Second (#602)\n\n--- BEGIN TASK ---", result.stdout)
+        self.assertEqual(result.stdout.count("--- BEGIN EXISTING PLAN ---"), 1)
+        self.assertIn("- No plan yet (TASK-002): plan these from scratch.", result.stdout)
+        # Nothing to check a planned task against, so it is left alone.
+        self.assertIn("- Already planned (TASK-001): leave these alone.", result.stdout)
         self.assertNotIn("WORK-60-TASK-003", result.stdout)
-        self.assertIn("## Shape of the change", result.stdout)
-        self.assertIn("Recorded evidence\n\nnone", result.stdout)
+        self.assertIn("## Designing the plan", result.stdout)
+        self.assertNotIn("## Shape of the change", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
         self.assertNotIn("{{", result.stdout)
         for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
             self.assertNotIn(leak, result.stdout)
@@ -336,7 +373,10 @@ class PromptCommandTest(PromptHarness):
         self.add_invalidation(60, stage="Technical Plan")
         result = self._tech_brief("--follow-up", "text:re-spike TASK-001")
         self.assertIn("Invalidated stage: Technical Plan", result.stdout)
-        self.assertIn("Driver follow-up\n\nre-spike TASK-001", result.stdout)
+        self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
+        self.assertIn("- Already planned (TASK-001): check each against the change requests and driver follow-up below.", result.stdout)
+        self.assertIn("The change requests and driver follow-up below apply to this pass.", result.stdout)
+        self.assertIn("### Driver follow-up\n\nA change the driver asked for, or findings from a review of your plans, verbatim.\n\nre-spike TASK-001\n", result.stdout)
 
     def test_tech_planner_refuses_a_record_not_at_technical_plan(self):
         self._tasks_stage_pending()

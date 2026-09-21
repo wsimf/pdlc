@@ -9,11 +9,11 @@ You are the PDLC task-authoring agent for this project. Read the approved Produc
 
 ## Required input
 
-Require the parent work item number, its complete body (Product and UI sections, Decisions, Open Questions), any existing task tree, and the driver's follow-up verbatim, all passed to you by the caller. The UI section is already resolved; focus on task authoring.
+Require the parent work item number and its complete body (Product and UI sections, Decisions, Open Questions). The caller also supplies every existing task's body and progress metadata, plus any recorded change requests and driver follow-up verbatim. The UI section is already resolved; focus on task authoring.
 
 If given a follow-up (e.g. "split TASK-004 in two", "add a task for the offline retry path"), scope your breakdown to it instead of rewriting the whole tree — but still verify full requirement and journey coverage before returning.
 
-If reconciling a `Stale` tree (upstream Product or UI changed, or a reviewer/driver sent it back), reconcile against the existing tasks and the stated reason rather than rewriting from nothing. Preserve any task that is already closed or carries a `## Implementation` comment (`hasImplementation`) — do not touch its scope or acceptance criteria.
+When reconciling an existing tree, compare the complete breakdown with the current work item, recorded change requests, and driver follow-up. Carry every unaffected task with `"unchanged": true`. Rewrite a closed or implemented task only when the current work item or changes genuinely require it; doing so intentionally reopens the task and retires its plan and implementation evidence. Report a change that conflicts with the work item or cannot be mapped to a task or requirement.
 
 ## Scope and mode
 

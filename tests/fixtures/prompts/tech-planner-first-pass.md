@@ -1,5 +1,4 @@
-Spike the delivery tasks below against current source and return an
-implementation-ready plan for each.
+Spike the delivery tasks below against current source and return an implementation-ready plan for each task that needs one.
 
 ## Execution boundary
 
@@ -8,14 +7,11 @@ You are being invoked as a leaf worker for this one planning pass.
 Do not invoke any `pdlc-*` skill.
 Do not spawn, dispatch, or ask another agent to do this work.
 Bounded, read-only codebase exploration is the only delegation allowed.
-Do not re-run the calling skill or rediscover the lifecycle stage.
-Author the plans directly and return the plan files and manifest to the
-calling skill.
+Work from this brief. Author the plans and return the plan files and manifest to the calling agent.
 
-## Parent work item
+## Work item `60`
 
-`60` — full body, including the `UI` section, Decisions, and
-Open Questions:
+--- BEGIN WORK ITEM ---
 
 ## Product
 
@@ -36,16 +32,18 @@ UJ-1 covers the first run.
 ## Open Questions
 - none
 
+--- END WORK ITEM ---
 
-## Tasks to plan
+## Tasks
 
-Every open, unimplemented task, lowest first. Plan each task marked as needing
-a plan. Re-plan a task that already carries one only when the recorded evidence
-or the driver follow-up sends it back; otherwise leave it alone.
+The open, unimplemented tasks for this work item, lowest in the stack first.
+
+- No plan yet (TASK-002): plan these from scratch.
+- Already planned (TASK-001): leave these alone. They are here as context for the tasks you plan.
 
 ### `WORK-60-TASK-001` [CORE] Core work (#601)
 
-Needs a plan: no — already planned
+--- BEGIN TASK ---
 
 ## Scope
 Build the seam.
@@ -55,13 +53,19 @@ Covers FR-1.
 ## Acceptance criteria
 - it works
 
-Existing plan:
+--- END TASK ---
+
+This task already has a plan:
+
+--- BEGIN EXISTING PLAN ---
 
 Touch one module.
 
+--- END EXISTING PLAN ---
+
 ### `WORK-60-TASK-002` [UI] Second (#602)
 
-Needs a plan: yes
+--- BEGIN TASK ---
 
 ## Scope
 Show it.
@@ -71,83 +75,40 @@ Covers FR-2, UJ-1.
 ## Acceptance criteria
 - it shows
 
-Existing plan:
+--- END TASK ---
 
-none recorded
+## Designing the plan
 
-## Recorded evidence
+Plan the approach, not the code: name where the change goes and what it affects, and leave types, signatures, and line-level edits to the implementer.
 
-none
+- Plan the change as if the task's requirement had been in the design from the start. Don't bolt it onto the current shape when the current shape is what makes it awkward.
+- Name the module that owns the new behaviour. Put a decision behind one source of truth rather than repeating it across several places.
+- Subtract before you add. When the task replaces existing behaviour, plan the removal first when it simplifies what follows, or alongside its replacement.
+- When the task replaces an internal API, plan to migrate its callers and delete the old one in the same task. Don't plan a compatibility shim kept only for internal callers.
+- Prefer the smallest change that satisfies the task. Don't plan a wrapper, layer, or abstraction with one caller, or thread a new signal through types, schemas, or pipelines when a direct path exists.
+- Where the codebase has no precedent for a decision, name the alternative you rejected and why.
+- Look for what the change can break beyond its call sites: persisted data, wire formats, config, flags, and code that reads the same data. Name the one fact the change's safety depends on and the check that proves it.
+- When the task touches a command, lifecycle step, or anything that can be retried or run concurrently, state what happens if it runs twice or stops halfway.
 
-## Driver follow-up
+Where one of these and a task conflict, say so in the plan rather than planning around it.
 
-none
+## Return
 
-## Shape of the change
-
-Make the smallest change that satisfies the task, and leave the code you touch
-simpler than you found it. Removals stay inside the files this task owns —
-anything wider is a line in your report, not a change.
-
-- Subtract before you add. Dead code, a stub, a redundant validator, or a
-  decision duplicated across the files you are touching goes first; build on
-  the smaller base.
-- Fewer lines beat elegant boilerplate. A wrapper, layer, or abstraction with
-  one caller is not worth its indirection.
-- Do not repeat a decision in several places. Put it behind one source of truth
-  and pass the result.
-- Do not thread a new signal through types, schemas, or pipelines when a direct
-  path exists. Where the plan asks for the threading, follow the plan and say
-  in your report where the direct path would have done.
-- When this task replaces an internal API, migrate its callers and delete the
-  old one here. A compatibility shim kept only because internal callers still
-  exist is dual-path complexity, not a migration.
-- If answering a question about this code takes tracing through more than about
-  three files, the shape is wrong.
-
-Types and boundaries:
-
-- Make illegal states unrepresentable. Model variants as a sum type rather than
-  a bag of optional fields whose contradictory combinations still compile. If
-  you could write a comment explaining which combinations are valid, the type
-  is too loose.
-- Give distinct meanings distinct types. Two parameters that share a primitive
-  type and mean different things should not be interchangeable.
-- Parse external data at the boundary — CLI arguments, config, network
-  payloads, stored rows — into the typed model, then trust the types inside. A
-  nil check deep in a call chain the boundary already covered is noise.
-- Do not lie to the compiler. A cast, force-unwrap, or assertion that bypasses
-  a fact you cannot prove is a runtime failure in waiting: prove it, model it
-  away, or report that you could not.
-- Match on a variant exhaustively, so a variant added later fails the build
-  instead of falling through silently.
-
-The implementer who carries out each plan is held to the rules above. Plan a
-change they can follow without breaking one: where a rule and the task pull
-apart, say so in the plan rather than planning around it.
-
-## What to return
-
-Per task planned, that task's **plan content only — no heading**, covering:
+Return a plan only for each task you plan or re-plan. Each plan is heading-free and covers:
 
 - files and modules that will change
 - interfaces and call sites
 - sequencing and inter-task dependencies
 - migration and rollback risk
 - test / validation strategy mapped to the task's acceptance criteria
-- any unresolved decision, called out explicitly
+- unresolved decisions, called out explicitly
 
-Each plan is posted as a standalone `## Technical Plan` comment on its delivery
-task and never touches the body, so do not retype scope, non-goals,
-dependencies, coverage, or acceptance criteria — they stay exactly as the task
-body states them.
+Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
 
-Return one plan file per task plus a manifest:
+Return one plan file per task, plus a manifest:
 
 ```json
 [{ "id": "TASK-003", "plan": "/tmp/plan-003.md" }]
 ```
 
-A pass need not cover every task, but must not leave any open unimplemented task
-with no plan at all. A missing prerequisite or a decision only the driver can
-make stops the pass — surface it exactly, do not guess an answer.
+A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.

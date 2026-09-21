@@ -1,4 +1,4 @@
-Decompose this PDLC record into a dependency-ordered set of delivery tasks.
+Break this work item into the smallest dependency-ordered set of independently verifiable delivery tasks.
 
 ## Execution boundary
 
@@ -6,14 +6,11 @@ You are being invoked as a leaf worker for this one breakdown.
 
 Do not invoke any `pdlc-*` skill.
 Do not spawn, dispatch, or ask another agent to do this work.
-Do not re-run the calling skill or rediscover the lifecycle stage.
-Author the breakdown directly and return the task files and manifest to the
-calling skill.
+Work from this brief. Author the breakdown and return the task files and manifest to the calling agent.
 
-## Parent work item
+## Work item `60`
 
-`60` — full body, including the `UI` section and every
-`FR-*` / `C-*` / `UJ-*` identifier:
+--- BEGIN WORK ITEM ---
 
 ## Product
 
@@ -34,17 +31,17 @@ UJ-1 covers the first run.
 ## Open Questions
 - none
 
+--- END WORK ITEM ---
 
-## State
+## Existing tasks
 
-- `Status`: Tasks — `Gate State`: `Stale`.
-- Why it is `Stale` (if it is): ### Change request — 2026-04-01 00:00 UTC
+Reconcile this complete breakdown against the current work item and any changes below.
 
-Invalidated stage: Tasks
-detail
-- Existing task tree, if any — the `# Tasks` blocks verbatim, so each task's
-  `completed`, `hasPlan`, and `hasImplementation` are visible. Reconcile
-  against it rather than rewriting from scratch:
+- Rewrite, add, or remove only tasks affected by the current work item or the changes.
+- Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
+- Preserve complete requirement, journey, and dependency coverage across the resulting tree.
+
+### `TASK-001`
 
 ---
 number: 601
@@ -57,9 +54,36 @@ implementationInvalidated: false
 needsPlan: true
 ---
 
-## Driver follow-up
+--- BEGIN TASK BODY ---
 
-none
+## Scope
+x
+
+## Acceptance criteria
+- ok
+
+--- END TASK BODY ---
+
+## Changes needed
+
+The following change inputs apply to this pass: change requests. Reconcile each against the work item; the work item remains the contract.
+
+- Apply each change to the tasks it affects.
+- If a requested change conflicts with the work item, stop and report it.
+- If you cannot tell which task or requirement a change affects, stop and report it.
+
+### Change requests
+
+Findings recorded against this stage since it last published.
+
+--- BEGIN CHANGE REQUESTS ---
+
+### Change request — 2026-04-01 00:00 UTC
+
+Invalidated stage: Tasks
+detail
+
+--- END CHANGE REQUESTS ---
 
 ## Sequencing the tasks
 
@@ -87,9 +111,9 @@ the stack proves itself.
   path survives only when a requirement or constraint names an external
   consumer that needs it.
 
-## What to return
+## Return
 
-One body file per task, plus a manifest:
+Return one body file for each new or rewritten task, plus a manifest:
 
 ```json
 [
@@ -109,15 +133,14 @@ One body file per task, plus a manifest:
   `ui`, so `ui` must be a strict, accurate `true` / `false`.
 - `id` is optional: supply it to update an existing task, omit it for a new one
   (the script assigns the next number).
-- Preserve settled or implemented task scope unless the parent's requirements
-  actually changed it. Carry such a task forward with `{"id": "TASK-002",
+- Carry every unaffected existing task forward with `{"id": "TASK-002",
   "unchanged": true, "ui": false, "covers": [...], "depends": [...]}` — no
   `title`, no `body`. It stays in the breakdown and its coverage still counts,
   but nothing about it is rewritten and no later stage revisits it.
 - Supplying a `title` or `body` for a task whose work already landed rewrites
   it: a rewritten task that was closed is reopened and its plan and
   implementation evidence retired, so it is planned and built again. Do that
-  only when the requirements moved and the task genuinely has to change.
+  only when the current work item or changes genuinely require it.
 - `covers` / `depends` are machine-checked against the parent's own identifiers
   and against the graph — they must match what each task body actually says.
 

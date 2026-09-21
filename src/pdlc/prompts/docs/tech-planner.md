@@ -1,73 +1,101 @@
-Spike the delivery tasks below against current source and return an
-implementation-ready plan for each.
+Spike the delivery tasks below against current source and return an implementation-ready plan for each task that needs one.
 
 {{INCLUDE:shared/execution-boundary.md}}
 Bounded, read-only codebase exploration is the only delegation allowed.
-Do not re-run the calling skill or rediscover the lifecycle stage.
-Author the plans directly and return the plan files and manifest to the
-calling skill.
+Work from this brief. Author the plans and return the plan files and manifest to the calling agent.
 
-## Parent work item
+## Work item `{{PARENT_WORK_ITEM}}`
 
-`{{PARENT_WORK_ITEM}}` — full body, including the `UI` section, Decisions, and
-Open Questions:
+--- BEGIN WORK ITEM ---
 
 {{PARENT_BODY}}
 
-## Tasks to plan
+--- END WORK ITEM ---
 
-Every open, unimplemented task, lowest first. Plan each task marked as needing
-a plan. Re-plan a task that already carries one only when the recorded evidence
-or the driver follow-up sends it back; otherwise leave it alone.
+## Tasks
 
+The open, unimplemented tasks for this work item, lowest in the stack first.
+
+{{#IF UNPLANNED_TASKS}}
+- No plan yet ({{UNPLANNED_TASKS}}): plan these from scratch.
+{{/IF}}
+{{#IF PLANNED_TO_CHECK}}
+- Already planned ({{PLANNED_TASKS}}): check each against the {{CHANGE_SOURCES}} below. Re-plan only the ones that are out of date, starting from the existing plan.
+{{/IF}}
+{{#IF PLANNED_SETTLED}}
+- Already planned ({{PLANNED_TASKS}}): leave these alone. They are here as context for the tasks you plan.
+{{/IF}}
 {{#EACH TASKS}}
+
 ### `{{TASK_TAG}}` {{TASK_TITLE}} (#{{TASK_NUMBER}})
 
-Needs a plan: {{NEEDS_PLAN}}
+--- BEGIN TASK ---
 
 {{TASK_BODY}}
 
-Existing plan:
+--- END TASK ---
+{{#IF EXISTING_PLAN}}
 
-{{TECHNICAL_PLAN}}
+This task already has a plan:
 
+--- BEGIN EXISTING PLAN ---
+
+{{EXISTING_PLAN}}
+
+--- END EXISTING PLAN ---
+{{/IF}}
 {{/EACH}}
-## Recorded evidence
+{{#IF CHANGE_SOURCES}}
 
-{{EVIDENCE}}
+## Changes needed
 
-## Driver follow-up
+The {{CHANGE_SOURCES}} below apply to this pass. They take precedence over everything above except the task bodies.
+
+- Re-plan each task they affect. Start from its current plan and change only what they ask for.
+- Leave tasks they don't affect alone, and don't return them.
+- If they ask for something the task body doesn't allow, say so in the plan. Don't plan outside the task's scope.
+- If you can't tell which task they mean, stop and report it.
+{{#IF CHANGE_REQUESTS}}
+
+### Change requests
+
+Findings recorded against this stage since it last published.
+
+--- BEGIN CHANGE REQUESTS ---
+
+{{CHANGE_REQUESTS}}
+
+--- END CHANGE REQUESTS ---
+{{/IF}}
+{{#IF DRIVER_FOLLOWUP}}
+
+### Driver follow-up
+
+A change the driver asked for, or findings from a review of your plans, verbatim.
 
 {{DRIVER_FOLLOWUP}}
+{{/IF}}
+{{/IF}}
 
-{{INCLUDE:shared/change-shape.md}}
+{{INCLUDE:shared/plan-design.md}}
 
-The implementer who carries out each plan is held to the rules above. Plan a
-change they can follow without breaking one: where a rule and the task pull
-apart, say so in the plan rather than planning around it.
+## Return
 
-## What to return
-
-Per task planned, that task's **plan content only — no heading**, covering:
+Return a plan only for each task you plan or re-plan. Each plan is heading-free and covers:
 
 - files and modules that will change
 - interfaces and call sites
 - sequencing and inter-task dependencies
 - migration and rollback risk
 - test / validation strategy mapped to the task's acceptance criteria
-- any unresolved decision, called out explicitly
+- unresolved decisions, called out explicitly
 
-Each plan is posted as a standalone `## Technical Plan` comment on its delivery
-task and never touches the body, so do not retype scope, non-goals,
-dependencies, coverage, or acceptance criteria — they stay exactly as the task
-body states them.
+Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
 
-Return one plan file per task plus a manifest:
+Return one plan file per task, plus a manifest:
 
 ```json
 [{ "id": "TASK-003", "plan": "/tmp/plan-003.md" }]
 ```
 
-A pass need not cover every task, but must not leave any open unimplemented task
-with no plan at all. A missing prerequisite or a decision only the driver can
-make stops the pass — surface it exactly, do not guess an answer.
+A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.

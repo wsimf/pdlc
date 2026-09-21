@@ -16,12 +16,12 @@ DESCRIPTION
     stack first, with its full body, whether it still needs a plan, and its
     existing `## Technical Plan` text, so a reconciling pass sees what it would
     overwrite. The brief also carries every change request the stage has
-    received since it last published, read off the record; with none, it reads
-    "none".
+    received since it last published, read off the record; with none, that
+    section is omitted.
 
     `--follow-up` carries the driver's verbatim request, or a reviewer's
-    findings to send back to the planner; with nothing given, the brief reads
-    "none".
+    findings to send back to the planner; with nothing given, that section is
+    omitted.
 
 FLAGS
     --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass

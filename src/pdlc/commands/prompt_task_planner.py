@@ -11,15 +11,14 @@ DESCRIPTION
     sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
-    `Status` is not `Tasks`. The existing task tree, if any, is carried
-    verbatim as each task's front matter — `completed`, `hasPlan`,
-    `hasImplementation` — so a re-authoring pass reconciles against it rather
-    than rewriting from scratch. At `Gate State: Stale`, the brief also carries
-    why: every change request the stage has received since it last published,
-    read off the record.
+    `Status` is not `Tasks`. Every existing task is carried with its complete
+    body and progress metadata, so a re-authoring pass can preserve unaffected
+    tasks and rewrite only those the current work item or change inputs affect.
+    The brief also carries every open change request the Tasks stage has
+    received since it last published; with none, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
-    with nothing given, the brief reads "none".
+    with nothing given, that section is omitted.
 
 FLAGS
     --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass

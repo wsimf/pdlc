@@ -389,25 +389,30 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
     if status != "Tasks":
         raise PdlcError(f"no task breakdown is due: the record is at {status or 'an unset status'}, not Tasks")
 
-    gate = item_gate(item)
-    stale_reason = "n/a — first pass"
-    if gate == "Stale":
-        requests = open_change_requests(comments, pipeline_for_item(item), status).requests
-        stale_reason = _requests_text(list(requests)) or "n/a — no recorded reason"
-
     delivery = [task for task in tasks if task.get("taskId")]
-    existing_tasks = "\n\n".join(_task_front_matter(task) for task in delivery) or "No Tasks"
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
+    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    change_sources = " and ".join(
+        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
+    )
 
     return render(
         "task-planner",
         {
             "EXECUTION_SCOPE": "this one breakdown",
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
-            "PARENT_BODY": _parent_body(item),
-            "GATE_STATE": gate or "unset",
-            "STALE_REASON": stale_reason,
-            "EXISTING_TASKS": existing_tasks,
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "EXISTING_TASKS": [
+                {
+                    "TASK_ID": str(task["taskId"]),
+                    "TASK_METADATA": _task_front_matter(task),
+                    "TASK_BODY": (task.get("body") or "").strip(),
+                }
+                for task in delivery
+            ],
+            "CHANGE_SOURCES": change_sources,
+            "CHANGE_REQUESTS": change_requests,
+            "DRIVER_FOLLOWUP": driver_followup,
         },
     )
 
@@ -434,23 +439,35 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
     if not scope:
         raise PdlcError("nothing to plan: no delivery task is open and unimplemented")
 
-    requests = open_change_requests(comments, pipeline_for_item(item), status).requests
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
+    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    # The sections a planned task is checked against; only those that render are named.
+    change_sources = " and ".join(
+        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
+    )
+    unplanned = ", ".join(task["taskId"] for task in scope if not task["hasPlan"])
+    planned = ", ".join(task["taskId"] for task in scope if task["hasPlan"])
     return render(
         "tech-planner",
         {
             "EXECUTION_SCOPE": "this one planning pass",
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
-            "PARENT_BODY": _parent_body(item),
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "UNPLANNED_TASKS": unplanned,
+            "PLANNED_TASKS": planned,
+            "PLANNED_TO_CHECK": bool(planned and change_sources),
+            "PLANNED_SETTLED": bool(planned and not change_sources),
+            "CHANGE_SOURCES": change_sources,
             "TASKS": [
                 {
                     **_task_context(task),
                     "TASK_NUMBER": str(task["number"]),
-                    "NEEDS_PLAN": "yes" if task["needsPlan"] else "no — already planned",
+                    "EXISTING_PLAN": plan_body(task) if task["hasPlan"] else "",
                 }
                 for task in scope
             ],
-            "EVIDENCE": _requests_text(list(requests)) or "none",
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
+            "CHANGE_REQUESTS": change_requests,
+            "DRIVER_FOLLOWUP": driver_followup,
         },
     )
 
