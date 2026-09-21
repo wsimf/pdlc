@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to test"
 
 Verify acceptance coverage across the whole implemented feature — every in-scope requirement and user journey, end to end, on top of the per-task coverage each task already carries. You build the requirement-to-source traceability map, `pdlc-test-writer` writes the coverage and commits it on the current branch, so the top task PR carries the acceptance suite, and `pdlc post test` publishes the stage at `Review Required`. This skill never writes or runs tests itself.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/test-writer-prompt.md`](references/test-writer-prompt.md) as the dispatch template.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt acceptance-test-writer` builds the test writer's brief; this skill passes it through untouched and never writes a brief of its own.
 
 ## Resolve
 
@@ -50,7 +50,7 @@ Include every in-scope `FR-*` and task acceptance criterion. Include a `C-*` con
 
 ## Dispatch
 
-Spawn `pdlc-test-writer` once, building the prompt from [`references/test-writer-prompt.md`](references/test-writer-prompt.md) — the traceability map, the complete in-scope source list, the task/parent/PR numbers, and any `Changes Required` findings verbatim. Fill the prompt's two leading lines from `pdlc inspect capability test-authoring` and `pdlc inspect capability test-framework`.
+Spawn `pdlc-test-writer` once with the brief `pdlc prompt acceptance-test-writer WORK_ITEM --traceability MAP_FILE --file` writes. It arrives complete: the map, the in-scope source, the task, parent, and PR numbers, the stage's open change requests verbatim, and the project's test-authoring routing. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 
 The writer commits its coverage on the current branch and never pushes; neither do you. `pdlc post test` publishes the stack, so the top task PR carries the tests; there is no separate test PR.
 

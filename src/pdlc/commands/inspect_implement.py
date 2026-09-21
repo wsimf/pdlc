@@ -58,7 +58,10 @@ escalated again.
 `## Next Task` names the task with its `branch:` and whatever setup lines the
 configured code host needs to put that branch on its stack. For GitHub, the
 setup lines are `gh stack` invocations entered at the previous implemented
-task's registered pull request. For the first task of a worktree prepared with
+task's registered pull request. A work item's first task continues the stack
+the current branch already belongs to, if any, rather than starting a new one,
+so work can proceed on top of another work item's unmerged stack in the same
+checkout. For the first task of a worktree prepared with
 `pdlc prepare --after`, the predecessor work item's latest implemented task PR
 is reported as `stackAfter:` and `stackSetup:` tells the caller to implement
 directly on the worktree's current branch instead. A predecessor with no such

@@ -265,11 +265,12 @@ class InspectImplementTests(FileBackendTest):
         """Stack setup lines come from the code host, and only GitHub has a
         stacked-PR mechanism; the suite's default file host has none. Live
         review-thread and PR state would need a real `gh`, so both read as
-        clean unless a test says otherwise."""
+        clean unless a test says otherwise, and the checkout is on no stack."""
         self.configure(code_host="github")
         for target, value in (
             ("pdlc.commands.inspect_implement.record_open_review_comments", []),
             ("pdlc.commands.inspect_implement.record_pull_requests", []),
+            ("pdlc.hosts.lib.github.code_host.GitHubCodeHost._current_stack", None),
         ):
             patcher = patch(target, return_value=value)
             patcher.start()
@@ -368,6 +369,16 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("Next: Run `pdlc inspect task 601`", result.stdout)
         self.assertIn("then `pdlc checkout 601` and dispatch that sub-agent to implement the task", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to record the implementation, open the task's PR, and close the task.", result.stdout)
+
+    def test_first_task_continues_the_stack_the_checkout_is_on(self):
+        self._github_code_host()
+        self._first_task()
+        stack = {"trunk": "main", "branches": [{"name": "pdlc/record-50/task-002"}]}
+        with patch("pdlc.hosts.lib.github.code_host.GitHubCodeHost._current_stack", return_value=stack):
+            result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("stackSetup: gh stack top && gh stack add pdlc/record-60/task-001", result.stdout)
+        self.assertNotIn("gh stack init", result.stdout)
 
     def test_implement_mode_ignores_open_threads_while_a_task_is_eligible(self):
         # New tasks come first under Pending; threads are picked up once none is left.

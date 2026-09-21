@@ -189,6 +189,54 @@ class PromptCommandTest(PromptHarness):
             self.assertEqual(brief.code, 0, brief.stderr)
             self.assertIn("`WORK-60-TASK-001` (tag included) — `[CORE] Core work`", brief.stdout)
 
+    # --- acceptance test writer ---
+
+    def _acceptance_brief(self, *extra: str):
+        return self.invoke(
+            "prompt_acceptance_test_writer", 60, "--traceability", "text:FR-1 -> loads -> src/a.py", *extra,
+        )
+
+    def test_acceptance_brief_carries_the_map_and_the_whole_implemented_scope(self):
+        self._testing_stack()
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Write requirement-to-source-traceable acceptance coverage", result.stdout)
+        self.assertIn("FR-1 -> loads -> src/a.py", result.stdout)
+        self.assertIn("- src/a.py\n- src/shared.py\n- src/b.py\n", result.stdout)
+        self.assertEqual(result.stdout.count("src/shared.py"), 1)
+        self.assertIn("- `WORK-60-TASK-001` [CORE] First", result.stdout)
+        self.assertIn("`601`, `602` in `60`", result.stdout)
+        self.assertIn("Implementation PRs: `#40`, `#41`.", result.stdout)
+        self.assertNotIn("## Findings to address", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+
+    def test_acceptance_brief_carries_the_stages_open_change_requests(self):
+        self._testing_stack(gate="Changes Required")
+        self.add_rework_review(60, stage="Testing")
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Findings to address", result.stdout)
+        self.assertIn("### Change request", result.stdout)
+        self.assertIn("- detail", result.stdout)
+
+    def test_acceptance_brief_appends_caller_findings(self):
+        self._testing_stack()
+        result = self._acceptance_brief("--findings", "text:unit-tests: assertion failed at test_a.py:12")
+        self.assertIn("### Additional findings\n\nunit-tests: assertion failed at test_a.py:12", result.stdout)
+
+    def test_acceptance_brief_refuses_outside_testing(self):
+        self._implemented_stack()
+        result = self._acceptance_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("Not ready", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_acceptance_brief_requires_the_map(self):
+        self._testing_stack()
+        result = self.invoke("prompt_acceptance_test_writer", 60)
+        self.assertNotEqual(result.code, 0)
+        self.assertIn("--traceability", result.stderr)
+
     # --- refusals ---
 
     def test_a_record_that_is_not_due_refuses_rather_than_briefing(self):
@@ -206,7 +254,7 @@ class PromptCommandTest(PromptHarness):
 
     def test_an_unknown_brief_command_is_rejected(self):
         self._eligible_task()
-        result = self.invoke("prompt", "task-planner", 60)
+        result = self.invoke("prompt", "bogus-command", 60)
         self.assertEqual(result.code, 1)
         self.assertIn("task-implementer", result.stderr)
         self.assertEqual(result.stdout, "")
@@ -214,5 +262,51 @@ class PromptCommandTest(PromptHarness):
     def test_prompt_alone_names_the_brief_it_can_build(self):
         result = self.invoke("prompt", "--help")
         self.assertEqual(result.code, 0, result.stderr)
-        for command in ("task-implementer", "task-reviewer", "task-test-writer"):
+        for command in (
+            "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
+        ):
             self.assertIn(command, result.stdout)
+
+    # --- task planner ---
+
+    def _planner_brief(self, *extra: str):
+        return self.invoke("prompt_task_planner", 60, *extra)
+
+    def test_first_pass_tasks_record_renders_the_brief(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Decompose this PDLC record into a dependency-ordered set of delivery tasks.", result.stdout)
+        self.assertIn("`60` — full body", result.stdout)
+        self.assertIn("FR-1: The record lands.", result.stdout)
+        self.assertIn("n/a — first pass", result.stdout)
+        self.assertIn("No Tasks", result.stdout)
+        self.assertIn("Driver follow-up\n\nnone", result.stdout)
+        self.assertNotIn("{{", result.stdout)
+
+    def test_first_pass_brief_names_no_pdlc_command_or_stage(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief()
+        for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
+            self.assertNotIn(leak, result.stdout)
+
+    def test_stale_record_carries_the_reason_and_existing_tree(self):
+        self._tasks_stage_stale_with_existing_tree()
+        result = self._planner_brief()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Gate State`: `Stale`", result.stdout)
+        self.assertIn("Invalidated stage: Tasks", result.stdout)
+        self.assertIn("number: 601", result.stdout)
+        self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
+
+    def test_follow_up_is_carried_verbatim(self):
+        self._tasks_stage_pending()
+        result = self._planner_brief("--follow-up", "text:split the export task in two")
+        self.assertIn("Driver follow-up\n\nsplit the export task in two", result.stdout)
+
+    def test_a_record_not_at_tasks_refuses(self):
+        self.seed_record(60, "Testing", "Pending", slug="record-60")
+        result = self._planner_brief()
+        self.assertEqual(result.code, 1)
+        self.assertIn("not Tasks", result.stderr)
+        self.assertEqual(result.stdout, "")

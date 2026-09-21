@@ -35,7 +35,12 @@ Prefer the smallest tree that keeps every slice independently verifiable. If two
 
 Every `FR-*` and `C-*` must map to at least one task. Every UI task must reference at least one approved `UJ-*` journey, and every approved journey must be covered by at least one UI task.
 
-Classify HITL/AFK per task: `HITL` when implementation requires human interaction, architectural or product decisions, UX approval, or design review; `AFK` when it may proceed without human interaction. Prefer AFK where possible.
+Classify HITL/AFK per task by what its implementation needs from a human, not by how hard it is:
+
+- `HITL` only when implementation needs a product or UX decision the parent does not already settle, a design or UX approval, or an action that cannot be undone once it runs — a data migration, a message sent outside the system, a breaking change to a public contract.
+- `AFK` for everything else, including technical choices an implementer can make and a reviewer will see in the diff. Difficulty, size, and risk alone do not make a task HITL.
+
+Prefer AFK where possible.
 
 ## Write each task body
 

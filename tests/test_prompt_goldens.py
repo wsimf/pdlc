@@ -172,3 +172,33 @@ class PromptGoldenTest(PromptHarness):
         self._git()
         self._capabilities(**{"test-authoring": "acme-test-writer", "test-framework": "swift-testing"})
         self.assertGolden("test-with-framework", self._test_writer())
+
+    # --- acceptance test ---
+
+    def _acceptance(self, *extra: str):
+        return self.invoke(
+            "prompt_acceptance_test_writer", 60, "--traceability", "text:FR-1 -> loads -> src/a.py", *extra,
+        )
+
+    def test_acceptance_first_pass(self):
+        self._testing_stack()
+        self.assertGolden("acceptance-test-first-pass", self._acceptance())
+
+    def test_acceptance_with_findings(self):
+        self._testing_stack(gate="Changes Required")
+        self.add_rework_review(60, stage="Testing")
+        self._capabilities(**{"test-authoring": "acme-test-writer", "test-framework": "swift-testing"})
+        self.assertGolden(
+            "acceptance-test-with-findings",
+            self._acceptance("--findings", "text:unit-tests: assertion failed at test_a.py:12"),
+        )
+
+    # --- task planner ---
+
+    def test_task_planner_first_pass(self):
+        self._tasks_stage_pending()
+        self.assertGolden("task-planner-first-pass", self.invoke("prompt_task_planner", 60))
+
+    def test_task_planner_stale_with_existing_tree(self):
+        self._tasks_stage_stale_with_existing_tree()
+        self.assertGolden("task-planner-stale", self.invoke("prompt_task_planner", 60))

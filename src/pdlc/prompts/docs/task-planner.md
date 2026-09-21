@@ -1,40 +1,32 @@
-# Task-planner dispatch prompt
-
-`pdlc-tasks` Author fills the placeholders below and spawns `pdlc-task-planner`
-when `Status = Tasks`. This is also the dispatch you return to in Review with
-reviewer findings — keep it addressable.
-
----
-
-````md
 Decompose this PDLC record into a dependency-ordered set of delivery tasks.
 
-## Execution boundary
-
-You are being invoked as the leaf task author.
-Do not invoke any `pdlc-*` skill.
+{{INCLUDE:shared/execution-boundary.md}}
 Do not re-run the calling skill or rediscover the lifecycle stage.
-Do not spawn, dispatch, or ask another agent to do this work.
-Author the breakdown directly and return the task files and manifest to the calling `pdlc-tasks` skill.
+Author the breakdown directly and return the task files and manifest to the
+calling skill.
 
 ## Parent work item
 
-`<number>` — full body, including the `UI` section and every `FR-*` / `C-*` /
-`UJ-*` identifier:
+`{{PARENT_WORK_ITEM}}` — full body, including the `UI` section and every
+`FR-*` / `C-*` / `UJ-*` identifier:
 
-<complete parent work item body>
+{{PARENT_BODY}}
 
 ## State
 
-- `Status`: Tasks — `Gate State`: `<Pending | Stale>`.
-- Why it is `Stale` (if it is): `<reason, or "n/a — first pass">`.
+- `Status`: Tasks — `Gate State`: `{{GATE_STATE}}`.
+- Why it is `Stale` (if it is): {{STALE_REASON}}
 - Existing task tree, if any — the `# Tasks` blocks verbatim, so each task's
-  `completed`, `hasPlan`, and `hasImplementation` are visible. Reconcile against
-  it rather than rewriting from scratch: `<...>`.
+  `completed`, `hasPlan`, and `hasImplementation` are visible. Reconcile
+  against it rather than rewriting from scratch:
+
+{{EXISTING_TASKS}}
 
 ## Driver follow-up
 
-`<verbatim, or "none">`
+{{DRIVER_FOLLOWUP}}
+
+{{INCLUDE:shared/task-sequencing.md}}
 
 ## What to return
 
@@ -74,4 +66,3 @@ Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage,
 HITL/AFK classification, acceptance criteria, risk, and expected implementation
 evidence. Every task covers at least one FR or C; every UI task covers a `UJ-*`
 and every `UJ-*` has a UI task.
-````

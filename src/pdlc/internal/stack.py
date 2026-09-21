@@ -54,7 +54,8 @@ def latest_implemented_task(delivery_tasks: list[dict], before: int | None = Non
 def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     """The pull request to hand `gh stack checkout` so the local stack for
     ``chosen`` is set up before its branch is added, or None when ``chosen`` is
-    the first task and the stack must be created with `gh stack init`.
+    the work item's first task, which the code host puts on the current
+    branch's stack or a new one.
 
     This is the highest-numbered already-implemented task before ``chosen``.
     `gh stack checkout <pr>` discovers the rest of the stack from GitHub itself,
