@@ -72,9 +72,11 @@ class GitHubStackSubmitTests(GitHubHostTest):
         super().setUp()
         self.host = GitHubCodeHost()
 
-    def _stub_stack(self, *numbers):
+    def _stub_stack(self, *numbers, merged=(), rebase=""):
         self.gh.gh("extension", "list", response="gh\tgithub/gh-stack\tv0.1.0\n")
         self.gh.gh("stack", "sync", response="")
+        self.gh.gh("stack", "rebase", "--abort", response="")
+        self.gh.gh("stack", "rebase", response=rebase)
         self.gh.gh("stack", "submit", response="")
         self.gh.gh("stack", "view", response={
             "trunk": "main",
@@ -87,12 +89,16 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(
             number, contexts=[{"state": "SUCCESS"}], isDraft=True,
             headRefName=f"pdlc/record-9/task-{number:03d}",
+            state="MERGED" if number in merged else "OPEN",
         )))
 
     def _call(self, *prefix):
         return next(args for args, _ in self.gh.calls if args[: len(prefix)] == list(prefix))
 
-    def test_submit_syncs_prunes_submits_then_returns_the_stack_bottom_to_top(self):
+    def _calls(self, *prefix):
+        return [args for args, _ in self.gh.calls if args[: len(prefix)] == list(prefix)]
+
+    def test_submit_restacks_without_trunk_submits_then_returns_the_stack_bottom_to_top(self):
         self._stub_stack(1, 2)
 
         prs = self.host.submit_task_stack()
@@ -102,16 +108,46 @@ class GitHubStackSubmitTests(GitHubHostTest):
             [pr["branch"] for pr in prs],
             ["pdlc/record-9/task-001", "pdlc/record-9/task-002"],
         )
-        # `gh stack sync --prune` is what drops landed branches; PDLC never
-        # lists remote branches to work that out itself.
-        self.assertEqual(self._call("stack", "sync"), ["stack", "sync", "--prune"])
+        # Nothing landed, so new trunk commits stay out: branches are only
+        # rebased onto each other, never fetched or synced with trunk.
+        self.assertEqual(self._calls("stack", "rebase"), [["stack", "rebase", "--no-trunk"]])
+        self.assertEqual(self._calls("stack", "sync"), [])
         self.assertEqual(self._call("stack", "submit"), ["stack", "submit", "--auto"])
         self.assertFalse(any("branches" in " ".join(args) for args, _ in self.gh.calls if args[0] == "api"))
-        # The whole stack is read back in one query, check rollup included.
+        # The merge check and the read-back are one query each, check rollup included.
         pr_reads = [args for args, _ in self.gh.calls if "pullRequest(number:" in " ".join(args)]
-        self.assertEqual(len(pr_reads), 1)
-        self.assertIn("statusCheckRollup", " ".join(pr_reads[0]))
+        self.assertEqual(len(pr_reads), 2)
+        self.assertIn("statusCheckRollup", " ".join(pr_reads[-1]))
         self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "SUCCESS"])
+
+    def test_a_landed_branch_still_local_syncs_and_prunes_instead(self):
+        self._stub_stack(1, 2, merged={1})
+
+        with patch("pdlc.hosts.lib.github.code_host._local_branch_exists", return_value=True):
+            self.host.submit_task_stack()
+
+        # `gh stack sync --prune` drops the landed commits and branch; PDLC never
+        # lists remote branches to work that out itself.
+        self.assertEqual(self._calls("stack", "sync"), [["stack", "sync", "--prune"]])
+        self.assertEqual(self._calls("stack", "rebase"), [])
+
+    def test_a_landed_branch_already_pruned_stays_off_trunk(self):
+        self._stub_stack(1, 2, merged={1})
+
+        with patch("pdlc.hosts.lib.github.code_host._local_branch_exists", return_value=False):
+            self.host.submit_task_stack()
+
+        self.assertEqual(self._calls("stack", "sync"), [])
+        self.assertEqual(self._calls("stack", "rebase"), [["stack", "rebase", "--no-trunk"]])
+
+    def test_a_restack_conflict_aborts_and_submits_nothing(self):
+        self._stub_stack(1, 2, rebase=PdlcError("conflict in pdlc/record-9/task-002"))
+
+        with self.assertRaisesRegex(PdlcError, "conflict"):
+            self.host.submit_task_stack()
+
+        self.assertEqual(self._calls("stack", "rebase", "--abort"), [["stack", "rebase", "--abort"]])
+        self.assertEqual(self._calls("stack", "submit"), [])
 
     def test_no_repository_default_branch_lookup_is_needed(self):
         # `gh stack` resolves the trunk itself; nothing here asks GitHub for it.
