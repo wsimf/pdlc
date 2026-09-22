@@ -57,14 +57,21 @@ def _action(target: TaskCheckout) -> str:
     return get_code_host().checkout_task_branch(target.branch, target.pr, target.entry_pr)
 
 
-def checkout(ref: str) -> str:
-    target = resolve_task_checkout(ref)
+def check_out(target: TaskCheckout) -> str:
+    """Put a clean working tree on ``target``'s branch and return what the host
+    did. Shared by `pdlc checkout` and `pdlc post implement`, which leaves the
+    tree at the top of the stack."""
     if working_tree_dirty():
         raise PdlcError(
             "the working tree has uncommitted changes; commit or stash them before "
             f"checking out {target.branch}"
         )
-    action = _action(target)
+    return _action(target)
+
+
+def checkout(ref: str) -> str:
+    target = resolve_task_checkout(ref)
+    action = check_out(target)
     return "\n".join([target.task["title"], f"branch: {target.branch}", action]) + "\n"
 
 

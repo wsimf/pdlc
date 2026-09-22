@@ -130,7 +130,7 @@ Write the stage evidence to a local file, or pass a short one as `text:<body>`: 
 pdlc post implement WORK_ITEM /tmp/pdlc-implement-evidence.md
 ```
 
-The command pushes the whole stack first, so any commit still local on a task branch reaches its PR here; a push failure changes no state. It refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns them as `readyPullRequests`; a failure leaves the stage unpublished, so a re-run is clean. Whichever task branch the last pass left you on is fine — this command resolves nothing from the working tree. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
+The command pushes the whole stack first, so any commit still local on a task branch reaches its PR here; a push failure changes no state. It refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns them as `readyPullRequests`; a failure leaves the stage unpublished, so a re-run is clean. Whichever task branch the last pass left you on is fine; the command needs a clean tree and leaves it on the top task's branch. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
 
 ## Report
 

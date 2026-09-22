@@ -189,6 +189,27 @@ class ReadinessReportTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("Readiness", result.stdout)
 
+    def test_inspect_test_names_the_top_task_when_head_is_below_it(self):
+        self.seed_record(45, "Testing", "Pending")
+        self.seed_task(45, 451, "TASK-001", "CLOSED", "WORK-45-TASK-001 [CORE] Core")
+        (self.records_dir() / "45" / "tasks" / "451" / "comments.jsonl").write_text(json.dumps({
+            "body": "## Implementation\n\nShipped.", "createdAt": "2026-01-01T00:00:00Z",
+            "url": "u", "author": {"login": "x"},
+        }) + "\n")
+        pr = {"number": 150, "title": "t", "url": "u", "state": "OPEN", "isDraft": False,
+              "branch": "pdlc/record-45/task-001", "mergedAt": None, "checks": "SUCCESS", "headSha": self.head_sha()}
+        self.seed_prs(45, [pr])
+        self.register_prs(451, [150])
+
+        at_top = self.invoke("inspect_test", 45)
+        self.assertEqual(at_top.code, 0, at_top.stderr)
+        self.assertIn(f"Testing at HEAD {self.head_sha()} — every open task PR's head is included.", at_top.stdout)
+
+        self.seed_prs(45, [{**pr, "headSha": "0" * 40}])
+        below = self.invoke("inspect_test", 45).stdout
+        self.assertIn("run `pdlc checkout WORK-45-TASK-001` to move to the top of the task stack", below)
+        self.assertIn("- #150 (pdlc/record-45/task-001) @ 000000000000", below)
+
     def test_inspect_verify_reports_readiness(self):
         self.seed_record(43, "Verification", "Pending")
         result = self.invoke("inspect_verify", 43)

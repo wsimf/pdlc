@@ -162,7 +162,8 @@ from pdlc.internal.pull_requests import (
 from pdlc.internal.reporting import older_comments_notice
 from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.vcs import head_commit
-from pdlc.internal.verification import reports, reusable, skeleton, stack_gaps, stale, ui_journeys
+from pdlc.internal.stack import stack_gaps
+from pdlc.internal.verification import reports, reusable, skeleton, stale, ui_journeys
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,

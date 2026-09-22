@@ -177,7 +177,8 @@ from pdlc.internal.ci_gate import resolve_ci_gate
 from pdlc.internal.invalidation import bounce_stage
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.vcs import has_tracked_changes, head_commit
-from pdlc.internal.verification import context, reports, stack_gaps
+from pdlc.internal.stack import stack_gaps
+from pdlc.internal.verification import context, reports
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import build_report, ledger, render, render_decisions

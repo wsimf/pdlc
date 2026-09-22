@@ -25,9 +25,15 @@ Which pull requests belong to the record is read from the registry its delivery
 tasks already carry, so no pull request is resolved from the working tree and it
 does not matter which branch of the stack is checked out here.
 
+After the push, the working tree is checked out on the top task's branch (the
+highest-numbered implemented task), since Testing commits its coverage on the
+current branch and needs every task's code under it. `checkedOut` names that
+branch, or is null when no task has an implementation and a pull request yet.
+The tree must be clean; a dirty tree fails here, before anything is posted.
+
     {"completed": true, "itemId": "PVTI_x", "work_item": 142,
      "stage": "Implementation", "gateState": "Review Required",
-     "attachments": [],
+     "attachments": [], "checkedOut": "pdlc/record-142/task-004",
      "readyPullRequests": [{"number": 151, "url": "..."},
                            {"number": 153, "url": "..."}]}
 
@@ -42,12 +48,15 @@ import json
 import sys
 
 
+from pdlc.commands.checkout import check_out
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.complete_transition import complete_transition, prepare_transition
 from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
+from pdlc.internal.stack import latest_implemented_task, resolve_task_checkout
+from pdlc.internal.workitem import task_tree
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,6 +82,13 @@ def main(argv: list[str] | None = None) -> int:
         # The stack mechanism owns bases and rebases, so any commit left on a
         # task branch is published through it rather than a bare `git push`.
         code_host.submit_task_stack()
+        # Leave the tree on the top of the stack: Testing commits its coverage
+        # on the current branch, and only the top branch holds every task. A
+        # fix pass on a lower task would otherwise leave the tree down there.
+        top = latest_implemented_task(task_tree(issue))
+        top_checkout = resolve_task_checkout(top["title"]) if top else None
+        if top_checkout:
+            check_out(top_checkout)
         # Every task PR was opened as a draft while the stack was still being
         # built; the whole implementation is now claimed done, so take the open
         # ones out of draft together for human review. Done before the evidence
@@ -80,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         open_prs = [pr for pr in record_pull_requests(issue) if pr["state"] == "OPEN"]
         code_host.mark_pull_requests_ready([pr["number"] for pr in open_prs])
         result = complete_transition(publication, evidence_body, attachment_inputs)
+        result["checkedOut"] = top_checkout.branch if top_checkout else None
         result["readyPullRequests"] = [{"number": pr["number"], "url": pr["url"]} for pr in open_prs]
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)
