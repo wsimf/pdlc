@@ -52,9 +52,10 @@ class CodeHost(ABC):
 
     @abstractmethod
     def submit_task_stack(self) -> list[PullRequest]:
-        """Submit the stack the current branch belongs to: sync it, push it, and
+        """Submit the stack the current branch belongs to: restack it, push it, and
         create or update one pull request per branch. Returns every PR in the
-        stack bottom-to-top.
+        stack bottom-to-top. New trunk commits are not pulled in; trunk is only
+        rebased onto when a PR lower in the stack has landed.
 
         The stack's order, bases, and landed members are the host mechanism's own
         state — callers pass no branch list and PDLC keeps no parallel copy.

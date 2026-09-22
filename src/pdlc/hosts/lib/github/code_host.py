@@ -15,6 +15,7 @@ GraphQL query, so a record's N pull requests cost one round trip, not N.
 
 from __future__ import annotations
 
+import contextlib
 import re
 
 from pdlc.domain.records import PullRequest, ReviewComment
@@ -263,20 +264,43 @@ class GitHubCodeHost(CodeHost):
         return data if isinstance(data, dict) and data.get("branches") else None
 
     def submit_task_stack(self) -> list[PullRequest]:
-        """Sync, push, and create/update the current local stack's pull requests.
+        """Restack, push, and create/update the current local stack's pull requests.
 
-        `gh stack sync --prune` is the extension's own answer to "a task below
-        this one has landed": it fetches, cascade-rebases each branch onto its
-        updated parent, pushes, and drops local branches whose PR merged. PDLC
-        never inspects remote branch existence to work that out. `gh stack
-        submit --auto` then creates or updates one PR per branch with the bases
-        already chained.
+        Trunk is left alone unless a task below has landed: a new commit on
+        trunk never rebases the stack. The restack is `gh stack rebase
+        --no-trunk`, which only rebases each branch onto its parent, without
+        fetching. A stack PR that GitHub reports merged while its branch is
+        still local is the one case that needs trunk: `gh stack sync --prune`
+        fetches, rebases the branches above onto trunk (dropping the landed
+        commits), and deletes the merged branch, so the next submit is back on
+        the trunk-free path. `gh stack submit --auto` then pushes and creates or
+        updates one PR per branch with the bases already chained.
         """
 
         self._require_stack_extension()
-        run_gh(["stack", "sync", "--prune"])
+        if self._has_unpruned_merge():
+            run_gh(["stack", "sync", "--prune"])
+        else:
+            try:
+                run_gh(["stack", "rebase", "--no-trunk"])
+            except PdlcError:
+                # A conflict stops mid-rebase; restore every branch, as sync
+                # would, so a failed post leaves the stack untouched. A failure
+                # before any rebase started has nothing to abort.
+                with contextlib.suppress(PdlcError):
+                    run_gh(["stack", "rebase", "--abort"])
+                raise
         run_gh(["stack", "submit", "--auto"])
         return self.pull_requests_by_number(self.stack_pr_numbers())
+
+    def _has_unpruned_merge(self) -> bool:
+        """Whether a stack PR has merged on GitHub while its branch is still
+        local. Merge state is read live rather than from `gh stack view`, which
+        may lag until the next sync."""
+        return any(
+            pr["state"] == "MERGED" and _local_branch_exists(pr["branch"])
+            for pr in self.pull_requests_by_number(self.stack_pr_numbers())
+        )
 
     def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
         # `gh stack checkout <entry_pr>` (the ordinary `checkout_task_branch` path)
