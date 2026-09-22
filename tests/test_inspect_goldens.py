@@ -20,6 +20,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pdlc.domain.evidence import ReviewVerdict, compose_review
+from pdlc.domain.stages import Gate
 from pdlc.domain.verification import Report, Row, render
 from tests._goldens import GoldenMixin
 from tests._prompts import PromptHarness
@@ -54,7 +55,9 @@ def _pr(number: int, *, state: str = "OPEN", checks: str = "SUCCESS") -> dict:
     }
 
 
-class InspectGoldenTest(GoldenMixin, PromptHarness):
+class InspectHarness(GoldenMixin, PromptHarness):
+    """The pinned host state and record shapes both inspect golden suites seed."""
+
     GOLDENS = Path(__file__).parent / "fixtures" / "inspect"
 
     def setUp(self) -> None:
@@ -99,6 +102,10 @@ class InspectGoldenTest(GoldenMixin, PromptHarness):
             journeys=(Row("UJ-1", "accepted"),), ux=Row("ux", "clean"), cumulative=Row("cumulative", "clean"),
         )
         self._user_comment(60, "PDLC-REVIEW\n\n" + compose_review("Verification", ReviewVerdict.PASS, render(report)))
+
+
+class InspectGoldenTest(InspectHarness):
+    """Targeted cases: one record shape per command-specific branch."""
 
     # --- inspect (overview) ---
 
@@ -318,3 +325,87 @@ class InspectGoldenTest(GoldenMixin, PromptHarness):
 
     def test_capability_unset_slot(self):
         self.assertGolden("capability-unset-slot", self.invoke("inspect_capability", "test-authoring"))
+
+
+# The Feature workflow's stages, in order. Listed rather than read off the
+# pipeline so a golden's name never moves when the workflow definition does.
+STAGES = ("Product", "UI", "Tasks", "Technical Plan", "Implementation", "Testing", "Verification")
+
+# Every inspector whose output turns on Status and Gate State, rendered for
+# each cell in this order under its own `## $ pdlc ...` heading.
+MATRIX_COMMANDS = (
+    ("inspect", "--full"), ("inspect_implement",), ("inspect_review",),
+    ("inspect_test",), ("inspect_verify",), ("inspect_complete",),
+)
+
+
+class InspectMatrixGoldenTest(InspectHarness):
+    """One golden per (stage, gate) cell of the Feature workflow, holding every
+    stage-sensitive inspector's output for that cell, so a routing or readiness
+    change shows up as a diff of exactly the cells it moves.
+
+    Each cell seeds the record shape its stage normally has — tasks and PRs
+    from Implementation on — plus the evidence its gate implies: a review for
+    Changes Required, an invalidation for Stale, a decision for Decision
+    Required. Cells the workflow rejects outright are kept: their refusal is
+    pinned too. Test methods are generated per cell below."""
+
+    def _seed_stage(self, stage: str, gate: str) -> None:
+        if stage == "Tasks":
+            self.seed_record(60, stage, gate, slug="record-60")
+            self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        elif stage == "Technical Plan":
+            self._plan_stage(gate)
+        elif stage == "Implementation":
+            self._second_task_eligible()
+            self._set_state(stage, gate)
+            self._prs([_pr(40)])
+        elif stage == "Testing":
+            self._testing_stack(gate)
+        elif stage == "Verification":
+            self._verification_stack(gate)
+        else:
+            self.seed_record(60, stage, gate, slug="record-60")
+        if gate == Gate.CI_PENDING and stage not in ("Implementation", "Testing", "Verification"):
+            self._prs([_pr(90)])
+
+    def _set_state(self, stage: str, gate: str) -> None:
+        path = self.records_dir() / "60" / "meta.json"
+        meta = json.loads(path.read_text())
+        meta["fields"].update({"Status": stage, "Gate State": gate})
+        path.write_text(json.dumps(meta, indent=2) + "\n")
+
+    def _seed_gate_evidence(self, stage: str, gate: str) -> None:
+        if gate == Gate.CHANGES_REQUIRED:
+            body = compose_review(stage, ReviewVerdict.CHANGES_REQUIRED, "## Findings\n\n- Tighten section 2.")
+            self._user_comment(60, "PDLC-REVIEW\n\n" + body)
+        elif gate == Gate.STALE:
+            self.add_invalidation(60, stage=stage)
+        elif gate == Gate.DECISION_REQUIRED:
+            self._user_comment(60, "PDLC-DECISION\n\n## Decision Required\n\nOn-device vs server-side snapping?")
+
+    def check_cell(self, stage: str, gate: str) -> None:
+        self._seed_stage(stage, gate)
+        self._seed_gate_evidence(stage, gate)
+        blocks = []
+        for command, *args in MATRIX_COMMANDS:
+            result = self.invoke(command, 60, *args)
+            shown = " ".join(["pdlc", *command.split("_"), "60", *args])
+            # A cell the workflow rejects is pinned by its refusal: the exit
+            # code and stderr are as much the contract as a ready render.
+            output = result.stdout if result.code == 0 else f"exit {result.code}\n\n{result.stdout}{result.stderr}"
+            blocks.append(f"## $ {shown}\n\n{output.rstrip()}\n")
+        name = f"{stage}--{gate}".lower().replace(" ", "-")
+        self.assertGolden(f"matrix/{name}", "\n".join(blocks))
+
+
+def _cell_test(stage: str, gate: str):
+    def test(self: InspectMatrixGoldenTest) -> None:
+        self.check_cell(stage, gate)
+    return test
+
+
+for _stage in STAGES:
+    for _gate in Gate:
+        _name = f"test_{_stage}_{_gate.value}".lower().replace(" ", "_")
+        setattr(InspectMatrixGoldenTest, _name, _cell_test(_stage, _gate.value))
