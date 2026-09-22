@@ -47,7 +47,7 @@ from pdlc.internal.complete_transition import complete_transition, prepare_trans
 from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.inputs import print_help, resolve_text, wants_help
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     issue, evidence = args
     try:
         publication = prepare_transition(issue, "Implementation")
+        evidence_body = resolve_text(evidence, label="evidence")
         code_host = get_code_host()
         # The stack mechanism owns bases and rebases, so any commit left on a
         # task branch is published through it rather than a bare `git push`.
@@ -78,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         # posts so a failure here leaves the record cleanly republishable.
         open_prs = [pr for pr in record_pull_requests(issue) if pr["state"] == "OPEN"]
         code_host.mark_pull_requests_ready([pr["number"] for pr in open_prs])
-        result = complete_transition(publication, evidence, attachment_inputs)
+        result = complete_transition(publication, evidence_body, attachment_inputs)
         result["readyPullRequests"] = [{"number": pr["number"], "url": pr["url"]} for pr in open_prs]
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

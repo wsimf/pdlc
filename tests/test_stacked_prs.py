@@ -554,6 +554,7 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")
         self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
         self.register_prs(701, [147, 148, 149])
+        evidence = self.evidence_file("implemented from file\n")
         host = self._host([
             self._pr(147, "MERGED", is_draft=False),
             self._pr(148, "OPEN", is_draft=True),
@@ -562,7 +563,7 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
         with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
              patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
-            result = self.invoke("post_implement", 70, self.evidence_file())
+            result = self.invoke("post_implement", 70, evidence)
 
         self.assertEqual(result.code, 0, result.stderr)
         host.submit_task_stack.assert_called_once_with()
@@ -577,6 +578,28 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
             result.json["readyPullRequests"],
             [{"number": 148, "url": "https://x/148"}, {"number": 149, "url": "https://x/149"}],
         )
+        self.assertEqual(
+            json.loads(self.comments_text(70))["body"],
+            "PDLC-IMPLEMENTATION\n\nimplemented from file\n",
+        )
+
+    def test_missing_evidence_fails_before_publishing_the_stack(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [148])
+        host = self._host([self._pr(148, "OPEN", is_draft=True)])
+        missing = self.work / "missing-evidence.md"
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, missing)
+
+        self.assertEqual(result.code, 1)
+        self.assertIn(f"evidence does not exist: {missing}", result.stderr)
+        host.submit_task_stack.assert_not_called()
+        host.mark_pull_requests_ready.assert_not_called()
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
+        self.assertEqual(self.comments_text(70), "")
 
     def test_publication_pushes_the_stack_before_marking_ready_and_a_failed_push_posts_nothing(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")
