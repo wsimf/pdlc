@@ -1,35 +1,20 @@
-# Breakdown-reviewer dispatch prompt
-
-`pdlc-tasks` Review fills the placeholders below and spawns `pdlc-tasks-reviewer`
-with the result, before the UI fragment or task breakdown is landed. Read-only:
-it returns findings and a verdict, and changes nothing.
-
----
-
-```md
 Review the supplied local artifact before it is written to the work item store.
 
-## Execution boundary
-
-You are being invoked as the leaf UI-and-Tasks reviewer.
-Do not invoke any `pdlc-*` skill.
+{{INCLUDE:shared/execution-boundary.md}}
 Do not re-run the calling skill or rediscover the lifecycle stage.
-Do not spawn, dispatch, or ask another agent to do this work.
-Review the supplied artifact directly and return one report to the calling `pdlc-tasks` skill.
+Review the supplied artifact directly and return one report to the calling skill.
 
 ## Parent work item
 
-<complete parent work item body, including every `FR-*` / `C-*` / `UJ-*` identifier>
+{{PARENT_BODY}}
 
 ## Artifact under review
 
-<for a Tasks breakdown: the manifest, then every task body in full>
-<for a UI fragment: the fragment file in full>
+{{ARTIFACT}}
 
 ## Prior findings (re-review only)
 
-`<the previous pass's findings, so each can be confirmed addressed — or "none,
-first review">`
+{{PRIOR_FINDINGS}}
 
 ## What to check
 
@@ -48,4 +33,3 @@ first review">`
 
 Findings with evidence, coverage boundaries, and exactly one of `Clean` or
 `Changes`.
-```

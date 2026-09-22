@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to verify"
 
 Prove the Work Item is done rather than assuming it, and record what was verified. You audit claims against current source, `user-journey-reviewer` checks journeys and UX, a general-purpose sub-agent runs the cumulative review, and `pdlc post verify` records the outcome. This skill never edits production source or tests; every fix bounces to its owning stage.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/ui-journey-review-prompt.template.md`](references/ui-journey-review-prompt.template.md) and [`references/cumulative-review-prompt.template.md`](references/cumulative-review-prompt.template.md) as dispatch templates.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-journey-reviewer` and `pdlc prompt cumulative-reviewer` build the two specialist briefs; this skill passes each through untouched and never writes a brief of its own.
 
 ## Resolve
 
@@ -67,7 +67,7 @@ Any discrepancy is a blocking finding for the driver to resolve, never silently 
 
 `## Journeys to review` already resolved this: **not applicable** → record both as not applicable and skip this step. Otherwise it lists exactly the journeys to review, in full, plus whether UX needs a fresh pass. Everything carried forward → skip the dispatch; don't re-derive that judgment.
 
-Otherwise dispatch **exactly one** `user-journey-reviewer` call for the whole pass — never per-journey, never a separate UX call. Build the prompt from [`references/ui-journey-review-prompt.template.md`](references/ui-journey-review-prompt.template.md), pasting each journey block straight in; the reviewer knows nothing about PDLC or work item numbers. A journey not found in the current UI section needs your own judgment before dispatch.
+Otherwise dispatch **exactly one** `user-journey-reviewer` call for the whole pass — never per-journey, never a separate UX call — with the brief `pdlc prompt ui-journey-reviewer WORK_ITEM --description TEXT --file` writes; `--description` is your own one-sentence account of what shipped, since the reviewer knows nothing about PDLC or work item numbers. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit means nothing is due for a fresh pass, or the record carries no UI task — treat it the same as `## Journeys to review` reading not applicable or fully carried forward.
 
 A failed journey, design nonconformance, orphaned mapping, unexplained blocked requirement, or material UX finding is a blocking finding. Preserve genuine coverage boundaries rather than treating them as failures. This step is complete when journeys and UX are not applicable, carried forward, or reviewed in one dispatch.
 
@@ -75,7 +75,7 @@ A failed journey, design nonconformance, orphaned mapping, unexplained blocked r
 
 Run the project's `cumulative-review` capability over the whole change scope in **one** general-purpose sub-agent dispatch. When the report already carries the cumulative review forward, skip the dispatch.
 
-Build the prompt from [`references/cumulative-review-prompt.template.md`](references/cumulative-review-prompt.template.md); fill its first line from `pdlc inspect capability cumulative-review`. Resolve scope yourself — branch diff against base when unmerged, an explicit commit range when landed in pieces. Never let it fall back to an automatic scope that reviews nothing; ask the driver if you can't establish the base ref. Translate constraints into plain requirements — `FR-*`/`C-*` mean nothing to the sub-agent.
+Dispatch with the brief `pdlc prompt cumulative-reviewer --shipped TEXT --unchanged TEXT --constraints TEXT [--scope TEXT] --file` writes; `--shipped`, `--unchanged`, and `--constraints` are your own plain-language translation of the record's intent — `FR-*`/`C-*` mean nothing to the sub-agent. `--scope` defaults to the branch diff against base; pass it explicitly with an exact commit range when the work landed in pieces, and never let it fall back to an automatic scope that reviews nothing — ask the driver if you can't establish the base ref. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch.
 
 **Any finding of any severity stops the pass.** Report it exactly as prioritised, unaltered. Never write clean evidence while a finding is open. This step is complete when the review is clean, carried forward, or its findings are in hand for Findings.
 

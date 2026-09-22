@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to prepare"
 
 Prepare the artifact owned by the active `UI` or `Tasks` stage. The planner authors it, the reviewer checks the local files, and `pdlc post tasks` validates and lands the reviewed artifact at `Approval Required`. This skill owns orchestration; it never decides the artifact's product, UX, or technical content.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/breakdown-review-prompt.md`](references/breakdown-review-prompt.md) as the Review dispatch template. `pdlc prompt ui-planner` and `pdlc prompt task-planner` build the planners' briefs; this skill passes each through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-planner`, `pdlc prompt task-planner`, and `pdlc prompt tasks-reviewer` build the planners' and reviewer's briefs; this skill passes each through untouched and never writes a brief of its own.
 
 ## Resolve
 
@@ -72,7 +72,7 @@ The dry run must be clean before review; it writes nothing. Send every failure b
 
 ## Review
 
-Dispatch `pdlc-tasks-reviewer` with [`references/breakdown-review-prompt.md`](references/breakdown-review-prompt.md), the complete parent body, and the exact local artifact files. The reviewer is read-only and must review the actual files, not a summary.
+Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
 
 On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` or `task-planner` — with `--follow-up FILE` carrying the findings, then repeat Validate and Review on the same paths. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 

@@ -14,6 +14,10 @@ COMMANDS
     tech-planner       brief the sub-agent that spikes the open delivery tasks into plans
     product-reviewer   brief the reviewer that checks a Product draft before it lands
     ui-planner         brief the sub-agent that authors a record's UI section
+    tasks-reviewer     brief the reviewer that checks a UI fragment or Tasks breakdown before it lands
+    plan-reviewer      brief the reviewer that checks a pass's delivery-task plans before they land
+    cumulative-reviewer  brief the sub-agent running the project's cumulative-review capability
+    ui-journey-reviewer  brief the sub-agent walking a record's UI journeys against a fresh build
 
 DESCRIPTION
     Prints one complete sub-agent brief for the unit of work a record has next,
@@ -37,12 +41,28 @@ DESCRIPTION
     Product draft that may exist only as a local scratch file, not yet on any
     record, so it takes the draft's path as its positional argument and the
     record as an optional `--work-item`, omitted entirely for a fresh draft.
+    `cumulative-reviewer` is the same kind of exception in the other
+    direction: it takes no work item at all, since nothing in its brief comes
+    from the record.
 
     `ui-planner` describes the record itself, ahead of any UI section
     existing, so like `task-planner` it belongs to a stage rather than the
     Implementation loop; unlike the loop briefs it also names the project's
     configured UX-design skill, since a UI section is designed rather than
     implemented from a plan.
+
+    `tasks-reviewer` and `plan-reviewer` review a local, not-yet-landed
+    artifact against the parent's own body, the same way `product-reviewer`
+    does; `tasks-reviewer` takes exactly one of `--manifest` (a Tasks
+    breakdown) or `--fragment` (a UI section), since one reviewer checks both
+    artifacts. `cumulative-reviewer` and `ui-journey-reviewer` brief the two
+    sub-agents a Verification pass dispatches; both sub-agents know nothing
+    about PDLC, so the record's `FR-*`/`C-*` intent and a one-sentence account
+    of what shipped arrive as flags in plain language rather than being
+    resolved from the record here — that translation is the caller's
+    judgment, not a mechanical fact. `ui-journey-reviewer` still resolves the
+    journeys and UX staleness itself, the same carried-forward computation
+    `pdlc inspect verify` renders as `## Journeys to review`.
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
@@ -60,6 +80,10 @@ EXAMPLES
     pdlc prompt tech-planner 236
     pdlc prompt product-reviewer /tmp/pdlc-route-shape-detection-body.md
     pdlc prompt ui-planner 236
+    pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json
+    pdlc prompt plan-reviewer 236 --manifest /tmp/pdlc-plan.json
+    pdlc prompt cumulative-reviewer --shipped text:"..." --unchanged text:"..." --constraints text:"..."
+    pdlc prompt ui-journey-reviewer 236 --description text:"offline route retry"
 
 LEARN MORE
     Run `pdlc prompt COMMAND --help` for that command's own usage and flags.
@@ -72,6 +96,7 @@ import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from pdlc.commands.inspect import _task_front_matter
 from pdlc.commands.inspect_capability import _name as capability_name
@@ -82,12 +107,22 @@ from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
-from pdlc.internal.inputs import print_help, resolve_text, wants_help
-from pdlc.internal.vcs import diff_stat, diff_text, touched_files
+from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
+from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.scratch import scratch_path, write_scratch
-from pdlc.internal.workitem import item_slug, pipeline_for_item, record_snapshot, resolve_item
+from pdlc.internal.workitem import (
+    comments_for_issue,
+    item_slug,
+    pipeline_for_item,
+    record_snapshot,
+    resolve_item,
+    task_tree,
+)
+from pdlc.commands.inspect_verify import _readiness as _verify_readiness
+from pdlc.commands.inspect_verify import _stale_rows as _verify_stale_rows
+from pdlc.internal.verification import ledger, reports as verify_reports, reusable, skeleton, ui_journeys
 from pdlc.prompts.assemble import render
 from pdlc.prompts.context import (
     FR_C_PATTERN,
@@ -113,7 +148,8 @@ from pdlc.commands.inspect_implement import (
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
-    "tech-planner", "product-reviewer", "ui-planner",
+    "tech-planner", "product-reviewer", "ui-planner", "tasks-reviewer", "plan-reviewer", "cumulative-reviewer",
+    "ui-journey-reviewer",
 )
 
 
@@ -567,6 +603,176 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
             ],
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
+        },
+    )
+
+
+def _manifest_artifact_text(manifest_path: Path) -> str:
+    """Every manifest entry rendered with its task body in full.
+
+    An `"unchanged": true` entry names no body file, so it is noted as carried
+    forward rather than dumped — there is nothing new for the reviewer to read.
+    """
+    entries = load_json_array("--manifest", manifest_path, allow_empty=False)
+    blocks: list[str] = []
+    for entry in entries:
+        header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
+        meta = f"ui: {entry.get('ui')}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
+        if entry.get("unchanged"):
+            body = "(unchanged — carried forward from the record)"
+        else:
+            body_path = entry.get("body")
+            if not body_path:
+                raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
+            body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
+                encoding="utf-8"
+            ).strip()
+        blocks.append(f"{header}\n{meta}\n\n{body}")
+    return "\n\n---\n\n".join(blocks)
+
+
+def tasks_reviewer_brief(
+    work_item: str, manifest: str | None, fragment: str | None, findings: str | None,
+) -> str:
+    """The brief for the reviewer checking a UI fragment or Tasks breakdown
+    before it lands. Pass exactly one of `manifest` (the Tasks breakdown) or
+    `fragment` (the UI section's content) — the two artifacts this reviewer
+    checks, never both in the same pass.
+    """
+    if bool(manifest) == bool(fragment):
+        raise PdlcError("pass exactly one of --manifest or --fragment")
+    item = resolve_item(work_item)
+    artifact = (
+        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        else resolve_text(fragment, label="--fragment").strip()
+    )
+    return render(
+        "tasks-review",
+        {
+            "EXECUTION_SCOPE": "this one artifact review",
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "ARTIFACT": artifact,
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+        },
+    )
+
+
+def _plan_review_block(task: dict, plan_path: str) -> str:
+    proposed = require_file(f"manifest entry {task_tag(task)} plan", plan_path).read_text(encoding="utf-8").strip()
+    return (
+        f"### {task_tag(task)} — {task_headline(task)}\n\n"
+        f"Current task body:\n\n{(task.get('body') or '').strip()}\n\n"
+        f"Existing Technical Plan: {plan_body(task)}\n\n"
+        f"Proposed plan:\n\n{proposed}"
+    )
+
+
+def plan_reviewer_brief(work_item: str, manifest: str, findings: str | None) -> str:
+    """The brief for the reviewer checking a pass's delivery-task plans before
+    they land. `manifest` is the same `{"id", "plan"}` array `pdlc post plan`
+    takes; each entry's current task body and existing plan come off the
+    record, so the manifest need only point at the proposed plan file.
+    """
+    item, tasks, _ = record_snapshot(work_item)
+    by_id = {task["taskId"]: task for task in tasks if task.get("taskId")}
+    entries = load_json_array("--manifest", require_file("--manifest", manifest), allow_empty=False)
+    blocks: list[str] = []
+    for entry in entries:
+        task_id = entry.get("id")
+        task = by_id.get(task_id)
+        if task is None:
+            raise PdlcError(f"--manifest names {task_id!r}, which is not a delivery task on this record")
+        plan_path = entry.get("plan")
+        if not plan_path:
+            raise PdlcError(f"--manifest entry {task_id!r} has no plan file")
+        blocks.append(_plan_review_block(task, plan_path))
+    return render(
+        "plan-review",
+        {
+            "EXECUTION_SCOPE": "this one planning review",
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "PLANS": "\n\n---\n\n".join(blocks),
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+        },
+    )
+
+
+def cumulative_reviewer_brief(shipped: str, unchanged: str, constraints: str, scope: str | None) -> str:
+    """The brief for the general-purpose sub-agent running the project's
+    cumulative-review capability over a record's whole change scope.
+
+    The sub-agent knows nothing about PDLC, so every field is plain language,
+    never an `FR-*`/`C-*` identifier or a work-item number; translating those
+    is this brief's caller's job, which is why they arrive as flags rather
+    than being resolved from a record here. `scope` defaults to the branch
+    diff, the common case for work still unmerged on its own branch.
+    """
+    return render(
+        "cumulative-review",
+        {
+            "EXECUTION_SCOPE": "this one review",
+            "CUMULATIVE_REVIEW_LINE": capability_line("cumulative-review"),
+            "SCOPE": (
+                resolve_text(scope, label="--scope").strip() if scope
+                else "The current branch's diff against its base branch"
+            ),
+            "SHIPPED_BEHAVIOR": resolve_text(shipped, label="--shipped").strip(),
+            "UNCHANGED_BEHAVIOR": resolve_text(unchanged, label="--unchanged").strip(),
+            "CONSTRAINTS": resolve_text(constraints, label="--constraints").strip(),
+        },
+    )
+
+
+def _verify_journeys(work_item: str) -> tuple[list[str], bool]:
+    """Every `UJ-*` journey still needing a fresh pass, full text, and whether
+    UX needs one too — the same carried-forward resolution `pdlc inspect
+    verify` renders as its own `## Journeys to review` section, read here
+    directly rather than re-derived.
+    """
+    item = resolve_item(work_item)
+    ready, message = _verify_readiness(item, lambda: _verify_stale_rows(work_item))
+    if not ready:
+        raise PdlcError(message)
+
+    tasks = task_tree(work_item)
+    body = item.get("issueBody") or ""
+    comments = comments_for_issue(work_item)
+    open_comments = record_open_review_comments(work_item, record=item, tasks=tasks)
+    all_reports, _ = verify_reports(work_item, comments)
+    known = ledger(all_reports)
+    report = skeleton(work_item, head_commit(), tasks, body, open_comments, known, reusable(all_reports, tasks))
+
+    if report["journeys"] is None:
+        raise PdlcError("no UI tasks on this record — the user-journey reviewer has nothing to check")
+
+    blocks = ui_journeys(body)
+    to_review = [blocks[row["journey"]] for row in report["journeys"] if row["result"] is None]
+    ux_stale = report["ux"]["result"] is None
+    if not to_review and not ux_stale:
+        raise PdlcError("every journey and UX are already carried forward — nothing is due for a fresh pass")
+    return to_review, ux_stale
+
+
+def ui_journey_reviewer_brief(work_item: str, description: str) -> str:
+    """The brief for the sub-agent walking a record's UI journeys, read-only.
+
+    `description` is the calling skill's one-sentence account of what
+    shipped, since the sub-agent knows nothing about PDLC and cannot resolve
+    it from the record itself. Refuses when the record carries no UI task, or
+    when every journey and UX are already carried forward from an earlier
+    pass — the same case `pdlc inspect verify` reports as nothing left to
+    dispatch.
+    """
+    to_review, ux_stale = _verify_journeys(work_item)
+    return render(
+        "ui-journey-review",
+        {
+            "EXECUTION_SCOPE": "this one verification pass",
+            "BUILD_RUN_LINE": capability_line("build-run"),
+            "DESCRIPTION": resolve_text(description, label="--description").strip(),
+            "HAS_JOURNEYS": bool(to_review),
+            "JOURNEYS": [{"TEXT": block} for block in to_review],
+            "UX_STALE": ux_stale,
         },
     )
 

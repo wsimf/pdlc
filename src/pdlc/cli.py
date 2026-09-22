@@ -42,6 +42,10 @@ COMMANDS = {
     ("prompt", "tech-planner"): "pdlc.commands.prompt_tech_planner",
     ("prompt", "product-reviewer"): "pdlc.commands.prompt_product_reviewer",
     ("prompt", "ui-planner"): "pdlc.commands.prompt_ui_planner",
+    ("prompt", "tasks-reviewer"): "pdlc.commands.prompt_tasks_reviewer",
+    ("prompt", "plan-reviewer"): "pdlc.commands.prompt_plan_reviewer",
+    ("prompt", "cumulative-reviewer"): "pdlc.commands.prompt_cumulative_reviewer",
+    ("prompt", "ui-journey-reviewer"): "pdlc.commands.prompt_ui_journey_reviewer",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -97,6 +101,10 @@ def _usage() -> str:
         "  prompt tech-planner WI      the brief for the sub-agent that spikes the open delivery tasks into plans\n"
         "  prompt product-reviewer DRAFT [--work-item WI]  the brief for the reviewer of a Product draft before it lands\n"
         "  prompt ui-planner WI       the brief for the sub-agent that authors the record's UI section\n"
+        "  prompt tasks-reviewer WI (--manifest FILE | --fragment FILE)  the brief for the UI/Tasks reviewer\n"
+        "  prompt plan-reviewer WI --manifest FILE  the brief for the reviewer of a pass's delivery-task plans\n"
+        "  prompt cumulative-reviewer --shipped ... --unchanged ... --constraints ...  the cumulative-review sub-agent's brief\n"
+        "  prompt ui-journey-reviewer WI --description TEXT  the brief for the user-journey reviewer\n"
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"
