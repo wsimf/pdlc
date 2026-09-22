@@ -544,6 +544,14 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
             "mergedAt": "2026-01-01T00:00:00Z" if state == "MERGED" else None, "checks": "SUCCESS",
         }
 
+    def setUp(self) -> None:
+        super().setUp()
+        # The top-of-stack checkout needs a real stack host and a clean tree;
+        # record what it was handed instead.
+        patcher = patch("pdlc.commands.post_implement.check_out", return_value="checked out")
+        self.check_out = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _host(self, prs: list[dict]) -> Mock:
         host = Mock()
         by_number = {pr["number"]: pr for pr in prs}
@@ -578,6 +586,9 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
             result.json["readyPullRequests"],
             [{"number": 148, "url": "https://x/148"}, {"number": 149, "url": "https://x/149"}],
         )
+        # Publishing leaves the tree on the top task's branch for Testing.
+        self.assertEqual(self.check_out.call_args.args[0].branch, "pdlc/record-70/task-001")
+        self.assertEqual(result.json["checkedOut"], "pdlc/record-70/task-001")
         self.assertEqual(
             json.loads(self.comments_text(70))["body"],
             "PDLC-IMPLEMENTATION\n\nimplemented from file\n",
@@ -614,6 +625,24 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
         self.assertEqual(result.code, 1)
         self.assertIn("push refused", result.stderr)
+        self.check_out.assert_not_called()
+        host.mark_pull_requests_ready.assert_not_called()
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
+        self.assertEqual(self.comments_text(70), "")
+
+    def test_a_dirty_tree_stops_publication_before_anything_is_marked_ready(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.register_prs(701, [148])
+        host = self._host([self._pr(148, "OPEN", is_draft=True)])
+        self.check_out.side_effect = PdlcError("the working tree has uncommitted changes")
+
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host), \
+             patch("pdlc.internal.pull_requests.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file())
+
+        self.assertEqual(result.code, 1)
+        self.assertIn("uncommitted changes", result.stderr)
         host.mark_pull_requests_ready.assert_not_called()
         self.assertEqual(self.state(70), ("Implementation", "Pending"))
         self.assertEqual(self.comments_text(70), "")

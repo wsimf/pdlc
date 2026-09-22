@@ -22,6 +22,7 @@ from pdlc.internal.workitem import (
     tasks_by_number,
     workflow_for_item,
 )
+from pdlc.internal.vcs import contains_commit
 from pdlc.internal.worktree import worktree_after
 
 
@@ -63,6 +64,17 @@ def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     """
     latest = latest_implemented_task(delivery_tasks, before=chosen["number"])
     return max(latest["prs"]) if latest else None
+
+
+def stack_gaps(pull_requests: list[dict]) -> list[str]:
+    """Open task PRs whose head commit HEAD does not include — a lower branch
+    checked out, or a fix not yet restacked. Merged PRs are skipped: a squash
+    merge rewrites their commits, so their code arrives through the base."""
+    return [
+        f"#{pr['number']} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}"
+        for pr in pull_requests
+        if pr.get("state") == "OPEN" and pr.get("headSha") and not contains_commit(pr["headSha"])
+    ]
 
 
 @dataclass(frozen=True)

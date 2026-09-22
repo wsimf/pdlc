@@ -24,9 +24,11 @@ pdlc inspect test WORK_ITEM
 
 `## Testable Scope` lists every task that closed with a `## Implementation` comment, its linked PRs, and the files those PRs actually touched. Read the current source at each seam to confirm the real API — never infer a signature from requirement wording or a task title. If a task's implementation comment names behaviour that doesn't correspond to any real source change, flag it as suspect and report it rather than writing tests against a claim. Nothing implemented → stop and report that.
 
+`## Source` names the HEAD coverage will be committed on. When it lists task PRs that HEAD does not include, check that the working tree is clean, run the `pdlc checkout` command it names, and re-run `pdlc inspect test` before mapping; never map or dispatch from a lower task's branch.
+
 If the driver explicitly asks for ad hoc coverage on a record not due for `pdlc-test`, you may build and dispatch the map, but say plainly it sits outside the stage contract and will not satisfy the Testing gate. Do not run Publish for it: report the coverage added and leave the stage exactly as found.
 
-This step is complete when `## Readiness` reads ready and every seam in `## Testable Scope` has been confirmed in source or flagged.
+This step is complete when `## Readiness` reads ready, `## Source` lists no missing task PRs, and every seam in `## Testable Scope` has been confirmed in source or flagged.
 
 ## Gate
 
@@ -98,7 +100,7 @@ If the workflow stopped early, report only the exact blocking condition. The rep
 - Do not edit production source, the parent work item body, or any delivery task — never their requirements, plans, or Results.
 - Do not edit fixtures, package manifests, project files, agents, or other skills.
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
-- Do not create, switch, or push branches; coverage is committed on the current branch by `pdlc-test-writer` and published by `pdlc post test`.
+- Do not create or push branches, and switch only with the `pdlc checkout` `## Source` names; coverage is committed on the current branch by `pdlc-test-writer` and published by `pdlc post test`.
 - Use the CLI as the only work-item interface, and never write lifecycle state into any work item body.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. Never set `Approved`, and never claim the record is done from coverage alone.
 - Preserve unrelated staged, unstaged, and untracked work.

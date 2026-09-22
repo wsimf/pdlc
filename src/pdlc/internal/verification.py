@@ -24,7 +24,7 @@ from pdlc.domain.verification import (
     stale_rows,
 )
 from pdlc.hosts.code_host import get_code_host
-from pdlc.internal.vcs import changed_files, contains_commit
+from pdlc.internal.vcs import changed_files
 from pdlc.internal.workitem import read_section, verification_evidence_comments
 
 _JOURNEY_HEADING = re.compile(r"^#{1,6}\s*(UJ-\d+)\b")
@@ -82,17 +82,6 @@ def context(
         open_comments=tuple(comment["url"] for comment in open_comments if comment.get("url")),
         findings=known,
     )
-
-
-def stack_gaps(pull_requests: list[dict]) -> list[str]:
-    """Open task PRs whose head commit HEAD does not include — a lower branch
-    checked out, or a fix not yet restacked. Merged PRs are skipped: a squash
-    merge rewrites their commits, so their code arrives through the base."""
-    return [
-        f"#{pr['number']} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}"
-        for pr in pull_requests
-        if pr.get("state") == "OPEN" and pr.get("headSha") and not contains_commit(pr["headSha"])
-    ]
 
 
 def task_files(tasks: list[dict]) -> dict[str, set[str] | None]:

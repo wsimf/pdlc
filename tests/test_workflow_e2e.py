@@ -124,7 +124,8 @@ class WorkflowEndToEndTests(FileBackendTest):
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
         stage_host = Mock()
-        with patch("pdlc.commands.post_implement.get_code_host", return_value=stage_host):
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=stage_host), \
+             patch("pdlc.commands.post_implement.check_out"):
             self.assertEqual(self.invoke("post_implement", issue, evidence).code, 0)
         stage_host.submit_task_stack.assert_called_once_with()
         self.invoke("post_review", issue, "approval-required", evidence)

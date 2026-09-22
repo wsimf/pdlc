@@ -27,6 +27,19 @@ DESCRIPTION
     - src/services/profile_store.py
     - src/models/profile.py
 
+    ## Source
+
+    Testing at HEAD c47d0ae13f2b… — every open task PR's head is included.
+
+Source reads, when HEAD misses a task (coverage is committed on the current
+branch, so it must be the top of the stack):
+
+    ## Source
+
+    Testing at HEAD c47d0ae13f2b… — but HEAD does not include these open task PRs; run `pdlc checkout WORK-142-TASK-004` to move to the top of the task stack before mapping:
+
+    - #153 (pdlc/record-142/task-004) @ 3a1f9e2d7c4b
+
 or, when not ready:
 
     ## Readiness
@@ -47,6 +60,8 @@ from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.stack import latest_implemented_task, stack_gaps
+from pdlc.internal.vcs import head_commit
 from pdlc.internal.workitem import due_next, resolve_item, task_tree
 
 
@@ -98,6 +113,22 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
     return sections
 
 
+# Coverage is committed on the current branch, so HEAD must hold every task's
+# code; `top` names the task whose branch does.
+def _source_section(head: str, gaps: list[str], top: str | None) -> list[str]:
+    if not gaps:
+        return ["## Source", "", f"Testing at HEAD {head} — every open task PR's head is included."]
+    target = f"`pdlc checkout {top}`" if top else "`pdlc checkout` for the highest-numbered implemented task"
+    return [
+        "## Source",
+        "",
+        f"Testing at HEAD {head} — but HEAD does not include these open task PRs; run {target} "
+        "to move to the top of the task stack before mapping:",
+        "",
+        *[f"- {gap}" for gap in gaps],
+    ]
+
+
 def readiness(item: dict) -> tuple[bool, str]:
     status = item.get("Status")
     gate = item.get("Gate State")
@@ -123,6 +154,10 @@ def inspect(issue: str) -> str:
     pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
 
     sections += ["", *_testable_scope_section(tasks, pull_requests)]
+    top = latest_implemented_task(tasks)
+    # A delivery task's title opens with its WORK-N-TASK-NNN name.
+    top_name = top["title"].split()[0] if top else None
+    sections += ["", *_source_section(head_commit(), stack_gaps(pull_requests), top_name)]
 
     return "\n".join(sections) + "\n"
 
