@@ -11,6 +11,26 @@ from pdlc.config import Config, ConfigurationError, install_config
 
 
 class CliTests(unittest.TestCase):
+    def test_windows_stdio_is_reconfigured_to_utf8(self):
+        stdout = unittest.mock.Mock()
+        stderr = unittest.mock.Mock()
+        with patch("pdlc.cli.os.name", "nt"), patch("pdlc.cli.sys.stdout", stdout), patch("pdlc.cli.sys.stderr", stderr):
+            from pdlc.cli import _configure_windows_stdio
+
+            _configure_windows_stdio()
+        stdout.reconfigure.assert_called_once_with(encoding="utf-8", errors="backslashreplace")
+        stderr.reconfigure.assert_called_once_with(encoding="utf-8", errors="backslashreplace")
+
+    def test_non_windows_stdio_is_not_reconfigured(self):
+        stdout = unittest.mock.Mock()
+        stderr = unittest.mock.Mock()
+        with patch("pdlc.cli.os.name", "posix"), patch("pdlc.cli.sys.stdout", stdout), patch("pdlc.cli.sys.stderr", stderr):
+            from pdlc.cli import _configure_windows_stdio
+
+            _configure_windows_stdio()
+        stdout.reconfigure.assert_not_called()
+        stderr.reconfigure.assert_not_called()
+
     def test_explicit_argv_does_not_leak_environment_or_cached_hosts(self):
         from pdlc.hosts.workitem_host import get_backend
 
