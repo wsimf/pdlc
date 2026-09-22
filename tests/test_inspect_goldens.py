@@ -348,14 +348,21 @@ class InspectMatrixGoldenTest(InspectHarness):
     from Implementation on — plus the evidence its gate implies: a review for
     Changes Required, an invalidation for Stale, a decision for Decision
     Required. Cells the workflow rejects outright are kept: their refusal is
-    pinned too. Test methods are generated per cell below."""
+    pinned too. Test methods are generated per cell below.
 
-    def _seed_stage(self, stage: str, gate: str) -> None:
+    Implementation cells seed one task done and one open; the gates in
+    `ALL_TASKS_DONE_GATES` also get an `--all-tasks-done` cell, where every
+    task is implemented and closed."""
+
+    def _seed_stage(self, stage: str, gate: str, all_tasks_done: bool = False) -> None:
         if stage == "Tasks":
             self.seed_record(60, stage, gate, slug="record-60")
             self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
         elif stage == "Technical Plan":
             self._plan_stage(gate)
+        elif stage == "Implementation" and all_tasks_done:
+            self._implemented_stack(gate)
+            self._prs([_pr(40), _pr(41)])
         elif stage == "Implementation":
             self._second_task_eligible()
             self._set_state(stage, gate)
@@ -384,8 +391,8 @@ class InspectMatrixGoldenTest(InspectHarness):
         elif gate == Gate.DECISION_REQUIRED:
             self._user_comment(60, "PDLC-DECISION\n\n## Decision Required\n\nOn-device vs server-side snapping?")
 
-    def check_cell(self, stage: str, gate: str) -> None:
-        self._seed_stage(stage, gate)
+    def check_cell(self, stage: str, gate: str, all_tasks_done: bool = False) -> None:
+        self._seed_stage(stage, gate, all_tasks_done)
         self._seed_gate_evidence(stage, gate)
         blocks = []
         for command, *args in MATRIX_COMMANDS:
@@ -395,13 +402,18 @@ class InspectMatrixGoldenTest(InspectHarness):
             # code and stderr are as much the contract as a ready render.
             output = result.stdout if result.code == 0 else f"exit {result.code}\n\n{result.stdout}{result.stderr}"
             blocks.append(f"## $ {shown}\n\n{output.rstrip()}\n")
-        name = f"{stage}--{gate}".lower().replace(" ", "-")
+        name = f"{stage}--{gate}".lower().replace(" ", "-") + ("--all-tasks-done" if all_tasks_done else "")
         self.assertGolden(f"matrix/{name}", "\n".join(blocks))
 
 
-def _cell_test(stage: str, gate: str):
+# Implementation gates where "every task done" routes differently from "a task
+# still open", so each gets a second cell with all tasks implemented.
+ALL_TASKS_DONE_GATES = (Gate.PENDING, Gate.CHANGES_REQUIRED)
+
+
+def _cell_test(stage: str, gate: str, all_tasks_done: bool = False):
     def test(self: InspectMatrixGoldenTest) -> None:
-        self.check_cell(stage, gate)
+        self.check_cell(stage, gate, all_tasks_done)
     return test
 
 
@@ -409,3 +421,7 @@ for _stage in STAGES:
     for _gate in Gate:
         _name = f"test_{_stage}_{_gate.value}".lower().replace(" ", "_")
         setattr(InspectMatrixGoldenTest, _name, _cell_test(_stage, _gate.value))
+
+for _gate in ALL_TASKS_DONE_GATES:
+    _name = f"test_implementation_{_gate.value}_all_tasks_done".lower().replace(" ", "_")
+    setattr(InspectMatrixGoldenTest, _name, _cell_test("Implementation", _gate.value, all_tasks_done=True))
