@@ -12,6 +12,8 @@ COMMANDS
     acceptance-test-writer  brief the test writer that covers the whole implemented scope
     task-planner       brief the sub-agent that decomposes a record into delivery tasks
     tech-planner       brief the sub-agent that spikes the open delivery tasks into plans
+    product-reviewer   brief the reviewer that checks a Product draft before it lands
+    ui-planner         brief the sub-agent that authors a record's UI section
 
 DESCRIPTION
     Prints one complete sub-agent brief for the unit of work a record has next,
@@ -31,6 +33,17 @@ DESCRIPTION
     four cover. `tech-planner` describes every open delivery task at once,
     ahead of any of them being built.
 
+    `product-reviewer` is the exception to `COMMAND WORK_ITEM`: it reviews a
+    Product draft that may exist only as a local scratch file, not yet on any
+    record, so it takes the draft's path as its positional argument and the
+    record as an optional `--work-item`, omitted entirely for a fresh draft.
+
+    `ui-planner` describes the record itself, ahead of any UI section
+    existing, so like `task-planner` it belongs to a stage rather than the
+    Implementation loop; unlike the loop briefs it also names the project's
+    configured UX-design skill, since a UI section is designed rather than
+    implemented from a plan.
+
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
     the record and its live pull-request state; none of them changes anything.
@@ -45,6 +58,8 @@ EXAMPLES
     pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md
     pdlc prompt task-planner 236
     pdlc prompt tech-planner 236
+    pdlc prompt product-reviewer /tmp/pdlc-route-shape-detection-body.md
+    pdlc prompt ui-planner 236
 
 LEARN MORE
     Run `pdlc prompt COMMAND --help` for that command's own usage and flags.
@@ -53,6 +68,7 @@ LEARN MORE
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -65,13 +81,13 @@ from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import evidence_comment_text, item_gate, item_status, timeline_formatted_at
+from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.internal.vcs import diff_stat, diff_text, touched_files
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.scratch import scratch_path, write_scratch
-from pdlc.internal.workitem import item_slug, pipeline_for_item, record_snapshot
+from pdlc.internal.workitem import item_slug, pipeline_for_item, record_snapshot, resolve_item
 from pdlc.prompts.assemble import render
 from pdlc.prompts.context import (
     FR_C_PATTERN,
@@ -97,7 +113,7 @@ from pdlc.commands.inspect_implement import (
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
-    "tech-planner",
+    "tech-planner", "product-reviewer", "ui-planner",
 )
 
 
@@ -373,6 +389,89 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PULL_REQUESTS": ", ".join(f"`{number}`" for number in dict.fromkeys(numbers)) or "none registered",
             "FINDINGS": "\n\n".join(blocks),
+        },
+    )
+
+
+def product_reviewer_brief(draft: str, work_item: str | None, findings: str | None) -> str:
+    """The brief for the reviewer checking a Product draft before it lands.
+
+    Unlike the other briefs, which resolve a unit already on a record, the
+    draft this describes may exist only as a local scratch file, so it takes
+    the draft's path directly rather than resolving one from a work item, and
+    the reviewer reads that file itself instead of receiving it inlined.
+    `work_item` is the record being reconciled, when there is one; a fresh
+    draft with no record yet carries "none, new record" in its place.
+    """
+    if work_item:
+        current_record = (resolve_item(work_item).get("issueBody") or "").strip() or "none recorded"
+    else:
+        current_record = "none, new record"
+    return render(
+        "product-review",
+        {
+            "EXECUTION_SCOPE": "this one product draft review",
+            "DRAFT_PATH": draft,
+            "CURRENT_RECORD": current_record,
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+        },
+    )
+
+
+_INVALIDATED_STAGE = re.compile(r"^Invalidated stage:\s*(.+)$", re.MULTILINE)
+
+
+def _stage_invalidation(comments: list[dict], stage: str) -> dict | None:
+    """The record-level `PDLC-INVALIDATED` comment naming `stage`, newest first."""
+    matching = [
+        comment for comment in find_marked_comments(comments, "INVALIDATED")
+        if (match := _INVALIDATED_STAGE.match(evidence_comment_text(comment))) and match.group(1).strip() == stage
+    ]
+    return max(matching, key=lambda comment: comment.get("createdAt") or "") if matching else None
+
+
+def _stale_reason(item: dict, comments: list[dict], stage: str) -> str:
+    """Why `stage` bounced back to Stale, or "n/a" when it never did."""
+    if item_gate(item) != "Stale":
+        return "n/a — first pass"
+    invalidation = _stage_invalidation(comments, stage)
+    if not invalidation:
+        return "stale — no invalidation comment recorded"
+    lines = evidence_comment_text(invalidation).splitlines()
+    return "\n".join(lines[1:]).strip() if lines and lines[0].startswith("Invalidated stage:") else lines[0]
+
+
+def _task_tree_text(delivery: list[dict]) -> str:
+    """One line per existing delivery task, or "none" ahead of any breakdown."""
+    if not delivery:
+        return "none"
+    return "\n".join(f"- `{task_tag(task)}` {task_headline(task)} ({task['state']})" for task in delivery)
+
+
+def ui_planner_brief(work_item: str, follow_up: str | None) -> str:
+    """The brief for the sub-agent authoring the record's UI section.
+
+    Due only while `Status` is `UI`. `follow_up` carries the driver's verbatim
+    request on a reconciling pass, read the same way `task_planner_brief`
+    reads its own `--follow-up`.
+    """
+    item, tasks, comments = record_snapshot(work_item)
+    status = item_status(item)
+    if status != "UI":
+        raise PdlcError(f"no UI section is due: the record is at {status or 'an unset status'}, not UI")
+
+    delivery = [task for task in tasks if task.get("taskId")]
+    return render(
+        "ui-planner",
+        {
+            "EXECUTION_SCOPE": "this one UI section",
+            "UX_DESIGN_LINE": capability_line("ux-design"),
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "GATE_STATE": item_gate(item) or "unset",
+            "STALE_REASON": _stale_reason(item, comments, status),
+            "TASK_TREE": _task_tree_text(delivery),
+            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
         },
     )
 
