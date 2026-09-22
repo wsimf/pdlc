@@ -72,6 +72,27 @@ class RoutingTests(FileBackendTest):
         self.assertIn("# Due Next\n\nDue next: Product.ChangesRequired", result.stdout)
         self.assertNotIn("retrying", result.stderr)
 
+    def test_queue_routes_a_pending_ci_record_to_the_waiting_resolver(self):
+        self.seed_record(23, "Implementation", "CI Pending")
+        self.green_pr(23, checks="PENDING")
+
+        result = self.next("loop")
+
+        self.assertEqual(result.front_matter("action"), "pdlc-post-ci")
+        self.assertEqual(result.front_matter("work_item_number"), "23")
+        self.assertIn("`pdlc post ci 23 --wait`", result.stdout)
+        self.assertIsNone(result.front_matter("attempts"))
+
+    def test_queue_prefers_ready_work_over_waiting_ci(self):
+        self.seed_record(23, "Implementation", "CI Pending")
+        self.green_pr(23, checks="PENDING")
+        self.seed_record(24, "UI", "Pending")
+
+        result = self.next()
+
+        self.assertEqual(result.front_matter("action"), "pdlc-tasks")
+        self.assertEqual(result.front_matter("work_item_number"), "24")
+
     def test_product_approval_required_stops_for_human(self):
         self._seed_lifecycle_spread()
         result = self.next("--work-item", 15)

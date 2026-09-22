@@ -209,7 +209,7 @@ class DueNextMatrixE2ETests(FileBackendTest):
                     self.assertEqual(_rendered_due_next(routed.stdout), due_next)
                     action = routed.front_matter("action") or ""
                     if action == "pdlc-post-ci":
-                        self.assertIn(f"`pdlc post ci {record}`", due_next)
+                        self.assertIn(f"`pdlc post ci {record} --wait`", due_next)
                     elif action.startswith("pdlc-"):
                         self.assertIn(f"Invoke {action} skill", due_next)
                     else:

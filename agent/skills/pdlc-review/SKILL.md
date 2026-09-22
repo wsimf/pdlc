@@ -65,7 +65,7 @@ Relay the command's JSON output, then hand back by the returned gate:
 - **`Decision Required`** — stop. Tell the driver the record is parked at `Decision Required`, point them at the `PDLC-DECISION` comment, and relay the `## Decision Required` block. Name no reconciliation owner; when the driver is ready to resolve it, run `pdlc guide decisions`.
 - **`Approval Required`** — tell the driver it awaits their explicit approval before the record can advance.
 - **auto-approved** (`autoApproved: true`) — report that the human step was skipped and the loop continues.
-- **`CI Pending`** — stop. Tell the driver the review passed and the record advances on its own once the pull requests' CI settles: green → `Approval Required`, red → `Changes Required` for the stage's owning skill. `pdlc guide resolve-ci` covers a manual continue.
+- **`CI Pending`** — report that the review passed and return control to the queue loop, which monitors the registered pull requests and continues when CI settles. This is not a human stop.
 
 Re-run at the **same scope** after reconciliation — the same depth, for an Implementation review. If a `Changes Required` finding survives two reconciliations, stop and put it to the driver as a decision rather than looping a third time.
 

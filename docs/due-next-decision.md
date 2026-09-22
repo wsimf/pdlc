@@ -715,9 +715,7 @@ item is no longer able to continue autonomously.
 # Due Next
 
 Due next: Implementation.CIPending → This work item is pending CI build.
-Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli
-directly as it doesn't configure the pdlc state after CI failure. Act on the instructions
-provided by that command.
+Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command.
 ```
 
 ### Implementation / Approval Required
@@ -887,9 +885,7 @@ item is no longer able to continue autonomously.
 # Due Next
 
 Due next: Testing.CIPending → This work item is pending CI build.
-Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli
-directly as it doesn't configure the pdlc state after CI failure. Act on the instructions
-provided by that command.
+Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command.
 ```
 
 Same shape as Implementation's CI Pending: Testing is CI-gated too (`stage-ownership.md`),
@@ -1048,9 +1044,7 @@ item is no longer able to continue autonomously.
 # Due Next
 
 Due next: Verification.CIPending → This work item is pending CI build.
-Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli
-directly as it doesn't configure the pdlc state after CI failure. Act on the instructions
-provided by that command.
+Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command.
 ```
 
 ### Verification / Approval Required

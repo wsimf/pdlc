@@ -100,7 +100,7 @@ name = "file"
 
 ## `[workflow]`
 
-Retry policy for `pdlc next loop` while no work item is actionable. The delay doubles after each empty attempt, capped at `max_delay_seconds`.
+Retry policy for `pdlc next loop` while no work item is actionable. The delay doubles after each empty attempt, capped at `max_delay_seconds`; CI monitoring uses its own fixed one-hour timeout and capped backoff.
 
 | Key | Required | Default | What it does |
 |---|---|---|---|

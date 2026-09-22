@@ -68,8 +68,8 @@ def ci_state(issue: str) -> tuple[str, list[dict]]:
 
 
 def peek_ci_state(issue: str) -> str:
-    """The CI state with no mutation — routing reads this to decide between
-    backing off (pending) and recording the outcome."""
+    """The CI state with no mutation — queue routing uses it to prefer work
+    that is immediately actionable over a record that needs to wait."""
     return ci_state(issue)[0]
 
 

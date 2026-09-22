@@ -27,10 +27,10 @@ skill, which reviews the published artifact and re-lands it, and a Changes
 Required or Stale record with no change request to act on routes to
 `human-input`, because its `# Due Next` asks for the user's confirmation. The
 queue scan still selects by stage and gate, so it can surface such a record
-as a stop ahead of later autonomous work. An empty queue
-scan, a CI Pending record whose checks are still running, and a Complete
+as a stop ahead of later autonomous work. An empty queue scan and a Complete
 record carry `action: none` and a short notice instead of a `# Due Next`
-section.
+section. A CI Pending record routes to `pdlc-post-ci`; its command waits for
+the registered PR stack to settle.
 
 Two routing side effects mutate the record before the decision is returned,
 the same way for a single --work-item lookup or a queue scan:
@@ -205,12 +205,6 @@ def next_once(selector: str | None) -> dict:
         return _with_due_next(decision(item, "blocked", blocked_reason(str(error)), notation), item)
 
     item = _advance_past_skips(item, pipeline)
-
-    # CI Pending is resolved by pdlc post ci, but only once the checks have
-    # finished — while they run there is genuinely nothing to do, so report it
-    # as no work and let loop_ back off.
-    if item_gate(item) == Gate.CI_PENDING.value and peek_ci_state(item_issue(item)) == "pending":
-        return {"action": "none", "reason": f"CI is still running for work item {item_issue(item)}"}
 
     status = item_status(item)
     lifecycle = item.get("Lifecycle") or (Lifecycle.COMPLETED if status == pipeline.terminal_stage else Lifecycle.PLANNING)
