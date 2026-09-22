@@ -150,8 +150,9 @@ def inspect(issue: str) -> str:
     )
 
     if blockers:
-        sections = ["## Readiness", "", "Not ready — resolve each of these before completing:", "", attachments_markdown(attachments), ""]
+        sections = ["## Readiness", "", "Not ready — resolve each of these before completing:", ""]
         sections += [f"- [{blocker.code}] {blocker.message}" for blocker in blockers]
+        sections += ["", attachments_markdown(attachments)]
         return "\n".join(sections) + "\n"
 
     boundary_stage, boundary_gate = pipeline.completion_boundary

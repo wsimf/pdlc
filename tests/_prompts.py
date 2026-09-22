@@ -38,15 +38,23 @@ class PromptHarness(FileBackendTest):
 
     # --- host state ---
 
+    # Every command that reads live PR or thread state imports the reader by
+    # name, so each one is patched; the brief and the inspector it mirrors then
+    # always see the same host state.
+    _PR_READERS = ("prompt", "inspect", "inspect_implement", "inspect_test", "inspect_verify", "inspect_complete")
+    _THREAD_READERS = ("prompt", "inspect_implement", "inspect_verify")
+
     def _prs(self, pull_requests: list[dict]) -> None:
-        patcher = patch("pdlc.commands.prompt.record_pull_requests", return_value=pull_requests)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for module in self._PR_READERS:
+            patcher = patch(f"pdlc.commands.{module}.record_pull_requests", return_value=pull_requests)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def _threads(self, threads: list[dict]) -> None:
-        patcher = patch("pdlc.commands.prompt.record_open_review_comments", return_value=threads)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for module in self._THREAD_READERS:
+            patcher = patch(f"pdlc.commands.{module}.record_open_review_comments", return_value=threads)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def _capabilities(self, **skills: str) -> None:
         """Route skill slots the briefs read, which otherwise read unconfigured.

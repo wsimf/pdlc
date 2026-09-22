@@ -415,7 +415,7 @@ def _stale_rows(issue: str) -> list[str]:
 def _timeline_block(issue: str, comments: list[dict]) -> str:
     text = timeline_markdown(issue, comments=comments)
     if text == NO_EVIDENCE:
-        return text.rstrip("\n")
+        return "# Timeline\n\n" + text.rstrip("\n")
     path = write_scratch(scratch_path(f"timeline-{issue}"), text.rstrip("\n") + "\n")
     return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
 
