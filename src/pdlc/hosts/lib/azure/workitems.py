@@ -51,6 +51,7 @@ STATE_FIELD = "System.State"
 ASSIGNED_TO_FIELD = "System.AssignedTo"
 TYPE_FIELD = "System.WorkItemType"
 PARENT_FIELD = "System.Parent"
+AREA_PATH_FIELD = "System.AreaPath"
 
 TASK_TYPE = "Task"
 

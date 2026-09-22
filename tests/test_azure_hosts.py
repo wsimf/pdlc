@@ -12,6 +12,7 @@ from pdlc.config import Config, ConfigurationError
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.azure.workitems import (
+    AREA_PATH_FIELD,
     ASSIGNED_TO_FIELD,
     DESCRIPTION_FIELD,
     GATE_FIELD,
@@ -395,6 +396,18 @@ class UpsertTaskTest(AzureHostTest):
             self.az.body_of("devops", "invoke"),
         )
 
+    def test_a_new_task_inherits_its_parents_area_path(self):
+        self.az.az("boards", "work-item", "show", response=work_item(7, **{
+            **RECORD["fields"], AREA_PATH_FIELD: f"{PROJECT}\\Payments",
+        }))
+        self.az.az("boards", "work-item", "relation", "add", response={})
+        self.az.invoke("wit", "workitems", response=work_item(11))
+        AzureWorkItemBackend().upsert_tasks("7", [self.TASK_INPUT], [])
+        self.assertIn(
+            {"op": "add", "path": f"/fields/{AREA_PATH_FIELD}", "value": f"{PROJECT}\\Payments"},
+            self.az.body_of("devops", "invoke"),
+        )
+
     def test_the_task_title_carries_the_parents_number_not_its_slug(self):
         # `upsert_tasks` is reachable by slug; the stable identity must still
         # read WORK-<number>-TASK-NNN so it matches on the next pass.
@@ -569,6 +582,23 @@ class CreationAndIdentityTest(AzureHostTest):
         self.assertIn({"op": "add", "path": f"/fields/{ASSIGNED_TO_FIELD}", "value": "probe@example.com"}, operations)
         args = self.az.calls_matching("devops", "invoke")[0]
         self.assertEqual(args[args.index("--route-parameters") + 2], "type=Product Backlog Item")
+
+    def test_a_configured_area_path_is_set_in_the_create_call(self):
+        self.configure(azure_area_path=f"{PROJECT}\\Payments")
+        self.az.invoke("wit", "workitems", response=work_item(7))
+        AzureWorkItemBackend().create("Retry failed uploads", "body", "retry-uploads")
+        self.assertIn(
+            {"op": "add", "path": f"/fields/{AREA_PATH_FIELD}", "value": f"{PROJECT}\\Payments"},
+            self.az.body_of("devops", "invoke"),
+        )
+
+    def test_an_unset_area_path_leaves_azures_default(self):
+        self.az.invoke("wit", "workitems", response=work_item(7))
+        AzureWorkItemBackend().create("Retry failed uploads", "body", "retry-uploads")
+        self.assertNotIn(
+            f"/fields/{AREA_PATH_FIELD}",
+            [operation["path"] for operation in self.az.body_of("devops", "invoke")],
+        )
 
     def test_a_created_description_is_marked_as_markdown(self):
         # Large text fields default to HTML through the API, which renders

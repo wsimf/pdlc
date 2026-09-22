@@ -49,6 +49,11 @@ def _record_type() -> str:
     return get_config().azure_record_type or DEFAULT_RECORD_TYPE
 
 
+def _area_path() -> str | None:
+    """The optional `[backend.azure] area_path` new records are filed under."""
+    return get_config().azure_area_path
+
+
 def _closed_state() -> str:
     return get_config().azure_closed_state or DEFAULT_CLOSED_STATE
 
@@ -274,14 +279,17 @@ class AzureWorkItemBackend(WorkItemBackend):
         return self._task_views(_gather(azure.show, [azure.numeric(number) for number in numbers]))
 
     def upsert_tasks(self, parent: str, tasks: list[TaskInput], existing: list[Task]) -> list[TaskPublication]:
-        parent_id = self._record_id(parent)
+        record = self._item(parent)
+        parent_id = int(record["id"])
+        # A new task lands in its parent's area path.
+        parent_area = _text(record.get("fields") or {}, azure.AREA_PATH_FIELD)
         by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
         return [
-            self._upsert(parent_id, task, by_id.get(task["id"]))
+            self._upsert(parent_id, parent_area, task, by_id.get(task["id"]))
             for task in tasks
         ]
 
-    def _upsert(self, parent_id: int, task: dict, match: dict | None) -> dict:
+    def _upsert(self, parent_id: int, parent_area: str, task: dict, match: dict | None) -> dict:
         """Create or update one delivery task, matched by its stable
         WORK-NNN-TASK-NNN identity rather than its wording, so a reworded task
         is still the same task."""
@@ -319,10 +327,13 @@ class AzureWorkItemBackend(WorkItemBackend):
             else:
                 action = "unchanged"
         else:
-            created = azure.create(azure.TASK_TYPE, full_title, {
+            fields = {
                 azure.DESCRIPTION_FIELD: body_text,
                 azure.ASSIGNED_TO_FIELD: _assignee(),
-            })
+            }
+            if parent_area:
+                fields[azure.AREA_PATH_FIELD] = parent_area
+            created = azure.create(azure.TASK_TYPE, full_title, fields)
             number = int(created["id"])
             azure.add_parent(number, parent_id)
             action = "created"
@@ -369,11 +380,14 @@ class AzureWorkItemBackend(WorkItemBackend):
             raise PdlcError(f"Azure creation is unavailable for work type: {work_type.value}")
         # Every field lands in the create call, and a work item is on its board
         # the moment it exists — no equivalent of GitHub's `project item-add`.
-        item = azure.create(_record_type(), title, {
+        fields = {
             azure.DESCRIPTION_FIELD: body,
             azure.SLUG_FIELD: slug,
             azure.ASSIGNED_TO_FIELD: _assignee(),
-        })
+        }
+        if area := _area_path():
+            fields[azure.AREA_PATH_FIELD] = area
+        item = azure.create(_record_type(), title, fields)
         number = int(item["id"])
         return {"id": str(number), "number": number, "url": azure.item_url(number)}
 
