@@ -26,7 +26,7 @@ Ownership is split three ways, and no party re-derives another's state:
 
 | `pdlc` command | Behind the scenes |
 | --- | --- |
-| `pdlc inspect implement` | Read-only. Prints `stackSetup:` with the `gh stack` commands that would put the next task's branch on the stack, and `stackEntryPr:` with the previous implemented task's PR. |
+| `pdlc inspect implement` | Read-only. Prints the next task's `branch:`, a `stackSetup:` line describing the `gh stack` commands `pdlc checkout` will run for it, and `stackEntryPr:` with the previous implemented task's PR. |
 | `pdlc checkout <WORK-N-TASK-NNN>` | Refuses a dirty tree. If the task has a registered PR, it runs `gh stack checkout <pr>`. If only a local branch exists, it runs `gh stack checkout <branch>`. If an earlier task has a PR, it runs `gh stack checkout <entry-pr>` and then `gh stack add <branch>`. If the current branch is already on a stack, it runs `gh stack top` and then `gh stack add <branch>`. Otherwise it runs `gh stack init <branch>`. |
 | `pdlc post implement-task` | Runs `gh stack sync --prune` and then `gh stack submit --auto`. It picks the submitted PR whose head is this task's branch, overwrites that PR's title and body with `gh pr edit`, and registers the PR number on the task. |
 | `pdlc post implement` | Runs the same sync and submit, then `gh pr ready` on every registered open PR. |
@@ -34,16 +34,13 @@ Ownership is split three ways, and no party re-derives another's state:
 | `pdlc post ci` | Reads the check rollup of every registered PR. Any red PR makes the result red. Any pending PR makes it pending. |
 | `pdlc post complete` | After locking, force-deletes each merged PR's local branch, but only when the branch tip still equals the PR's head commit. |
 
-`pdlc prepare --after <WORK_ITEM>` is the one exception to the ordinary flow. It starts the worktree on the predecessor's latest task branch. `pdlc inspect implement` then reports `stackSetup: none`. For that first task, `pdlc post implement-task` runs `git branch -m <task-branch>` and then `gh stack link <predecessor-pr> <task-branch>` instead of sync and submit. It does this because the predecessor's branch may be checked out in another worktree, and `gh stack link` needs no local tracking.
-
 ## Rules that keep the stack sound
 
-- Create task branches only through `pdlc checkout` or the `stackSetup:` line. A branch made with `git checkout -b` is not on the stack, and submit will not find it.
+- Create and switch task branches only through `pdlc checkout`. A branch made with `git checkout -b` is not on the stack, and submit will not find it.
 - Never `git push` a task branch by hand. The `pdlc post` commands push the stack through `gh stack`, which keeps every base chained.
 - Never change a PR's base with `gh pr edit --base`, and never merge with `gh pr merge`. Merging is a driver decision, made with `gh stack merge <top-pr> --yes`.
 - Commit a fix on the branch of the task that owns it, then run `gh stack rebase --upstack` before returning to the top.
 - Never run the interactive forms: bare `gh stack view`, `gh stack submit` without `--auto`, `gh stack switch`, or `gh stack modify`. Use `gh stack view --json` to read state.
-- When the repository has more than one remote, set `git config remote.pushDefault origin`. Otherwise `sync` and `submit` cannot choose a remote.
 
 ## Diagnose
 
@@ -77,7 +74,6 @@ The stack is healthy when all of the following hold:
 | `working tree has uncommitted changes` from `pdlc checkout` | The tree is dirty. | Commit the change on the branch that owns it, or stash it. `pdlc` never forces a switch. |
 | `registered pull request #N could not be found` | The record lists a PR number that the code host cannot resolve. This happens when the PR was deleted or the repository is wrong. | Check the output of `pdlc doctor`. If the number really is wrong, report it to the driver. `pdlc` has no command to remove a registered PR. |
 | `pdlc post ci` holds `CI Pending` with no PR registered | Implementation and Testing publish through PRs, and none are registered. | Run `pdlc post attach-pr <delivery-task> <pr-number>`, then `pdlc post ci <WORK_ITEM>`. |
-| `blocked: this worktree stacks after work item N, which has no implemented …` | The `--after` predecessor has no implemented task with a registered PR yet. | Wait for the predecessor, or ask the driver to re-prepare the worktree without `--after`. |
 | A PR title or body shows `gh stack`'s generated text | The PR was created without a `pdlc post implement-task` run following it. `gh stack` writes the title and body only when it creates a PR. | Re-land the task with `pdlc post implement-task <task> <file>`. That run overwrites both fields. |
 | A lower PR was squash-merged and the branches above look duplicated | Nothing is wrong. `gh stack sync` rebases onto trunk with `--onto` and skips the merged branch. | Let the next `pdlc post` run its sync. `--prune` drops the merged branch locally. |
 | `pdlc post complete` reports a branch as skipped with `sha-mismatch` | The local branch differs from the merged PR's head. It holds either unpushed commits or a rebase made after the merge. | Leave the branch alone. Deleting it could lose work, so report it to the driver. |

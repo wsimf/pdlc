@@ -10,7 +10,7 @@ argument-hint: "Parent work item number to implement"
 
 The sub-agents know nothing about the PDLC pipeline, so every brief must stand on its own. `pdlc prompt` builds them; this skill passes each one through untouched and never writes a brief of its own.
 
-Read `pdlc guide contract` when resolving lifecycle questions.
+Read `pdlc guide contract` when resolving lifecycle questions. Read `pdlc guide stacks` when a task branch, its pull request, or the stack is not where `pdlc` expects it.
 
 ## Resolve
 
