@@ -1,31 +1,20 @@
-# Product-reviewer dispatch prompt
-
-`pdlc-write` Review fills the placeholders below and spawns `pdlc-product-reviewer` with the result, before the specification is landed. Read-only: it returns findings and a verdict, and changes nothing.
-
----
-
-```md
 Review the supplied Product draft before it is posted to the work item store.
 
-## Execution boundary
-
-You are being invoked as the leaf product reviewer.
-Do not invoke any `pdlc-*` skill.
+{{INCLUDE:shared/execution-boundary.md}}
 Do not re-run the calling skill or rediscover the lifecycle stage.
-Do not spawn, dispatch, or ask another agent to do this work.
-Review the supplied draft directly and return one report to the calling `pdlc-write` skill.
+Review the supplied draft directly and return one report to the calling skill.
 
 ## Draft under review
 
-`<exact scratch file path>` — read the whole file; review all of it.
+`{{DRAFT_PATH}}` — read the whole file; review all of it.
 
 ## Current record (reconcile only)
 
-`<complete current work item body, or "none, new record">`
+{{CURRENT_RECORD}}
 
 ## Prior findings (re-review only)
 
-`<the previous pass's findings, so each can be confirmed addressed — or "none, first review">`
+{{PRIOR_FINDINGS}}
 
 ## What to check
 
@@ -37,4 +26,3 @@ Review the supplied draft directly and return one report to the calling `pdlc-wr
 ## Report back
 
 Findings with evidence, coverage boundaries, and exactly one of `Changes Required` or `Approval Required`.
-```

@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to plan"
 
 Prepare the Technical Plan for every delivery task that needs one. `pdlc-tech-planner` spikes the tasks against current source and authors the plans, `pdlc-plan-reviewer` checks the local plan files, and `pdlc post plan` validates and lands the reviewed plans at `Approval Required`. This skill owns orchestration; it never decides the plan's technical content. Review runs on the local files, before anything is landed.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Use [`references/plan-review-prompt.md`](references/plan-review-prompt.md) as the review dispatch template. `pdlc prompt tech-planner` builds the tech planner's brief; this skill passes it through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt tech-planner` and `pdlc prompt plan-reviewer` build the planner's and reviewer's briefs; this skill passes each through untouched and never writes a brief of its own.
 
 ## Resolve
 
@@ -63,7 +63,7 @@ Call `pdlc post plan --help` for the checks it runs. It writes nothing. Send eve
 
 ## Review
 
-Dispatch `pdlc-plan-reviewer` with [`references/plan-review-prompt.md`](references/plan-review-prompt.md), the complete parent body, every plan file, and each in-scope task's current body and existing plan. The reviewer is read-only and must review the actual files, not a summary.
+Dispatch `pdlc-plan-reviewer` with the brief `pdlc prompt plan-reviewer WORK_ITEM --manifest FILE [--findings FILE] --file` writes — the same manifest `pdlc post plan` takes; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
 
 On findings, send them verbatim to the same planner by re-running `pdlc prompt tech-planner WORK_ITEM --follow-up FILE --file` with the findings as the follow-up, then repeat Validate and Review on the same paths with the prior findings. On a clean verdict, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The verdict is a working step and is never posted to the record. This step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 
