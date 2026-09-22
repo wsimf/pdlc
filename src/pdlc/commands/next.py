@@ -53,12 +53,9 @@ advances straight past it, so this router only ever sees real on-disk state.
 
 from __future__ import annotations
 
-import os
 import sys
 from pdlc.config import get_config
-import tempfile
 import time
-from pathlib import Path
 
 
 from pdlc.commands.inspect import due_next_section
@@ -136,13 +133,7 @@ def _advance_past_skips(item: dict, pipeline: Pipeline) -> dict:
         item_id = item["id"]
         issue = item_issue(item)
 
-        descriptor, name = tempfile.mkstemp()
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(f"{state.stage} skipped (declared in Skipped States).\n")
-        try:
-            post_comment(issue, name, "SKIPPED")
-        finally:
-            Path(name).unlink(missing_ok=True)
+        post_comment(issue, f"{state.stage} skipped (declared in Skipped States).\n", "SKIPPED")
 
         target = pipeline.next_state(state, Event.SKIPPED)
         set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)

@@ -40,7 +40,10 @@ class SkipInvalidateTests(FileBackendTest):
         result = self.next("--work-item", 63)
         self.assertEqual(result.front_matter("action"), "pdlc-implement")
         self.assertEqual(self.fields(63)["Status"], "Implementation")
-        self.assertIn("PDLC-SKIPPED", self.comments_text(63))
+        self.assertEqual(
+            json.loads(self.comments_text(63))["body"],
+            "PDLC-SKIPPED\n\nTechnical Plan skipped (declared in Skipped States).\n",
+        )
 
     def test_next_heals_a_stray_approved_gate_on_an_active_stage(self):
         self.seed_record(76, "Technical Plan", "Approved")
