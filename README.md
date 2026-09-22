@@ -182,7 +182,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[workflow] max_attempts` | `5` | Maximum queue-loop polling attempts. |
 | `[workflow] initial_delay_seconds` | `60` | Initial queue-loop retry delay. |
 | `[workflow] max_delay_seconds` | `900` | Queue-loop retry delay ceiling. |
-| `[workflow] no_sleep` | `false` | `true` skips queue-loop retry sleeps. |
+| `[workflow] no_sleep` | `false` | `true` skips queue-loop retry sleeps; CI monitoring retains its own wait policy. |
 | `[worktree] root` | `~/.pdlc/worktrees` | Parent directory for `pdlc prepare` / `pdlc cleanup` worktrees; each is nested `<root>/<repo-name>/<workitem>`. |
 | `[worktree] base_ref` | detected default branch | Ref that new `pdlc prepare` branches start from. |
 | `[worktree] init_script` | unset | Shell snippet `pdlc prepare` offers to run in a freshly created worktree. |

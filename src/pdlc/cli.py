@@ -106,7 +106,7 @@ def _usage() -> str:
         "  post test WI EVIDENCE --traceability FILE  push the stack, record PR + traceability, set Review Required\n"
         "  post verify WI REPORT                  post a verification report and move the gate\n"
         "  post review WI VERDICT EVIDENCE        reviewer verdict (changes/approval/decision-required)\n"
-        "  post ci WI                             resolve CI Pending against live check state\n"
+        "  post ci WI [--wait]                    resolve CI Pending, optionally waiting for checks\n"
         "  post escalate WI EVIDENCE              park the current stage on a driver decision (stage owner)\n"
         "  post decision WI --manifest FILE       close a Decision Required gate\n"
         "  post approve WI EVIDENCE [--force]     human approval, advance to next stage (driver-only)\n"

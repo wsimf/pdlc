@@ -24,7 +24,7 @@ flowchart TD
     Next -->|"Review Required (Implementation, Testing)"| Review["pdlc-review<br/>independent reviewer"]
     Next -->|"Review Required (UI, Tasks, Technical Plan):<br/>published without its local review"| Owner
     Next -->|Decision Required| Decision["human-decision<br/>pdlc guide decisions"]
-    Next -->|CI Pending| CIWait["autonomous loop backs off<br/>while checks run;<br/>driver may run pdlc post ci"]
+    Next -->|CI Pending| CIWait["pdlc post ci --wait monitors checks;<br/>driver may run a one-shot check"]
     Next -->|Approval Required| Human["Human approval required"]
     Next -->|"Skipped stage (Skipped States)"| SkipCascade["pdlc next auto-advances<br/>Pending / Changes / Stale straight to<br/>the next stage's Pending<br/>PDLC-SKIPPED, no specialist or reviewer"]
     Next -->|Complete| Done([No work])
@@ -136,7 +136,7 @@ A landed, approved artifact is reworked by returning it to `Stale`. At
 
 `Implementation`, `Testing`, and `Verification` are CI-gated: a clean stage review (`pdlc post review`) or a clean verification run (`pdlc post verify` with a report that derives `Approval Required`) lands `CI Pending`, not `Approval Required`, because the reviewer judges the work without waiting on the registered PR stack's CI.
 The same command reconciles that CI straight away; while checks are still running the record stays at `CI Pending` until `pdlc post ci` reconciles it against the live check rollup — green (or nothing to wait on: no checks configured, or no registered PR on Verification) → `Approval Required`, red → `Changes Required` with a `PDLC-REVIEW` note naming the failed checks, which the stage's owning skill fixes; with no registered PR on Implementation or Testing it refuses and the record stays at `CI Pending`.
-It is mechanical, carries no identity check, and the autonomous loop runs it unattended once checks finish; while they run, `pdlc next` reports the record as no work so the loop backs off.
+It is mechanical, carries no identity check, and the autonomous loop runs `pdlc post ci --wait` unattended; the command monitors the aggregate registered PR stack and returns after the gate settles or its one-hour timeout expires.
 
 Both `Implementation` and `Testing` approval gates are auto-cleared on a record that has demonstrably iterated the rework loop. The count comes only from Verification `PDLC-REVIEW` comments whose `verdict` is `Changes Required`, whose `bounce` names an upstream stage, and whose `loop` matches the pipeline's named rework policy. Between 1 and the selected pipeline's rework cap (three for Feature), the script that would set the gate advances straight past it instead: the CI gate on green CI posts a `PDLC-AUTOAPPROVED` comment and `set_state` to the next stage's `Pending`, so no human step and no later routing pass is involved. On the first pass, past the cap, and for `Verification` always, the gate still stops for the driver. A `pdlc post verify` report with a `bounce` stage advances the count and returns the named upstream stage to `Stale` without a driver step or `PDLC-INVALIDATED`; explicit driver invalidation remains separate and does not affect the loop count.
 

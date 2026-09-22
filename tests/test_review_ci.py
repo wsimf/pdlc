@@ -3,6 +3,7 @@ CI reconciliation a clean Implementation review triggers, and churn-gated
 autonomous approval past the Implementation and Testing gates."""
 
 import json
+from unittest.mock import patch
 
 from _support import FileBackendTest
 
@@ -82,8 +83,9 @@ class CiPendingGateTests(FileBackendTest):
         self.assertIn("PDLC-REVIEW", self.comments_text(26))
         self.assertIn("stage: Implementation", self.comments_text(26))
         self.assertIn("verdict: Pass", self.comments_text(26))
-        self.assertEqual(self.next("--work-item", 26).front_matter("action"), "none")
-        self.assertIn("CI is still running", self.next("--work-item", 26).stdout)
+        routed = self.next("--work-item", 26)
+        self.assertEqual(routed.front_matter("action"), "pdlc-post-ci")
+        self.assertIn("`pdlc post ci 26 --wait`", routed.stdout)
         self.assertIn("CI Pending", self.invoke("inspect_review", 26).stdout)
 
     def test_green_ci_advances_to_approval_required_via_post_ci(self):
@@ -106,6 +108,54 @@ class CiPendingGateTests(FileBackendTest):
         self.assertIn("CI is still pending", result.stdout)
         self.assertIn("pdlc post ci 26", result.stdout)
         self.assertEqual(self.fields(26)["Gate State"], "CI Pending")
+
+    def test_wait_monitors_the_registered_pr_stack_until_every_check_settles(self):
+        self.seed_record(33, "Implementation", "CI Pending")
+        initial = [
+            {"number": 933, "title": "one", "url": "u", "state": "OPEN", "isDraft": False, "branch": "one", "mergedAt": None, "checks": "SUCCESS", "relation": "closes"},
+            {"number": 934, "title": "two", "url": "u", "state": "OPEN", "isDraft": False, "branch": "two", "mergedAt": None, "checks": "PENDING", "relation": "closes"},
+        ]
+        self.seed_prs(33, initial)
+
+        def settle(_: float) -> None:
+            self.seed_prs(33, [{**pr, "checks": "SUCCESS"} for pr in initial])
+
+        with patch("pdlc.commands.post_ci.time.sleep", side_effect=settle) as sleep:
+            result = self.invoke("post_ci", 33, "--wait")
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("checking again in 30s", result.stderr)
+        self.assertIn("## CI Passed", result.stdout)
+        self.assertEqual(self.state(33), ("Implementation", "Approval Required"))
+        sleep.assert_called_once_with(30)
+
+    def test_wait_fails_the_stage_immediately_when_any_pr_is_red(self):
+        self.seed_record(34, "Testing", "CI Pending")
+        self.seed_prs(34, [
+            {"number": 935, "title": "one", "url": "u", "state": "OPEN", "isDraft": False, "branch": "one", "mergedAt": None, "checks": "FAILURE", "relation": "closes"},
+            {"number": 936, "title": "two", "url": "u", "state": "OPEN", "isDraft": False, "branch": "two", "mergedAt": None, "checks": "PENDING", "relation": "closes"},
+        ])
+
+        with patch("pdlc.commands.post_ci.time.sleep") as sleep:
+            result = self.invoke("post_ci", 34, "--wait")
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("Failed checks: #935 (FAILURE)", result.stdout)
+        self.assertEqual(self.state(34), ("Testing", "Changes Required"))
+        sleep.assert_not_called()
+
+    def test_wait_timeout_leaves_the_record_at_ci_pending(self):
+        self.seed_record(35, "Verification", "CI Pending")
+        self.green_pr(35, number=937, checks="PENDING")
+
+        with patch("pdlc.commands.post_ci.time.monotonic", side_effect=[0.0, 3600.0]), patch("pdlc.commands.post_ci.time.sleep") as sleep:
+            result = self.invoke("post_ci", 35, "--wait")
+
+        self.assertEqual(result.code, 1)
+        self.assertIn("after one hour", result.stderr)
+        self.assertEqual(self.state(35), ("Verification", "CI Pending"))
+        self.assertEqual(self.comments_text(35), "")
+        sleep.assert_not_called()
 
     def test_red_ci_at_review_time_drops_to_changes_required(self):
         self.seed_record(27, "Implementation", "Review Required")

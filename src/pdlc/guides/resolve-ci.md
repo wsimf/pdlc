@@ -20,9 +20,7 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
 
 ## Step 2: Act on the driver's "continue"
 
-- **Still running** (`PENDING` / `EXPECTED`) — nothing to do. Tell the driver CI
-  has not finished; the autonomous loop re-checks on its own backoff, or they can
-  ask again later. Post nothing, change nothing.
+- **Still running** (`PENDING` / `EXPECTED`) — run `pdlc post ci <work-item> --wait`. It monitors the aggregate registered PR stack with capped exponential backoff for up to one hour, then resolves the gate when CI settles. A timeout exits non-zero and leaves the record unchanged.
 
 - **Green** (`SUCCESS`, or `NONE` — no checks configured; on Verification also no registered PR — nothing to wait on) — run:
 
@@ -43,10 +41,7 @@ PR: `SUCCESS`, `FAILURE`, `PENDING`, `ERROR`, or `NONE` (no checks configured).
 - **No registered PR** on Implementation or Testing — `pdlc post ci` exits non-zero naming the stage and leaves the record at `CI Pending`: those stages publish through their pull requests, so no CI was checked.
   Report it to the driver; once the stage's pull requests are registered (`pdlc post attach-pr <delivery-task> <pr-number>` for a delivery task's PR), run `pdlc post ci` again.
 
-`pdlc post ci` is mechanical: it records the CI outcome and makes no
-judgement, so the autonomous loop runs it unattended and a driver may run it
-directly. It carries no identity check and refuses any gate other than
-`CI Pending`.
+`pdlc post ci` is mechanical: it records the CI outcome and makes no judgement, so the autonomous loop runs it unattended with `--wait`; a driver may omit that flag for a one-shot check. It carries no identity check and refuses any gate other than `CI Pending`.
 
 ## Step 3: Report
 

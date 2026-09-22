@@ -416,9 +416,7 @@ _IMPLEMENTATION_DUE_NEXT: dict[str, str] = {
     ),
     "CI Pending": (
         "Due next: Implementation.CIPending → This work item is pending CI build.\n"
-        "Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli\n"
-        "directly as it doesn't configure the pdlc state after CI failure. Act on the instructions\n"
-        "provided by that command."
+        "Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command."
     ),
     "Decision Required": (
         "Due next: Implementation.DecisionRequired → This work item is pending user decision.\n"
@@ -481,9 +479,7 @@ _TESTING_DUE_NEXT: dict[str, str] = {
     ),
     "CI Pending": (
         "Due next: Testing.CIPending → This work item is pending CI build.\n"
-        "Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli\n"
-        "directly as it doesn't configure the pdlc state after CI failure. Act on the instructions\n"
-        "provided by that command."
+        "Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command."
     ),
     "Approval Required": (
         "Due next: Testing.ApprovalRequired → This work item is pending user approval.\n"
@@ -535,9 +531,7 @@ _VERIFICATION_DUE_NEXT: dict[str, str] = {
     ),
     "CI Pending": (
         "Due next: Verification.CIPending → This work item is pending CI build.\n"
-        "Call `pdlc post ci {ITEM_ID}` to check for the CI gates, do not use internal gh cli\n"
-        "directly as it doesn't configure the pdlc state after CI failure. Act on the instructions\n"
-        "provided by that command."
+        "Call `pdlc post ci {ITEM_ID} --wait` to monitor and resolve the CI gates; do not use internal gh cli directly as it doesn't configure the pdlc state after CI failure. Act on the instructions provided by that command."
     ),
     "Approval Required": (
         "Due next: Verification.ApprovalRequired → This work item is pending user approval.\n"

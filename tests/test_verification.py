@@ -39,8 +39,9 @@ class VerificationTests(FileBackendTest):
         self.green_pr(68, number=148, checks="PENDING")
         result = self.invoke("post_verify", 68, self.verify_report(68))
         self.assertEqual(result.json["gateState"], "CI Pending")
-        self.assertEqual(self.next("--work-item", 68).front_matter("action"), "none")
-        self.assertIn("CI is still running", self.next("--work-item", 68).stdout)
+        routed = self.next("--work-item", 68)
+        self.assertEqual(routed.front_matter("action"), "pdlc-post-ci")
+        self.assertIn("`pdlc post ci 68 --wait`", routed.stdout)
 
     def test_red_ci_after_a_clean_verification_drops_to_changes_required(self):
         self.seed_record(69, "Verification", "Pending")

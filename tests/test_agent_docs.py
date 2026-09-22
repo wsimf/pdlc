@@ -168,7 +168,7 @@ class DueNextNamesARealTargetTests(unittest.TestCase):
                     self.assertIn("Stop and request\nthe user's confirmation", section)
                     self.assertNotRegex(section, r"(?i)\binvoke pdlc-")
                 elif action == "pdlc-post-ci":
-                    self.assertIn("`pdlc post ci 4242`", section)
+                    self.assertIn("`pdlc post ci 4242 --wait`", section)
                 elif action == "pdlc-continue":
                     self.assertIn("`pdlc next 4242`", section)
                 elif action.startswith("pdlc-"):

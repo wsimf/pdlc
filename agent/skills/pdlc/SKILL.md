@@ -119,7 +119,7 @@ Run one pass at a time:
 
 1. Run `pdlc inspect WORK_ITEM` and read `# Due Next`. Re-read the record every pass rather than predicting the next action from the previous one.
 2. When `# Due Next` names a skill, invoke it directly with the work item number, carrying any `###` sections the instruction names; when it names a `pdlc` command, run it. If the skill needs the driver's answer mid-stage, ask, and carry on with that skill once they reply. Keep only a pass summary: the action, what it returned, and the resulting `Status`/`Gate State`.
-3. When `pdlc post ci` reports the checks are still running, the record is waiting, not stuck: wait a few minutes and run it again. If the same checks are still queued or running after an hour, stop and report them.
+3. When CI is pending, run the command named by `# Due Next`; it monitors the registered pull requests for up to one hour and returns after the gate settles. A timeout is a stop and leaves the record unchanged.
 4. Return to step 1.
 
 Stop only on the first of:
