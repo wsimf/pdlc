@@ -36,6 +36,28 @@ class InspectTests(FileBackendTest):
         result = self.invoke("inspect", 20, "--full")
         self.assertIn("The shell ships", result.stdout)
 
+    def test_uninitialized_inspection_renders_requirements_and_writer_route(self):
+        self.seed_record(24, "", "", body="Product manager brief: ship offline routes.\n")
+        meta_path = self.records_dir() / "24" / "meta.json"
+        meta = json.loads(meta_path.read_text())
+        meta["fields"].update({"Lifecycle": "", "Slug": ""})
+        meta_path.write_text(json.dumps(meta))
+
+        result = self.invoke("inspect", 24)
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("# Requirements\n\nProduct manager brief: ship offline routes.", result.stdout)
+        self.assertNotIn("# Work Item", result.stdout)
+        self.assertIn("Due next: Uninitialized → pdlc-write", result.stdout)
+
+    def test_partial_empty_state_remains_blocked(self):
+        self.seed_record(25, "Product", "", body="Product manager brief.\n")
+
+        result = self.invoke("inspect", 25, "--full")
+
+        self.assertNotIn("# Requirements", result.stdout)
+        self.assertIn("invalid workflow state", result.stdout)
+
     def test_due_next_verification_approved_gate_is_curated(self):
         # Verification is fully curated like every other stage now, so its
         # Approved gate renders the same plain heal text the rest use, not

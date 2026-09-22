@@ -65,6 +65,12 @@ class RoutingTableTests(unittest.TestCase):
         due = due_next({"Status": "Implementation", "Gate State": "Pending", "Skipped States": ""})
         self.assertEqual(due["action"], "pdlc-implement")
 
+    def test_empty_status_and_gate_route_to_product_authoring(self):
+        due = due_next({"Status": "", "Gate State": "", "Skipped States": ""})
+        self.assertEqual(due["state"], "Uninitialized")
+        self.assertEqual(due["action"], "human-input")
+        self.assertEqual(due["owner"], "human — invoke pdlc-write interactively")
+
     def test_unavailable_work_type_is_blocked(self):
         due = due_next({"workType": "bug", "Status": "Implementation", "Gate State": "Pending"})
         self.assertEqual(due["action"], "blocked")

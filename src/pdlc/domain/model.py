@@ -59,6 +59,11 @@ def item_gate(item: dict) -> str:
     return item.get("Gate State") or ""
 
 
+def is_uninitialized(item: dict) -> bool:
+    """True when a work item has not entered a PDLC workflow yet."""
+    return not item_status(item) and not item_gate(item)
+
+
 def item_issue(item: dict) -> str:
     number = item.get("content", {}).get("number", item.get("number"))
     return str(number) if number is not None else ""
@@ -132,6 +137,18 @@ def _healable_due(state: State, target: State) -> dict:
 def due_next(item: dict) -> dict:
     try:
         pipeline = PIPELINE_REGISTRY.for_record(item)
+        if is_uninitialized(item):
+            return {
+                "status": "Uninitialized",
+                "gate": "",
+                "skipped_through": [],
+                "action": "human-input",
+                "autonomous": False,
+                "reason": "this work item has not entered the selected workflow",
+                "state": "Uninitialized",
+                "owner": "human — invoke pdlc-write interactively",
+                "skill": pipeline.stage("Product").skill,
+            }
         state = _workflow_state(item, pipeline, item_status(item), item_gate(item))
     except (TypeError, ValueError) as error:
         return _blocked_due(item, str(error))

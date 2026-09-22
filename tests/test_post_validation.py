@@ -284,6 +284,23 @@ class PostWriteReconstructionTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.fields(52)["Gate State"], "Approval Required")
 
+    def test_uninitialized_record_is_initialized_in_place(self):
+        self.seed_record(55, "", "", body="Product manager brief: ship offline routes.\n")
+        meta_path = self.records_dir() / "55" / "meta.json"
+        meta = json.loads(meta_path.read_text())
+        meta["fields"].update({"Lifecycle": "", "Slug": ""})
+        meta_path.write_text(json.dumps(meta))
+
+        result = self._rewrite(55)
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.fields(55)["Status"], "Product")
+        self.assertEqual(self.fields(55)["Gate State"], "Approval Required")
+        self.assertEqual(self.fields(55)["Lifecycle"], "Planning")
+        self.assertEqual(self.fields(55)["Slug"], "record-55")
+        self.assertIn("Product manager brief: ship offline routes.", self.body(55))
+        self.assertIn("PDLC-PRODUCT", self.comments_text(55))
+
     def test_decision_required_points_at_the_decisions_guide(self):
         self.seed_record(53, "Product", "Decision Required", body="## Product\nold\n")
         result = self._rewrite(53)
