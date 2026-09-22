@@ -12,35 +12,14 @@ then read the resulting diff before committing it.
 
 from __future__ import annotations
 
-import os
-import time
 from pathlib import Path
 
+from tests._goldens import GoldenMixin
 from tests._prompts import PromptHarness
 
-GOLDENS = Path(__file__).parent / "fixtures" / "prompts"
 
-
-class PromptGoldenTest(PromptHarness):
-    def setUp(self) -> None:
-        super().setUp()
-        # Evidence timestamps render in the local zone, so a golden recorded in
-        # one timezone would fail everywhere else; pin the process to UTC.
-        original = os.environ.get("TZ")
-        os.environ["TZ"] = "UTC"
-        time.tzset()
-        self.addCleanup(time.tzset)
-        self.addCleanup(lambda: os.environ.__setitem__("TZ", original) if original else os.environ.pop("TZ", None))
-
-    def assertGolden(self, name: str, result) -> None:
-        self.assertEqual(result.code, 0, result.stderr)
-        path = GOLDENS / f"{name}.md"
-        if os.environ.get("PDLC_UPDATE_GOLDENS"):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(result.stdout, encoding="utf-8")
-            return
-        self.assertTrue(path.exists(), f"missing golden {path}; regenerate with PDLC_UPDATE_GOLDENS=1")
-        self.assertEqual(result.stdout, path.read_text(encoding="utf-8"), f"brief drifted from {path}")
+class PromptGoldenTest(GoldenMixin, PromptHarness):
+    GOLDENS = Path(__file__).parent / "fixtures" / "prompts"
 
     def _implementer(self):
         return self.invoke("prompt_task_implementer", 60)

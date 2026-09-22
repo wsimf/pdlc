@@ -1,0 +1,53 @@
+{
+  "schema": "pdlc.verify/1",
+  "workItem": 60,
+  "head": "0000000000000000000000000000000000000000",
+  "claims": [
+    {
+      "task": "TASK-001",
+      "title": "WORK-60-TASK-001 [CORE] First",
+      "reuse": "check",
+      "result": null,
+      "note": ""
+    },
+    {
+      "task": "TASK-002",
+      "title": "WORK-60-TASK-002 [UI] Second",
+      "reuse": "check",
+      "result": null,
+      "note": ""
+    }
+  ],
+  "journeys": [
+    {
+      "journey": "UJ-1",
+      "reuse": "check",
+      "result": null,
+      "note": ""
+    }
+  ],
+  "ux": {
+    "reuse": "check",
+    "result": null,
+    "note": ""
+  },
+  "cumulativeReview": {
+    "reuse": "check",
+    "result": null,
+    "note": "",
+    "scope": ""
+  },
+  "openComments": [
+    {
+      "url": "u1",
+      "author": "reviewer",
+      "excerpt": "fix the null case",
+      "action": null,
+      "note": ""
+    }
+  ],
+  "findings": [],
+  "newFindings": [],
+  "bounce": null,
+  "runAt": "<run-at>"
+}
