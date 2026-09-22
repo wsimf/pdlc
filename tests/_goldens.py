@@ -14,11 +14,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 class GoldenMixin(unittest.TestCase):
     GOLDENS: Path
     home: Path
+    work: Path
 
     def setUp(self) -> None:
         super().setUp()
@@ -29,11 +31,19 @@ class GoldenMixin(unittest.TestCase):
         time.tzset()
         self.addCleanup(time.tzset)
         self.addCleanup(lambda: os.environ.__setitem__("TZ", original) if original else os.environ.pop("TZ", None))
+        # Scratch files land in a per-test temp directory, so `scrub` can swap
+        # that exact path out without also rewriting example paths a prompt
+        # quotes (a literal `/tmp/...` is the system temp dir on Linux).
+        self.scratch = self.work / "tmp"
+        self.scratch.mkdir()
+        patcher = patch.object(tempfile, "tempdir", str(self.scratch))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def scrub(self, text: str) -> str:
         """Replace per-run temp paths with stable placeholders, so an output that
         names its scratch file or the record store still compares across runs."""
-        for path, placeholder in ((self.home, "$PDLC_HOME"), (Path(tempfile.gettempdir()), "$TMPDIR")):
+        for path, placeholder in ((self.home, "$PDLC_HOME"), (self.scratch, "$TMPDIR")):
             for form in {str(path), str(path.resolve())}:
                 text = text.replace(form, placeholder)
         return text
