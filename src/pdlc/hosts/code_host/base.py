@@ -35,19 +35,6 @@ class CodeHost(ABC):
         """Repository-relative paths the pull request touches."""
 
     @abstractmethod
-    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
-        """The lines telling a caller how to put ``branch`` on this host's stack,
-        entering at ``entry_pr`` (the previous implemented task's pull request).
-        When it is None, the host continues the stack the current branch already
-        belongs to, if any, else starts a new one.
-
-        Returned as rendered `key: value` lines because the vocabulary is the
-        host mechanism's own — PDLC supplies only the branch and the entry point.
-        A host with no stacked-PR mechanism returns ``[]`` and the caller
-        branches however it likes; it is the read-only counterpart of
-        ``submit_task_stack``, which such a host also refuses."""
-
-    @abstractmethod
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
         """Put the working tree on ``branch``, creating it on this host's stack
         when it does not exist yet, and return one line saying what was done.
@@ -57,10 +44,8 @@ class CodeHost(ABC):
         own registered pull request (it has been implemented), ``entry_pr`` the
         previous implemented task's (this task is next on that stack), and
         neither means this is the work item's first task, which continues the
-        current branch's stack when there is one. It is the acting
-        counterpart of ``task_stack_setup``, which only describes the same move;
-        hosts without a stacked-PR mechanism raise PdlcError, as they do for
-        ``submit_task_stack``.
+        current branch's stack when there is one. Hosts without a stacked-PR
+        mechanism raise PdlcError, as they do for ``submit_task_stack``.
 
         Callers must have a clean working tree: switching branches with local
         changes is the caller's problem to resolve, not this method's to force."""
@@ -79,7 +64,7 @@ class CodeHost(ABC):
     def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
         """Rename the current branch to ``branch``, publish it, and link it onto
         ``entry_pr``'s stack — the worktree-safe alternative to
-        ``task_stack_setup``'s checkout/add for a `pdlc prepare --after`
+        ``checkout_task_branch``'s checkout/add for a `pdlc prepare --after`
         worktree's first task, whose predecessor branch may be checked out in
         the predecessor's own, still-active worktree and so cannot be checked
         out here too. Needs no local stack tracking: it pushes the branch and

@@ -222,23 +222,6 @@ class GitHubCodeHost(CodeHost):
         data = run_gh_json(["pr", "view", str(pr_number), *repo_args(), "--json", "files"])
         return [entry["path"] for entry in data.get("files", [])]
 
-    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
-        # `gh stack` owns the stack's order, bases, and rebases, so nothing here
-        # computes a base branch or asks whether a predecessor's branch still
-        # exists: `gh stack checkout <pr>` fetches the stack from GitHub itself.
-        if entry_pr is None:
-            current = self._current_stack()
-            if current is not None:
-                return [
-                    f"stackSetup: gh stack top && gh stack add {branch}  "
-                    f"(first task — continues the stack the current branch belongs to, on trunk {current['trunk']})"
-                ]
-            return [f"stackSetup: gh stack init {branch}  (first task — creates the stack on the default branch)"]
-        return [
-            f"stackSetup: gh stack checkout {entry_pr} && gh stack add {branch}",
-            f"stackEntryPr: {entry_pr}  (the previous implemented task's registered PR)",
-        ]
-
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
         # `gh stack checkout` takes either a pull request or a branch and
         # fetches the rest of the stack from GitHub itself, so a fresh clone
@@ -296,7 +279,7 @@ class GitHubCodeHost(CodeHost):
         return self.pull_requests_by_number(self.stack_pr_numbers())
 
     def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
-        # `gh stack checkout <entry_pr>` (the ordinary `task_stack_setup` path)
+        # `gh stack checkout <entry_pr>` (the ordinary `checkout_task_branch` path)
         # would `git checkout` the predecessor's branch, which fails when that
         # branch is checked out in the predecessor's own, still-active
         # worktree. `gh stack link` needs no local tracking of the predecessor

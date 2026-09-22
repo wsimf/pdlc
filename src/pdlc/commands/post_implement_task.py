@@ -48,8 +48,7 @@ in place and removes any older duplicates, so the comment always reads as what
 finally shipped.
 
 This first submits the task's stacked pull request via `gh stack` — or, for a
-worktree's first task prepared with `pdlc prepare --after` (reported at `pdlc
-inspect implement` as `stackSetup: none`), renames the current branch to its
+worktree's first task prepared with `pdlc prepare --after`, renames the current branch to its
 deterministic name and links it onto the predecessor's stack instead, since
 there is no local `gh stack` tracking to submit in that case. Either way this
 then sets that PR's
@@ -116,8 +115,7 @@ def _submit_task_stack(task: dict) -> dict:
     whose head is this task's branch.
 
     The one exception is a worktree's first task prepared with `pdlc prepare
-    --after`, reported to the caller at `pdlc inspect implement` time as
-    `stackSetup: none` — there is no local `gh stack` tracking to sync/submit,
+    --after` — there is no local `gh stack` tracking to sync/submit,
     since the predecessor's branch may live in another, still-active worktree
     and was never checked out here. That case renames the current branch to
     its deterministic name and links it onto the predecessor's stack instead.

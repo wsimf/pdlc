@@ -55,21 +55,11 @@ the stage last published, the resolution is printed under `#### Decisions` so a
 thread that was escalated is settled per the answer on this pass instead of
 escalated again.
 
-`## Next Task` names the task with its `branch:` and whatever setup lines the
-configured code host needs to put that branch on its stack. For GitHub, the
-setup lines are `gh stack` invocations entered at the previous implemented
-task's registered pull request. A work item's first task continues the stack
-the current branch already belongs to, if any, rather than starting a new one,
-so work can proceed on top of another work item's unmerged stack in the same
-checkout. For the first task of a worktree prepared with
-`pdlc prepare --after`, the predecessor work item's latest implemented task PR
-is reported as `stackAfter:` and `stackSetup:` tells the caller to implement
-directly on the worktree's current branch instead. A predecessor with no such
-PR yet blocks the task, and a Complete one falls back to a fresh stack. A code
-host with no stacked-PR mechanism contributes no setup line. `pdlc checkout`
-performs that same move for a task, so these lines are here to read rather than
-to run by hand. A Stale task also carries a `reconcile:` line and its
-`#### Invalidation` comment in full.
+`## Next Task` names the task with its `branch:`; `pdlc checkout` puts the
+working tree on it, so no stack setup is printed here. A `blocked:` line
+replaces the handoff when the worktree stacks after another work item that has
+no implemented task pull request yet. A Stale task also carries a
+`reconcile:` line and its `#### Invalidation` comment in full.
 
 Not ready, or nothing to do, is reported plainly rather than raised.
 
@@ -122,12 +112,11 @@ from dataclasses import dataclass
 from pdlc.domain.changes import SOURCE_LABELS, ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import MARKER_PREFIX, evidence_comment_text, item_gate, timeline_formatted_at
-from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.ci_gate import check_state
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
-from pdlc.internal.stack import after_predecessor, stack_entry_pr, task_branch_name
+from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.internal.workitem import due_next, item_slug, pipeline_for_item, record_snapshot
 
 # The change-request sources whose text is the whole record's, not one task's:
@@ -222,7 +211,6 @@ def _fixes(delivery: list[dict], pull_requests: list[dict], threads: list[dict])
 def _next_task_section(item: dict, delivery: list[dict], chosen: dict, comments: list[dict]) -> str:
     slug = item_slug(item)
     branch = task_branch_name(slug, chosen["taskId"])
-    entry_pr = stack_entry_pr(delivery, chosen)
     predecessor = after_predecessor(delivery, chosen)
     lines = [
         "## Next Task",
@@ -233,30 +221,13 @@ def _next_task_section(item: dict, delivery: list[dict], chosen: dict, comments:
         f"isUI: {'true' if chosen['isUI'] else 'false'}",
         f"branch: {branch}",
     ]
-    if predecessor and not predecessor.complete:
-        if predecessor.pr is None:
-            lines += [
-                "",
-                f"blocked: this worktree stacks after work item {predecessor.ref}, which has no implemented "
-                "task with a registered pull request yet.",
-            ]
-            return "\n".join(lines)
-        # This worktree's own branch already sits on the predecessor's latest
-        # task, and that branch may be checked out in the predecessor's own,
-        # still-active worktree — `gh stack checkout` cannot claim it here. The
-        # task is implemented directly on the current branch; `pdlc post
-        # implement-task` links it onto the predecessor's stack at submit time.
+    if predecessor and not predecessor.complete and predecessor.pr is None:
         lines += [
-            "stackSetup: none — stay on this worktree's current branch and implement "
-            "directly here; do not create or check out the `branch` above yourself. "
-            "`pdlc post implement-task` renames the current branch to it and links it "
-            "onto the predecessor's stack when this task is submitted",
-            f"stackAfter: {predecessor.ref}  (this worktree's predecessor work item; entry is its latest task PR {predecessor.pr})",
+            "",
+            f"blocked: this worktree stacks after work item {predecessor.ref}, which has no implemented "
+            "task with a registered pull request yet.",
         ]
-    else:
-        # The stack is the code host's mechanism, so the setup lines come from
-        # it — this only supplies the branch and the entry point PDLC owns.
-        lines += get_code_host().task_stack_setup(branch, entry_pr)
+        return "\n".join(lines)
 
     if chosen["implementationInvalidated"]:
         invalidation = _latest_invalidation(chosen, comments)

@@ -363,22 +363,11 @@ class InspectImplementTests(FileBackendTest):
         self.assertNotIn("### WORK-60-TASK-002", result.stdout)
         self.assertIn("taskId: TASK-001", result.stdout)
         self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
-        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
         # The Technical Plan is not rendered here; the handoff routes to `inspect task` for it.
         self.assertNotIn("Do the thing.", result.stdout)
         self.assertIn("Next: Run `pdlc inspect task 601`", result.stdout)
         self.assertIn("then `pdlc checkout 601` and dispatch that sub-agent to implement the task", result.stdout)
         self.assertIn("run `pdlc post implement-task 601 SUMMARY` to record the implementation, open the task's PR, and close the task.", result.stdout)
-
-    def test_first_task_continues_the_stack_the_checkout_is_on(self):
-        self._github_code_host()
-        self._first_task()
-        stack = {"trunk": "main", "branches": [{"name": "pdlc/record-50/task-002"}]}
-        with patch("pdlc.hosts.lib.github.code_host.GitHubCodeHost._current_stack", return_value=stack):
-            result = self.invoke("inspect_implement", 60)
-        self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("stackSetup: gh stack top && gh stack add pdlc/record-60/task-001", result.stdout)
-        self.assertNotIn("gh stack init", result.stdout)
 
     def test_implement_mode_ignores_open_threads_while_a_task_is_eligible(self):
         # New tasks come first under Pending; threads are picked up once none is left.
@@ -389,44 +378,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: implement", result.stdout)
         self.assertNotIn("this drops the retry", result.stdout)
 
-    def test_stack_entry_is_the_previous_implemented_tasks_pull_request(self):
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
-        self._implemented(60, 601)
-        self._plan(60, 602)
-        self.register_prs(601, [40])
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("### WORK-60-TASK-002 [CORE] Second", result.stdout)
-        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
-        self.assertIn("stackEntryPr: 40", result.stdout)
-
-    def test_predecessor_without_a_registered_pr_gives_no_entry_point(self):
-        # `gh stack checkout` needs a PR to discover the stack from. An
-        # implemented task that never registered one cannot serve as one, so the
-        # inspector says so by falling back to `init` rather than guessing.
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
-        self._implemented(60, 601)
-        self._plan(60, 602)
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-002", result.stdout)
-        self.assertNotIn("stackEntryPr", result.stdout)
-
-    def test_a_code_host_without_a_stack_contributes_no_setup_line(self):
-        # The suite's default file code host cannot submit stacked PRs, so it
-        # offers no setup vocabulary either — the branch is still named.
-        self._first_task()
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("branch: pdlc/record-60/task-001", result.stdout)
-        self.assertNotIn("stackSetup", result.stdout)
-
-    def test_first_task_after_a_predecessor_enters_its_latest_task_pr(self):
+    def test_first_task_after_a_predecessor_with_a_task_pr_is_not_blocked(self):
         self._github_code_host()
         self._predecessor()
         self._first_task()
@@ -434,10 +386,9 @@ class InspectImplementTests(FileBackendTest):
 
         result = self.invoke("inspect_implement", 60)
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("stackSetup: none", result.stdout)
-        self.assertNotIn("gh stack checkout", result.stdout)
-        self.assertIn("stackAfter: 50", result.stdout)
-        self.assertIn("entry is its latest task PR 30", result.stdout)
+        self.assertNotIn("blocked:", result.stdout)
+        self.assertNotIn("gh stack", result.stdout)
+        self.assertIn("Next: Run `pdlc inspect task", result.stdout)
 
     def test_predecessor_without_a_task_pr_blocks_the_first_task(self):
         self._github_code_host()
@@ -448,7 +399,6 @@ class InspectImplementTests(FileBackendTest):
         result = self.invoke("inspect_implement", 60)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("blocked: this worktree stacks after work item 50", result.stdout)
-        self.assertNotIn("stackSetup", result.stdout)
         self.assertNotIn("Next: Run", result.stdout)
 
     def test_complete_predecessor_falls_back_to_a_fresh_stack(self):
@@ -458,22 +408,8 @@ class InspectImplementTests(FileBackendTest):
         self._after("50")
 
         result = self.invoke("inspect_implement", 60)
-        self.assertIn("stackSetup: gh stack init pdlc/record-60/task-001", result.stdout)
-        self.assertNotIn("stackAfter", result.stdout)
-
-    def test_own_previous_task_pr_wins_over_the_predecessor(self):
-        self._github_code_host()
-        self._seed()
-        self.seed_task(60, 601, "TASK-001", "CLOSED", "WORK-60-TASK-001 [CORE] First")
-        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [CORE] Second")
-        self._implemented(60, 601)
-        self._plan(60, 602)
-        self.register_prs(601, [40])
-        self._after("50")
-
-        result = self.invoke("inspect_implement", 60)
-        self.assertIn("stackSetup: gh stack checkout 40 && gh stack add pdlc/record-60/task-002", result.stdout)
-        self.assertNotIn("stackAfter", result.stdout)
+        self.assertNotIn("blocked:", result.stdout)
+        self.assertIn("Next: Run `pdlc inspect task", result.stdout)
 
     def test_stale_task_is_eligible_and_carries_its_invalidation(self):
         # A PR stays attached across invalidation, so `hasImplementation` alone

@@ -156,8 +156,6 @@ number: 51
 taskId: TASK-004
 isUI: true
 branch: pdlc/record-142/task-004
-stackSetup: gh stack checkout 151 && gh stack add pdlc/record-142/task-004
-stackEntryPr: 151
 
 Next: Run `pdlc inspect task 51` for the task body, acceptance criteria, technical plan, and the implementer sub-agent under `## Agent`, then `pdlc checkout 51` and dispatch that sub-agent to implement the task on the checked-out branch.
 

@@ -59,9 +59,6 @@ class FileCodeHost(CodeHost):
                 return pull_request.get("files", [])
         return []
 
-    def task_stack_setup(self, branch: str, entry_pr: int | None) -> list[str]:
-        return []
-
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
         raise PdlcError("the file code host cannot check out stacked task branches")
 

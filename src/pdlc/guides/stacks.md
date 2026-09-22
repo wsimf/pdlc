@@ -26,7 +26,7 @@ Ownership is split three ways, and no party re-derives another's state:
 
 | `pdlc` command | Behind the scenes |
 | --- | --- |
-| `pdlc inspect implement` | Read-only. Prints the next task's `branch:`, a `stackSetup:` line describing the `gh stack` commands `pdlc checkout` will run for it, and `stackEntryPr:` with the previous implemented task's PR. |
+| `pdlc inspect implement` | Read-only. Names the next task and its `branch:`. |
 | `pdlc checkout <WORK-N-TASK-NNN>` | Refuses a dirty tree. If the task has a registered PR, it runs `gh stack checkout <pr>`. If only a local branch exists, it runs `gh stack checkout <branch>`. If an earlier task has a PR, it runs `gh stack checkout <entry-pr>` and then `gh stack add <branch>`. If the current branch is already on a stack, it runs `gh stack top` and then `gh stack add <branch>`. Otherwise it runs `gh stack init <branch>`. |
 | `pdlc post implement-task` | Runs `gh stack sync --prune` and then `gh stack submit --auto`. It picks the submitted PR whose head is this task's branch, overwrites that PR's title and body with `gh pr edit`, and registers the PR number on the task. |
 | `pdlc post implement` | Runs the same sync and submit, then `gh pr ready` on every registered open PR. |
@@ -48,7 +48,7 @@ Start with these commands, and compare their output:
 
 ```bash
 pdlc inspect <WORK_ITEM>          # registered PRs, their state and checks
-pdlc inspect implement <WORK_ITEM> # next task, its branch, stackSetup
+pdlc inspect implement <WORK_ITEM> # next task and its branch
 gh stack view --json              # local stack: branches, PRs, needsRebase, isMerged
 git status && git branch --show-current
 ```
