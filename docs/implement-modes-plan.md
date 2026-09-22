@@ -275,7 +275,7 @@ None
 
 ## Next Task
 
-None. Every delivery task is closed and all checks are green.
+None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.
 
 ## Publish
 
@@ -293,11 +293,11 @@ With a check still running:
 
 ## Next Task
 
-None. Wait for the pending checks, then re-run `pdlc inspect implement 142`.
+None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.
 
 ## Publish
 
-Nothing to publish while checks are pending.
+Run `pdlc post implement 142 EVIDENCE` to publish the stage at Review Required.
 ```
 
 With a red check the mode is `rework` for that PR's task, not `none`.

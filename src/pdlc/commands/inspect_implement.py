@@ -34,15 +34,14 @@ will not route around: readiness names it and the output stops there.
   The unit is every such request in full; the caller splits them into findings
   and fixes each on its owning task. They stay open until the stage publishes.
 - `none`: nothing eligible, nothing to fix, nothing to triage. `## Checks`
-  reads every registered pull request's checks: all settled prints the stage
-  publish under `## Publish`; any still pending says to wait. With unplanned
+  reads every registered pull request's checks and `## Next Task` directs the
+  caller to continue the workflow through the stage publish. With unplanned
   tasks left, the record is waiting on planning instead.
 
 A pull request whose checks are pending or running is never a unit and never
-holds the loop: the next unit proceeds while it runs, and `mode: none` settles
-it at the end. Review threads and check state are live host state, read fresh
-each call, not evidence PDLC recorded; nothing here resolves a thread or
-judges a request.
+holds the loop: the next unit or stage publish proceeds while it runs. Review
+threads and check state are live host state, read fresh each call, not evidence
+PDLC recorded; nothing here resolves a thread or judges a request.
 
 `## Attachments` lists the record's attachments. The unit section (`## Next Task`, `## Next Fix`, or `## Open
 Requests`) ends with a `Next:` sentence naming the one read-only hop before
@@ -406,12 +405,8 @@ def inspect(issue: str) -> str:
         else:
             mode = "none"
             checks = _checks_section(pull_requests)
-            if any(check_state(pr.get("checks")) == "pending" for pr in pull_requests):
-                unit = f"## Next Task\n\nNone. Wait for the pending checks, then re-run `pdlc inspect implement {number}`."
-                publish = "Nothing to publish while checks are pending."
-            else:
-                unit = "## Next Task\n\nNone. Every delivery task is closed and all checks are settled."
-                publish = f"Run `pdlc post implement {number} EVIDENCE` to publish the stage at Review Required."
+            unit = "## Next Task\n\nNone. Every delivery task is closed. Continue the workflow with the command under `## Publish`."
+            publish = f"Run `pdlc post implement {number} EVIDENCE` to publish the stage at Review Required."
 
     sections = ["## Readiness", "", message, "", "## Mode", "", f"mode: {mode}", "", attachments]
     if checks is not None:

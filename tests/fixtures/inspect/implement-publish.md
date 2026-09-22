@@ -16,7 +16,7 @@ None
 
 ## Next Task
 
-None. Every delivery task is closed and all checks are settled.
+None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.
 
 ## Publish
 

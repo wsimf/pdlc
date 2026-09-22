@@ -475,17 +475,17 @@ class InspectImplementTests(FileBackendTest):
             ["Readiness", "Mode", "Attachments", "Checks", "Next Task", "Publish"],
         )
         self.assertIn("- PR #40: green\n- PR #41: green", result.stdout)
-        self.assertIn("None. Every delivery task is closed and all checks are settled.", result.stdout)
+        self.assertIn("None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.", result.stdout)
         self.assertIn("Run `pdlc post implement 60 EVIDENCE` to publish the stage at Review Required.", result.stdout)
 
-    def test_pending_checks_are_never_a_unit_and_hold_only_the_publish(self):
+    def test_pending_checks_are_never_a_unit_or_a_publish_blocker(self):
         self._implemented_stack(gate="Pending", checks=("SUCCESS", "IN_PROGRESS"))
 
         result = self.invoke("inspect_implement", 60)
         self.assertIn("mode: none", result.stdout)
         self.assertIn("- PR #41: pending", result.stdout)
-        self.assertIn("None. Wait for the pending checks, then re-run `pdlc inspect implement 60`.", result.stdout)
-        self.assertIn("Nothing to publish while checks are pending.", result.stdout)
+        self.assertIn("None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.", result.stdout)
+        self.assertIn("Run `pdlc post implement 60 EVIDENCE` to publish the stage at Review Required.", result.stdout)
 
     def test_no_checks_configured_counts_as_settled(self):
         self._implemented_stack(gate="Pending", checks=("NONE", "NONE"))
