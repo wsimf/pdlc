@@ -142,6 +142,21 @@ _FLAG_FIELDS = {
 }
 
 
+def _configure_windows_stdio() -> None:
+    """Keep CLI output writable when Windows inherits an ANSI-code-page stream.
+
+    Work-item Markdown may contain characters that cp1252 cannot encode.  This
+    runs after Python starts, so unlike ``PYTHONIOENCODING`` it needs no
+    per-invocation environment variable from callers.
+    """
+    if os.name != "nt":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def _options(argv: list[str]) -> tuple[list[str], dict[str, str]]:
     """Split global config flags off the front-matter and return them as
     ``load_config`` overrides keyed by Config field name."""
@@ -231,6 +246,7 @@ def _reset_runtime() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Run one CLI invocation without leaking options or cached hosts to the next."""
+    _configure_windows_stdio()
     original = {key: value for key, value in os.environ.items() if key.startswith("PDLC_")}
     _reset_runtime()
     try:
