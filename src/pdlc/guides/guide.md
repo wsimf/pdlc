@@ -21,6 +21,7 @@ Resolve before acting.
 | Understand this guide | `pdlc guide` |
 | Check configuration before work | `pdlc doctor` |
 | Look up a configuration setting | `pdlc guide config` |
+| Troubleshoot a task PR stack | `pdlc guide stacks` |
 | Orient on one work item | `pdlc inspect <WORK_ITEM>` |
 | Read the complete current specification | `pdlc inspect <WORK_ITEM> --full` |
 | Read stage evidence history | `pdlc inspect timeline <WORK_ITEM>` |

@@ -17,9 +17,7 @@ class ReviewRegressionTests(unittest.TestCase):
     def test_next_task_omits_the_technical_plan(self):
         # The plan is no longer rendered by `inspect implement`; `inspect task` owns it.
         task = {"number": 1, "taskId": "TASK-001", "title": "Task", "isUI": False, "state": "OPEN", "hasPlan": True, "hasImplementation": False, "implementationInvalidated": False, "prs": [], "planComment": "## Technical Plan\n\nsecret"}
-        with patch("pdlc.commands.inspect_implement.after_predecessor", return_value=None), \
-                patch("pdlc.commands.inspect_implement.get_code_host") as host:
-            host.return_value.task_stack_setup.return_value = []
+        with patch("pdlc.commands.inspect_implement.after_predecessor", return_value=None):
             output = _next_task_section({"Slug": "record-1"}, [task], task, [])
         self.assertNotIn("secret", output)
         self.assertNotIn("Technical Plan", output)

@@ -51,8 +51,7 @@ from pdlc.internal.worktree import working_tree_dirty
 def _action(target: TaskCheckout) -> str:
     # A `prepare --after` worktree's first task is already on its branch, and
     # that branch may be checked out in the predecessor's own still-active
-    # worktree — the same case `pdlc inspect implement` reports as
-    # `stackSetup: none`. Nothing to check out, so nothing is run.
+    # worktree. Nothing to check out, so nothing is run.
     if target.predecessor is not None and not target.predecessor.complete:
         return "already on this worktree's branch — nothing to check out"
     return get_code_host().checkout_task_branch(target.branch, target.pr, target.entry_pr)
