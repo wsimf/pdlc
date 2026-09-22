@@ -34,7 +34,9 @@ re-authored in place: the script resets Product to Stale itself (no comment —
 the spec never settled at Approved, and the re-land's own Product evidence
 records the change) and re-lands the reviewed spec in the same call. Decision
 Required is refused with a pointer to `pdlc guide decisions`; any other gate
-is refused.
+is refused. An existing record with both Status and Gate State empty is
+initialized in place: its missing Slug is derived from its title and it lands
+at `Product / Approval Required` with Lifecycle set to Planning.
 """
 
 from __future__ import annotations
@@ -49,7 +51,9 @@ from pathlib import Path
 from pdlc.internal.workitem import (
     create_work_item,
     item_gate,
+    item_slug,
     item_status,
+    is_uninitialized,
     pipeline_for_item,
     post_comment,
     read_section,
@@ -96,29 +100,43 @@ def level_two_headings(body: str) -> list[str]:
     return headings
 
 
+def generated_slug(record: dict) -> str:
+    """Derive the stable slug for an existing record entering PDLC."""
+    title = record["content"]["title"].lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", title).strip("-")
+    return slug or f"work-item-{work_item_number(record)}"
+
+
 def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, attachment_inputs: list[dict]) -> dict:
     record = resolve_item(issue)
     pipeline = pipeline_for_item(record)
-    if item_status(record) != "Product":
+    uninitialized = is_uninitialized(record)
+    if not uninitialized and item_status(record) != "Product":
         raise PdlcError(f"cannot author Product while the record is at {item_status(record) or 'an unset stage'}")
     gate = item_gate(record)
-    if gate in ("Review Required", "Approval Required"):
-        # A published spec awaiting review or approval is re-landed in place:
-        # reset Product to Stale ourselves and publish the reviewed spec in
-        # this same call.
-        reauthor_invalidate_stage(record, "Product", pipeline)
-    elif gate == "Decision Required":
-        raise PdlcError(decision_required_message("Product"))
-    elif gate not in ("Pending", "Changes Required", "Stale"):
-        raise PdlcError(
-            f"Product is at {gate or 'an unset Gate State'}; "
-            "return it to Stale with pdlc post invalidate before re-authoring"
-        )
-    state = state_for_item(record, pipeline)
-    try:
+    if uninitialized:
+        state = State("Product", Gate.PENDING)
         target = pipeline.next_state(state, Event.PUBLISHED)
-    except ValueError as error:
-        raise PdlcError(str(error)) from None
+        if not item_slug(record):
+            set_slug(record["id"], generated_slug(record))
+    else:
+        if gate in ("Review Required", "Approval Required"):
+            # A published spec awaiting review or approval is re-landed in place:
+            # reset Product to Stale ourselves and publish the reviewed spec in
+            # this same call.
+            reauthor_invalidate_stage(record, "Product", pipeline)
+        elif gate == "Decision Required":
+            raise PdlcError(decision_required_message("Product"))
+        elif gate not in ("Pending", "Changes Required", "Stale"):
+            raise PdlcError(
+                f"Product is at {gate or 'an unset Gate State'}; "
+                "return it to Stale with pdlc post invalidate before re-authoring"
+            )
+        state = state_for_item(record, pipeline)
+        try:
+            target = pipeline.next_state(state, Event.PUBLISHED)
+        except ValueError as error:
+            raise PdlcError(str(error)) from None
     headings = level_two_headings(record.get("issueBody") or "")
     duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]
     if duplicates:

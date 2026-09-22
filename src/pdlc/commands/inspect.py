@@ -15,7 +15,8 @@ DESCRIPTION
     Renders a work item's metadata, task tree, linked pull requests,
     and routing decision for the pdlc skill's Orient mode.
 
-Sections are ordered front matter, `# Work Item`, `## Attachments`,
+Sections are ordered front matter, `# Work Item` (or `# Requirements` for an
+uninitialized work item), `## Attachments`,
 `## User Comments`, `# Tasks`, `# Warnings` (only when there is one),
 `# Due Next`.
 
@@ -699,6 +700,8 @@ _TESTABLE_SCOPE_BLOCK = (
 def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> str:
     due = due_next(item)
     item_id = item_issue(item)
+    if due["state"] == "Uninitialized":
+        return "# Due Next\n\nDue next: Uninitialized → pdlc-write"
     if due["status"] == "Complete":
         return "# Due Next\n\nThis work item has been completed."
     stage_due_next = _STAGE_DUE_NEXT.get(due["status"])
@@ -819,14 +822,14 @@ def _compact_metadata(item: dict, pull_requests: list[dict]) -> str:
     })
 
 
-def _body_location(full_output: str, body: str, path: Path) -> str:
+def _body_location(full_output: str, body: str, path: Path, heading: str) -> str:
     if not body:
         return f"Full inspection in {path}; the work item body is empty."
 
     lines = full_output.splitlines()
-    # `# Work Item` heading, blank line, then the body; the section that follows
+    # The work-item heading, blank line, then the body; the section that follows
     # (Attachments) is not relied on for the span.
-    start = lines.index("# Work Item") + 3
+    start = lines.index(heading) + 3
     end = start + len(body.splitlines()) - 1
     return f"Full inspection in {path}; read lines {start}-{end} for the body."
 
@@ -843,8 +846,12 @@ def _compact_render(
     warnings_section: str | None = None,
 ) -> str:
     body = (item.get("issueBody") or "").rstrip("\n")
+    uninitialized = due_next(item)["state"] == "Uninitialized"
     sections = [_compact_metadata(item, pull_requests)]
-    sections.append(f"# Work Item\n\n{_body_location(full_output, body, path)}")
+    if uninitialized:
+        sections.append(f"# Requirements\n\n{body}")
+    else:
+        sections.append(f"# Work Item\n\n{_body_location(full_output, body, path, '# Work Item')}")
     sections.append(attachments_markdown(attachments))
     sections.append(user_comments_section)
 
@@ -883,9 +890,10 @@ def render(issue: str) -> tuple[str, str, Path]:
         user_comments_section += f"\n\n> Older comments are omitted from this view. {comments_notice}."
 
     body = (item.get("issueBody") or "").rstrip("\n")
+    uninitialized = due_next(item)["state"] == "Uninitialized"
 
     sections = [yaml_front_matter(metadata)]
-    sections.append(f"# Work Item\n\n{body}")
+    sections.append(f"# {'Requirements' if uninitialized else 'Work Item'}\n\n{body}")
     sections.append(attachments_markdown(attachments))
     sections.append(user_comments_section)
 

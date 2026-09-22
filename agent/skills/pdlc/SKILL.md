@@ -61,7 +61,7 @@ Treat the work item as **current intent only**. Treat Git history as the record 
 - [`references/stage-ownership.md`](references/stage-ownership.md) — the owner and artifact behind the returned `# Due Next` action.
 - `pdlc <command> --help` — command mutation authority or argument details.
 
-1. **Resolve and read the record.** `pdlc inspect WORK_ITEM` — the record's metadata, task tree, linked PRs, and `# Due Next`; `pdlc inspect --help` covers the rest, including how to read the full body. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
+1. **Resolve and read the record.** `pdlc inspect WORK_ITEM` — the record's metadata, task tree, linked PRs, and `# Due Next`; `pdlc inspect --help` covers the rest, including how to read the full body. When both state fields are empty, it instead renders the existing description as `# Requirements` and routes to `pdlc-write`. No item, ambiguous match, unknown work type, or unavailable pipeline is a hard stop — do not fall back to a title search or another pipeline.
 2. **Read the evidence comments when needed.** `pdlc inspect timeline WORK_ITEM` — chronological and grouped by stage. Use `pdlc inspect comments WORK_ITEM --page N` for the raw discussion. Reconcile against work item state; flag disagreement.
 3. **Read the delivery tasks.** Already classified in `pdlc inspect`'s `# Tasks` section. Pull full bodies with `pdlc inspect task DELIVERY_TASK [...]` only where the summary leaves a real question about dependencies, HITL/AFK, or acceptance criteria.
 4. **Check linked PRs and checks** from `pdlc inspect`'s `pullRequests` field — it already carries the check rollup; don't re-derive it.

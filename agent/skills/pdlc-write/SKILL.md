@@ -22,12 +22,13 @@ For a work item number, run:
 pdlc inspect WORK_ITEM
 ```
 
-Read the resolved `Status`, `Gate State`, `# Due Next`, and `# Work Item` body. Continue only when `Status` is `Product`; otherwise report the actual state and stop. The snapshot does not include evidence comments; read `pdlc inspect timeline WORK_ITEM` when the evidence history is needed. This step is complete when you hold either a fresh idea or a Product-stage snapshot.
+Read the resolved `Status`, `Gate State`, `# Due Next`, and body section. Continue when `Status` is `Product`, or when both state fields are empty and `# Due Next` names `pdlc-write`. In the latter case, treat `# Requirements` as the initial prompt for this existing work item. Otherwise report the actual state and stop. The snapshot does not include evidence comments; read `pdlc inspect timeline WORK_ITEM` when the evidence history is needed. This step is complete when you hold either a fresh idea, Product-stage snapshot, or an uninitialized record's requirements.
 
 ## Gate
 
 For an existing record, follow `# Due Next` for what to do, whatever produced that state:
 
+- Names `Uninitialized`: author the three owned sections from `# Requirements`; Land initializes this existing record and assigns its missing slug.
 - Names authoring or reauthoring (`Pending`, `Changes Required`, `Stale`): reconcile the three owned sections in place against the recorded evidence.
 - Names the review procedure (`Review Required`): the spec was published without its local review. Write the published three sections to the scratch file, then go straight to Review; on a clean verdict, Land it unchanged.
 - Names user approval (`Approval Required`): re-author in place only when the driver explicitly requests a spec change in this turn. Without that request, it's a human boundary: report it and stop.

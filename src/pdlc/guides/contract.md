@@ -18,6 +18,8 @@ Resolve before acting.
 4. Use `pdlc inspect timeline <work-item>` when the evidence history matters.
 5. Treat malformed state, unknown work type, missing registered data, unavailable workflow, and backend errors as blockers.
 
+A supported record with both `Status` and `Gate State` empty is uninitialized rather than malformed. `pdlc inspect` renders its current description as `# Requirements` and routes it to `pdlc-write`; a successful Product publication assigns its slug and enters `Product / Approval Required` with `Lifecycle: Planning`.
+
 The CLI is the only supported interface to the store.
 Local files are temporary inputs unless a command explicitly stores them as attachments.
 
