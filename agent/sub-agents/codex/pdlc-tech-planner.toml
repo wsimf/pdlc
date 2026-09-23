@@ -1,5 +1,5 @@
 name = "pdlc-tech-planner"
-model = "gpt-5.6-sol"
+model = "gpt-6-sol"
 model_reasoning_effort = "high"
 description = "Spike supplied delivery tasks against current source, then return implementation-ready, heading-free plan files and a manifest."
 developer_instructions = '''

@@ -1,5 +1,5 @@
 name = "pdlc-tasks-reviewer"
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 model_reasoning_effort = "medium"
 description = "Independently review a local UI fragment or delivery-task breakdown for journey and requirement coverage, dependency validity, and artifact quality. Strictly read-only."
 developer_instructions = '''

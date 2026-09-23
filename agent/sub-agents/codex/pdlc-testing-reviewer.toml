@@ -1,5 +1,5 @@
 name = "pdlc-testing-reviewer"
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 model_reasoning_effort = "medium"
 description = "Independently review test coverage and its requirement-to-source traceability, confirming genuine coverage rather than a merely green suite. Strictly read-only."
 developer_instructions = '''
