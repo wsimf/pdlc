@@ -4,7 +4,7 @@ Status: proposal for review. No code changes yet.
 
 ## Summary
 
-Let a stage further down the pipeline correct an already-landed upstream artifact (Product, UI, Tasks, Technical Plan) in place, without returning the record to that stage, when an independent reviewer confirms no completed stage in between is affected. If something in between is affected, the record returns to the earliest affected stage with the existing `pdlc post invalidate`.
+Let a later planning stage correct an already-landed upstream planning artifact (Product, UI, Tasks) in place, without returning the record to that stage, when an independent reviewer confirms no completed stage in between is affected. If something in between is affected, the record returns to the earliest affected stage with the existing `pdlc post invalidate`.
 
 ## Problem
 
@@ -20,54 +20,51 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 ## Non-goals
 
 - Selective invalidation (e.g. make UI stale but keep Tasks). The record's state is a single `(stage, gate)` pointer and moving forward re-runs every stage after the target, so "earliest affected stage" is the only meaningful answer. Per-stage evidence validity would be a model change; `InvalidationPolicy.evidence_dependencies` exists but nothing reads it at runtime today.
-- Patching Implementation or Testing. They are code, not documents; rework and `post invalidate` already cover them.
-- Patching from Verification. Its only re-entry targets are Implementation and Testing, and its bounce flow is unchanged.
+- Patching while the active stage is a delivery stage (Implementation, Testing, Verification). Once tasks are planned and built, impact reaches plans, PRs, and tests; `post invalidate` covers that. Revisit if real usage shows the need.
+- Patching Technical Plan. It is only upstream of delivery stages, so the rule above excludes it.
 
 ## Flow
 
-1. A stage owner (or its reviewer) finds an issue in an upstream artifact.
-2. The owner drafts the corrected artifact in the same input form that artifact's landing command already takes.
+1. A planning-stage owner (or its reviewer) finds an issue in an upstream planning artifact.
+2. The active stage's owner drafts the corrected artifact itself, in the same input form that artifact's landing command already takes. The planner sub-agents are not dispatched for a patch: their briefs stay gated to their own stage.
 3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. This produces `--evidence`.
-4. If any non-skipped stage lies between the patched stage and the active stage, or the active stage already has landed work (closed tasks), the internal patch reviewer (see below) reads the reviewed diff and every downstream artifact and returns the earliest affected stage, or `none`. This produces `--impact`.
-5. If the verdict is `none`: land with `--patch`. Otherwise: `pdlc post invalidate <stage> [--task N ...]` with the impact report as evidence, and the normal stage flow takes over.
+4. If any non-skipped stage lies between the patched stage and the active stage, the internal patch reviewer (see below) compares the reviewed draft with the landed artifact, reads every intermediate artifact, and returns the earliest affected stage, or `none`. This produces `--impact`.
+5. If the verdict is `none`: land with `--patch`. Otherwise: `pdlc post invalidate <stage>` with the impact report as evidence, and the normal stage flow takes over.
 
-The patch reviewer runs after the stage review so it judges the diff that will actually land.
+The patch reviewer runs after the stage review so it judges the draft that will actually land.
 
 ## CLI
 
 ### Surface
 
-`--patch` and `--impact FILE` are added to the three commands that land upstream documents. No new command: each keeps its own parsing and validation, and patch mode only changes the state handling around the landing.
+`--patch` and `--impact FILE` are added to the two commands that land upstream planning documents. No new command: each keeps its own parsing and validation, and patch mode only changes the state handling around the landing.
 
 | Patched stage | Command |
 |---|---|
-| Product | `pdlc post write --work-item N --body FILE --evidence FILE --patch [--impact FILE]` |
+| Product | `pdlc post write --work-item N --body FILE --evidence FILE --patch [--impact FILE] [--dry-run]` |
 | UI | `pdlc post tasks --work-item N --stage UI --body FILE --evidence FILE --patch [--impact FILE]` |
 | Tasks | `pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE --patch [--impact FILE]` |
-| Technical Plan | `pdlc post plan --work-item N --manifest FILE --evidence FILE --patch [--impact FILE]` |
 
-`--dry-run` keeps working under `--patch` and additionally reports whether `--impact` is required and which tasks the patch touches.
+`post tasks --dry-run` keeps working under `--patch` and additionally reports whether `--impact` is required. `post write` gains `--dry-run`, valid only with `--patch`, reporting the same; `--evidence` is not required with it, matching `post tasks`.
 
 ### Where a patch is allowed
 
-The patched stage must be a re-entry target of the active stage (`reentry_targets`), other than the active stage itself, and must not be skipped:
+The workflow declares which stages each active stage may patch; the patched stage must also not be skipped. For the Feature pipeline:
 
 | Active stage | May patch |
 |---|---|
 | UI | Product |
 | Tasks | Product, UI |
 | Technical Plan | Product, UI, Tasks |
-| Implementation | Product, UI, Tasks, Technical Plan |
-| Testing | Product, UI, Tasks, Technical Plan |
-| Verification, Complete | nothing |
+| any other stage, Complete | nothing |
 
-Active gate: allowed at `Pending`, `Changes Required`, `Stale`, `Review Required`, `Approval Required`. Refused at `Decision Required` (pointer to `pdlc guide decisions`), `CI Pending`, `Approved`, and on a Complete record.
+Active gate: allowed at `Pending`, `Changes Required`, `Stale`, `Review Required`, `Approval Required`. Refused at `Decision Required` (pointer to `pdlc guide decisions`), `Approved`, and any other gate.
 
 `--patch` at the command's own active stage is refused: a normal land or re-author already covers it.
 
 ### When `--impact` is required
 
-Required when at least one non-skipped stage lies strictly between the patched stage and the active stage, or when the active stage is Implementation or Testing and has closed tasks. Otherwise it is optional: the active stage's owner reconciles its own in-progress work against the new text anyway.
+Required when at least one non-skipped stage lies strictly between the patched stage and the active stage. Otherwise it is optional: the active stage's owner reconciles its own in-progress work against the new text anyway.
 
 The impact file must parse to a verdict line:
 
@@ -81,16 +78,17 @@ Any value other than `none` is refused with a pointer to `pdlc post invalidate <
 
 These are the guardrails the CLI can enforce itself; each is refused with a pointer to `post invalidate` for the named stage.
 
-- **Tasks manifest:** the set of task ids must equal the landed set (no added or removed tasks), and `ui`, `covers`, and `depends` must be unchanged. Only `title` and `body` may change. A patch that would reopen a closed task (its body changes) is refused: that is Implementation impact.
-- **UI:** `--no-ui` must match the landed UI applicability.
-- **Technical Plan:** the manifest may only target open tasks with no implementation (`hasImplementation` false). A closed or implemented task is refused: use `post invalidate Implementation --task N`.
-- **Product:** no structural check beyond the existing `post write` body validation.
+- **Tasks manifest:** every entry carries an `id`, the set of task ids must equal the landed set (no added or removed tasks), and `ui`, `covers`, and `depends` must be unchanged. Only `title` and `body` may change; `"unchanged": true` entries are allowed. A plan already landed on a patched task is left in place; the Technical Plan owner reconciles it.
+- **UI:** `--no-ui` must match the landed UI applicability. When `--impact` is required, the set of `UJ-*` ids must equal the landed set.
+- **Product:** when `--impact` is required, the set of `FR-*` / `C-*` ids must equal the landed set. Otherwise no structural check beyond the existing `post write` body validation.
+
+An id-set refusal points to `post invalidate Tasks`, since the landed breakdown's coverage no longer holds.
 
 ### Effect
 
 In one call, after all validation passes:
 
-1. Lands the artifact exactly as a normal land does (same section replacement / task body updates / plan comment replacement) and posts the stage's normal evidence comment, so that stage's evidence stays current.
+1. Lands the artifact exactly as a normal land does (same section replacement / task body updates) and posts the stage's normal evidence comment, so that stage's evidence stays current.
 2. Posts one `PDLC-PATCHED` comment on the record, opening with script-owned lines, then the impact report (or `No intermediate stages.` when `--impact` was not required):
 
    ```
@@ -107,7 +105,7 @@ Patches do not count towards the rework / churn limit.
 
 - `Event.PATCHED`: transition from the active stage, not the patched one. Work gates map to themselves; `Review Required` / `Approval Required` map to `Stale`; every other gate raises.
 - `PATCHED` added to the lifecycle markers. It is not a settlement marker, so completion's settlement count is unaffected.
-- `InvalidationPolicy.can_patch(active_stage, target_stage)`: `target_stage in reentry_targets[active_stage]` and `target_stage != active_stage`, restricted to stages that land a document. Patchable stages are declared per workflow (e.g. a `patchable_stages` tuple on the policy), so routing code never names stages.
+- `InvalidationPolicy.patch_targets`: a per-workflow mapping from active stage to the stages it may patch (for Feature, the table above). `can_patch(active_stage, target_stage)` reads it, so routing code never names stages.
 - `intermediate_stages(patched, active, skipped)`: pure helper used to decide whether `--impact` is required.
 
 Host I/O stays in the commands and one shared helper in `internal/invalidation.py` (`land_patch`), next to `reauthor_invalidate_stage`.
@@ -118,15 +116,15 @@ The patch reviewer judges the PDLC process itself, not the work item's product o
 
 - **Not shipped as a sub-agent declaration.** There is no `pdlc-patch-reviewer` file under `agent/sub-agents/`, so nothing is installed into a consuming repo's agent directory and nothing there can shadow or replace it.
 - **Not routable.** There is no `[agents]` / `[skills]` slot for it and `pdlc inspect capability` does not know it. Repo and machine config cannot override it.
-- **Brief owned by the package.** The prompt lives in `src/pdlc/prompts/docs/patch-review.md` and is rendered by a hidden `pdlc prompt patch-reviewer WORK_ITEM --stage STAGE --diff FILE --file` leaf. The leaf is absent from `pdlc --help` and the `pdlc prompt --help` index (like `prepare` / `cleanup`); only `pdlc guide patch` names it.
+- **Brief owned by the package.** The prompt lives in `src/pdlc/prompts/docs/patch-review.md` and is rendered by a hidden `pdlc prompt patch-reviewer WORK_ITEM --stage STAGE (--body FILE | --manifest FILE) [--file]` leaf, taking the same draft input as the patched stage's landing command. The leaf is absent from `pdlc --help` and the `pdlc prompt --help` index (like `prepare` / `cleanup`); only `pdlc guide patch` names it.
 - **Dispatched to the built-in `general-purpose` agent** with that brief, handed over by path exactly as `pdlc-implement` hands over its briefs. The brief is the whole reviewer: role, read-only rule, inputs, and output format.
-- **Read-only by instruction.** `general-purpose` has write tools, so the calling skill checks the working tree is unchanged after the dispatch and discards the verdict if it is not.
+- **Read-only by instruction.** The brief's read-only rule is the only guard, as for every other PDLC reviewer.
 
 Brief contents:
 
-- **Input:** the work item number, patched stage, active stage, and the reviewed patch (the diff between the landed artifact and the draft).
-- **Reads:** every landed artifact downstream of the patched stage, including the active stage's closed tasks and their PRs when the active stage is Implementation or Testing.
-- **Output:** a report opening with the verdict line, then per stage a short justification citing the requirement ids, journeys, or task ids it checked:
+- **Input:** the work item number, patched stage, active stage, and the reviewed draft; the reviewer compares it with the landed artifact itself.
+- **Reads:** every landed artifact strictly between the patched stage and the active stage.
+- **Output:** a report opening with the verdict line, then per intermediate stage a short justification citing the requirement ids, journeys, or task ids it checked:
 
   ```
   Earliest affected stage: Tasks
@@ -137,8 +135,6 @@ Brief contents:
   ## Tasks
   Affected — TASK-003 acceptance criteria assert the old threshold.
   ```
-
-  When the earliest affected stage is Technical Plan or Implementation, it also names the affected task ids so the caller can pass `--task`.
 - It never edits the record, the draft, or source.
 
 ## Human boundary
@@ -152,15 +148,15 @@ Open question: whether a Product patch should instead require explicit driver ap
 
 ## Skills and guides
 
-- New `pdlc guide patch`: when to patch vs. invalidate, the reviewer order, and the `--impact` verdict format. Stage skills link it instead of repeating it.
-- `pdlc-tasks`, `pdlc-plan`, `pdlc-implement`, `pdlc-test`: one step each — "upstream artifact issue found → follow `pdlc guide patch`". No stage names beyond the skill's own.
+- New `pdlc guide patch`: when to patch vs. invalidate (patch only when the corrected text follows from source or existing decisions; otherwise raise a decision per `pdlc guide decisions`), the reviewer order, and the `--impact` verdict format. It also says: after a patch, re-derive any local draft of the active stage from the landed artifacts before landing it, since a work gate is left as is and nothing else signals the change. Stage skills link it instead of repeating it.
+- `pdlc-tasks`, `pdlc-plan`: one step each — "upstream artifact issue found → follow `pdlc guide patch`". No stage names beyond the skill's own.
 - `pdlc-complete` / `pdlc-completer`: list patches in completion evidence.
-- Command help for `post write`, `post tasks`, `post plan`: new `FLAGS` lines and a patch paragraph in `DESCRIPTION`; `_usage()` synced.
+- Command help for `post write`, `post tasks`: new `FLAGS` lines and a patch paragraph in `DESCRIPTION`; `_usage()` synced.
 
 ## Tests
 
-- Domain: `Event.PATCHED` per gate; `can_patch` matrix; `intermediate_stages` with skipped stages.
-- Commands (file backend): each of the three commands lands under `--patch` without moving the pointer; resets `Review Required` / `Approval Required` to `Stale`; requires `--impact` exactly when intermediate stages or closed tasks exist; refuses a non-`none` verdict; each structural refusal leaves the record untouched; `PDLC-PATCHED` comment content; completion still passes after a patch.
+- Domain: `Event.PATCHED` per gate; `can_patch` matrix, including refusal from every delivery stage; `intermediate_stages` with skipped stages.
+- Commands (file backend): each of `post write`, `post tasks --stage UI`, `post tasks --stage Tasks` lands under `--patch` without moving the pointer; resets `Review Required` / `Approval Required` to `Stale`; requires `--impact` exactly when intermediate stages exist; refuses a non-`none` verdict; refuses `--patch` from a delivery stage; refuses a changed FR/C or UJ id set when `--impact` is required; `post write --dry-run` refused without `--patch`; each structural refusal leaves the record untouched; `PDLC-PATCHED` comment content; completion still passes after a patch.
 - `inspect`: patches since last approval render under Approval Required.
 - `prompt patch-reviewer`: golden brief fixtures; absent from `pdlc --help` and `pdlc prompt --help`; no capability slot resolves it.
 
@@ -168,4 +164,3 @@ Open question: whether a Product patch should instead require explicit driver ap
 
 1. Driver approval for Product patches (see Human boundary).
 2. Should a Tasks patch allow changing `covers` when the change only follows a Product patch that renamed an id? Proposal: no; that goes through `invalidate Tasks`.
-3. Should the patch reviewer also be allowed to return `none` for Implementation impact when only unmerged tasks are affected, leaving the implementer to pick it up? Proposal: no for v1; name the tasks and invalidate them.
