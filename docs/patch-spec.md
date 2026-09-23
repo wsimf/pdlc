@@ -1,6 +1,6 @@
 # Upstream Patch — Spec
 
-Status: proposal for review. No code changes yet.
+Status: implemented.
 
 ## Summary
 
@@ -29,7 +29,7 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 2. The active stage's owner drafts the corrected artifact itself, in the same input form that artifact's landing command already takes. The planner sub-agents are not dispatched for a patch: their briefs stay gated to their own stage.
 3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. This produces `--evidence`.
 4. If any non-skipped stage lies between the patched stage and the active stage, the internal patch reviewer (see below) compares the reviewed draft with the landed artifact, reads every intermediate artifact, and returns the earliest affected stage, or `none`. This produces `--impact`.
-5. If the verdict is `none`: land with `--patch`. Otherwise: `pdlc post invalidate <stage>` with the impact report as evidence, and the normal stage flow takes over.
+5. If the verdict is `none`: land with `--patch`. Otherwise the owner reports to the driver, recommending `pdlc post invalidate <stage>` with the impact report as evidence; invalidation stays a driver action, and the normal stage flow takes over from there.
 
 The patch reviewer runs after the stage review so it judges the draft that will actually land.
 
@@ -78,7 +78,7 @@ Any value other than `none` is refused with a pointer to `pdlc post invalidate <
 
 These are the guardrails the CLI can enforce itself; each is refused with a pointer to `post invalidate` for the named stage.
 
-- **Tasks manifest:** every entry carries an `id`, the set of task ids must equal the landed set (no added or removed tasks), and `ui`, `covers`, and `depends` must be unchanged. Only `title` and `body` may change; `"unchanged": true` entries are allowed. A plan already landed on a patched task is left in place; the Technical Plan owner reconciles it.
+- **Tasks manifest:** every entry carries an `id`, the set of task ids must equal the landed set (no added or removed tasks), and each task's `ui` must be unchanged. `covers` and `depends` are not persisted on the record (only `ui`, as the title tag), so the CLI cannot compare them; `pdlc guide patch` tells the owner to keep them, and the normal breakdown validation still checks them against the parent. Only `title` and `body` may change; `"unchanged": true` entries are allowed. A plan already landed on a patched task is left in place; the Technical Plan owner reconciles it.
 - **UI:** `--no-ui` must match the landed UI applicability. When `--impact` is required, the set of `UJ-*` ids must equal the landed set.
 - **Product:** when `--impact` is required, the set of `FR-*` / `C-*` ids must equal the landed set. Otherwise no structural check beyond the existing `post write` body validation.
 
@@ -141,8 +141,8 @@ Brief contents:
 
 A patch changes an artifact the driver already approved, without a new approval of that artifact. To keep that visible:
 
-- `pdlc inspect` lists `PDLC-PATCHED` comments since the record's last `PDLC-APPROVED` under the next `Approval Required` Due Next, so the driver sees them before approving the active stage.
-- `pdlc-completer` lists every patch in the completion evidence (patched stage, when, one-line summary).
+- `pdlc inspect` lists `PDLC-PATCHED` comments since the record's last `PDLC-APPROVED` or `PDLC-AUTOAPPROVED` under `### Patches Since Last Approval` in the next `Approval Required` Due Next, so the driver sees them before approving the active stage.
+- `pdlc-completer` lists every patch under the completion evidence's `Decisions` section (patched stage, when, one-line summary, comment reference), so the completion template is unchanged.
 
 Open question: whether a Product patch should instead require explicit driver approval (`Decision Required`) before landing. Proposal: no for v1, since the driver sees it at the next approval gate.
 

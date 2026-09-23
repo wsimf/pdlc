@@ -9,6 +9,8 @@ USAGE
         pdlc post tasks --work-item N --stage UI    --body FILE --no-ui --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
     - if landing the Tasks stage:
         pdlc post tasks --work-item N --stage Tasks --manifest FILE --evidence FILE|- [--dry-run] [--attachment PATH [--attachment-description TEXT]]
+    - if correcting a landed UI or Tasks artifact while the record is at a later stage, add to either form:
+        --patch [--impact FILE|-]
 
 FLAGS
     --work-item N                        required; the work item's number
@@ -19,6 +21,10 @@ FLAGS
     --manifest FILE                      required with --stage Tasks; JSON array of delivery tasks
     --evidence FILE|-                    required unless --dry-run; the review evidence body
     --dry-run                            validate and print the plan without landing it
+    --patch                              action="store_true"; land onto the already-landed --stage artifact
+                                         while the record stays on its later active stage
+    --impact FILE|-                      only with --patch; the impact report whose
+                                         `Earliest affected stage:` line must read `none`
     --attachment PATH (repeatable)       attach a local file's contents to the evidence comment
     --attachment-description TEXT        description for the --attachment immediately before it
 
@@ -56,6 +62,27 @@ byte-identical stays closed. Reopened task ids are listed in the evidence
 comment and in the printed `reopened` array. --dry-run reports the closed tasks
 the breakdown lands onto as `reopenCandidates`; which of them change, and so
 which are reopened, is only known once the bodies are written.
+
+With --patch, the artifact is landed onto a record whose active stage is
+later than --stage and may patch it (see `pdlc guide patch`), and the record
+stays on that stage. The landing and the stage's evidence comment are exactly
+those of a normal land; a `PDLC-PATCHED` comment follows, opening with
+`Patched stage: <stage>` and `Active stage: <stage> / <gate>` lines, then the
+impact report (or `No intermediate stages.`). An active gate of Review
+Required or Approval Required is reset to Stale, since the published artifact
+was built on the old text; a work gate is left as is. Any other active gate is
+refused, Decision Required with a pointer to `pdlc guide decisions`.
+--impact is required when a non-skipped stage lies between --stage and the
+active stage, and must then name no affected stage; any other verdict is
+refused with a pointer to `pdlc post invalidate`. --dry-run additionally
+prints `impactRequired` and the intermediate stages.
+
+A patch keeps the shape later stages were built on, and a change to it is
+refused with a pointer to `pdlc post invalidate`: a UI patch keeps the landed
+applicability (--no-ui or not) and, when --impact is required, the landed set
+of `UJ-*` ids; a Tasks patch names every landed task by `id`, adds and
+removes none, and keeps each task's `ui`. Only titles and bodies change, and
+`"unchanged": true` entries are allowed. A refusal writes nothing.
 
 An entry may instead carry a landed task forward untouched with
 `"unchanged": true`. It still declares `ui`, `covers`, and `depends`, so the
@@ -120,14 +147,21 @@ from pdlc.internal.workitem import (
     write_body,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
-from pdlc.internal.invalidation import reauthor_invalidate_stage, reopen_tasks
+from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan, reopen_tasks
+from pdlc.domain.model import UI_TAG, task_title
+from pdlc.domain.patch import PatchPlan, require_no_impact, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
-from pdlc.domain.task_plan import build_plan, declared_identifiers, resolve_task_ids, tagged_title
-FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
-UJ_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
+from pdlc.domain.task_plan import (
+    JOURNEY_ID_PATTERN,
+    REQUIREMENT_ID_PATTERN,
+    build_plan,
+    declared_identifiers,
+    resolve_task_ids,
+    tagged_title,
+)
 UI_HEADING_PATTERN = re.compile(r"^##[ \t]+UI[ \t]*$")
 
 @dataclass(frozen=True)
@@ -135,6 +169,51 @@ class PublicationContext:
     record: dict
     pipeline: Pipeline
     reauthor: bool = False
+    # Set under --patch: the record stays on `patch.source.stage` and lands
+    # through `land_patch` instead of this stage's own publish transition.
+    patch: PatchPlan | None = None
+    impact: str | None = None
+
+
+def _patch_summary(plan: PatchPlan) -> dict:
+    return {
+        "patched": plan.patched_stage,
+        "activeStage": plan.source.stage,
+        "impactRequired": plan.impact_required,
+        "intermediateStages": list(plan.intermediate),
+    }
+
+
+def _check_patch_impact(context: PublicationContext, dry_run: bool) -> None:
+    assert context.patch is not None
+    if context.impact is not None or not dry_run:
+        require_no_impact(context.patch, context.impact)
+
+
+def _check_ui_patch(context: PublicationContext, parent_body: str, journeys: list[str], no_ui: bool) -> None:
+    assert context.patch is not None
+    landed = declared_identifiers(read_section(parent_body, "UI"), JOURNEY_ID_PATTERN)
+    if no_ui != (not landed):
+        raise PdlcError(
+            "a patch must keep the landed UI applicability; "
+            "return UI to Stale with `pdlc post invalidate` to change it"
+        )
+    if context.patch.impact_required:
+        require_same_ids("journey", landed, journeys, "Tasks")
+
+
+def _check_tasks_patch(manifest: list[dict], existing: list[dict]) -> None:
+    landed = {task["taskId"]: task for task in existing if task.get("taskId")}
+    missing_ids = [index for index, task in enumerate(manifest, 1) if not task.get("id")]
+    if missing_ids:
+        raise PdlcError(f"a patch must name every task by id; manifest entry {missing_ids[0]} has none")
+    require_same_ids("task", sorted(landed), [task["id"] for task in manifest], "Tasks")
+    for task in manifest:
+        if task.get("ui") is not task_title(landed[task["id"]]).startswith(UI_TAG):
+            raise PdlcError(
+                f"a patch must keep each task's ui flag, but {task['id']} changes it; "
+                "return Tasks to Stale with `pdlc post invalidate` instead"
+            )
 
 
 def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_body: str, dry_run: bool, attachment_inputs: list[dict], target: State, context: PublicationContext, no_ui: bool) -> None:
@@ -145,7 +224,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
     if not fragment.strip():
         raise PdlcError(f"--body file holds nothing but its heading: {body_path}")
 
-    journeys = declared_identifiers(fragment, UJ_PATTERN)
+    journeys = declared_identifiers(fragment, JOURNEY_ID_PATTERN)
 
     # Applicability is carried by the flag, never by the fragment's wording.
     # Sniffing prose for a "no UI" sentence made the caller guess phrasings,
@@ -161,8 +240,16 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
             "or pass --no-ui if this work item has no user-facing surface"
         )
 
+    if context.patch is not None:
+        _check_ui_patch(context, parent_body, journeys, no_ui)
+        _check_patch_impact(context, dry_run)
+
     if dry_run:
-        print(json.dumps({"dryRun": True, "stage": "UI", "uiRequired": not no_ui, "journeys": journeys, "attachmentCount": len(attachment_inputs)}))
+        print(json.dumps({
+            "dryRun": True, "stage": "UI", "uiRequired": not no_ui, "journeys": journeys,
+            "attachmentCount": len(attachment_inputs),
+            **(_patch_summary(context.patch) if context.patch else {}),
+        }))
         return
 
     if context.reauthor:
@@ -173,7 +260,11 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
     write_body(str(issue), spliced)
 
     post_comment(issue, evidence_body, "UI")
-    set_state(item, target.stage, target.gate.value, target.lifecycle.value)
+    if context.patch is not None:
+        land_patch(issue, context.record, context.patch, context.impact)
+        target = context.patch.target
+    else:
+        set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
     print(json.dumps({
         "published": True,
@@ -184,6 +275,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         "journeys": journeys,
         "gateState": target.gate.value,
         "attachments": attachments,
+        **(_patch_summary(context.patch) if context.patch else {}),
     }))
 
 
@@ -208,9 +300,11 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
 
     existing = subissues_for(issue)
     existing_ids = [task["taskId"] for task in existing if task.get("taskId")]
+    if context.patch is not None:
+        _check_tasks_patch(manifest, existing)
 
-    requirements = declared_identifiers(read_section(parent_body, "Product"), FR_C_PATTERN)
-    journeys = declared_identifiers(read_section(parent_body, "UI"), UJ_PATTERN)
+    requirements = declared_identifiers(read_section(parent_body, "Product"), REQUIREMENT_ID_PATTERN)
+    journeys = declared_identifiers(read_section(parent_body, "UI"), JOURNEY_ID_PATTERN)
 
     resolved = resolve_task_ids(manifest, existing_ids)
     plan = build_plan(resolved, existing, requirements, journeys)
@@ -231,6 +325,9 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         if task.get("taskId") and task["taskId"] in {t["id"] for t in writable} and task.get("state") == "CLOSED"
     )
 
+    if context.patch is not None:
+        _check_patch_impact(context, dry_run)
+
     if dry_run:
         print(json.dumps({
             "dryRun": True,
@@ -250,6 +347,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             "orphans": [task["taskId"] for task in plan["orphans"]],
             "reopenCandidates": closed_in_breakdown,
             "attachmentCount": len(attachment_inputs),
+            **(_patch_summary(context.patch) if context.patch else {}),
         }))
         return
 
@@ -310,7 +408,11 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
 
     post_comment(issue, "\n".join(summary_lines) + "\n", "TASKS")
 
-    set_state(item, target.stage, target.gate.value, target.lifecycle.value)
+    if context.patch is not None:
+        land_patch(issue, context.record, context.patch, context.impact)
+        target = context.patch.target
+    else:
+        set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
     print(json.dumps({
         "published": True,
@@ -327,6 +429,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         "order": plan["order"],
         "tasks": results,
         "attachments": attachments,
+        **(_patch_summary(context.patch) if context.patch else {}),
     }))
 
 
@@ -351,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evidence")
     parser.add_argument("--no-ui", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--patch", action="store_true")
+    parser.add_argument("--impact")
     args = parser.parse_args(script_args)
 
     body_path: Path | None = None
@@ -371,6 +476,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise PdlcError("--no-ui is only valid with --stage UI")
             manifest_path = require_file("--manifest file", args.manifest)
 
+        if args.impact and not args.patch:
+            raise PdlcError("--impact is only valid with --patch")
         validate_attachments(attachment_inputs)
 
         # Evidence is slurped and checked up front so a publish can never
@@ -393,6 +500,17 @@ def main(argv: list[str] | None = None) -> int:
         item = record["id"]
         current_stage = item_status(record)
         gate = item_gate(record)
+        parent_body = record.get("issueBody") or ""
+
+        if args.patch:
+            plan = record_patch_plan(record, args.stage)
+            impact = resolve_text(args.impact, label="--impact") if args.impact else None
+            context = PublicationContext(record, pipeline, patch=plan, impact=impact)
+            if args.stage == "UI":
+                land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, plan.target, context, args.no_ui)
+            else:
+                land_tasks(args.work_item, item, manifest_path, evidence_body, args.dry_run, parent_body, attachment_inputs, plan.target, context)
+            return 0
 
         if current_stage != args.stage:
             raise PdlcError(f"cannot land {args.stage}: the record is at {current_stage}")
@@ -424,8 +542,6 @@ def main(argv: list[str] | None = None) -> int:
             target = pipeline.next_state(state, Event.PUBLISHED)
         except ValueError as error:
             raise PdlcError(str(error)) from None
-
-        parent_body = record.get("issueBody") or ""
 
         if args.stage == "UI":
             context = PublicationContext(record, pipeline, reauthor and not args.dry_run)

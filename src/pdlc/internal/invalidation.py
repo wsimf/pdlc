@@ -7,6 +7,7 @@ already captured by PDLC-REVIEW, so it only persists the authorized re-entry.
 from __future__ import annotations
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.patch import PatchPlan, patch_comment, plan_patch
 from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
@@ -73,6 +74,30 @@ def _record_invalidation(issue: str, record: dict, target: State, evidence_body:
     post_comment(str(issue), body, "INVALIDATED")
     _persist_reentry(record, target)
 
+
+
+def record_patch_plan(record: dict, patched_stage: str) -> PatchPlan:
+    """Validate that `record`'s active stage may patch `patched_stage`.
+
+    Used by pdlc post write / pdlc post tasks under --patch before anything is
+    written, so a refusal leaves the record untouched."""
+    if not item_status(record):
+        raise PdlcError(f"cannot patch {patched_stage}: the record has no stage yet")
+    pipeline = pipeline_for_item(record)
+    source = state_for_item(record, pipeline)
+    skipped = {stage for stage in item_skipped_states(record).split(",") if stage}
+    return plan_patch(pipeline, source, patched_stage, skipped)
+
+
+def land_patch(issue: str, record: dict, plan: PatchPlan, report: str | None) -> None:
+    """Record a patch the caller has just landed: post `PDLC-PATCHED` and move
+    the active stage to the plan's target (Stale when it had published).
+    Nothing here feeds the rework/churn count."""
+    post_comment(str(issue), patch_comment(plan, report), "PATCHED")
+    if plan.target != plan.source:
+        target = plan.target
+        set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
+        record["Gate State"] = target.gate.value
 
 def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) -> State:
     """Persist a pipeline-authorized Verification re-entry."""

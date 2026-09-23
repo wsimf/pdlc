@@ -138,7 +138,9 @@ newest PDLC-DECISION comment under `### Evidence`, so this form is currently
 unreachable there too. Changes Required and Stale instead summarise, under
 `### Open Changes`, every change request the stage has not addressed since it
 last published (see `pdlc inspect changes --help`), and point at that command
-for their full text.
+for their full text. Approval Required lists, under `### Patches Since Last
+Approval`, every PDLC-PATCHED comment newer than the record's last approval —
+upstream artifacts corrected in place that the driver has not approved past.
 
 Product, UI, Tasks, Technical Plan, Implementation, Testing, and Verification
 all carry curated, per-gate text (see `_STAGE_DUE_NEXT`); the terminal
@@ -158,6 +160,7 @@ from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.changes import evidence_warnings, open_change_requests, open_changes_summary
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.patch import patches_since_approval
 from pdlc.domain.model import evidence_comment_text, item_issue, latest_marked_comment, timeline_formatted_at
 from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
@@ -697,6 +700,25 @@ _TESTABLE_SCOPE_BLOCK = (
 )
 
 
+def _patches_block(comments: list[dict]) -> str | None:
+    """`### Patches Since Last Approval` at an Approval Required gate: the
+    upstream artifacts corrected in place that the driver has not approved
+    past yet, or None when there are none."""
+    patches = patches_since_approval(comments)
+    if not patches:
+        return None
+    lines = [
+        f"- {patch['patchedStage']} — {timeline_formatted_at(patch['createdAt'])}: {patch.get('url') or 'no url'}"
+        for patch in patches
+    ]
+    return (
+        "### Patches Since Last Approval\n\n"
+        "These upstream artifacts were corrected in place since the last approval. Show them to the user\n"
+        "before asking for approval; `pdlc inspect timeline {ITEM_ID}` has each patch's impact report.\n\n"
+        + "\n".join(lines)
+    )
+
+
 def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> str:
     due = due_next(item)
     item_id = item_issue(item)
@@ -722,6 +744,8 @@ def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> st
             next_task_block = "### Next Pending Task\n\n" + _NEXT_TASK_LINE[due["status"]](tasks)
         elif due["status"] == "Testing" and due["gate"] in _TESTABLE_SCOPE_GATES:
             next_task_block = _TESTABLE_SCOPE_BLOCK
+        elif due["gate"] == "Approval Required":
+            next_task_block = _patches_block(comments)
         if due["gate"] not in _EVIDENCE_NOUN:
             body = default_body if next_task_block is None else default_body + "\n\n" + next_task_block
             return ("# Due Next\n\n" + body).replace("{ITEM_ID}", item_id)

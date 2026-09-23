@@ -33,12 +33,14 @@ Prepare the evidence body directly and return one report to the calling `pdlc-co
 - Verification evidence: `<the Verification PDLC-REVIEW report and any deferrals>`.
 - Linked PRs and their state: `<numbers, merged/open, check state>`.
 - Decisions and Open Questions as they currently stand: `<...>`.
+- Upstream patches: `<every PDLC-PATCHED comment, with its time and URL, or "none">`.
 - Skipped stages, if any: `<... or "none">`.
 
 ## What to return
 
 The completion evidence body only, in the six-section format `pdlc post complete --help` gives.
 Decisions come from task implementation notes and the commits that landed them; keep them a compact list, not a second changelog.
+List every upstream patch under Decisions: the patched stage, when, a one-line summary, and the comment as reference.
 Give one Open Questions line per live entry, with the question verbatim.
 
 Relay judgments plainly. If a live Open Questions entry genuinely cannot be

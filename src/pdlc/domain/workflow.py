@@ -11,7 +11,7 @@ in its own module under `domain/workflows/` (e.g. `workflow_feature.py`).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -46,6 +46,7 @@ class Event(StrEnum):
     BOUNCED = "bounced"
     COMPLETED = "completed"
     AUTOAPPROVED = "autoapproved"
+    PATCHED = "patched"
 
 
 class Outcome(StrEnum):
@@ -174,10 +175,14 @@ class InvalidationPolicy:
     whose existing evidence is no longer trustworthy. ``reentry_targets`` maps
     the active stage to the stages it may re-enter; Verification's entries are
     therefore also the only allowed Verification bounce targets.
+    ``patch_targets`` maps the active stage to the upstream stages whose
+    landed artifact it may correct in place without re-entering them; each
+    must also be one of its re-entry targets.
     """
 
     evidence_dependencies: Mapping[str, tuple[str, ...]]
     reentry_targets: Mapping[str, tuple[str, ...]]
+    patch_targets: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         def normalize(values: Mapping[str, tuple[str, ...]]) -> Mapping[str, tuple[str, ...]]:
@@ -191,6 +196,10 @@ class InvalidationPolicy:
 
         object.__setattr__(self, "evidence_dependencies", normalize(self.evidence_dependencies))
         object.__setattr__(self, "reentry_targets", normalize(self.reentry_targets))
+        object.__setattr__(self, "patch_targets", normalize(self.patch_targets))
+        for source, targets in self.patch_targets.items():
+            if source in targets or any(target not in self.targets_for(source) for target in targets):
+                raise ValueError(f"patch targets for {source} must be upstream re-entry targets")
 
     def dependencies_for(self, stage: str) -> tuple[str, ...]:
         """Return stages whose evidence becomes stale when ``stage`` changes."""
@@ -203,6 +212,10 @@ class InvalidationPolicy:
     def can_reenter(self, active_stage: str, target_stage: str) -> bool:
         """Whether ``active_stage`` may return to ``target_stage``."""
         return target_stage in self.targets_for(active_stage)
+
+    def can_patch(self, active_stage: str, target_stage: str) -> bool:
+        """Whether ``active_stage`` may correct ``target_stage`` in place."""
+        return target_stage in self.patch_targets.get(active_stage, ())
 
 
 _WORK_GATES = (Gate.PENDING, Gate.CHANGES_REQUIRED, Gate.STALE)
@@ -307,6 +320,7 @@ class Pipeline:
         for mapping_name, mapping in (
             ("evidence dependencies", invalidation.evidence_dependencies),
             ("re-entry targets", invalidation.reentry_targets),
+            ("patch targets", invalidation.patch_targets),
         ):
             if any(source not in known for source in mapping):
                 raise ValueError(f"invalidation policy has an unknown {mapping_name} source")
@@ -526,7 +540,7 @@ class Pipeline:
         overridden = self._override(state, event, outcome, requested_target)
         if overridden is not None:
             return overridden
-        if requested_target is not None and event != Event.INVALIDATED:
+        if requested_target is not None and event not in (Event.INVALIDATED, Event.PATCHED):
             raise ValueError(f"transition {event.value} from {state.stage} does not accept a target")
 
         if event == Event.PUBLISHED:
@@ -603,6 +617,17 @@ class Pipeline:
             target = State(requested_target, Gate.STALE, Lifecycle.PLANNING)
             self.validate_state(target)
             return target
+        if event == Event.PATCHED:
+            # The active stage stays put while an upstream artifact is corrected
+            # in place: in-progress work carries on, but a published artifact
+            # was built on the old text and must be reconciled again.
+            if requested_target is None or not self.can_patch(state.stage, requested_target):
+                raise ValueError(f"{state.stage} cannot patch {requested_target or 'an unnamed stage'}")
+            if state.gate in _WORK_GATES:
+                return state
+            if state.gate in _REAUTHOR_GATES:
+                return State(stage.name, Gate.STALE, state.lifecycle)
+            raise ValueError(f"patch is not allowed from {state.stage} / {state.gate.value}")
         if event == Event.AUTOAPPROVED:
             if (
                 state.gate != Gate.APPROVAL_REQUIRED
@@ -663,6 +688,17 @@ class Pipeline:
         except ValueError:
             return False
         return target_position <= active_position
+
+    def can_patch(self, active_stage: str, target_stage: str) -> bool:
+        """Whether an active stage may correct an upstream stage's artifact in place."""
+        if self.invalidation_policy is None:
+            return False
+        return self.invalidation_policy.can_patch(active_stage, target_stage)
+
+    def intermediate_stages(self, patched: str, active: str, skipped: set[str] | frozenset[str]) -> tuple[str, ...]:
+        """Non-skipped stages strictly between a patched stage and the active one."""
+        names = self.active_stage_names
+        return tuple(name for name in names[names.index(patched) + 1:names.index(active)] if name not in skipped)
 
     def evidence_dependencies_for(self, stage: str) -> tuple[str, ...]:
         """Return downstream stages whose evidence becomes stale after a change."""

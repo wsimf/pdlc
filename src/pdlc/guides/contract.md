@@ -158,6 +158,7 @@ Valid markers are:
 - `PDLC-SKIPPED`
 - `PDLC-DECISION`
 - `PDLC-RESOLUTION`
+- `PDLC-PATCHED`
 
 `PDLC-REVIEW` carries the structured independent-review metadata block when a review verdict is being recorded.
 It is also the evidence marker for CI reconciliation findings that must be surfaced when the gate is `Changes Required`.
@@ -165,6 +166,7 @@ It is also the evidence marker for CI reconciliation findings that must be surfa
 `PDLC-RESOLUTION` records answered or deferred decisions.
 `PDLC-AUTOAPPROVED` records a workflow-selected approval bypass within the selected rework policy.
 `PDLC-INVALIDATED` records a driver return to `Stale`.
+`PDLC-PATCHED` records an upstream artifact corrected in place while the record stayed on its active stage; see `pdlc guide patch`.
 
 For `Changes Required` and `Stale`, `pdlc inspect` summarises under `### Open Changes` every change request the stage has not addressed since it last published; `pdlc inspect changes` prints their full text.
 For `Decision Required`, it renders the newest `PDLC-DECISION` under `### Evidence`.
