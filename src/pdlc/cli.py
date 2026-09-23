@@ -62,6 +62,7 @@ COMMANDS = {
     ("post", "skip"): "pdlc.commands.post_skip",
     ("post", "tasks"): "pdlc.commands.post_tasks",
     ("post", "test"): "pdlc.commands.post_test",
+    ("post", "triage"): "pdlc.commands.post_triage",
     ("post", "verify"): "pdlc.commands.post_verify",
     ("post", "write"): "pdlc.commands.post_write",
 }
@@ -119,6 +120,7 @@ def _usage() -> str:
         "  post verify WI REPORT                  post a verification report and move the gate\n"
         "  post review WI VERDICT EVIDENCE        reviewer verdict (changes/approval/decision-required)\n"
         "  post ci WI [--wait]                    resolve CI Pending, optionally waiting for checks\n"
+        "  post triage WI TARGET EVIDENCE          route a live PR finding to Implementation or Testing\n"
         "  post escalate WI EVIDENCE              park the current stage on a driver decision (stage owner)\n"
         "  post decision WI --manifest FILE       close a Decision Required gate\n"
         "  post approve WI EVIDENCE [--force]     human approval, advance to next stage (driver-only)\n"

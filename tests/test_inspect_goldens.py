@@ -71,6 +71,7 @@ class InspectHarness(GoldenMixin, PromptHarness):
             ("pdlc.commands.inspect_verify.head_commit", HEAD),
             ("pdlc.internal.verification.changed_files", set()),
             ("pdlc.hosts.lib.github.code_host.GitHubCodeHost.pull_request_files", ["src/a.py"]),
+            ("pdlc.hosts.lib.github.code_host.GitHubCodeHost.unresolved_review_comments", []),
         ):
             patcher = patch(target, return_value=value)
             patcher.start()

@@ -91,6 +91,8 @@ class Stage:
     # CI gate always has a stack to check: with none registered, CI Pending
     # holds rather than passing as nothing to wait on.
     publishes_pull_requests: bool = False
+    # Whether live PR triage may route delivery rework to this stage.
+    triage_target: bool = False
     # Whether a driver may skip this stage entirely via Event.SKIPPED.
     skippable: bool = True
     # Whether a driver request to change this artifact re-enters its owning

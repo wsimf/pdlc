@@ -78,6 +78,7 @@ IMPLEMENTATION_STAGE = Stage(
     ),
     ci_gated=True,
     publishes_pull_requests=True,
+    triage_target=True,
     skill="pdlc-implement",
 )
 
@@ -93,6 +94,7 @@ TESTING_STAGE = Stage(
     ),
     ci_gated=True,
     publishes_pull_requests=True,
+    triage_target=True,
     skill="pdlc-test",
 )
 

@@ -60,6 +60,7 @@ any consecutive stages declared in `Skipped States` the same way that script's
 skip cascade does, but never posts a comment or writes work item state. This is
 what tells a caller what's actually due without hand-applying the table in
 pdlc/SKILL.md itself.
+From PR-backed delivery onward, live failed checks or unresolved threads on registered PRs replace the ordinary gate route with triage instructions. Signals already recorded for the active Changes Required pass stay with its owning stage; Decision Required remains a driver boundary. The owning agent reads the named guide and records an actionable rework target with `pdlc post triage`.
 
 The default compact output retains the metadata, task tree, and routing needed
 for orientation, and points at the full file with the raw work item body.
@@ -162,6 +163,7 @@ from pdlc.domain.model import evidence_comment_text, item_issue, latest_marked_c
 from pdlc.domain.workflow import Lifecycle, State
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.triage import due_next as triage_due_next, live_signals
 from pdlc.internal.workitem import (
     comments_and_tasks,
     due_next,
@@ -744,7 +746,23 @@ def _due_next_section(item: dict, comments: list[dict], tasks: list[dict]) -> st
     )
 
 
-def due_next_section(item: dict) -> tuple[str, bool]:
+def _triage_due_next(item: dict, tasks: list[dict], pull_requests: list[dict] | None = None,
+                     comments: list[dict] | None = None) -> str | None:
+    try:
+        pipeline = pipeline_for_item(item)
+        status = item_status(item)
+        if status == pipeline.terminal_stage:
+            return None
+        state = State.parse(status, item_gate(item), item.get("Lifecycle") or Lifecycle.PLANNING)
+        pipeline.validate_state(state)
+    except (PdlcError, TypeError, ValueError):
+        return None
+    issue = item_issue(item)
+    signals = live_signals(issue, item, tasks, pipeline, state, pull_requests=pull_requests, comments=comments)
+    return triage_due_next(issue, state, signals) if signals.needed else None
+
+
+def due_next_section(item: dict) -> tuple[str, bool, bool]:
     """The `# Due Next` section `pdlc inspect` renders for an already-resolved
     record, fetching its comments and task tree. `pdlc next` prints this same
     section for the record it routes, so both commands give one instruction.
@@ -753,7 +771,10 @@ def due_next_section(item: dict) -> tuple[str, bool]:
     fallback, which tells the agent to stop for the user's confirmation — the
     caller must not then report the record as autonomous work."""
     comments, tasks = comments_and_tasks(item_issue(item))
-    section = _due_next_section(item, comments, tasks)
+    triage = _triage_due_next(item, tasks, comments=comments)
+    section = triage or _due_next_section(item, comments, tasks)
+    if triage:
+        return section, False, True
     due = due_next(item)
     unevidenced = (
         due["status"] in _STAGE_DUE_NEXT
@@ -761,7 +782,7 @@ def due_next_section(item: dict) -> tuple[str, bool]:
         and due["action"] != "blocked"
         and _evidence_block(item, comments, due["status"], due["gate"]) is None
     )
-    return section, unevidenced
+    return section, unevidenced, False
 
 
 def _warnings_section(item: dict, comments: list[dict], pull_requests: list[dict]) -> str | None:
@@ -906,7 +927,7 @@ def render(issue: str) -> tuple[str, str, Path]:
     warnings_section = _warnings_section(item, comments, pull_requests)
     if warnings_section is not None:
         sections.append(warnings_section)
-    due_next_section = _due_next_section(item, comments, tasks)
+    due_next_section = _triage_due_next(item, tasks, pull_requests, comments) or _due_next_section(item, comments, tasks)
     sections.append(due_next_section)
 
     full_output = "\n\n".join(sections) + "\n"

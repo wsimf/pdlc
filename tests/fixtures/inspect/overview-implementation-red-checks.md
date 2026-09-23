@@ -83,14 +83,13 @@ needsPlan: false
 
 # Due Next
 
-Due next: Implementation.ChangesRequired → This work item needs changes.
-PDLC was unable to parse and identify any evidence for the required changes.
-Inspect the timeline (`pdlc inspect timeline 60`) to see if this is clear
-in the conversation so far. Read the user's comments on the work item
-(`pdlc inspect comments 60`) to gather more evidence. Stop and request
-the user's confirmation before continuing. Do not assume anything — this work
-item is no longer able to continue autonomously.
+Due next: Implementation.ChangesRequired → triage live pull-request signals.
+Invoke the `pdlc-triage` skill for this work item.
 
-### Next Pending Task
+### CI failures
 
-No delivery tasks are currently pending implementation.
+- PR #40: FAILURE (u40)
+
+Read `pdlc guide triage-ci-failure` and investigate these failed checks.
+
+Triage every signal, then use `pdlc post triage 60 TARGET EVIDENCE_FILE` to route an actionable change to Implementation or Testing. Follow the owning stage's normal pipeline from Changes Required. A decision needing the driver stops here.

@@ -33,6 +33,7 @@ DESCRIPTION
     are empty. Only the orchestrator may call this — this is a procedural
     boundary, not an authentication check, since identity cannot
     distinguish a human from an agent acting on their behalf.
+    Live failed checks and unresolved threads on registered PRs require triage before this final transition.
 
 EVIDENCE_FILE holds six `##` sections, in any order, each non-empty:
 
@@ -95,6 +96,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.verification import verification_state
+from pdlc.internal.triage import live_signals, require_clear
 from pdlc.internal.worktree import prune_merged_branches
 from pdlc.internal.workitem import (
     comments_for_issue,
@@ -127,6 +129,7 @@ def complete(issue: str, evidence: str, attachment_inputs: list[dict]) -> dict:
 
     tasks = task_tree(issue)
     pull_requests = record_pull_requests(issue, record=record, tasks=tasks)
+    require_clear(live_signals(issue, record, tasks, pipeline, state, pull_requests=pull_requests))
     verification_body, _, stale_rows, open_findings = verification_state(issue, comments, tasks)
     blockers = completion_blockers(
         pipeline=pipeline,
