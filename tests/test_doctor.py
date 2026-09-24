@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pdlc.commands.doctor import run
+from pdlc.config import repository_root
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.access import AccessReport
 from pdlc.hosts.lib.azure import access as azure_access
@@ -98,6 +99,29 @@ class DoctorTests(unittest.TestCase):
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
             _, code = run()
         self.assertEqual(code, 0)
+        self.assertFalse((self.repo_root / ".gitignore").exists())
+
+    def test_adds_gitignore_in_linked_worktree(self) -> None:
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        (self.repo_root / "seed").write_text("seed")
+        subprocess.run(["git", "-C", str(self.repo_root), "add", "seed"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.repo_root), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"],
+            check=True,
+        )
+        linked = self.directory / "linked"
+        subprocess.run(["git", "-C", str(self.repo_root), "worktree", "add", "-q", "-b", "linked", str(linked)], check=True)
+        (linked / ".pdlc").mkdir()
+        (linked / ".pdlc" / "config.toml").write_text('[backend]\nname = "file"\n')
+        self.assertTrue((linked / ".git").is_file())
+        self.assertEqual(repository_root(linked), linked.resolve())
+
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", side_effect=lambda: repository_root(linked)):
+            _, code = run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual((linked / ".gitignore").read_text(), "/.pdlc/\n")
         self.assertFalse((self.repo_root / ".gitignore").exists())
 
     def test_backend_access_section_joins_warnings_and_failures(self) -> None:
