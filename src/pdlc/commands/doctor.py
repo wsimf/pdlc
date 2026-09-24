@@ -9,6 +9,10 @@ DESCRIPTION
     every validation result. Exit 1 when any validation fails; warnings do not
     fail the command.
 
+    In a Git repository, best-effort add /.pdlc/ to the repository's .gitignore
+    when Git does not already ignore the directory. Failure to do so does not
+    affect the result.
+
     When the backend is github or azure, a "Backend access" section also shows
     what its CLI reports, using read-only calls only:
 
@@ -48,6 +52,7 @@ from pdlc.config import (
 from pdlc.hosts.lib.access import AccessReport
 from pdlc.hosts.lib.azure import access as azure_access
 from pdlc.hosts.lib.github import access as github_access
+from pdlc.hosts.lib.gitignore import ensure_pdlc_ignored
 from pdlc.internal.inputs import print_help
 
 
@@ -194,6 +199,8 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     except ConfigurationError:
         root = None
         repo_path = None
+    if root is not None:
+        ensure_pdlc_ignored(root)
     repo_present = _read(repo_path, values, sources, errors) if repo_path else False
 
     for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):

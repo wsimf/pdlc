@@ -57,7 +57,7 @@ Each stage owner changes only its own artifact and preserves approved upstream i
 
 ## Mutation boundaries
 
-`pdlc inspect*`, `pdlc next`, `pdlc doctor`, and `pdlc guide` are read-only. `pdlc post *` commands mutate workflow state only when the owning skill or driver authorizes that transition.
+`pdlc inspect*`, `pdlc next`, and `pdlc guide` are read-only. `pdlc doctor` may add `/.pdlc/` to the repository's `.gitignore` as a best-effort setup step. `pdlc post *` commands mutate workflow state only when the owning skill or driver authorizes that transition.
 
 Human actions remain explicit: Product authoring, approvals, skips, decision resolution, invalidation, and final completion. Do not run a mutating command merely because a record appears ready.
 

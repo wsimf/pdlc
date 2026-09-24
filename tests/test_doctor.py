@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +56,49 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("repository = 'acme/widgets' [derived from git origin]", output)
         self.assertIn("repository is auto-derived from git origin", output)
+
+    def test_adds_gitignore_entry_once_when_directory_is_not_ignored(self) -> None:
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        ignore_file = self.repo_root / ".gitignore"
+        ignore_file.write_text("other-entry")
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            run()
+            run()
+        self.assertEqual(ignore_file.read_text(), "other-entry\n/.pdlc/\n")
+        result = subprocess.run(
+            ["git", "-C", str(self.repo_root), "check-ignore", "-q", "--", ".pdlc/"],
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0)
+
+    def test_respects_existing_git_ignore_rule(self) -> None:
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        ignore_file = self.repo_root / ".gitignore"
+        ignore_file.write_text(".*\n")
+        self.repo_config.write_text('[backend]\nname = "file"\n')
+        subprocess.run(["git", "-C", str(self.repo_root), "add", "-f", ".pdlc/config.toml"], check=True)
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            run()
+        self.assertEqual(ignore_file.read_text(), ".*\n")
+
+    def test_gitignore_failure_does_not_fail_doctor(self) -> None:
+        self.repo_config.write_text('[backend]\nname = "file"\n')
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        (self.repo_root / ".gitignore").mkdir()
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            _, code = run()
+        self.assertEqual(code, 0)
+
+    def test_non_git_directory_does_not_create_gitignore(self) -> None:
+        self.repo_config.write_text('[backend]\nname = "file"\n')
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            _, code = run()
+        self.assertEqual(code, 0)
+        self.assertFalse((self.repo_root / ".gitignore").exists())
 
     def test_backend_access_section_joins_warnings_and_failures(self) -> None:
         self.repo_config.write_text(
