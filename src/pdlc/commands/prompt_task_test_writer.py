@@ -39,7 +39,7 @@ FLAGS
     --findings FILE|text:BODY  reviewer findings accepted as non-blocking;
                             "none" when omitted
     --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-task-test-writer-{work item}.md
+                            the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES

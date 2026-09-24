@@ -26,7 +26,7 @@ DESCRIPTION
 FLAGS
     --description FILE|text:BODY  one-sentence account of what shipped; required
     --file                        write the brief to
-                                  {TEMPDIR}/{repo}-prompt-ui-journey-reviewer-{work item}.md
+                                  the work-item cache with a random filename
                                   and print that path, instead of stdout
 
 EXAMPLES

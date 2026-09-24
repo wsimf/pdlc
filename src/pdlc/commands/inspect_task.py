@@ -6,7 +6,7 @@ USAGE
     pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...] [--file]
 
 FLAGS
-    --file    write the rendered markdown to a temp file and print its path, instead of stdout
+    --file    write the rendered markdown to the work-item cache and print its path, instead of stdout
 
 DESCRIPTION
     Renders one or more delivery tasks, each as its own
@@ -46,7 +46,7 @@ DESCRIPTION
     their own sections below. Parent-level discussion lives in
     `pdlc inspect WORK_ITEM`, not here.
 
-    --file writes the rendered markdown to {TEMPDIR}/{repo}-task-{numbers}.md
+    --file writes the rendered markdown to the parent work item's cache directory
     instead of stdout, and prints that path — for callers (e.g. subagent
     prompts) that want a file reference rather than inline content.
 
@@ -146,7 +146,7 @@ def _render_task(task: dict, preamble: str = "") -> str:
     return f"{rendered}\n\n{_agent_section(task)}"
 
 
-def render(numbers: list[str]) -> str:
+def _render_with_parent(numbers: list[str]) -> tuple[str, str]:
     tasks = tasks_by_number(numbers)
     parent_numbers = {parent_number_for_task(task) for task in tasks}
     if len(parent_numbers) != 1:
@@ -155,7 +155,11 @@ def render(numbers: list[str]) -> str:
     attachments = attachments_for_item(resolve_item(parent))
     preamble = attachments_markdown(attachments)
     rendered = [_render_task(task, preamble if index == 0 else "") for index, task in enumerate(tasks)]
-    return "\n\n".join(rendered) + "\n"
+    return parent, "\n\n".join(rendered) + "\n"
+
+
+def render(numbers: list[str]) -> str:
+    return _render_with_parent(numbers)[1]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -167,15 +171,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("numbers", nargs="+", metavar="DELIVERY_TASK")
     parser.add_argument(
         "--file", action="store_true",
-        help="write to {TEMPDIR}/{repo}-task-{numbers}.md and print that path instead of stdout",
+        help="write to the configured work-item cache and print that path instead of stdout",
     )
     args = parser.parse_args(command_args)
 
     try:
-        output = render(args.numbers)
+        parent, output = _render_with_parent(args.numbers)
         if args.file:
             suffix = "-".join(args.numbers)
-            print(write_scratch(scratch_path(f"task-{suffix}"), output))
+            print(write_scratch(scratch_path(parent, f"task-{suffix}"), output))
         else:
             sys.stdout.write(output)
     except PdlcError as error:

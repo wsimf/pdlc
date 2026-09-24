@@ -41,4 +41,4 @@ None.
 
 ## Report
 
-Filled in at $TMPDIR/pdlc-verify-60.json — 0 row(s) carried forward, 5 to check.
+Filled in at $CACHE_ROOT/.pdlc/cache/60/pdlc-verify-60.json — 0 row(s) carried forward, 5 to check.

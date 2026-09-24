@@ -25,12 +25,27 @@ class InspectTests(FileBackendTest):
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
 
-    def test_compact_inspection_points_at_a_temp_file_and_renders_the_pr(self):
+    def test_compact_inspection_points_at_a_cache_file_and_renders_the_pr(self):
         result = self.invoke("inspect", 20)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("# Work Item", result.stdout)
         self.assertIn("number: 148", result.stdout)
         self.assertNotIn("The shell ships", result.stdout)
+
+    def test_file_output_has_a_fresh_path_under_the_work_item(self):
+        first = Path(self.invoke("inspect", 20, "--file").stdout.strip())
+        second = Path(self.invoke("inspect", 20, "--file").stdout.strip())
+        self.assertEqual(first.parent, self.work / ".pdlc" / "cache" / "20")
+        self.assertNotEqual(first, second)
+        self.assertIn("The shell ships", first.read_text())
+        self.assertIn("The shell ships", second.read_text())
+
+    def test_task_file_uses_its_parent_work_item(self):
+        result = self.invoke("inspect_task", 201, "--file")
+        self.assertEqual(result.code, 0, result.stderr)
+        path = Path(result.stdout.strip())
+        self.assertEqual(path.parent, self.work / ".pdlc" / "cache" / "20")
+        self.assertIn("# Task", path.read_text())
 
     def test_full_inspection_includes_the_body(self):
         result = self.invoke("inspect", 20, "--full")
@@ -175,7 +190,7 @@ class TimelineTests(FileBackendTest):
         ]
         log.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
 
-    def test_compact_timeline_indexes_and_points_at_a_temp_file(self):
+    def test_compact_timeline_indexes_and_points_at_a_cache_file(self):
         self._seed_with_comments()
         result = self.invoke("inspect_timeline", 30)
         self.assertEqual(result.code, 0, result.stderr)

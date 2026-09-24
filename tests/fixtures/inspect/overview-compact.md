@@ -14,7 +14,7 @@ pullRequests: []
 
 # Work Item
 
-Full inspection in $TMPDIR/pdlc-60.md; read lines 17-34 for the body.
+Full inspection in $CACHE_ROOT/.pdlc/cache/60/pdlc-60.md; read lines 17-34 for the body.
 
 ## Attachments
 

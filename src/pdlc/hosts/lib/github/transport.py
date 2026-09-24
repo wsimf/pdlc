@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import re
-import tempfile
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 from pdlc.domain.lifecycle import PdlcError
@@ -84,15 +82,17 @@ def neutralize_refs(text: str) -> str:
 
 @contextmanager
 def body_file(text: str) -> Iterator[str]:
-    """Writes `text` — with loose GitHub references neutralized — to a temporary
+    """Writes `text` — with loose GitHub references neutralized — to a cached
     `.md` file for `gh ... --body-file`, yields its path, and removes it after.
     Every GitHub-backend write of agent-authored body or comment content goes
     through here so the neutralization has a single chokepoint.
     """
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as handle:
-        handle.write(neutralize_refs(text))
-        path = handle.name
+    # Request payloads can be created before a record exists, so they use the
+    # unscoped cache directory and are removed as soon as `gh` finishes.
+    from pdlc.internal.scratch import scratch_path, write_scratch
+
+    path = write_scratch(scratch_path("unscoped", "github-body"), neutralize_refs(text))
     try:
-        yield path
+        yield str(path)
     finally:
-        Path(path).unlink(missing_ok=True)
+        path.unlink(missing_ok=True)

@@ -72,7 +72,7 @@ fact is resolved here, never by the agent querying the work-item store or
     PR #148:
     - @reviewer on src/cache.py:42 — this drops the lock before the write completes (https://github.com/acme/repo/pull/148#discussion_r1)
 
-    # Timeline — 3 evidence comment(s); full bodies in /tmp/pdlc-timeline-50.md
+    # Timeline — 3 evidence comment(s); full bodies in <cache-root>/.pdlc/cache/50/pdlc-timeline-50-<random>.md
     ...
 
     ## Source
@@ -104,7 +104,7 @@ fact is resolved here, never by the agent querying the work-item store or
 
     ## Report
 
-    Filled in at /tmp/pdlc-verify-50.json — 3 row(s) carried forward, 2 to check.
+    Filled in at <cache-root>/.pdlc/cache/50/pdlc-verify-50-<random>.json — 3 row(s) carried forward, 2 to check.
 
 or, when not ready:
 
@@ -336,7 +336,7 @@ def _findings_section(known: dict[str, Finding], published: list[str]) -> list[s
 
 
 def _report_section(issue: str, report: dict) -> list[str]:
-    path = write_scratch(scratch_path(f"verify-{issue}", ".json"), json.dumps(report, indent=2) + "\n")
+    path = write_scratch(scratch_path(issue, f"verify-{issue}", ".json"), json.dumps(report, indent=2) + "\n")
     rows = [*report["claims"], *(report["journeys"] or []), report["ux"], report["cumulativeReview"]]
     carried = sum(1 for row in rows if row.get("reuse", "").startswith("valid"))
     to_check = sum(1 for row in rows if row["result"] is None)
@@ -409,14 +409,14 @@ def _stale_rows(issue: str) -> list[str]:
 
 
 # The evidence timeline as `pdlc inspect timeline` renders it by default: full
-# text to a temp file, a compact per-comment index inline. A long verification
+# text to a cache file, a compact per-comment index inline. A long verification
 # history — every review, bounce, and re-verify — then stays out of the caller's
 # context while remaining one Read away.
 def _timeline_block(issue: str, comments: list[dict]) -> str:
     text = timeline_markdown(issue, comments=comments)
     if text == NO_EVIDENCE:
         return "# Timeline\n\n" + text.rstrip("\n")
-    path = write_scratch(scratch_path(f"timeline-{issue}"), text.rstrip("\n") + "\n")
+    path = write_scratch(scratch_path(issue, f"timeline-{issue}"), text.rstrip("\n") + "\n")
     return timeline_compact(issue, str(path), comments=comments).rstrip("\n")
 
 

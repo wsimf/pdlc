@@ -44,6 +44,7 @@ CONFIG_FIELDS = {
     ("runtime", "home"): "home",
     ("runtime", "actor"): "actor",
     ("runtime", "ref_label"): "ref_label",
+    ("cache", "root"): "cache_root",
     ("workflow", "max_attempts"): "max_attempts",
     ("workflow", "initial_delay_seconds"): "initial_delay_seconds",
     ("workflow", "max_delay_seconds"): "max_delay_seconds",
@@ -120,6 +121,8 @@ class Config:
     home: str | None = None
     actor: str | None = None
     ref_label: str | None = None
+    # Parent of `.pdlc/cache`; the named defaults select the repository or home.
+    cache_root: str = "repository_default"
     azure_org: str | None = None
     azure_project: str | None = None
     azure_record_type: str | None = None
@@ -195,6 +198,8 @@ class Config:
         for name, value in list(data.items()):
             if name not in _INT_FIELDS and name not in _BOOL_FIELDS:
                 data[name] = str(value)
+        if "cache_root" in data and not str(data["cache_root"]).strip():
+            raise ConfigurationError("[cache.root] must be a directory or a named default")
         return cls(**data)  # type: ignore[arg-type]
 
     def validate_for_backend(self) -> None:

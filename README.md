@@ -179,6 +179,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[runtime] home` | `.pdlc` | Local file-backend and attachment storage root (see also `PDLC_HOME`). |
 | `[runtime] actor` | `local` | Actor name recorded by the file backend. |
 | `[runtime] ref_label` | `pdlc` | Label used for local inspector scratch files. |
+| `[cache] root` | `repository_default` | Parent of `.pdlc/cache/<workitem>/` for generated inspector reports and prompt briefs. `repository_default` uses the repository root; `global_default` uses the user's home; a custom absolute path uses that directory, and a relative path is resolved from the repository root. Each filename ends in a random suffix. Short-lived GitHub/Azure request bodies use the `unscoped` subdirectory and are removed after the request. |
 | `[workflow] max_attempts` | `5` | Maximum queue-loop polling attempts. |
 | `[workflow] initial_delay_seconds` | `60` | Initial queue-loop retry delay. |
 | `[workflow] max_delay_seconds` | `900` | Queue-loop retry delay ceiling. |

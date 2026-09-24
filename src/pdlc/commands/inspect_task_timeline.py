@@ -3,11 +3,11 @@
     pdlc inspect task timeline - read-only: render one delivery task's evidence as a chronological timeline
 
 USAGE
-    pdlc inspect task timeline DELIVERY_TASK           # compact index + temp file
+    pdlc inspect task timeline DELIVERY_TASK           # compact index + cache file
     pdlc inspect task timeline DELIVERY_TASK --full    # whole timeline to stdout
 
 FLAGS
-    --full    print the whole timeline to stdout instead of a compact index + temp file
+    --full    print the whole timeline to stdout instead of a compact index + cache file
 
 DESCRIPTION
     Renders one delivery task's own comment stream as a chronological
@@ -31,26 +31,26 @@ DESCRIPTION
     remains. That entry's body names what reopened the task: a driver
     invalidation, or a re-landed breakdown that changed the task's own body.
 
-    By default the full timeline is written to a file under the system temp
+    By default the full timeline is written to the parent work item's cache
     directory and stdout carries only a compact index: one block per entry
     with its marker, local time, author, a one-line preview, and the line
     span to read from that file for the whole entry.
 
-    # Timeline — 3 evidence entry(s); full bodies in /tmp/pdlc-task-timeline-641.md
+    # Timeline — 3 evidence entry(s); full bodies in <cache-root>/.pdlc/cache/64/pdlc-task-timeline-641-<random>.md
 
     ## PLAN — 2026-08-01 21:14 UTC (@sudara)
        Add the validation helper and wire it into the write path.
-       Read lines 3-9 in /tmp/pdlc-task-timeline-641.md for the full entry.
+       Read lines 3-9 in <cache-root>/.pdlc/cache/64/pdlc-task-timeline-641-<random>.md for the full entry.
 
     ## IMPLEMENTATION — 2026-08-03 10:02 UTC (@sudara)
        Shipped the endpoint.
-       Read lines 11-16 in /tmp/pdlc-task-timeline-641.md for the full entry.
+       Read lines 11-16 in <cache-root>/.pdlc/cache/64/pdlc-task-timeline-641-<random>.md for the full entry.
 
     ## INVALIDATED — 2026-08-04 09:00 UTC (@sudara)
        Invalidated stage: Technical Plan
-       Read lines 18-24 in /tmp/pdlc-task-timeline-641.md for the full entry.
+       Read lines 18-24 in <cache-root>/.pdlc/cache/64/pdlc-task-timeline-641-<random>.md for the full entry.
 
-`--full` prints the same content the temp file holds, one `## MARKER — time
+`--full` prints the same content the cache file holds, one `## MARKER — time
 (@author)` section per entry with the task comment's URL and full body.
 
 With no plan, implementation, or invalidation evidence at all, both modes
@@ -65,9 +65,10 @@ import sys
 
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.attachments import parent_number_for_task
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.scratch import scratch_path, write_scratch
-from pdlc.internal.workitem import comments_for_issue, task_timeline_compact, task_timeline_markdown
+from pdlc.internal.workitem import comments_for_issue, task_timeline_compact, task_timeline_markdown, tasks_by_number
 
 NO_EVIDENCE = "No task evidence comments found\n"
 
@@ -97,7 +98,8 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write(full_text)
             return 0
 
-        path = write_scratch(scratch_path(f"task-timeline-{task}"), full_text)
+        parent = parent_number_for_task(tasks_by_number([task])[0])
+        path = write_scratch(scratch_path(parent, f"task-timeline-{task}"), full_text)
         sys.stdout.write(task_timeline_compact(task, str(path), comments=comments))
     except PdlcError as error:
         print(f"pdlc: {error}", file=sys.stderr)

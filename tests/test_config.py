@@ -128,6 +128,20 @@ class ConfigTests(unittest.TestCase):
         config = load_config(nested)
         self.assertIs(config.debug, True)
 
+    def test_cache_root_is_read_from_config_and_repository_overrides_home(self):
+        self.write_home_config('[cache]\nroot = "global_default"\n')
+        nested = self.make_repo('[cache]\nroot = "artifacts"\n')
+        self.assertEqual(load_config(nested).cache_root, "artifacts")
+
+    def test_cache_root_defaults_to_repository(self):
+        nested = self.make_repo('[backend]\nname = "file"\n')
+        self.assertEqual(load_config(nested).cache_root, "repository_default")
+
+    def test_blank_cache_root_is_rejected(self):
+        nested = self.make_repo('[cache]\nroot = ""\n')
+        with self.assertRaisesRegex(ConfigurationError, r"cache\.root"):
+            load_config(nested)
+
     def test_cli_overrides_beat_the_config_file(self):
         nested = self.make_repo('[backend.github]\nrepository = "file/repository"\n')
         config = load_config(nested, overrides={"repository": "cli/repository"})

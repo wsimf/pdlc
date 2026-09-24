@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from tests._prompts import PromptHarness
 
 
 class PromptCommandTest(PromptHarness):
+    def test_file_brief_uses_work_item_cache_and_is_not_reused(self):
+        self._eligible_task()
+        first_result = self.invoke("prompt_task_implementer", 60, "--file")
+        second_result = self.invoke("prompt_task_implementer", 60, "--file")
+        self.assertEqual(first_result.code, 0, first_result.stderr)
+        self.assertEqual(second_result.code, 0, second_result.stderr)
+        first = Path(first_result.stdout.strip())
+        second = Path(second_result.stdout.strip())
+        self.assertEqual(first.parent, self.work / ".pdlc" / "cache" / "60")
+        self.assertNotEqual(first, second)
+        self.assertIn("You are implementing", first.read_text())
+
     # --- implement ---
 
     def test_eligible_task_renders_the_implementation_brief(self):

@@ -10,11 +10,10 @@ committing it.
 from __future__ import annotations
 
 import os
-import tempfile
+import re
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 
 class GoldenMixin(unittest.TestCase):
@@ -31,22 +30,15 @@ class GoldenMixin(unittest.TestCase):
         time.tzset()
         self.addCleanup(time.tzset)
         self.addCleanup(lambda: os.environ.__setitem__("TZ", original) if original else os.environ.pop("TZ", None))
-        # Scratch files land in a per-test temp directory, so `scrub` can swap
-        # that exact path out without also rewriting example paths a prompt
-        # quotes (a literal `/tmp/...` is the system temp dir on Linux).
-        self.scratch = self.work / "tmp"
-        self.scratch.mkdir()
-        patcher = patch.object(tempfile, "tempdir", str(self.scratch))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self.scratch = self.work
 
     def scrub(self, text: str) -> str:
         """Replace per-run temp paths with stable placeholders, so an output that
         names its scratch file or the record store still compares across runs."""
-        for path, placeholder in ((self.home, "$PDLC_HOME"), (self.scratch, "$TMPDIR")):
+        for path, placeholder in ((self.home, "$PDLC_HOME"), (self.scratch, "$CACHE_ROOT")):
             for form in {str(path), str(path.resolve())}:
                 text = text.replace(form, placeholder)
-        return text
+        return re.sub(r"-[0-9a-f]{32}(?=\.(?:md|json))", "", text)
 
     def assertGolden(self, name: str, result, *, suffix: str = ".md") -> None:
         """Compare `result` — a command `Result`, which must have succeeded, or

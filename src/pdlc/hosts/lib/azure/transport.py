@@ -10,8 +10,6 @@ so the CLI's own auth path is the only one that works unattended.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
@@ -69,13 +67,14 @@ def project_args() -> list[str]:
 @contextmanager
 def _request_file(body: Any) -> Iterator[str]:
     """`az devops invoke` takes a request body only as a file on disk."""
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as handle:
-        json.dump(body, handle)
-        path = handle.name
+    # This transport is also used to create records, before an ID is known.
+    from pdlc.internal.scratch import scratch_path, write_scratch
+
+    path = write_scratch(scratch_path("unscoped", "azure-request", ".json"), json.dumps(body))
     try:
-        yield path
+        yield str(path)
     finally:
-        os.unlink(path)
+        path.unlink(missing_ok=True)
 
 
 def az_invoke(
