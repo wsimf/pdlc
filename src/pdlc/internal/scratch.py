@@ -44,10 +44,10 @@ def cache_directory(work_item: str) -> Path:
 
 
 def scratch_path(work_item: str, name: str, suffix: str = ".md") -> Path:
-    """Return a new, unguessable path for a CLI-generated file."""
+    """Return a path with a random suffix for a CLI-generated file."""
     if suffix not in (".md", ".json"):
         raise PdlcError(f"unsupported cache file suffix: {suffix!r}")
-    return cache_directory(work_item) / f"{_safe_component(ref_label())}-{_safe_component(name)}-{secrets.token_hex(16)}{suffix}"
+    return cache_directory(work_item) / f"{_safe_component(ref_label())}-{_safe_component(name)}-{secrets.token_hex(3)}{suffix}"
 
 
 def write_scratch(path: Path, text: str) -> Path:
