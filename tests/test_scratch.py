@@ -31,7 +31,7 @@ class ScratchTest(unittest.TestCase):
     def test_custom_root_keeps_each_work_item_in_its_own_directory(self) -> None:
         path = scratch_path("42", "prompt-42")
         self.assertEqual(path.parent, self.root / ".pdlc" / "cache" / "42")
-        self.assertRegex(path.name, r"^pdlc-prompt-42-[0-9a-f]{32}\.md$")
+        self.assertRegex(path.name, r"^pdlc-prompt-42-[0-9a-f]{6}\.md$")
 
     def test_repository_default_uses_repository_root(self) -> None:
         install_config(Config())
@@ -52,7 +52,7 @@ class ScratchTest(unittest.TestCase):
         first = scratch_path("42", "verify-42", ".json")
         second = scratch_path("42", "verify-42", ".json")
         self.assertNotEqual(first, second)
-        self.assertTrue(re.fullmatch(r"pdlc-verify-42-[0-9a-f]{32}\.json", first.name))
+        self.assertTrue(re.fullmatch(r"pdlc-verify-42-[0-9a-f]{6}\.json", first.name))
 
     def test_rejects_path_traversal_in_item_and_name(self) -> None:
         escapes = ("../evil", "..\\evil", "nested/evil", "nested\\evil", "C:evil", "brief:stream", "..", ".", "")

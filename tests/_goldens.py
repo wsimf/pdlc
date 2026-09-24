@@ -38,7 +38,7 @@ class GoldenMixin(unittest.TestCase):
         for path, placeholder in ((self.home, "$PDLC_HOME"), (self.scratch, "$CACHE_ROOT")):
             for form in {str(path), str(path.resolve())}:
                 text = text.replace(form, placeholder)
-        return re.sub(r"-[0-9a-f]{32}(?=\.(?:md|json))", "", text)
+        return re.sub(r"-[0-9a-f]{6}(?=\.(?:md|json))", "", text)
 
     def assertGolden(self, name: str, result, *, suffix: str = ".md") -> None:
         """Compare `result` — a command `Result`, which must have succeeded, or
