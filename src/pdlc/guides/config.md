@@ -102,7 +102,7 @@ name = "file"
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `root` | Optional | `repository_default` | Parent of `.pdlc/cache/<workitem>/` for generated inspector reports and prompt briefs. `repository_default` uses the repository root; `global_default` uses the user's home. A custom absolute path uses that directory; a relative path is resolved from the repository root. Files have random suffixes, so use the path printed by the CLI. Briefs without a work item use `new` or `review` in place of `<workitem>`. |
+| `root` | Optional | `repository_default` | Parent of `.pdlc/cache/<workitem>/` for generated inspector reports and prompt briefs. `repository_default` uses the repository root; `global_default` uses the user's home. A custom absolute path uses that directory; a relative path is resolved from the repository root. Files have random suffixes, so use the path printed by the CLI. Briefs without a work item use `new` or `review` in place of `<workitem>`. Short-lived GitHub/Azure request bodies use `unscoped` and are removed after the request. |
 
 ## `[workflow]`
 

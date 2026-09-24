@@ -13,6 +13,8 @@ from unittest import mock
 from pdlc.config import Config, install_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.hosts.lib.azure.transport import _request_file
+from pdlc.hosts.lib.github.transport import body_file
 
 POSIX_ONLY = unittest.skipUnless(os.name == "posix", "POSIX file modes")
 
@@ -97,6 +99,20 @@ class ScratchTest(unittest.TestCase):
         path.parent.symlink_to(self.root, target_is_directory=True)
         with self.assertRaises(PdlcError):
             write_scratch(path, "brief\n")
+
+    def test_github_request_body_uses_cache_and_is_removed(self) -> None:
+        with body_file("body\n") as name:
+            path = Path(name)
+            self.assertEqual(path.parent, self.root / ".pdlc" / "cache" / "unscoped")
+            self.assertEqual(path.read_text(), "body\n")
+        self.assertFalse(path.exists())
+
+    def test_azure_request_body_uses_cache_and_is_removed(self) -> None:
+        with _request_file({"value": 42}) as name:
+            path = Path(name)
+            self.assertEqual(path.parent, self.root / ".pdlc" / "cache" / "unscoped")
+            self.assertEqual(path.read_text(), '{"value": 42}')
+        self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":
