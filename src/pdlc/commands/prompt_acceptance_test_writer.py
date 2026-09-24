@@ -33,7 +33,7 @@ FLAGS
     --findings FILE|text:BODY  findings the record does not carry, appended
                             after the record's own open change requests
     --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-acceptance-test-writer-{work item}.md
+                            the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES

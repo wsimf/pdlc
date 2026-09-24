@@ -19,11 +19,12 @@ import shutil
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from unittest import mock
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from pdlc.config import Config, install_config, reset_config, set_config
+from pdlc.config import Capabilities, Config, install_config, reset_config, set_config
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.hosts import attachment_host, code_host, workitem_host
 
@@ -93,7 +94,10 @@ class FileBackendTest(unittest.TestCase):
         os.environ["PDLC_HOME"] = str(self.home)
         os.environ.pop("PDLC_REPOSITORY", None)
         os.environ.pop("PDLC_DEBUG", None)
-        install_config(_file_config())
+        install_config(replace(_file_config(), cache_root=str(self.work)))
+        capabilities = mock.patch("pdlc.config._capabilities", Capabilities.empty())
+        capabilities.start()
+        self.addCleanup(capabilities.stop)
 
         (self.home / "records").mkdir(parents=True)
         (self.home / "seq").write_text("40")

@@ -29,7 +29,7 @@ DESCRIPTION
 
 FLAGS
     --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-task-implementer-{work item}.md
+                            the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES

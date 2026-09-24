@@ -782,7 +782,7 @@ def add_common_arguments(parser: argparse.ArgumentParser, command: str) -> None:
     parser.add_argument("work_item")
     parser.add_argument(
         "--file", action="store_true",
-        help=f"write to {{TEMPDIR}}/{{repo}}-prompt-{command}-{{work item}}.md and print that path",
+        help="write the brief to the configured work-item cache and print its path",
     )
 
 
@@ -794,7 +794,7 @@ def emit(brief: str, work_item: str, command: str, to_file: bool) -> None:
     otherwise read the reviewer's brief back out of it.
     """
     if to_file:
-        print(write_scratch(scratch_path(f"prompt-{command}-{work_item}"), brief))
+        print(write_scratch(scratch_path(work_item, f"prompt-{command}-{work_item}"), brief))
     else:
         sys.stdout.write(brief)
 

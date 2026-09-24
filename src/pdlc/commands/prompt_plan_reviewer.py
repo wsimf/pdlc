@@ -25,7 +25,7 @@ FLAGS
     --manifest FILE             the plans manifest; required
     --findings FILE|text:BODY   the previous pass's findings, on a re-review
     --file                      write the brief to
-                                {TEMPDIR}/{repo}-prompt-plan-reviewer-{work item}.md
+                                the work-item cache with a random filename
                                 and print that path, instead of stdout
 
 EXAMPLES

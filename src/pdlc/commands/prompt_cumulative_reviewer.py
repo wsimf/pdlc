@@ -29,7 +29,7 @@ FLAGS
     --constraints FILE|text:BODY  the record's binding constraints, in plain terms; required
     --scope FILE|text:BODY        the change scope to review; defaults to the branch diff
     --file                        write the brief to
-                                  {TEMPDIR}/{repo}-prompt-cumulative-reviewer-review.md
+                                  the cache's review directory with a random filename
                                   and print that path, instead of stdout
 
 EXAMPLES
@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", help="the change scope to review; defaults to the branch diff")
     parser.add_argument(
         "--file", action="store_true",
-        help=f"write to {{TEMPDIR}}/{{repo}}-prompt-{COMMAND}-review.md and print that path",
+        help="write to the configured cache and print that path",
     )
     args = parser.parse_args(command_args)
     args.work_item = "review"  # no record backs this brief; only the scratch filename needs a name

@@ -26,8 +26,8 @@ FLAGS
     --work-item WORK_ITEM       the record being reconciled, when reconciling
     --findings FILE|text:BODY   the previous pass's findings, on a re-review
     --file                      write the brief to
-                                {TEMPDIR}/{repo}-prompt-product-reviewer-{work
-                                item, or "new"}.md and print that path,
+                                the work-item cache, or the new directory when
+                                no work item exists, and print that path,
                                 instead of stdout
 
 EXAMPLES
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--findings", help="the previous pass's findings (FILE or text:BODY)")
     parser.add_argument(
         "--file", action="store_true",
-        help=f"write to {{TEMPDIR}}/{{repo}}-prompt-{COMMAND}-{{work item, or 'new'}}.md and print that path",
+        help="write to the configured cache and print that path",
     )
     args = parser.parse_args(command_args)
 

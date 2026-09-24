@@ -98,6 +98,12 @@ name = "file"
 | `actor` | Optional | `local` | Actor name the file backend records on evidence. |
 | `ref_label` | Optional | `pdlc` | Reference label the file backend uses on evidence. |
 
+## `[cache]`
+
+| Key | Required | Default | What it does |
+|---|---|---|---|
+| `root` | Optional | `repository_default` | Parent of `.pdlc/cache/<workitem>/` for generated inspector reports and prompt briefs. `repository_default` uses the repository root; `global_default` uses the user's home. A custom absolute path uses that directory; a relative path is resolved from the repository root. Files have random suffixes, so use the path printed by the CLI. Briefs without a work item use `new` or `review` in place of `<workitem>`. |
+
 ## `[workflow]`
 
 Retry policy for `pdlc next loop` while no work item is actionable. The delay doubles after each empty attempt, capped at `max_delay_seconds`; CI monitoring uses its own fixed one-hour timeout and capped backoff.

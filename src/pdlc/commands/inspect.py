@@ -9,7 +9,7 @@ USAGE
 
 FLAGS
     --full    print the complete inspection on stdout instead of a compact index
-    --file    print the complete inspection's temp-file path instead of a compact index
+    --file    print the complete inspection's cache-file path instead of a compact index
 
 DESCRIPTION
     Renders a work item's metadata, task tree, linked pull requests,
@@ -25,8 +25,8 @@ resolved paths. `## User Comments` carries every comment on the record that has
 no `PDLC-*` marker — human or outside-bot discussion — oldest first; one comment
 fetch feeds both the full and compact renders.
 
-By default the complete inspection is written to a file under the system temp
-directory and stdout carries a compact index.
+By default the complete inspection is written to the configured work-item cache
+and stdout carries a compact index.
 
 Always includes a `# Tasks` section: every delivery task as its own YAML
 front-matter block (number, title, completed, isUI, hasPlan,
@@ -87,8 +87,8 @@ for orientation, and points at the full file with the raw work item body.
 
     # Work Item
 
-    Full body in /tmp/pdlc-work-18.md
-    Read lines 14-48 in /tmp/pdlc-work-18.md for the body.
+    Full body in <cache-root>/.pdlc/cache/18/pdlc-18-<random>.md
+    Read lines 14-48 in <cache-root>/.pdlc/cache/18/pdlc-18-<random>.md for the body.
 
     ## Attachments
 
@@ -910,7 +910,7 @@ def render(issue: str) -> tuple[str, str, Path]:
     sections.append(due_next_section)
 
     full_output = "\n\n".join(sections) + "\n"
-    path = scratch_path(str(issue))
+    path = scratch_path(str(issue), str(issue))
     compact_output = _compact_render(
         item, pull_requests, tasks, attachments, user_comments_section, full_output, path, due_next_section, warnings_section
     )
@@ -927,7 +927,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--file", action="store_true",
-        help="write to {TEMPDIR}/{repo}-{issue}.md and print that path instead of stdout",
+        help="write to the configured work-item cache and print that path instead of stdout",
     )
     args = parser.parse_args(command_args)
 

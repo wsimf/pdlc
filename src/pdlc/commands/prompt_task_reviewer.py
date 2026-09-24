@@ -24,7 +24,7 @@ FLAGS
     --commits REVISIONS     the revision or range the brief reads, as `git show`
                             accepts it; required
     --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-task-reviewer-{work item}.md
+                            the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES

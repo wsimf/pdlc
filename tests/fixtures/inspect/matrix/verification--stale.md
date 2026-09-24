@@ -143,11 +143,11 @@ All tasks closed with their implementation recorded.
 
 None.
 
-# Timeline — 1 evidence comment(s); full bodies in $TMPDIR/pdlc-timeline-60.md
+# Timeline — 1 evidence comment(s); full bodies in $CACHE_ROOT/.pdlc/cache/60/pdlc-timeline-60.md
 
 ## INVALIDATED — 2026-04-01 00:00 UTC (@t)
    Invalidated stage: Verification
-   Read lines 3-7 in $TMPDIR/pdlc-timeline-60.md for the full comment.
+   Read lines 3-7 in $CACHE_ROOT/.pdlc/cache/60/pdlc-timeline-60.md for the full comment.
 
 ## Source
 
@@ -171,7 +171,7 @@ None.
 
 ## Report
 
-Filled in at $TMPDIR/pdlc-verify-60.json — 0 row(s) carried forward, 5 to check.
+Filled in at $CACHE_ROOT/.pdlc/cache/60/pdlc-verify-60.json — 0 row(s) carried forward, 5 to check.
 
 ## $ pdlc inspect complete 60
 

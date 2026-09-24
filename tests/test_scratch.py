@@ -1,111 +1,102 @@
-"""Scratch files carry briefs a sub-agent executes, so the write must not be
-divertible by anything that got to the path first."""
+"""Generated CLI files stay in the configured cache and have private names."""
 
 from __future__ import annotations
 
-import importlib
 import os
+import re
 import stat
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from pdlc.config import Config, install_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.internal import scratch
 from pdlc.internal.scratch import scratch_path, write_scratch
 
-POSIX_ONLY = unittest.skipUnless(os.name == "posix", "POSIX file-mode and symlink semantics")
+POSIX_ONLY = unittest.skipUnless(os.name == "posix", "POSIX file modes")
 
 
-class ScratchPathTest(unittest.TestCase):
-    def test_names_the_file_for_the_backing_store(self) -> None:
-        with mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc"):
-            self.assertEqual(scratch_path("prompt-42").name, "pdlc-prompt-42.md")
-
-    def test_suffix_is_selectable(self) -> None:
-        with mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc"):
-            self.assertEqual(scratch_path("verify-42", ".json").name, "pdlc-verify-42.json")
-
-    def test_lands_in_the_temp_directory(self) -> None:
-        with mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc"):
-            self.assertEqual(scratch_path("42").parent, Path(tempfile.gettempdir()))
-
-    def test_refuses_a_name_that_would_escape_the_temp_directory(self) -> None:
-        # Refused on every platform alike, so a poisoned reference cannot place
-        # the file outside the temp directory on one OS but not another.
-        escapes = ["../evil", "..\\evil", "nested/evil", "nested\\evil", "C:evil", "brief:stream", "..", ".", ""]
-        with mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc"):
-            for name in escapes:
-                with self.subTest(name=name), self.assertRaises(PdlcError):
-                    scratch_path(name)
-
-    def test_allows_the_names_the_commands_actually_build(self) -> None:
-        with mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc"):
-            for name in ("42", "task-1-2", "timeline-42", "verify-42", "prompt-implement-42", "a.slug-9"):
-                with self.subTest(name=name):
-                    self.assertEqual(scratch_path(name).parent, Path(tempfile.gettempdir()))
-
-
-class WriteScratchTest(unittest.TestCase):
+class ScratchTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.directory = Path(tempfile.mkdtemp())
-        self.path = self.directory / "brief.md"
+        self.root = Path(tempfile.mkdtemp())
+        install_config(Config(cache_root=str(self.root)))
+        self.addCleanup(reset_config)
+        self.label = mock.patch("pdlc.internal.scratch.ref_label", return_value="pdlc")
+        self.label.start()
+        self.addCleanup(self.label.stop)
 
-    def test_writes_the_text_and_returns_the_path(self) -> None:
-        self.assertEqual(write_scratch(self.path, "brief\n"), self.path)
-        self.assertEqual(self.path.read_text(encoding="utf-8"), "brief\n")
+    def test_custom_root_keeps_each_work_item_in_its_own_directory(self) -> None:
+        path = scratch_path("42", "prompt-42")
+        self.assertEqual(path.parent, self.root / ".pdlc" / "cache" / "42")
+        self.assertRegex(path.name, r"^pdlc-prompt-42-[0-9a-f]{32}\.md$")
+
+    def test_repository_default_uses_repository_root(self) -> None:
+        install_config(Config())
+        with mock.patch("pdlc.internal.scratch.repository_root", return_value=self.root):
+            self.assertEqual(scratch_path("42", "42").parent, self.root / ".pdlc" / "cache" / "42")
+
+    def test_global_default_uses_home(self) -> None:
+        install_config(Config(cache_root="global_default"))
+        with mock.patch("pdlc.internal.scratch.Path.home", return_value=self.root):
+            self.assertEqual(scratch_path("42", "42").parent, self.root / ".pdlc" / "cache" / "42")
+
+    def test_relative_custom_root_is_relative_to_repository(self) -> None:
+        install_config(Config(cache_root="artifacts"))
+        with mock.patch("pdlc.internal.scratch.repository_root", return_value=self.root):
+            self.assertEqual(scratch_path("42", "42").parent, self.root / "artifacts" / ".pdlc" / "cache" / "42")
+
+    def test_each_file_has_a_fresh_random_suffix_and_requested_type(self) -> None:
+        first = scratch_path("42", "verify-42", ".json")
+        second = scratch_path("42", "verify-42", ".json")
+        self.assertNotEqual(first, second)
+        self.assertTrue(re.fullmatch(r"pdlc-verify-42-[0-9a-f]{32}\.json", first.name))
+
+    def test_rejects_path_traversal_in_item_and_name(self) -> None:
+        escapes = ("../evil", "..\\evil", "nested/evil", "nested\\evil", "C:evil", "brief:stream", "..", ".", "")
+        for value in escapes:
+            with self.subTest(value=value), self.assertRaises(PdlcError):
+                scratch_path(value, "brief")
+            with self.subTest(name=value), self.assertRaises(PdlcError):
+                scratch_path("42", value)
+
+    def test_writes_into_created_directory(self) -> None:
+        path = scratch_path("42", "brief")
+        self.assertEqual(write_scratch(path, "brief\n"), path)
+        self.assertEqual(path.read_text(encoding="utf-8"), "brief\n")
 
     @POSIX_ONLY
-    def test_readable_only_by_its_owner(self) -> None:
-        write_scratch(self.path, "secret\n")
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+    def test_directory_and_file_are_owner_only(self) -> None:
+        path = scratch_path("42", "brief")
+        write_scratch(path, "secret\n")
+        self.assertEqual(stat.S_IMODE(path.parent.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
 
-    def test_replaces_a_previous_run_rather_than_appending(self) -> None:
-        write_scratch(self.path, "first run\n")
-        write_scratch(self.path, "second\n")
-        self.assertEqual(self.path.read_text(encoding="utf-8"), "second\n")
-
-    @POSIX_ONLY
-    def test_a_loose_permissive_file_does_not_survive_the_rewrite(self) -> None:
-        self.path.write_text("stale\n", encoding="utf-8")
-        os.chmod(self.path, 0o666)
-        write_scratch(self.path, "fresh\n")
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+    def test_existing_file_is_not_overwritten(self) -> None:
+        path = scratch_path("42", "brief")
+        write_scratch(path, "original\n")
+        with self.assertRaises(FileExistsError):
+            write_scratch(path, "replacement\n")
+        self.assertEqual(path.read_text(encoding="utf-8"), "original\n")
 
     @POSIX_ONLY
-    def test_a_symlink_planted_at_the_path_is_not_followed(self) -> None:
-        target = self.directory / "authorized_keys"
-        target.write_text("original\n", encoding="utf-8")
-        self.path.symlink_to(target)
+    def test_symlink_file_is_not_followed(self) -> None:
+        path = scratch_path("42", "brief")
+        path.parent.mkdir(parents=True)
+        target = self.root / "target"
+        target.write_text("original\n")
+        path.symlink_to(target)
+        with self.assertRaises(FileExistsError):
+            write_scratch(path, "replacement\n")
+        self.assertEqual(target.read_text(), "original\n")
 
-        write_scratch(self.path, "injected\n")
-
-        self.assertEqual(target.read_text(encoding="utf-8"), "original\n")
-        self.assertFalse(self.path.is_symlink())
-        self.assertEqual(self.path.read_text(encoding="utf-8"), "injected\n")
-
-    def test_writes_on_a_platform_without_o_nofollow(self) -> None:
-        # `O_NOFOLLOW` is POSIX-only. Reloading without it stands in for
-        # Windows, where naming the flag directly would raise AttributeError
-        # and take every `--file` command down with it.
-        nofollow = os.O_NOFOLLOW
-        del os.O_NOFOLLOW
-        try:
-            importlib.reload(scratch)
-            self.assertEqual(scratch.write_scratch(self.path, "brief\n"), self.path)
-        finally:
-            os.O_NOFOLLOW = nofollow
-            importlib.reload(scratch)
-        self.assertEqual(self.path.read_text(encoding="utf-8"), "brief\n")
-
-    def test_an_existing_path_fails_the_open_rather_than_being_written_through(self) -> None:
-        # `O_CREAT | O_EXCL` is the atomicity guarantee and holds on Windows
-        # too, so a path that reappears after the unlink stops the write.
-        self.path.write_text("planted\n", encoding="utf-8")
-        with mock.patch.object(Path, "unlink"), self.assertRaises(FileExistsError):
-            write_scratch(self.path, "injected\n")
-        self.assertEqual(self.path.read_text(encoding="utf-8"), "planted\n")
+    @POSIX_ONLY
+    def test_symlink_work_item_directory_is_refused(self) -> None:
+        path = scratch_path("42", "brief")
+        path.parent.parent.mkdir(parents=True)
+        path.parent.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaises(PdlcError):
+            write_scratch(path, "brief\n")
 
 
 if __name__ == "__main__":

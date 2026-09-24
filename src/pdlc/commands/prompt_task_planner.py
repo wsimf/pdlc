@@ -23,7 +23,7 @@ DESCRIPTION
 FLAGS
     --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass
     --file                  write the brief to
-                            {TEMPDIR}/{repo}-prompt-task-planner-{work item}.md
+                            the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES
