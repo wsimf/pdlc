@@ -1,6 +1,6 @@
 # Patch a landed upstream artifact
 
-Use this manual when you own the active stage of a PDLC work item and find that an artifact an earlier stage already landed is wrong. A patch corrects that artifact in place while the record stays on your stage. When the correction would change anything built on top of it, the stage has to be invalidated instead, which is a driver action.
+Use this manual when you own the active stage of a PDLC work item and find that an artifact an earlier stage already landed is wrong. A patch corrects that artifact in place. The record stays on your stage when nothing built on top of the artifact is affected, and returns to the earliest affected stage when something is.
 
 ## Entry check
 
@@ -24,7 +24,7 @@ Skip this step when the dry run reported `impactRequired: false`.
 
 Dispatch the built-in `general-purpose` agent with the brief `pdlc prompt patch-reviewer <WORK_ITEM> --stage <STAGE> --body <FILE> --file` (or `--manifest <FILE>` for Tasks) writes, handing it the printed path and telling it plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, or summarise the brief. Save its report unchanged; that file is `--impact`.
 
-The report opens with `Earliest affected stage: <stage|none>`. When it names a stage, do not patch: report the defect, the draft, and the impact report to the driver, recommending `pdlc post invalidate` for that stage with the report as evidence, and stop.
+The report opens with `Earliest affected stage: <stage|none>`. Land it in Step 4 whatever it names; the verdict decides where the record goes, and you do not edit or second-guess it.
 
 ## Step 4: Land the patch
 
@@ -34,8 +34,12 @@ Run the artifact's landing command with the reviewed draft, `--evidence`, `--pat
 pdlc post write --work-item <WORK_ITEM> --body <FILE> --evidence <FILE> --patch --impact <FILE>
 ```
 
-A refusal writes nothing; report it. On success the record stays on your stage, reset to `Stale` if your artifact had already been published. Before landing your own stage's work, rebuild any local draft of it from the landed artifacts, since a work gate is left as is and nothing else signals the change.
+A refusal writes nothing; report it. The printed `status` is where the record now is.
+
+When it is still your stage, the record is reset to `Stale` if your artifact had already been published. Before landing your own stage's work, rebuild any local draft of it from the landed artifacts, since a work gate is left as is and nothing else signals the change.
+
+When `returnedTo` names a stage, the record went back to it at `Stale` and your stage is no longer due. Discard your local draft and stop.
 
 ## Report
 
-State the patched artifact and the ids it changed, the review verdict, the impact verdict (or that no stage lay in between), and your stage's resulting gate. The driver sees the patch at the next approval.
+State the patched artifact and the ids it changed, the review verdict, the impact verdict (or that no stage lay in between), and where the record now is: your stage's resulting gate, or the stage it returned to. The driver sees the patch, with every changed requirement's before and after text, at the next approval.

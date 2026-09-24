@@ -14,11 +14,19 @@ from pdlc.commands import prompt
 from pdlc.commands.inspect import _due_next_section
 from pdlc.domain.completion import SETTLEMENT_MARKERS
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.patch import impact_verdict, patches_since_approval, plan_patch, require_no_impact
+from pdlc.domain.patch import (
+    apply_impact,
+    impact_verdict,
+    patches_since_approval,
+    plan_patch,
+    requirement_changes,
+    requirement_statements,
+)
 from pdlc.domain.workflow import Event, Gate, InvalidationPolicy, State
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 NO_IMPACT = "Earliest affected stage: none\n\n## UI\nUnaffected.\n## Tasks\nUnaffected.\n"
+TASKS_AFFECTED = "Earliest affected stage: Tasks\n\n## UI\nUnaffected.\n## Tasks\nAffected — TASK-001 asserts the old FR-1.\n"
 PRODUCT_PATCH = BODY_DEFAULT.split("## UI")[0].replace("The record lands.", "The record lands atomically.") + (
     "## Decisions\n- none\n"
 )
@@ -75,12 +83,43 @@ class PatchPolicyTests(unittest.TestCase):
         plan = plan_patch(self.pipeline, State("Technical Plan", Gate.PENDING), "Product", set())
         self.assertTrue(plan.impact_required)
         with self.assertRaisesRegex(PdlcError, "--impact is required: UI, Tasks"):
-            require_no_impact(plan, None)
-        with self.assertRaisesRegex(PdlcError, "names Tasks as affected"):
-            require_no_impact(plan, "Earliest affected stage: Tasks\n")
-        require_no_impact(plan, NO_IMPACT)
+            apply_impact(self.pipeline, plan, None)
+        with self.assertRaisesRegex(PdlcError, "must be one of: UI, Tasks, none"):
+            apply_impact(self.pipeline, plan, "Earliest affected stage: Implementation\n")
+        self.assertEqual(apply_impact(self.pipeline, plan, NO_IMPACT), plan)
         adjacent = plan_patch(self.pipeline, State("UI", Gate.PENDING), "Product", set())
-        require_no_impact(adjacent, None)
+        self.assertEqual(apply_impact(self.pipeline, adjacent, None), adjacent)
+        with self.assertRaisesRegex(PdlcError, "must be one of: none"):
+            apply_impact(self.pipeline, adjacent, "Earliest affected stage: UI\n")
+
+    def test_an_affected_intermediate_stage_rewinds_the_record_there(self):
+        plan = plan_patch(self.pipeline, State("Technical Plan", Gate.APPROVAL_REQUIRED), "Product", set())
+        rewound = apply_impact(self.pipeline, plan, TASKS_AFFECTED)
+        self.assertEqual(rewound.rewind, "Tasks")
+        self.assertEqual(rewound.target, State("Tasks", Gate.STALE))
+        self.assertEqual(rewound.source, plan.source)
+
+    def test_requirement_statements_ignore_rewrapping_and_track_every_form(self):
+        landed = (
+            "### 4. Functional requirements\n"
+            "- FR-1: The record lands\n  within 200 ms.\n"
+            "- **FR-2**: The record publishes.\n"
+            "1. C-1: Commands own every mutation.\n\n"
+            "Mentions FR-1 in prose, which declares nothing.\n"
+        )
+        self.assertEqual(requirement_statements(landed), {
+            "FR-1": "The record lands within 200 ms.",
+            "FR-2": "The record publishes.",
+            "C-1": "Commands own every mutation.",
+        })
+        rewrapped = landed.replace("lands\n  within", "lands within")
+        self.assertEqual(requirement_changes(landed, rewrapped), [])
+        draft = rewrapped.replace("200 ms", "500 ms").replace("- **FR-2**: The record publishes.\n", "") + "- FR-10: New.\n"
+        self.assertEqual(requirement_changes(landed, draft), [
+            {"id": "FR-1", "change": "changed", "before": "The record lands within 200 ms.", "after": "The record lands within 500 ms."},
+            {"id": "FR-2", "change": "removed", "before": "The record publishes.", "after": None},
+            {"id": "FR-10", "change": "added", "before": None, "after": "New."},
+        ])
 
     def test_patch_is_not_a_settlement(self):
         self.assertNotIn("PATCHED", SETTLEMENT_MARKERS)
@@ -111,9 +150,34 @@ class PostWritePatchTests(FileBackendTest):
         self.assertTrue(comments[0].startswith("PDLC-PRODUCT\n\nevidence body"))
         self.assertEqual(
             comments[1],
-            "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\n\n" + NO_IMPACT.strip() + "\n",
+            "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\n"
+            "Changed requirements: FR-1 (changed)\n\n"
+            "## Requirement Changes\n\n### FR-1 (changed)\n"
+            "- Before: The record lands.\n- After: The record lands atomically.\n\n"
+            + NO_IMPACT.strip() + "\n",
         )
         self.assertEqual(result.json["gateState"], "Pending")
+        self.assertIsNone(result.json["returnedTo"])
+        self.assertEqual(result.json["requirementChanges"], [
+            {"id": "FR-1", "change": "changed", "before": "The record lands.", "after": "The record lands atomically."},
+        ])
+
+    def test_an_affected_stage_lands_the_patch_and_returns_the_record_there(self):
+        self.seed_record(69, "Technical Plan", "Approval Required")
+        body = self.write_file("product.md", PRODUCT_PATCH.replace("- FR-2: The record publishes.\n", ""))
+        impact = self.write_file("impact.md", TASKS_AFFECTED)
+        result = self.invoke(
+            "post_write", "--work-item", 69, "--body", body, "--evidence", self.evidence_file(), "--patch", "--impact", impact,
+        )
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(self.state(69), ("Tasks", "Stale"))
+        self.assertNotIn("FR-2", self.body(69))
+        comments = [json.loads(line)["body"] for line in self.comments_text(69).splitlines()]
+        self.assertEqual([comment.split("\n")[0] for comment in comments], ["PDLC-PRODUCT", "PDLC-PATCHED", "PDLC-INVALIDATED"])
+        self.assertIn("Returned to: Tasks / Stale\nChanged requirements: FR-1 (changed), FR-2 (removed)", comments[1])
+        self.assertTrue(comments[2].startswith("PDLC-INVALIDATED\n\nInvalidated stage: Tasks\n\nReturned by a patch of Product"))
+        self.assertIn("TASK-001 asserts the old FR-1", comments[2])
+        self.assertEqual((result.json["returnedTo"], result.json["status"], result.json["gateState"]), ("Tasks", "Tasks", "Stale"))
 
     def test_resets_a_published_active_stage_to_stale_and_needs_no_impact_next_door(self):
         self.seed_record(71, "UI", "Approval Required")
@@ -127,7 +191,7 @@ class PostWritePatchTests(FileBackendTest):
         before = (self.body(72), self.comments_text(72))
         cases = {
             "--impact is required": (),
-            "names Tasks as affected": ("--impact", self.write_file("bad.md", "Earliest affected stage: Tasks\n")),
+            "must be one of": ("--impact", self.write_file("bad.md", "Earliest affected stage: Implementation\n")),
         }
         for message, extra in cases.items():
             with self.subTest(message=message):
@@ -167,6 +231,13 @@ class PostWritePatchTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["impactRequired"], True)
         self.assertEqual(result.json["intermediateStages"], ["UI", "Tasks"])
+        self.assertEqual(result.json["requirementChanges"][0]["id"], "FR-1")
+        self.assertEqual(self.state(78), ("Technical Plan", "Approval Required"))
+        self.assertEqual(self.comments_text(78), "")
+
+        rewind = self.patch(78, "--dry-run", "--impact", self.write_file("impact.md", TASKS_AFFECTED))
+        self.assertEqual(rewind.code, 0, rewind.stderr)
+        self.assertEqual(rewind.json["returnedTo"], "Tasks")
         self.assertEqual(self.state(78), ("Technical Plan", "Approval Required"))
         self.assertEqual(self.comments_text(78), "")
 
@@ -252,6 +323,16 @@ class PostTasksPatchTests(FileBackendTest):
         self.assertEqual(result.code, 1)
         self.assertIn("adds UJ-2", result.stderr)
 
+        rewound = self.invoke(
+            "post_tasks", "--work-item", 86, "--stage", "UI", "--body", body, "--evidence", self.evidence_file(),
+            "--patch", "--impact", self.write_file("affected.md", "Earliest affected stage: Tasks\n"),
+        )
+        self.assertEqual(rewound.code, 0, rewound.stderr)
+        self.assertEqual(self.state(86), ("Tasks", "Stale"))
+        self.assertIn("UJ-2", self.body(86))
+        self.assertEqual(rewound.json["returnedTo"], "Tasks")
+        self.assertIn("Invalidated stage: Tasks", self.comments_text(86))
+
     def test_dry_run_reports_the_patch(self):
         self.seed_breakdown(87, "Technical Plan", "Pending")
         result = self.invoke(
@@ -267,12 +348,14 @@ class PatchVisibilityTests(FileBackendTest):
         item = {"Status": "Technical Plan", "Gate State": "Approval Required", "Skipped States": "", "content": {"number": 90}}
         comments = [
             {"body": "PDLC-APPROVED\n\nok", "createdAt": "2026-01-02T00:00:00Z", "url": "u1"},
-            {"body": "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\n",
+            {"body": "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\n"
+                     "Changed requirements: FR-1 (changed)\n",
              "createdAt": "2026-01-03T00:00:00Z", "url": "u2"},
         ]
         section = _due_next_section(item, comments, [])
         self.assertIn("### Patches Since Last Approval", section)
         self.assertIn("- Product — ", section)
+        self.assertIn("  - Changed requirements: FR-1 (changed)", section)
         self.assertNotIn("### Patches", _due_next_section(item, comments[:1], []))
 
     def test_patch_reviewer_brief_names_the_stages_to_judge(self):

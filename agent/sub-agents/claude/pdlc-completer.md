@@ -19,7 +19,7 @@ You produce one artifact: the completion evidence body. The verified record is f
 
 Run `pdlc post complete --help` for the six required `##` sections, their format, and a sample body. Fill them from the supplied record:
 
-- **Decisions** — only decisions that emerged during delivery, read from task `## Implementation` notes and the commits that landed them. Compact list of decision, rationale, reference; not a second changelog. Routine implementation steps do not belong. Add one bullet per `PDLC-PATCHED` comment: the patched stage, when, a one-line summary of the correction, and the comment as reference.
+- **Decisions** — only decisions that emerged during delivery, read from task `## Implementation` notes and the commits that landed them. Compact list of decision, rationale, reference; not a second changelog. Routine implementation steps do not belong. Add one bullet per `PDLC-PATCHED` comment: the patched stage, when, a one-line summary of the correction naming every id on its `Changed requirements:` line, and the comment as reference.
 - **Open Questions** — one line per live entry, with the question verbatim. Entries `pdlc-verify` already recorded as deferrals stay deferred. If a question genuinely cannot be resolved or deferred, say so plainly rather than inventing a disposition.
 - **Skipped Stages** — each stage listed in `Skipped States`, noted as a deliberate bypass.
 

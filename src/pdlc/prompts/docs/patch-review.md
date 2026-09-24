@@ -28,7 +28,7 @@ This is the reviewed draft that will replace the landed {{PATCHED_STAGE}} artifa
 
 ## What to check
 
-For each artifact to judge, decide whether it still holds against the corrected text: every requirement, constraint, journey, or task body it relies on still says what it assumed, and nothing it states now contradicts the correction. Wording-only changes that leave meaning intact affect nothing. When unsure, name the artifact affected.
+For each artifact to judge, decide whether it still holds against the corrected text: every requirement, constraint, journey, or task body it relies on still says what it assumed, and nothing it states now contradicts the correction. Wording-only changes that leave meaning intact affect nothing. When unsure, name the artifact affected. Your verdict is applied as given: naming a stage returns the work item to it for rework, and `none` lets the work continue on top of the corrected text.
 
 ## Report back
 

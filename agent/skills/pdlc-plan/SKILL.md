@@ -89,7 +89,7 @@ Relay the command's JSON output, plus:
 - unresolved decisions or risks;
 - that the stage is now `Approval Required` and needs driver approval.
 
-If planning shows a landed upstream artifact is wrong, follow `pdlc guide patch`; when it calls for invalidation, report that to the driver without invalidating it yourself. The report is complete when it contains the command output, reviewer result, final gate, requested human action, and every unresolved failure or risk.
+If planning shows a landed upstream artifact is wrong, follow `pdlc guide patch`; when the patch returns the record to an earlier stage, report that and stop. The report is complete when it contains the command output, reviewer result, final gate, requested human action, and every unresolved failure or risk.
 
 ## Boundaries
 

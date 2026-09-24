@@ -21,7 +21,7 @@ FLAGS
     --patch                             action="store_true"; land the body onto the record's already-landed
                                         Product section while the record stays on its later active stage
     --impact FILE|-                     only with --patch; the impact report whose
-                                        `Earliest affected stage:` line must read `none`
+                                        `Earliest affected stage:` line reads `none` or an intermediate stage
     --dry-run                           only with --patch; validate and print the plan without landing it
     --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
     --attachment-description TEXT       description for the --attachment immediately before it
@@ -58,11 +58,23 @@ was built on the old text; a work gate is left as is. Any other active gate is
 refused, Decision Required with a pointer to `pdlc guide decisions`.
 
 --impact is required when a non-skipped stage lies between Product and the
-active stage, and must then name no affected stage; any other verdict is
-refused with a pointer to `pdlc post invalidate`. When it is required, the
-patch must also keep the landed set of `FR-*` / `C-*` ids, since the landed
-task breakdown covers them. --dry-run prints `impactRequired` and the
-intermediate stages without writing anything. A refusal writes nothing.
+active stage. Its verdict decides where the record goes: `none` keeps it on
+the active stage; naming one of those intermediate stages lands the patch and
+returns the record to that stage at Stale, adding a `Returned to: <stage> /
+Stale` line to `PDLC-PATCHED` and posting a `PDLC-INVALIDATED` comment for that
+stage with the impact report as its evidence; any other verdict is refused.
+When the verdict is `none` and --impact is required, the patch must also keep
+the landed set of `FR-*` / `C-*` ids, since the landed task breakdown covers
+them.
+
+Every `FR-*` / `C-*` statement the patch adds, removes, or rewords is listed on
+a `Changed requirements: <id> (<added|removed|changed>), ...` line of
+`PDLC-PATCHED`, followed by a `## Requirement Changes` section giving each
+one's landed and patched text; rewrapping alone is not a change. The printed
+JSON carries the same list as `requirementChanges`, and --dry-run reports it
+too. --dry-run also prints `impactRequired`, the intermediate stages, and,
+given --impact, `returnedTo`, without writing anything. A refusal writes
+nothing.
 """
 
 from __future__ import annotations
@@ -91,7 +103,7 @@ from pdlc.internal.workitem import (
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number
 from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan
-from pdlc.domain.patch import require_no_impact, require_same_ids
+from pdlc.domain.patch import requirement_changes, require_same_ids
 from pdlc.domain.task_plan import REQUIREMENT_ID_PATTERN, declared_identifiers
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
@@ -189,29 +201,33 @@ def patch_existing(
     issue: str, fragments: dict[str, str], evidence_body: str | None, impact: str | None,
     attachment_inputs: list[dict], dry_run: bool,
 ) -> dict:
-    """Land the Product fragments while the record stays on its later active stage."""
+    """Land the Product fragments while the record stays on its later active
+    stage, or returns to the stage the impact report found affected."""
     record = resolve_item(issue)
-    plan = record_patch_plan(record, "Product")
-    if impact is not None or not dry_run:
-        require_no_impact(plan, impact)
+    plan = record_patch_plan(record, "Product", impact, dry_run)
     body = record.get("issueBody") or ""
     headings = level_two_headings(body)
     duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]
     if duplicates:
         raise PdlcError(f"existing work item has duplicate Product-owned sections: {', '.join(duplicates)}")
-    if plan.impact_required:
+    landed = read_section(body, "Product")
+    # A rewind re-runs the task breakdown, which re-checks its coverage.
+    if plan.impact_required and plan.rewind is None:
         require_same_ids(
             "requirement",
-            declared_identifiers(read_section(body, "Product"), REQUIREMENT_ID_PATTERN),
+            declared_identifiers(landed, REQUIREMENT_ID_PATTERN),
             declared_identifiers(fragments["Product"], REQUIREMENT_ID_PATTERN),
             "Tasks",
         )
+    changes = requirement_changes(landed, fragments["Product"])
     summary = {
         "work_item_number": int(issue),
         "patched": "Product",
         "activeStage": plan.source.stage,
         "impactRequired": plan.impact_required,
         "intermediateStages": list(plan.intermediate),
+        "returnedTo": plan.rewind,
+        "requirementChanges": changes,
     }
     if dry_run:
         return {"dryRun": True, **summary}
@@ -220,8 +236,11 @@ def patch_existing(
     attachments = save_attachments(work_item_number(record), attachment_inputs)
     update_sections(issue, fragments)
     post_comment(issue, evidence_body, "PRODUCT")
-    land_patch(issue, record, plan, impact)
-    return {**summary, "itemId": record["id"], "gateState": plan.target.gate.value, "attachments": attachments}
+    land_patch(issue, record, plan, impact, changes)
+    return {
+        **summary, "itemId": record["id"], "status": plan.target.stage,
+        "gateState": plan.target.gate.value, "attachments": attachments,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

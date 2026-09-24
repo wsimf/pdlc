@@ -1,13 +1,14 @@
 """Return a stage to Stale.
 
-Driver invalidation posts PDLC-INVALIDATED. Verification bounce provenance is
+Driver invalidation posts PDLC-INVALIDATED, as does a patch whose independent
+impact report names an affected stage. Verification bounce provenance is
 already captured by PDLC-REVIEW, so it only persists the authorized re-entry.
 """
 
 from __future__ import annotations
 
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.patch import PatchPlan, patch_comment, plan_patch
+from pdlc.domain.patch import PatchPlan, apply_impact, patch_comment, plan_patch
 from pdlc.domain.workflow import Event, Pipeline, State
 from pdlc.internal.workitem import (
     IMPLEMENTATION_COMMENT_HEADING,
@@ -76,28 +77,44 @@ def _record_invalidation(issue: str, record: dict, target: State, evidence_body:
 
 
 
-def record_patch_plan(record: dict, patched_stage: str) -> PatchPlan:
-    """Validate that `record`'s active stage may patch `patched_stage`.
+
+def record_patch_plan(record: dict, patched_stage: str, impact: str | None, dry_run: bool) -> PatchPlan:
+    """Validate that `record`'s active stage may patch `patched_stage`, and
+    resolve where the impact report leaves the record.
 
     Used by pdlc post write / pdlc post tasks under --patch before anything is
-    written, so a refusal leaves the record untouched."""
+    written, so a refusal leaves the record untouched. A dry run without a
+    report skips the impact check so it can report whether one is required."""
     if not item_status(record):
         raise PdlcError(f"cannot patch {patched_stage}: the record has no stage yet")
     pipeline = pipeline_for_item(record)
     source = state_for_item(record, pipeline)
     skipped = {stage for stage in item_skipped_states(record).split(",") if stage}
-    return plan_patch(pipeline, source, patched_stage, skipped)
+    plan = plan_patch(pipeline, source, patched_stage, skipped)
+    if impact is None and dry_run:
+        return plan
+    return apply_impact(pipeline, plan, impact)
 
 
-def land_patch(issue: str, record: dict, plan: PatchPlan, report: str | None) -> None:
+def land_patch(issue: str, record: dict, plan: PatchPlan, report: str | None, changes: list[dict] | None = None) -> None:
     """Record a patch the caller has just landed: post `PDLC-PATCHED` and move
-    the active stage to the plan's target (Stale when it had published).
-    Nothing here feeds the rework/churn count."""
-    post_comment(str(issue), patch_comment(plan, report), "PATCHED")
-    if plan.target != plan.source:
-        target = plan.target
+    the active stage to the plan's target.
+
+    A plan that rewinds also posts `PDLC-INVALIDATED` for its target with the
+    impact report as evidence, so the returned stage sees the report as an
+    open change request. Nothing here feeds the rework/churn count."""
+    post_comment(str(issue), patch_comment(plan, report, changes), "PATCHED")
+    target = plan.target
+    if plan.rewind:
+        evidence = f"Returned by a patch of {plan.patched_stage}; the impact report follows.\n\n{(report or '').strip()}"
+        _record_invalidation(issue, record, target, evidence)
+        if target.stage in TASK_SCOPED_STAGES:
+            reopen_tasks(issue, target.stage, None)
+    elif target != plan.source:
         set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
-        record["Gate State"] = target.gate.value
+    record["Status"] = target.stage
+    record["Gate State"] = target.gate.value
+
 
 def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) -> State:
     """Persist a pipeline-authorized Verification re-entry."""

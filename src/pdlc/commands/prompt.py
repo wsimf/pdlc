@@ -711,7 +711,7 @@ def patch_reviewer_brief(work_item: str, stage: str, body: str | None, manifest:
     if stage != "Tasks" and (not body or manifest):
         raise PdlcError(f"--stage {stage} takes --body FILE")
     item, tasks, _ = record_snapshot(work_item)
-    plan = record_patch_plan(item, stage)
+    plan = record_patch_plan(item, stage, None, dry_run=True)
     if not plan.impact_required:
         raise PdlcError(
             f"no stage lies between {stage} and {plan.source.stage}; the patch needs no impact report"

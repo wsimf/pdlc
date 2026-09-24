@@ -40,7 +40,7 @@ Prepare the evidence body directly and return one report to the calling `pdlc-co
 
 The completion evidence body only, in the six-section format `pdlc post complete --help` gives.
 Decisions come from task implementation notes and the commits that landed them; keep them a compact list, not a second changelog.
-List every upstream patch under Decisions: the patched stage, when, a one-line summary, and the comment as reference.
+List every upstream patch under Decisions: the patched stage, when, a one-line summary naming every requirement it changed, and the comment as reference.
 Give one Open Questions line per live entry, with the question verbatim.
 
 Relay judgments plainly. If a live Open Questions entry genuinely cannot be

@@ -129,7 +129,7 @@ Verification approval is consumed by the completion transition rather than by a 
 - Product authoring requires an interactive driver and routes to `pdlc-write`.
 - Approval is recorded by `pdlc post approve` and advances through the selected workflow.
 - Skipping is pre-declared by the driver with `pdlc post skip`.
-- Invalidation is a driver action through `pdlc post invalidate`.
+- Invalidation is a driver action through `pdlc post invalidate`; the one exception is a patch whose independent impact report names an affected stage, which returns the record to that stage itself (see `pdlc guide patch`).
 - Decision resolution is a driver action through `pdlc post decision`.
 - Completion is a driver action through `pdlc post complete`.
 
@@ -165,8 +165,8 @@ It is also the evidence marker for CI reconciliation findings that must be surfa
 `PDLC-DECISION` carries an open `## Decision Required` block.
 `PDLC-RESOLUTION` records answered or deferred decisions.
 `PDLC-AUTOAPPROVED` records a workflow-selected approval bypass within the selected rework policy.
-`PDLC-INVALIDATED` records a driver return to `Stale`.
-`PDLC-PATCHED` records an upstream artifact corrected in place while the record stayed on its active stage; see `pdlc guide patch`.
+`PDLC-INVALIDATED` records a return to `Stale`, by the driver or by a patch's impact report.
+`PDLC-PATCHED` records an upstream artifact corrected in place, the requirements it changed, and whether the record stayed on its active stage or returned to an affected one; see `pdlc guide patch`.
 
 For `Changes Required` and `Stale`, `pdlc inspect` summarises under `### Open Changes` every change request the stage has not addressed since it last published; `pdlc inspect changes` prints their full text.
 For `Decision Required`, it renders the newest `PDLC-DECISION` under `### Evidence`.

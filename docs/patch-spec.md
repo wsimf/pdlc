@@ -4,7 +4,7 @@ Status: implemented.
 
 ## Summary
 
-Let a later planning stage correct an already-landed upstream planning artifact (Product, UI, Tasks) in place, without returning the record to that stage, when an independent reviewer confirms no completed stage in between is affected. If something in between is affected, the record returns to the earliest affected stage with the existing `pdlc post invalidate`.
+Let a later planning stage correct an already-landed upstream planning artifact (Product, UI, Tasks) in place, without returning the record to that stage, when an independent reviewer confirms no completed stage in between is affected. If something in between is affected, the same call lands the patch and returns the record to the earliest affected stage at `Stale`, with no driver step.
 
 ## Problem
 
@@ -14,7 +14,7 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 
 - Fix an upstream artifact in place and keep the pipeline where it is.
 - An independent read-only reviewer decides whether that is safe; the agent that found the issue does not.
-- Fall back to the existing `post invalidate` for the earliest affected stage when the change is not safe to patch.
+- When the change affects a stage in between, return the record to the earliest affected stage in the same call, recorded exactly as an invalidation.
 - Reuse every existing landing command's input format and validation; add no new input format.
 
 ## Non-goals
@@ -29,7 +29,7 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 2. The active stage's owner drafts the corrected artifact itself, in the same input form that artifact's landing command already takes. The planner sub-agents are not dispatched for a patch: their briefs stay gated to their own stage.
 3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. This produces `--evidence`.
 4. If any non-skipped stage lies between the patched stage and the active stage, the internal patch reviewer (see below) compares the reviewed draft with the landed artifact, reads every intermediate artifact, and returns the earliest affected stage, or `none`. This produces `--impact`.
-5. If the verdict is `none`: land with `--patch`. Otherwise the owner reports to the driver, recommending `pdlc post invalidate <stage>` with the impact report as evidence; invalidation stays a driver action, and the normal stage flow takes over from there.
+5. Land with `--patch --impact`. If the verdict is `none` the record stays on the active stage; if it names a stage, the record returns to that stage at `Stale` and the normal stage flow takes over from there, with the impact report as that stage's open change request.
 
 The patch reviewer runs after the stage review so it judges the draft that will actually land.
 
@@ -72,15 +72,17 @@ The impact file must parse to a verdict line:
 Earliest affected stage: none
 ```
 
-Any value other than `none` is refused with a pointer to `pdlc post invalidate <that stage>`. The CLI does not judge impact; it requires a parseable verdict that permits the patch.
+The verdict must be `none` or one of the intermediate stages; any other value is refused. The CLI does not judge impact: it applies the verdict as given.
 
 ### Structural refusals
 
 These are the guardrails the CLI can enforce itself; each is refused with a pointer to `post invalidate` for the named stage.
 
 - **Tasks manifest:** every entry carries an `id`, the set of task ids must equal the landed set (no added or removed tasks), and each task's `ui` must be unchanged. `covers` and `depends` are not persisted on the record (only `ui`, as the title tag), so the CLI cannot compare them; `pdlc guide patch` tells the owner to keep them, and the normal breakdown validation still checks them against the parent. Only `title` and `body` may change; `"unchanged": true` entries are allowed. A plan already landed on a patched task is left in place; the Technical Plan owner reconciles it.
-- **UI:** `--no-ui` must match the landed UI applicability. When `--impact` is required, the set of `UJ-*` ids must equal the landed set.
-- **Product:** when `--impact` is required, the set of `FR-*` / `C-*` ids must equal the landed set. Otherwise no structural check beyond the existing `post write` body validation.
+- **UI:** `--no-ui` must match the landed UI applicability. When `--impact` is required and its verdict is `none`, the set of `UJ-*` ids must equal the landed set.
+- **Product:** when `--impact` is required and its verdict is `none`, the set of `FR-*` / `C-*` ids must equal the landed set. Otherwise no structural check beyond the existing `post write` body validation.
+
+The id-set checks do not apply when the verdict names a stage: every intermediate stage is at or before Tasks, so the return re-runs the task breakdown, whose normal validation re-checks coverage.
 
 An id-set refusal points to `post invalidate Tasks`, since the landed breakdown's coverage no longer holds.
 
@@ -95,7 +97,9 @@ In one call, after all validation passes:
    Patched stage: Product
    Active stage: Technical Plan / Pending
    ```
-3. Leaves the pointer on the active stage. If the active gate is `Review Required` or `Approval Required`, resets it to `Stale`, because the active artifact was built on the old text and must be reconciled and reviewed again. Work gates are left as is.
+   A Product patch adds a `Changed requirements: FR-4 (changed), FR-6 (added)` line after those, and a `## Requirement Changes` section with each changed statement's landed and patched text before the impact report. A statement is the text after its `FR-n:` / `C-n:` opener up to a blank line, heading, or the next list item, with whitespace collapsed so rewrapping is not a change.
+3. When the verdict is `none` (or no report was required), leaves the pointer on the active stage. If the active gate is `Review Required` or `Approval Required`, resets it to `Stale`, because the active artifact was built on the old text and must be reconciled and reviewed again. Work gates are left as is.
+4. When the verdict names a stage, adds `Returned to: <stage> / Stale` to the `PDLC-PATCHED` header, posts `PDLC-INVALIDATED` for that stage with the impact report as evidence, and moves the pointer there at `Stale`. The stage sees the report under `### Open Changes`, exactly as for a driver invalidation.
 
 A refusal writes nothing.
 
@@ -141,10 +145,10 @@ Brief contents:
 
 A patch changes an artifact the driver already approved, without a new approval of that artifact. To keep that visible:
 
-- `pdlc inspect` lists `PDLC-PATCHED` comments since the record's last `PDLC-APPROVED` or `PDLC-AUTOAPPROVED` under `### Patches Since Last Approval` in the next `Approval Required` Due Next, so the driver sees them before approving the active stage.
+- `pdlc inspect` lists `PDLC-PATCHED` comments since the record's last `PDLC-APPROVED` or `PDLC-AUTOAPPROVED` under `### Patches Since Last Approval` in the next `Approval Required` Due Next, each with its changed requirement ids, and tells the agent to show the driver each one's before and after text before asking for approval.
 - `pdlc-completer` lists every patch under the completion evidence's `Decisions` section (patched stage, when, one-line summary, comment reference), so the completion template is unchanged.
 
-Open question: whether a Product patch should instead require explicit driver approval (`Decision Required`) before landing. Proposal: no for v1, since the driver sees it at the next approval gate.
+A Product patch may change requirement text without a driver step; the driver sees every change by id, with before and after text, at the next approval gate. Returning to an affected stage is likewise not a driver action here: the independent impact reviewer's verdict authorises it, and `PDLC-INVALIDATED` records it.
 
 ## Skills and guides
 
@@ -156,11 +160,10 @@ Open question: whether a Product patch should instead require explicit driver ap
 ## Tests
 
 - Domain: `Event.PATCHED` per gate; `can_patch` matrix, including refusal from every delivery stage; `intermediate_stages` with skipped stages.
-- Commands (file backend): each of `post write`, `post tasks --stage UI`, `post tasks --stage Tasks` lands under `--patch` without moving the pointer; resets `Review Required` / `Approval Required` to `Stale`; requires `--impact` exactly when intermediate stages exist; refuses a non-`none` verdict; refuses `--patch` from a delivery stage; refuses a changed FR/C or UJ id set when `--impact` is required; `post write --dry-run` refused without `--patch`; each structural refusal leaves the record untouched; `PDLC-PATCHED` comment content; completion still passes after a patch.
-- `inspect`: patches since last approval render under Approval Required.
+- Commands (file backend): each of `post write`, `post tasks --stage UI`, `post tasks --stage Tasks` lands under `--patch` without moving the pointer; resets `Review Required` / `Approval Required` to `Stale`; requires `--impact` exactly when intermediate stages exist; a verdict naming an intermediate stage lands the patch, posts `PDLC-INVALIDATED`, and returns the record there at `Stale`; refuses a verdict naming any other stage; refuses `--patch` from a delivery stage; refuses a changed FR/C or UJ id set when the verdict is `none`; lists added, removed, and reworded requirements with before/after text, ignoring rewrapping; `post write --dry-run` refused without `--patch`; each structural refusal leaves the record untouched; `PDLC-PATCHED` comment content; completion still passes after a patch.
+- `inspect`: patches since last approval render under Approval Required, with their changed requirement ids.
 - `prompt patch-reviewer`: golden brief fixtures; absent from `pdlc --help` and `pdlc prompt --help`; no capability slot resolves it.
 
 ## Open questions
 
-1. Driver approval for Product patches (see Human boundary).
-2. Should a Tasks patch allow changing `covers` when the change only follows a Product patch that renamed an id? Proposal: no; that goes through `invalidate Tasks`.
+1. Should a Tasks patch allow changing `covers` when the change only follows a Product patch that renamed an id? Proposal: no; that goes through `invalidate Tasks`.

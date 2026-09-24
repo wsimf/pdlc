@@ -140,7 +140,8 @@ unreachable there too. Changes Required and Stale instead summarise, under
 last published (see `pdlc inspect changes --help`), and point at that command
 for their full text. Approval Required lists, under `### Patches Since Last
 Approval`, every PDLC-PATCHED comment newer than the record's last approval —
-upstream artifacts corrected in place that the driver has not approved past.
+upstream artifacts corrected in place that the driver has not approved past —
+each with the requirement ids it added, removed, or reworded, if any.
 
 Product, UI, Tasks, Technical Plan, Implementation, Testing, and Verification
 all carry curated, per-gate text (see `_STAGE_DUE_NEXT`); the terminal
@@ -707,14 +708,17 @@ def _patches_block(comments: list[dict]) -> str | None:
     patches = patches_since_approval(comments)
     if not patches:
         return None
-    lines = [
-        f"- {patch['patchedStage']} — {timeline_formatted_at(patch['createdAt'])}: {patch.get('url') or 'no url'}"
-        for patch in patches
-    ]
+    lines = []
+    for patch in patches:
+        line = f"- {patch['patchedStage']} — {timeline_formatted_at(patch['createdAt'])}: {patch.get('url') or 'no url'}"
+        if patch["changedRequirements"]:
+            line += f"\n  - Changed requirements: {patch['changedRequirements']}"
+        lines.append(line)
     return (
         "### Patches Since Last Approval\n\n"
         "These upstream artifacts were corrected in place since the last approval. Show them to the user\n"
-        "before asking for approval; `pdlc inspect timeline {ITEM_ID}` has each patch's impact report.\n\n"
+        "before asking for approval, with the before and after text of every changed requirement;\n"
+        "`pdlc inspect timeline {ITEM_ID}` has each patch's requirement changes and impact report.\n\n"
         + "\n".join(lines)
     )
 

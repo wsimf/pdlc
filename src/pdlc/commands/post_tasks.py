@@ -24,7 +24,7 @@ FLAGS
     --patch                              action="store_true"; land onto the already-landed --stage artifact
                                          while the record stays on its later active stage
     --impact FILE|-                      only with --patch; the impact report whose
-                                         `Earliest affected stage:` line must read `none`
+                                         `Earliest affected stage:` line reads `none` or an intermediate stage
     --attachment PATH (repeatable)       attach a local file's contents to the evidence comment
     --attachment-description TEXT        description for the --attachment immediately before it
 
@@ -73,14 +73,18 @@ Required or Approval Required is reset to Stale, since the published artifact
 was built on the old text; a work gate is left as is. Any other active gate is
 refused, Decision Required with a pointer to `pdlc guide decisions`.
 --impact is required when a non-skipped stage lies between --stage and the
-active stage, and must then name no affected stage; any other verdict is
-refused with a pointer to `pdlc post invalidate`. --dry-run additionally
-prints `impactRequired` and the intermediate stages.
+active stage. Its verdict decides where the record goes: `none` keeps it on
+the active stage; naming one of those intermediate stages lands the patch and
+returns the record to that stage at Stale, adding a `Returned to: <stage> /
+Stale` line to `PDLC-PATCHED` and posting a `PDLC-INVALIDATED` comment for that
+stage with the impact report as its evidence; any other verdict is refused.
+--dry-run additionally prints `impactRequired`, the intermediate stages, and,
+given --impact, `returnedTo`.
 
 A patch keeps the shape later stages were built on, and a change to it is
 refused with a pointer to `pdlc post invalidate`: a UI patch keeps the landed
-applicability (--no-ui or not) and, when --impact is required, the landed set
-of `UJ-*` ids; a Tasks patch names every landed task by `id`, adds and
+applicability (--no-ui or not) and, when --impact is required and its verdict
+is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task by `id`, adds and
 removes none, and keeps each task's `ui`. Only titles and bodies change, and
 `"unchanged": true` entries are allowed. A refusal writes nothing.
 
@@ -149,7 +153,7 @@ from pdlc.internal.workitem import (
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan, reopen_tasks
 from pdlc.domain.model import UI_TAG, task_title
-from pdlc.domain.patch import PatchPlan, require_no_impact, require_same_ids
+from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
@@ -169,8 +173,9 @@ class PublicationContext:
     record: dict
     pipeline: Pipeline
     reauthor: bool = False
-    # Set under --patch: the record stays on `patch.source.stage` and lands
-    # through `land_patch` instead of this stage's own publish transition.
+    # Set under --patch: the record lands on `patch.target` (the active stage,
+    # or the stage the impact report returned it to) through `land_patch`
+    # instead of this stage's own publish transition.
     patch: PatchPlan | None = None
     impact: str | None = None
 
@@ -181,13 +186,9 @@ def _patch_summary(plan: PatchPlan) -> dict:
         "activeStage": plan.source.stage,
         "impactRequired": plan.impact_required,
         "intermediateStages": list(plan.intermediate),
+        "returnedTo": plan.rewind,
+        "status": plan.target.stage,
     }
-
-
-def _check_patch_impact(context: PublicationContext, dry_run: bool) -> None:
-    assert context.patch is not None
-    if context.impact is not None or not dry_run:
-        require_no_impact(context.patch, context.impact)
 
 
 def _check_ui_patch(context: PublicationContext, parent_body: str, journeys: list[str], no_ui: bool) -> None:
@@ -198,7 +199,8 @@ def _check_ui_patch(context: PublicationContext, parent_body: str, journeys: lis
             "a patch must keep the landed UI applicability; "
             "return UI to Stale with `pdlc post invalidate` to change it"
         )
-    if context.patch.impact_required:
+    # A rewind re-runs the task breakdown, which re-checks its coverage.
+    if context.patch.impact_required and context.patch.rewind is None:
         require_same_ids("journey", landed, journeys, "Tasks")
 
 
@@ -242,7 +244,6 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
 
     if context.patch is not None:
         _check_ui_patch(context, parent_body, journeys, no_ui)
-        _check_patch_impact(context, dry_run)
 
     if dry_run:
         print(json.dumps({
@@ -324,9 +325,6 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         task["taskId"] for task in existing
         if task.get("taskId") and task["taskId"] in {t["id"] for t in writable} and task.get("state") == "CLOSED"
     )
-
-    if context.patch is not None:
-        _check_patch_impact(context, dry_run)
 
     if dry_run:
         print(json.dumps({
@@ -503,8 +501,8 @@ def main(argv: list[str] | None = None) -> int:
         parent_body = record.get("issueBody") or ""
 
         if args.patch:
-            plan = record_patch_plan(record, args.stage)
             impact = resolve_text(args.impact, label="--impact") if args.impact else None
+            plan = record_patch_plan(record, args.stage, impact, args.dry_run)
             context = PublicationContext(record, pipeline, patch=plan, impact=impact)
             if args.stage == "UI":
                 land_ui(args.work_item, item, parent_body, body_path, evidence_body, args.dry_run, attachment_inputs, plan.target, context, args.no_ui)
