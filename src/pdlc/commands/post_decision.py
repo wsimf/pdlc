@@ -69,6 +69,7 @@ from pdlc.internal.workitem import (
     set_state,
     workflow_for_item,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 def _validate(entries: list[dict]) -> None:
@@ -189,18 +190,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 3 or args[1] != "--manifest":
         print("usage: pdlc post decision WORK_ITEM --manifest FILE", file=sys.stderr)
         return 1
     issue, _, manifest = args
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {issue}",
+            landed=f"the gate has left Decision Required and `pdlc inspect timeline {issue}` shows the PDLC-RESOLUTION",
+            otherwise="if every deferral's child record resolves with `pdlc inspect <slug>` (or none was created), re-run: {rerun}. If a child record was created but does not resolve by its slug, do not re-run; stop and report its number to the driver.",
+        ))
         result = post_decision(issue, require_file("--manifest", manifest), attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

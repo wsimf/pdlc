@@ -43,6 +43,7 @@ DESCRIPTION
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 
 
@@ -51,6 +52,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.internal.invalidation import invalidate_stage
 from pdlc.internal.workitem import item_for_issue
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def _parse_task_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -96,18 +98,21 @@ def main(argv: list[str] | None = None) -> int:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
         args, task_refs = _parse_task_arguments(args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 3:
         print("usage: pdlc post invalidate WORK_ITEM STAGE EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
     issue, stage, evidence = args
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {issue}",
+            landed=f"the stage is {stage} at Stale",
+            then=f"do not re-run the whole command. For each task in scope that is still closed or still carries a stale implementation or plan comment (`pdlc inspect task T`), run `pdlc post invalidate {issue} {shlex.quote(stage)} EVIDENCE --task T`; if that refuses, stop and report to the driver.",
+        ))
         result = invalidate(issue, stage, evidence, attachment_inputs, task_refs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

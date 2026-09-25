@@ -166,6 +166,7 @@ from pdlc.domain.task_plan import (
     resolve_task_ids,
     tagged_title,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 UI_HEADING_PATTERN = re.compile(r"^##[ \t]+UI[ \t]*$")
 
 @dataclass(frozen=True)
@@ -431,6 +432,30 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     }))
 
 
+def _recovery(issue: str, stage: str, patch: bool) -> Recovery:
+    """How to check a failed landing; the Tasks stage also has to reopen any
+    rewritten task a failed run left closed, which a re-run never does."""
+    marker = "UI" if stage == "UI" else "TASKS"
+    if patch:
+        return Recovery(
+            check=f"pdlc inspect timeline {issue}",
+            landed=f"PDLC-PATCHED is newer than this PDLC-{marker} evidence and `pdlc inspect {issue}` shows the stage and gate the dry run reported",
+            otherwise="run the same command with --dry-run and, only if it still reports the same plan, re-run: {rerun}",
+            note="If the record already moved to the returned stage, do not re-run; stop and report to the driver any task still closed, which needs `pdlc post invalidate` for that task.",
+        )
+    note = f"A re-run after the PDLC-{marker} evidence landed posts a second one; mention it in your report."
+    if stage == "Tasks":
+        note += (
+            " After it succeeds, check each task the manifest rewrote with `pdlc inspect task T`; if one is still closed,"
+            f" stop and report to the driver that it needs `pdlc post invalidate {issue} \"Technical Plan\" EVIDENCE --task T`."
+        )
+    return Recovery(
+        check=f"pdlc inspect {issue}",
+        landed=f"the gate is Review Required and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
+        note=note,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     command_args = list(sys.argv[1:] if argv is None else argv)
     raw_args = command_args
@@ -441,8 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(description="Land a pdlc-tasks stage")
     parser.add_argument("--work-item", required=True)
@@ -500,6 +524,7 @@ def main(argv: list[str] | None = None) -> int:
         gate = item_gate(record)
         parent_body = record.get("issueBody") or ""
 
+        set_recovery(_recovery(args.work_item, args.stage, args.patch))
         if args.patch:
             impact = resolve_text(args.impact, label="--impact") if args.impact else None
             plan = record_patch_plan(record, args.stage, impact, args.dry_run)
@@ -548,8 +573,7 @@ def main(argv: list[str] | None = None) -> int:
             context = PublicationContext(record, pipeline, reauthor and not args.dry_run)
             land_tasks(args.work_item, item, manifest_path, evidence_body, args.dry_run, parent_body, attachment_inputs, target, context)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     return 0
 

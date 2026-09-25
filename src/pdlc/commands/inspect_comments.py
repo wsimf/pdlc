@@ -14,6 +14,7 @@ import sys
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import comments_page
+from pdlc.internal.failure import report_failure
 
 def inspect(issue: str, page: int) -> str:
     if not issue.isdigit():
@@ -43,5 +44,4 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(inspect(parsed.issue, parsed.page))
         return 0
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)

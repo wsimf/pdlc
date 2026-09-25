@@ -184,6 +184,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import build_report, ledger, render, render_decisions
 from pdlc.internal.inputs import resolve_text, print_help, wants_help
 from pdlc.domain.workflow import Event, Gate, Outcome
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 VERIFICATION_OUTCOMES = {
     "Approval Required": Outcome.CLEAN,
@@ -300,17 +301,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 2:
         print("usage: pdlc post verify WORK_ITEM REPORT_FILE|text:JSON|-", file=sys.stderr)
         return 1
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect timeline {args[0]}",
+            landed=f"the newest PDLC-REVIEW is this report and `pdlc inspect {args[0]}` shows the gate or stage moved",
+            rerun=False,
+            otherwise="if this report's PDLC-REVIEW is not on the timeline, re-run: {rerun}. If it is but the gate or stage did not move, do not re-run (it would duplicate the deferred Open Questions lines); stop and report this output to the driver.",
+        ))
         result = post_verify(args[0], args[1], attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

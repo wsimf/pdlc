@@ -21,7 +21,7 @@ from pdlc.hosts.lib.github.transport import (
     run_gh_json,
 )
 from pdlc.config import get_config
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
 
@@ -148,10 +148,15 @@ class GitHubWorkItemBackend(WorkItemBackend):
         if not number.isdigit():
             raise PdlcError(f"could not parse Issue number from: {url}")
 
-        item = run_gh_json([
-            "project", "item-add", config.project_number,
-            "--owner", config.project_owner, "--url", url, "--format", "json",
-        ])
+        try:
+            item = run_gh_json([
+                "project", "item-add", config.project_number,
+                "--owner", config.project_owner, "--url", url, "--format", "json",
+            ])
+        except TransientError as error:
+            # Name the Issue that now exists, so recovery finishes it rather
+            # than creating a second one.
+            raise TransientError(f"{error}; created {url}, but it may not be on the project yet", attempts=error.attempts) from error
         return {"id": item["id"], "number": int(number), "url": url}
 
     # --- identity ---

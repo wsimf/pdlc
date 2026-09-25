@@ -75,6 +75,7 @@ from pdlc.internal.workitem import (
 )
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.failure import report_failure
 
 def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
     open_tasks = [t for t in tasks if t["state"] != "CLOSED"]
@@ -179,8 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = inspect(issue)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     sys.stdout.write(output)
     return 0

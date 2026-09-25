@@ -13,7 +13,7 @@ from pdlc.hosts.lib.github.transport import (
     run_graphql,
 )
 from pdlc.config import get_config
-from pdlc.domain.lifecycle import NotFound, PdlcError
+from pdlc.domain.lifecycle import NotFound, PdlcError, TransientError
 from pdlc.domain.model import SKIP_FIELD_NAME, SLUG_FIELD_NAME, VALID_GATES
 from pdlc.hosts.workitem_host.base import QueueItemSummary
 
@@ -450,6 +450,8 @@ def set_state(item_id: str, status: str, gate: str, lifecycle: str) -> None:
             return
 
     detail = f"; last error: {last_error}" if last_error else ""
-    raise PdlcError(
-        f"Project state transition did not settle at {status} / {gate} / {lifecycle}; observed {actual}{detail}"
-    )
+    message = f"Project state transition did not settle at {status} / {gate} / {lifecycle}; observed {actual}{detail}"
+    # Keep a transient cause transient so the caller still reports it as retryable.
+    if isinstance(last_error, TransientError):
+        raise TransientError(message, attempts=last_error.attempts)
+    raise PdlcError(message)

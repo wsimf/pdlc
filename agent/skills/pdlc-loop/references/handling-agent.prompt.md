@@ -23,5 +23,7 @@ Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pd
 - When it names a `pdlc` command, run that command and report its output exactly as received.
 - When it tells you to stop and ask the user, do not act; report that stop and the section's reason.
 
-If the skill or command fails, reports a blocker, returns an unexpected result, or cannot finish, report that failure plainly and stop. Do not retry it or dispatch a replacement.
+When a `pdlc` command exits 75 or 76, the failure was transient: exit 75 means wait a minute and re-run it; exit 76 means follow the numbered recovery steps it printed. Do this at most 3 times for the same failure, then report it and stop.
+
+If the skill or command otherwise fails, reports a blocker, returns an unexpected result, or cannot finish, report that failure plainly and stop. Do not retry it or dispatch a replacement.
 ```

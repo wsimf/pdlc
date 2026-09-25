@@ -174,6 +174,7 @@ from pdlc.internal.workitem import (
     verification_evidence_comments,
     workflow_for_item,
 )
+from pdlc.internal.failure import report_failure
 
 NO_EVIDENCE = "No PDLC evidence comments found\n"
 
@@ -466,8 +467,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = inspect(issue)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     sys.stdout.write(output)
     return 0

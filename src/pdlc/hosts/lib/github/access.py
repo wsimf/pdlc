@@ -18,7 +18,7 @@ _WRITE_PERMISSIONS = {"ADMIN", "MAINTAIN", "WRITE"}
 
 
 def _gh(args: list[str]) -> str:
-    return run_process(["gh", *args], timeout=_TIMEOUT)
+    return run_process(["gh", *args], timeout=_TIMEOUT, idempotent=True)
 
 
 def _check_login(report: AccessReport) -> bool:

@@ -4,15 +4,76 @@ from __future__ import annotations
 
 import re
 from contextlib import contextmanager
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Literal, Sequence
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.process import parse_json, run_process
 from pdlc.config import get_config
 
 
+# How a `gh` call affects the host, which decides whether a transient failure
+# may be retried and whether it leaves the run with a write that may have landed.
+# "read" changes nothing; "set" replaces a value outright, so running it twice
+# leaves the same result as once; "add" is anything else (`issue create`,
+# `issue comment`, `project item-add`, every `stack` write, an unknown call),
+# which a retry could duplicate.
+CallKind = Literal["read", "set", "add"]
+
+_GH_READS = {
+    ("issue", "view"), ("issue", "list"), ("pr", "view"), ("pr", "list"), ("pr", "checks"),
+    ("project", "view"), ("project", "list"), ("project", "field-list"), ("project", "item-list"),
+    ("stack", "view"), ("extension", "list"), ("auth", "status"), ("repo", "view"),
+}
+_GH_SETS = {
+    ("issue", "edit"), ("issue", "close"), ("issue", "reopen"),
+    ("pr", "edit"), ("pr", "ready"), ("project", "item-edit"),
+}
+
+# The only GraphQL mutation pdlc sends that sets a value rather than adding one.
+_SET_MUTATIONS = {"updateProjectV2ItemFieldValue"}
+_MUTATION_FIELD = re.compile(r"(?:\w+\s*:\s*)?(\w+)\s*\(\s*input\s*:")
+_BODY_FLAGS = {"-f", "-F", "--field", "--raw-field", "--input"}
+
+
+def _graphql_kind(args: Sequence[str]) -> CallKind:
+    query = next((arg.partition("=")[2] for arg in args if arg.startswith("query=")), "")
+    text = query.lstrip()
+    if not text.startswith("mutation"):
+        return "read"
+    fields = set(_MUTATION_FIELD.findall(text))
+    return "set" if fields and fields <= _SET_MUTATIONS else "add"
+
+
+def _rest_method(args: Sequence[str]) -> str:
+    for flag in ("--method", "-X"):
+        if flag in args:
+            index = list(args).index(flag)
+            if index + 1 < len(args):
+                return args[index + 1].upper()
+    # `gh api` switches to POST as soon as it is given a body field.
+    return "POST" if any(arg in _BODY_FLAGS for arg in args) else "GET"
+
+
+def gh_call_kind(args: Sequence[str]) -> CallKind:
+    if not args:
+        return "add"
+    if args[0] == "api":
+        if len(args) > 1 and args[1] == "graphql":
+            return _graphql_kind(args)
+        method = _rest_method(args)
+        # A retried DELETE sees 404, which `delete_comment` treats as done.
+        return "read" if method == "GET" else "set" if method in {"PATCH", "PUT", "DELETE"} else "add"
+    pair = tuple(args[:2])
+    return "read" if pair in _GH_READS else "set" if pair in _GH_SETS else "add"
+
+
 def run_gh(args: Sequence[str], *, input: str | None = None) -> str:
-    return run_process(["gh", *args], input=input)
+    kind = gh_call_kind(args)
+    return run_process(
+        ["gh", *args], input=input, idempotent=kind != "add", writes=kind != "read",
+        # A stack write pushes and edits several branches and PRs in one call.
+        single_request=not (args and args[0] == "stack"),
+    )
 
 
 def run_gh_json(args: Sequence[str], **kwargs: Any) -> Any:

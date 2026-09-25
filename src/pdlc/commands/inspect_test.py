@@ -63,6 +63,7 @@ from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.stack import latest_implemented_task, stack_gaps
 from pdlc.internal.vcs import head_commit
 from pdlc.internal.workitem import due_next, resolve_item, task_tree
+from pdlc.internal.failure import report_failure
 
 
 # A PR's touched files, straight from the code host rather than guessed from
@@ -176,8 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = inspect(issue)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     sys.stdout.write(output)
     return 0

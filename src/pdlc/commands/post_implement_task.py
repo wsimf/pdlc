@@ -104,6 +104,7 @@ from pdlc.internal.workitem import (
     item_gate,
     tasks_by_number,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def _submit_task_stack(task: dict) -> dict:
@@ -282,8 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(description="Record one delivery task's implementation comment")
     parser.add_argument("delivery_task", help="Delivery task number")
@@ -294,10 +294,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(script_args)
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect task {args.delivery_task}",
+            landed="the task is closed, its pull request is registered, and its `## Implementation` comment is this summary",
+            note="An interrupted stack submit may leave some branches pushed; a re-run submits the rest.",
+        ))
         result = post_implement_task(args.delivery_task, args.evidence, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

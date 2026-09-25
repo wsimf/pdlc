@@ -29,7 +29,7 @@ _LOGIN_HINT = f"run `az login` or `az devops login`, or set {_PAT_VARIABLE}"
 
 def _az(args: list[str]) -> str:
     # An empty stdin keeps an unauthenticated `az devops` from waiting on a prompt.
-    return run_process(["az", *args], input="", timeout=_TIMEOUT)
+    return run_process(["az", *args], input="", timeout=_TIMEOUT, idempotent=True)
 
 
 def _report_credentials(report: AccessReport) -> None:

@@ -45,10 +45,12 @@ import time
 
 
 from pdlc.internal.ci_gate import resolve_ci_gate
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.hosts.lib import process
 from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import item_for_issue, item_gate, workflow_for_item
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 CI_WAIT_INITIAL_DELAY_SECONDS = 30
@@ -77,14 +79,28 @@ def wait_for_ci(issue: str) -> dict:
     """Poll one CI-pending stage until its aggregate PR state settles."""
     deadline = time.monotonic() + CI_WAIT_TIMEOUT_SECONDS
     delay = CI_WAIT_INITIAL_DELAY_SECONDS
+    stage = "CI-gated"
 
     while True:
-        result = post_ci(issue)
+        transient: TransientError | None = None
+        try:
+            result = post_ci(issue)
+        except TransientError as error:
+            # Nothing written yet means CI simply could not be read this
+            # time: keep polling. After a write, report it for recovery.
+            if process.write_started():
+                raise
+            print(f"pdlc: transient: {error}; treating CI as still pending", file=sys.stderr)
+            transient = error
+            result = {"state": "pending", "stage": stage}
+        stage = result["stage"]
         if result["state"] != "pending":
             return result
 
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            if transient is not None:
+                raise transient
             raise PdlcError(
                 f"CI is still pending for the {result['stage']} pull request(s) after one hour; "
                 "the record stays at CI Pending"
@@ -144,10 +160,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {args[0]}",
+            landed="the gate has left CI Pending",
+            note="A re-run after a CI-failed PDLC-REVIEW landed posts a second one; mention it in your report.",
+        ))
         result = wait_for_ci(args[0]) if wait else post_ci(args[0])
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(render_result(args[0], result))
     return 0

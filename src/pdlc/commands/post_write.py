@@ -82,6 +82,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -110,6 +111,7 @@ from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_h
 from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Event, State, WorkType, decision_required_message
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")
@@ -253,8 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(description="Publish a reviewed PDLC Product artifact")
     parser.add_argument("--title")
@@ -291,28 +292,53 @@ def main(argv: list[str] | None = None) -> int:
         validate_attachments(attachment_inputs)
 
         if args.patch:
+            set_recovery(Recovery(
+                check=f"pdlc inspect timeline {args.work_item}",
+                landed=f"PDLC-PATCHED is newer than this PDLC-PRODUCT evidence and `pdlc inspect {args.work_item}` shows the stage and gate the dry run reported",
+                otherwise="run the same command with --dry-run and, only if it still reports the same plan, re-run: {rerun}",
+                note="If the record already moved to the returned stage, do not re-run; stop and report to the driver any task still closed, which needs `pdlc post invalidate` for that task.",
+            ))
             print(json.dumps(patch_existing(args.work_item, fragments, evidence_body, impact, attachment_inputs, args.dry_run)))
             return 0
         assert evidence_body is not None
 
         if not is_new:
+            set_recovery(Recovery(
+                check=f"pdlc inspect {args.work_item}",
+                landed=f"the gate is Review Required and `pdlc inspect timeline {args.work_item}` shows this PDLC-PRODUCT evidence as the newest",
+                note="A re-run after the evidence landed posts a second PDLC-PRODUCT comment; mention it in your report.",
+            ))
             result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs)
             print(json.dumps(result))
             return 0
 
+        set_recovery(Recovery(
+            check=f"pdlc inspect {args.slug}",
+            landed=f"it resolves, or an open work item titled {args.title!r} was created in the last few minutes",
+            then="do not re-run this command: it would create a second record. Finish that record with `pdlc post write --work-item N --body BODY --evidence EVIDENCE`, using its number; if `pdlc inspect N` cannot resolve it, stop and report its number to the driver.",
+        ))
         new_item = create_work_item(args.title, body_path.read_text(encoding="utf-8"), args.slug, WorkType.FEATURE)
         work_item_url = new_item["url"]
         work_item_number = str(new_item["number"])
         item_id = new_item["id"]
 
+        finish = " ".join([
+            "pdlc post write --work-item", work_item_number,
+            "--body", shlex.quote(args.body_file), "--evidence", shlex.quote(args.evidence_file),
+        ])
+        set_recovery(Recovery(
+            check=f"pdlc inspect {work_item_number}",
+            landed=f"its gate is Review Required and `pdlc inspect timeline {work_item_number}` shows the PDLC-PRODUCT evidence",
+            otherwise=f"do not re-run the create form, which opens a second record; finish {work_item_url} with: {finish}",
+            note="Pass any --attachment flags again when finishing the record.",
+        ))
         attachments = save_attachments(work_item_number, attachment_inputs)
         target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
         set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
         set_slug(item_id, args.slug)
         post_comment(work_item_number, evidence_body, "PRODUCT")
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps({
         "created": True,

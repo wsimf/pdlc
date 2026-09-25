@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import locale
 import os
+import random
 import shutil
 import subprocess
+import threading
+import time
 from collections.abc import Sequence
 from typing import Any
 
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.internal.trace import record_external_call
 
 # A child CLI whose stdout is a pipe encodes text with the ambient locale, so a
@@ -42,12 +46,111 @@ def _decode(raw: bytes) -> str:
     return raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def run_process(args: Sequence[str], *, input: str | None = None, timeout: float = 120) -> str:
-    record_external_call(args[0], args)
-    # Resolve PATHEXT launchers such as az.cmd instead of passing a bare name.
-    executable = shutil.which(args[0])
-    if executable is None:
-        raise PdlcError(f"required command not found: {args[0]}")
+# Transient failures whose request never reached the host, or that the host
+# rejected before acting on it: retrying these cannot duplicate a write, so they
+# are retried even for a call that is not idempotent. Matched case-insensitively
+# against the child's error output.
+_NOT_SENT = (
+    "could not resolve host",
+    "no such host",
+    "name or service not known",
+    "nodename nor servname",
+    "temporary failure in name resolution",
+    "getaddrinfo",
+    "connection refused",
+    "network is unreachable",
+    "secondary rate limit",
+    "was submitted too quickly",
+    "http 429",
+    "tf400733",
+    "request was blocked",
+)
+
+# Transient failures after which the request may or may not have been acted
+# on: safe to retry only for an idempotent call.
+_MAYBE_SENT = (
+    "connection reset",
+    "i/o timeout",
+    "tls handshake timeout",
+    "unexpected eof",
+    "\": eof",
+    "goaway",
+    "http 502",
+    "http 503",
+    "http 504",
+    "bad gateway",
+    "service unavailable",
+    "gateway timeout",
+    "something went wrong while executing your query",
+    "connection aborted",
+    "max retries exceeded",
+    "httpsconnectionpool",
+    "remotedisconnected",
+    "readtimeout",
+    "wsl/service",
+    "utilbindvsockanyport",
+    "catastrophic failure",
+    "e_unexpected",
+    "the i/o operation has been aborted",
+)
+
+# OS errors WSL raises transiently when it cannot start a Windows or Linux
+# child. The child never ran, so nothing was sent.
+_TRANSIENT_OS_ERRORS = {errno.EIO, errno.ENOEXEC, errno.EAGAIN}
+
+ATTEMPTS = 3
+_BACKOFF_SECONDS = (1.0, 2.0)
+_RATE_LIMIT_BACKOFF_SECONDS = (5.0, 15.0)
+
+# Set once this run starts a write, idempotent or not, because a timed-out
+# write may still have landed and a command's later writes may not. The CLI boundary reads it to decide whether a
+# transient failure leaves the command safe to re-run (see `pdlc.internal.failure`).
+_write_lock = threading.Lock()
+_write_started = False
+
+
+def reset_run_state() -> None:
+    """Forget any write started by a previous CLI invocation."""
+    global _write_started
+    with _write_lock:
+        _write_started = False
+
+
+def write_started() -> bool:
+    """Whether this run started a host call that writes."""
+    return _write_started
+
+
+def _mark_write(value: bool) -> None:
+    global _write_started
+    with _write_lock:
+        _write_started = value
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+# Output that names a Git conflict is never transient, even when a commit
+# subject quoted in it happens to contain a transient pattern.
+_HARD = ("conflict", "could not apply")
+
+
+def _classify(message: str) -> str | None:
+    """'not-sent', 'maybe-sent', or None for a failure that is not transient."""
+    lowered = message.lower()
+    if any(pattern in lowered for pattern in _HARD):
+        return None
+    if any(pattern in lowered for pattern in _NOT_SENT):
+        return "not-sent"
+    if any(pattern in lowered for pattern in _MAYBE_SENT):
+        return "maybe-sent"
+    return None
+
+
+def _attempt(executable: str, args: Sequence[str], input: str | None, timeout: float) -> tuple[str | None, str, str | None]:
+    """Run the child once: (stdout, error message, transient kind). stdout is
+    None on failure; kind is None when the failure is not transient."""
     try:
         # Capture bytes, not text: `subprocess`'s text mode decodes on a reader
         # thread whose UnicodeDecodeError escapes as an unhandled thread crash
@@ -58,13 +161,79 @@ def run_process(args: Sequence[str], *, input: str | None = None, timeout: float
             capture_output=True, timeout=timeout, check=False,
             env={**os.environ, **_UTF8_ENV},
         )
-    except subprocess.TimeoutExpired as error:
-        raise PdlcError(f"{args[0]} timed out after {timeout:g}s; inspect remote state before retrying a write") from error
+    except subprocess.TimeoutExpired:
+        return None, f"{args[0]} timed out after {timeout:g}s", "maybe-sent"
     except OSError as error:
-        raise PdlcError(f"could not run {args[0]}: {error}") from error
+        kind = "not-sent" if error.errno in _TRANSIENT_OS_ERRORS else None
+        return None, f"could not run {args[0]}: {error}", kind
     if result.returncode:
-        raise PdlcError(_decode(result.stderr).strip() or f"{args[0]} failed (exit {result.returncode})")
-    return _decode(result.stdout)
+        message = _decode(result.stderr).strip() or f"{args[0]} failed (exit {result.returncode})"
+        return None, message, _classify(message)
+    return _decode(result.stdout), "", None
+
+
+def run_process(
+    args: Sequence[str],
+    *,
+    input: str | None = None,
+    timeout: float = 120,
+    idempotent: bool = False,
+    writes: bool | None = None,
+    single_request: bool = True,
+) -> str:
+    """Run one host CLI call and return its decoded stdout.
+
+    `idempotent` says whether running the call twice leaves the same result as
+    running it once (a read, or a full replacement). `writes` says whether it
+    changes anything at all; it defaults to `not idempotent`, so only a caller
+    that knows a call is an idempotent write needs to pass it. A write marks
+    this run as having started one before it runs, which is what tells the CLI
+    boundary a failure may have left the command half-applied.
+
+    A transient failure is retried when the call is idempotent, or when the
+    request provably never reached the host; otherwise it is raised at once as
+    `TransientError`, since a retry could duplicate a write. A call that makes
+    several requests (`single_request=False`, e.g. a stack submit) cannot prove
+    none of them landed, so its failures always count as maybe-sent.
+    """
+    record_external_call(args[0], args)
+    # Resolve PATHEXT launchers such as az.cmd instead of passing a bare name.
+    executable = shutil.which(args[0])
+    if executable is None:
+        raise PdlcError(f"required command not found: {args[0]}")
+    if writes is None:
+        writes = not idempotent
+    wrote_before = _write_started
+    if writes:
+        _mark_write(True)
+    for attempt in range(1, ATTEMPTS + 1):
+        output, message, kind = _attempt(executable, args, input, timeout)
+        if output is not None:
+            if writes:
+                _mark_write(True)
+            return output
+        if kind is None:
+            raise PdlcError(message)
+        if kind == "not-sent" and not single_request:
+            kind = "maybe-sent"
+        if kind == "maybe-sent" and not idempotent:
+            raise TransientError(message, attempts=attempt)
+        if kind == "maybe-sent":
+            # This call may have landed, so the run keeps its write mark even
+            # if a later attempt fails before sending.
+            wrote_before = wrote_before or writes
+        if attempt == ATTEMPTS:
+            if writes and not wrote_before:
+                # Every attempt failed before reaching the host, so this call
+                # wrote nothing.
+                _mark_write(False)
+            raise TransientError(message, attempts=attempt)
+        lowered = message.lower()
+        delays = _RATE_LIMIT_BACKOFF_SECONDS if "rate limit" in lowered or "too quickly" in lowered else _BACKOFF_SECONDS
+        delay = delays[min(attempt - 1, len(delays) - 1)]
+        record_external_call(args[0], ["retry", str(attempt), message.splitlines()[0] if message else ""])
+        _sleep(delay + random.uniform(0, delay / 2))
+    raise AssertionError("unreachable")
 
 
 def parse_json(output: str, command: str) -> Any:

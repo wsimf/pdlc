@@ -7,6 +7,7 @@ in `pdlc.domain.model`. Everything here is reached only through
 
 from __future__ import annotations
 
+import contextlib
 import re
 
 from pdlc.hosts.lib.github.transport import (
@@ -20,7 +21,7 @@ from pdlc.hosts.lib.github.transport import (
     run_graphql,
 )
 import pdlc.hosts.lib.github.pr_registry as pr_registry
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.model import (
     TASK_ID_PATTERN,
     TASK_TITLE_PATTERN,
@@ -113,7 +114,10 @@ def link_subissues(parent: int | str, children: list[int | str]) -> None:
             return
 
     detail = f"; last error: {last_error}" if last_error else ""
-    raise PdlcError(f"created task Issues remain unlinked: {','.join(pending)}{detail}")
+    message = f"created task Issues remain unlinked: {','.join(pending)}{detail}"
+    if isinstance(last_error, TransientError):
+        raise TransientError(message, attempts=last_error.attempts)
+    raise PdlcError(message)
 
 
 # Delivery task sub-issues of a parent, as a list of
@@ -236,7 +240,9 @@ def upsert_tasks(parent: str, tasks: list[dict], existing: list[dict]) -> list[d
             if result["action"] == "created":
                 numbers_to_link.append(result["number"])
     except Exception:
-        link_subissues(parent, numbers_to_link)
+        # Link what was created, but report the failure that stopped the loop.
+        with contextlib.suppress(PdlcError):
+            link_subissues(parent, numbers_to_link)
         raise
 
     link_subissues(parent, numbers_to_link)
@@ -316,7 +322,14 @@ def delete_comment(comment_url: str) -> None:
     if not match:
         raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
     owner, repository = owner_repository()
-    run_gh(["api", "--method", "DELETE", f"repos/{owner}/{repository}/issues/comments/{match.group(1)}"])
+    try:
+        run_gh(["api", "--method", "DELETE", f"repos/{owner}/{repository}/issues/comments/{match.group(1)}"])
+    except TransientError:
+        raise
+    except PdlcError as error:
+        # Already gone, e.g. a retried delete whose first attempt landed.
+        if "Not Found" not in str(error) and "HTTP 404" not in str(error):
+            raise
 
 
 def comments_for_issue(issue: str) -> list[dict]:

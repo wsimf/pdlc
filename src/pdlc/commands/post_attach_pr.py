@@ -27,6 +27,7 @@ import sys
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import attach_pr, tasks_by_number
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def post_attach_pr(delivery_task: str, pr_number: str) -> dict:
@@ -57,10 +58,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(raw_args)
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect task {args.delivery_task}",
+            landed=f"pull request #{args.pr_number} is registered on the task",
+        ))
         result = post_attach_pr(args.delivery_task, args.pr_number)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

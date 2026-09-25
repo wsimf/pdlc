@@ -117,6 +117,7 @@ from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.internal.workitem import due_next, item_slug, pipeline_for_item, record_snapshot
+from pdlc.internal.failure import report_failure
 
 # The change-request sources whose text is the whole record's, not one task's:
 # they cannot be attributed to a pull request, so they form the triage unit.
@@ -428,8 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = inspect(args.work_item)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     sys.stdout.write(output)
     return 0

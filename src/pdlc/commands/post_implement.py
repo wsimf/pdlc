@@ -57,6 +57,15 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
 from pdlc.internal.stack import latest_implemented_task, resolve_task_checkout
 from pdlc.internal.workitem import task_tree
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
+
+
+def _published(issue: str, marker: str) -> Recovery:
+    return Recovery(
+        check=f"pdlc inspect {issue}",
+        landed=f"the gate is Review Required and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
+        note=f"A re-run after the evidence landed posts a second PDLC-{marker} comment; mention it in your report.",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,14 +77,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 2:
         print("usage: pdlc post implement WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
 
     issue, evidence = args
     try:
+        set_recovery(_published(issue, "IMPLEMENTATION"))
         publication = prepare_transition(issue, "Implementation")
         evidence_body = resolve_text(evidence, label="evidence")
         code_host = get_code_host()
@@ -99,8 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         result["checkedOut"] = top_checkout.branch if top_checkout else None
         result["readyPullRequests"] = [{"number": pr["number"], "url": pr["url"]} for pr in open_prs]
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

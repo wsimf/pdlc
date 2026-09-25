@@ -69,6 +69,7 @@ from pdlc.internal.attachments import parent_number_for_task
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.workitem import comments_for_issue, task_timeline_compact, task_timeline_markdown, tasks_by_number
+from pdlc.internal.failure import report_failure
 
 NO_EVIDENCE = "No task evidence comments found\n"
 
@@ -102,8 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         path = write_scratch(scratch_path(parent, f"task-timeline-{task}"), full_text)
         sys.stdout.write(task_timeline_compact(task, str(path), comments=comments))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     return 0
 

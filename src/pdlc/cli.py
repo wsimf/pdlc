@@ -7,6 +7,10 @@ import os
 import sys
 
 from pdlc.config import ConfigurationError, load_config
+from pdlc.domain.lifecycle import TransientError
+from pdlc.hosts.lib import process
+from pdlc.internal import failure
+from pdlc.internal.failure import report_failure
 from pdlc.internal.inputs import wants_help
 
 
@@ -144,7 +148,8 @@ def _usage() -> str:
         "  pdlc post complete 236 completion.md\n"
         "  pdlc exec post complete 236 completion.md\n"
         "\nLEARN MORE\n"
-        "  Use `pdlc COMMAND --help` for details about a command."
+        "  Use `pdlc COMMAND --help` for details about a command.\n"
+        "  Exit 75 or 76 means a transient host failure; `pdlc guide contract` says how to recover."
     )
 
 
@@ -250,6 +255,8 @@ def _reset_runtime() -> None:
     from pdlc.hosts.attachment_host import reset_host
 
     reset_config()
+    process.reset_run_state()
+    failure.reset()
     reset_backend()
     reset_code_host()
     reset_host()
@@ -264,8 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     _configure_windows_stdio()
     original = {key: value for key, value in os.environ.items() if key.startswith("PDLC_")}
     _reset_runtime()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    failure.set_invocation(arguments)
     try:
-        return _dispatch(list(sys.argv[1:] if argv is None else argv))
+        return _dispatch(arguments)
+    except TransientError as error:
+        # Safety net for a command with no catch of its own.
+        return report_failure(error)
     finally:
         for key in list(os.environ):
             if key.startswith("PDLC_") and key not in original:
