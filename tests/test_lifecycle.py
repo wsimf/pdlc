@@ -88,7 +88,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
             {
                 "published", "reviewed", "ci-reconciled", "approved", "skipped",
                 "reauthored", "decision-resolved", "escalated", "invalidated", "verified", "bounced",
-                "completed", "autoapproved",
+                "completed", "autoapproved", "patched",
             },
         )
         with self.assertRaises(ValueError):

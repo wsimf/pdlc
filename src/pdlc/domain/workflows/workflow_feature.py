@@ -81,6 +81,13 @@ _FEATURE_INVALIDATION_POLICY = InvalidationPolicy(
         "Testing": ("Product", "UI", "Tasks", "Technical Plan", "Implementation", "Testing"),
         "Verification": ("Implementation", "Testing"),
     },
+    # Only planning artifacts are patched in place, and only from a later
+    # planning stage: once tasks are built, impact reaches code and tests.
+    patch_targets={
+        "UI": ("Product",),
+        "Tasks": ("Product", "UI"),
+        "Technical Plan": ("Product", "UI", "Tasks"),
+    },
 )
 
 FEATURE_PIPELINE = Pipeline(

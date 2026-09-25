@@ -8,6 +8,10 @@ from pdlc.domain.lifecycle import PdlcError, duplicates
 from pdlc.domain.model import CORE_TAG, UI_TAG
 
 TASK_ID_FORMAT = re.compile(r"^TASK-[0-9]{3}$")
+# The parent identifiers a breakdown covers: requirements and constraints
+# declared in `## Product`, journeys declared in `## UI`.
+REQUIREMENT_ID_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
+JOURNEY_ID_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
 
 
 def declared_identifiers(text: str, pattern: re.Pattern) -> list[str]:

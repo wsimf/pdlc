@@ -7,13 +7,22 @@ USAGE
         pdlc post write --title TITLE --slug SLUG --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
     - if updating an existing record's Product section:
         pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE [--attachment PATH [--attachment-description TEXT]]
+    - if correcting a landed Product section while the record is at a later stage:
+        pdlc post write --work-item WORK_ITEM --evidence FILE|- --body FILE --patch [--impact FILE|-] [--attachment PATH [--attachment-description TEXT]]
+    - if checking such a correction without landing it:
+        pdlc post write --work-item WORK_ITEM --body FILE --patch --dry-run [--impact FILE|-]
 
 FLAGS
     --title TITLE                       required when creating a new record
     --slug SLUG                         required when creating a new record
     --work-item WORK_ITEM               required when updating an existing record
-    --evidence FILE|-                   required; the review evidence body
+    --evidence FILE|-                   required unless --dry-run; the review evidence body
     --body FILE                         required; the Product/Decisions[/Open Questions] content
+    --patch                             action="store_true"; land the body onto the record's already-landed
+                                        Product section while the record stays on its later active stage
+    --impact FILE|-                     only with --patch; the impact report whose
+                                        `Earliest affected stage:` line reads `none` or an intermediate stage
+    --dry-run                           only with --patch; validate and print the plan without landing it
     --attachment PATH (repeatable)      attach a local file's contents to the evidence comment
     --attachment-description TEXT       description for the --attachment immediately before it
 
@@ -37,6 +46,35 @@ Required is refused with a pointer to `pdlc guide decisions`; any other gate
 is refused. An existing record with both Status and Gate State empty is
 initialized in place: its missing Slug is derived from its title and it lands
 at `Product / Approval Required` with Lifecycle set to Planning.
+
+With --patch, the body is landed onto a record whose active stage is later
+than Product and may patch it (see `pdlc guide patch`), and the record stays
+on that stage. The section replacement and the `PDLC-PRODUCT` evidence comment
+are exactly those of a normal land; a `PDLC-PATCHED` comment follows, opening
+with `Patched stage: Product` and `Active stage: <stage> / <gate>` lines, then
+the impact report (or `No intermediate stages.`). An active gate of Review
+Required or Approval Required is reset to Stale, since the published artifact
+was built on the old text; a work gate is left as is. Any other active gate is
+refused, Decision Required with a pointer to `pdlc guide decisions`.
+
+--impact is required when a non-skipped stage lies between Product and the
+active stage. Its verdict decides where the record goes: `none` keeps it on
+the active stage; naming one of those intermediate stages lands the patch and
+returns the record to that stage at Stale, adding a `Returned to: <stage> /
+Stale` line to `PDLC-PATCHED` and posting a `PDLC-INVALIDATED` comment for that
+stage with the impact report as its evidence; any other verdict is refused.
+When the verdict is `none` and --impact is required, the patch must also keep
+the landed set of `FR-*` / `C-*` ids, since the landed task breakdown covers
+them.
+
+Every `FR-*` / `C-*` statement the patch adds, removes, or rewords is listed on
+a `Changed requirements: <id> (<added|removed|changed>), ...` line of
+`PDLC-PATCHED`, followed by a `## Requirement Changes` section giving each
+one's landed and patched text; rewrapping alone is not a change. The printed
+JSON carries the same list as `requirementChanges`, and --dry-run reports it
+too. --dry-run also prints `impactRequired`, the intermediate stages, and,
+given --impact, `returnedTo`, without writing anything. A refusal writes
+nothing.
 """
 
 from __future__ import annotations
@@ -64,7 +102,9 @@ from pdlc.internal.workitem import (
     update_sections,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments, work_item_number
-from pdlc.internal.invalidation import reauthor_invalidate_stage
+from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan
+from pdlc.domain.patch import requirement_changes, require_same_ids
+from pdlc.domain.task_plan import REQUIREMENT_ID_PATTERN, declared_identifiers
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, require_file, resolve_text, wants_help
 from pdlc.domain.stages import Gate
@@ -157,6 +197,52 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, 
     }
 
 
+def patch_existing(
+    issue: str, fragments: dict[str, str], evidence_body: str | None, impact: str | None,
+    attachment_inputs: list[dict], dry_run: bool,
+) -> dict:
+    """Land the Product fragments while the record stays on its later active
+    stage, or returns to the stage the impact report found affected."""
+    record = resolve_item(issue)
+    plan = record_patch_plan(record, "Product", impact, dry_run)
+    body = record.get("issueBody") or ""
+    headings = level_two_headings(body)
+    duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]
+    if duplicates:
+        raise PdlcError(f"existing work item has duplicate Product-owned sections: {', '.join(duplicates)}")
+    landed = read_section(body, "Product")
+    # A rewind re-runs the task breakdown, which re-checks its coverage.
+    if plan.impact_required and plan.rewind is None:
+        require_same_ids(
+            "requirement",
+            declared_identifiers(landed, REQUIREMENT_ID_PATTERN),
+            declared_identifiers(fragments["Product"], REQUIREMENT_ID_PATTERN),
+            "Tasks",
+        )
+    changes = requirement_changes(landed, fragments["Product"])
+    summary = {
+        "work_item_number": int(issue),
+        "patched": "Product",
+        "activeStage": plan.source.stage,
+        "impactRequired": plan.impact_required,
+        "intermediateStages": list(plan.intermediate),
+        "returnedTo": plan.rewind,
+        "requirementChanges": changes,
+    }
+    if dry_run:
+        return {"dryRun": True, **summary}
+
+    assert evidence_body is not None
+    attachments = save_attachments(work_item_number(record), attachment_inputs)
+    update_sections(issue, fragments)
+    post_comment(issue, evidence_body, "PRODUCT")
+    land_patch(issue, record, plan, impact, changes)
+    return {
+        **summary, "itemId": record["id"], "status": plan.target.stage,
+        "gateState": plan.target.gate.value, "attachments": attachments,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     command_args = list(sys.argv[1:] if argv is None else argv)
     raw_args = command_args
@@ -174,8 +260,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--title")
     parser.add_argument("--slug")
     parser.add_argument("--work-item")
-    parser.add_argument("--evidence", required=True, dest="evidence_file")
+    parser.add_argument("--evidence", dest="evidence_file")
     parser.add_argument("--body", required=True, dest="body_file")
+    parser.add_argument("--patch", action="store_true")
+    parser.add_argument("--impact", dest="impact_file")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(script_args)
 
     try:
@@ -189,10 +278,22 @@ def main(argv: list[str] | None = None) -> int:
         if is_new and not SLUG_PATTERN.match(args.slug):
             raise PdlcError(f"slug must be lowercase kebab-case: {args.slug}")
 
-        evidence_body = resolve_text(args.evidence_file, label="--evidence")
+        if (args.impact_file or args.dry_run) and not args.patch:
+            raise PdlcError("--impact and --dry-run are only valid with --patch")
+        if args.patch and is_new:
+            raise PdlcError("--patch requires --work-item: it corrects an existing record")
+        if not args.dry_run and not args.evidence_file:
+            raise PdlcError("--evidence FILE|- is required")
+        evidence_body = resolve_text(args.evidence_file, label="--evidence") if args.evidence_file else None
+        impact = resolve_text(args.impact_file, label="--impact") if args.impact_file else None
         body_path = require_file("--body file", args.body_file)
         fragments = product_fragments(body_path)
         validate_attachments(attachment_inputs)
+
+        if args.patch:
+            print(json.dumps(patch_existing(args.work_item, fragments, evidence_body, impact, attachment_inputs, args.dry_run)))
+            return 0
+        assert evidence_body is not None
 
         if not is_new:
             result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs)

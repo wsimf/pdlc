@@ -109,6 +109,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
+from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.scratch import scratch_path, write_scratch
@@ -693,6 +694,47 @@ def plan_reviewer_brief(work_item: str, manifest: str, findings: str | None) -> 
             "PARENT_BODY": _parent_body(item).rstrip(),
             "PLANS": "\n\n---\n\n".join(blocks),
             "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+        },
+    )
+
+
+def patch_reviewer_brief(work_item: str, stage: str, body: str | None, manifest: str | None) -> str:
+    """The brief for PDLC's own patch reviewer, which judges whether a reviewed
+    correction to `stage`'s landed artifact affects any stage between it and
+    the active one. The draft is the same input that stage's landing command
+    takes: `body` for Product and UI, `manifest` for Tasks. Refused when the
+    record may not patch `stage`, or when no stage lies in between, since no
+    impact report is needed then.
+    """
+    if stage == "Tasks" and (not manifest or body):
+        raise PdlcError("--stage Tasks takes --manifest FILE")
+    if stage != "Tasks" and (not body or manifest):
+        raise PdlcError(f"--stage {stage} takes --body FILE")
+    item, tasks, _ = record_snapshot(work_item)
+    plan = record_patch_plan(item, stage, None, dry_run=True)
+    if not plan.impact_required:
+        raise PdlcError(
+            f"no stage lies between {stage} and {plan.source.stage}; the patch needs no impact report"
+        )
+    draft = (
+        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        else require_file("--body", body).read_text(encoding="utf-8").strip()
+    )
+    delivery = [task for task in tasks if task.get("taskId")]
+    task_bodies = "\n\n---\n\n".join(
+        f"### {task_tag(task)} — {task_headline(task)}\n\n{(task.get('body') or '').strip()}" for task in delivery
+    )
+    return render(
+        "patch-review",
+        {
+            "EXECUTION_SCOPE": "this one patch impact review",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            "PATCHED_STAGE": stage,
+            "ACTIVE_STAGE": plan.source.stage,
+            "INTERMEDIATE_STAGES": ", ".join(plan.intermediate),
+            "PARENT_BODY": _parent_body(item).rstrip(),
+            "TASK_BODIES": task_bodies or "none",
+            "DRAFT": draft,
         },
     )
 

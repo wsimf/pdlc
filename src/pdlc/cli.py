@@ -46,6 +46,9 @@ COMMANDS = {
     ("prompt", "plan-reviewer"): "pdlc.commands.prompt_plan_reviewer",
     ("prompt", "cumulative-reviewer"): "pdlc.commands.prompt_cumulative_reviewer",
     ("prompt", "ui-journey-reviewer"): "pdlc.commands.prompt_ui_journey_reviewer",
+    # PDLC's own patch reviewer brief; internal to `pdlc guide patch`, so it is
+    # deliberately omitted from `_usage()` and the `pdlc prompt` index.
+    ("prompt", "patch-reviewer"): "pdlc.commands.prompt_patch_reviewer",
     ("next",): "pdlc.commands.next",
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
@@ -110,8 +113,8 @@ def _usage() -> str:
         "\nMUTATING COMMANDS (only when the transition is authorized)\n"
         "  checkout TASK                          put the working tree on one delivery task's branch (local only)\n"
         "  continue WI                            self-heal a stray Approved/CI Pending gate; errors otherwise\n"
-        "  post write                             publish the Product artifact\n"
-        "  post tasks                             land a UI or Tasks stage\n"
+        "  post write                             publish the Product artifact; --patch corrects it from a later stage\n"
+        "  post tasks                             land a UI or Tasks stage; --patch corrects it from a later stage\n"
         "  post plan                              land the Technical Plan\n"
         "  post implement WI EVIDENCE             push the task PR stack, ready it for review, complete Implementation\n"
         "  post implement-task TASK FILE          land one task's implementation; closes it when open, re-lands when closed\n"

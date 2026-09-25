@@ -37,7 +37,7 @@ Then read the whole record: the parent body end to end, every task body and Resu
 
 ## Dispatch
 
-Spawn `pdlc-completer` once, building the prompt from [`references/completer-prompt.md`](references/completer-prompt.md) — the full parent body, every task body and `## Implementation` comment, the verification evidence, the linked PRs and their state, the decisions and open questions as they stand, and any skipped stage.
+Spawn `pdlc-completer` once, building the prompt from [`references/completer-prompt.md`](references/completer-prompt.md) — the full parent body, every task body and `## Implementation` comment, the verification evidence, the linked PRs and their state, the decisions and open questions as they stand, every `PDLC-PATCHED` comment, and any skipped stage.
 
 Wait for its report. Relay its judgments without reinterpreting them. If the completer says a question genuinely cannot be resolved or deferred, stop — the record is not ready. This step is complete when the report holds an evidence body with every live Open Questions entry dispositioned.
 
