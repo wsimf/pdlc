@@ -1,6 +1,6 @@
 # Mutation Recovery Catalog
 
-Status: reference for `docs/transient-errors-plan.md`. Describes the code as of `patch-spec` (`042cbb4`).
+Status: reference for `docs/transient-errors-plan.md`. Describes the code as of `master` (`adbda65`).
 
 ## Purpose
 
