@@ -146,6 +146,7 @@ from pdlc.commands.inspect_implement import (
     _readiness,
     _stack_order,
 )
+from pdlc.internal.failure import report_failure
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
@@ -847,8 +848,7 @@ def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int
         brief = build()
         emit(brief, args.work_item, command, args.file)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     return 0
 
 

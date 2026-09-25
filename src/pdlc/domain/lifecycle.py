@@ -12,6 +12,17 @@ class NotFound(PdlcError):
     """The requested identity is absent; operational failures use PdlcError."""
 
 
+class TransientError(PdlcError):
+    """A host call failed in a way that may pass on a later attempt: a timeout,
+    a dropped connection, a 5xx or rate-limit response, or a WSL process error.
+    The transport has already retried it when a retry was safe; the CLI boundary
+    turns it into exit 75 or 76 with instructions instead of a hard stop."""
+
+    def __init__(self, message: str, *, attempts: int = 1) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+
+
 MARKERS = [
     "PRODUCT", "UI", "TASKS", "PLAN", "IMPLEMENTATION",
     "TESTING", "REVIEW", "COMPLETE",

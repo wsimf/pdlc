@@ -4,7 +4,7 @@ Status: reference for `docs/transient-errors-plan.md`. Describes the code as of 
 
 ## Purpose
 
-Every write `pdlc` makes to a work-item host, code host, or local Git, in the order each command makes them, what a failure part-way leaves behind, and how to recover. This is the source for each command's `Recovery` (check, landed, rerun, note) in the transient-error plan. Update it together with any change to a command's write order.
+Every write `pdlc` makes to a work-item host, code host, or local Git, in the order each command makes them, what a failure part-way leaves behind, and how to recover. This is the source for the `Recovery` each command registers with `set_recovery` (`src/pdlc/internal/failure.py`), which `pdlc` prints on exit 76. Update it together with any change to a command's write order.
 
 ## How to read this
 
@@ -209,7 +209,7 @@ Partial failure:
 - A child record created but its slug not yet set is not found by slug on re-run, so a re-run creates a **second child**.
 - A child created with its slug set is reused on re-run, but the Open Questions line is then not appended if the first run failed before it.
 
-Check: `pdlc inspect N` — gate has left Decision Required; `pdlc inspect timeline N` — `PDLC-RESOLUTION` present; for each deferral, look up its slug with `pdlc inspect SLUG`.
+Check: `pdlc inspect N` — gate has left Decision Required; `pdlc inspect timeline N` — `PDLC-RESOLUTION` present; for each deferral, look up its slug with `pdlc inspect <slug>`.
 
 Recovery:
 - If every deferral's child resolves by slug: re-run.

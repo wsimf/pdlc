@@ -98,6 +98,7 @@ from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.workitem import resolve_item, tasks_by_number
+from pdlc.internal.failure import report_failure
 
 
 # The implementer slot a task's own `isUI` routes to. Resolved here, on the task,
@@ -183,8 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             sys.stdout.write(output)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     return 0
 

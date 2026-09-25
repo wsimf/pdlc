@@ -56,6 +56,7 @@ from pdlc.internal.workitem import (
     set_state,
     workflow_for_item,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def approve(issue: str, evidence: str, attachment_inputs: list[dict], force: bool = False) -> dict:
@@ -110,8 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     force = "--force" in args
     args = [argument for argument in args if argument != "--force"]
     if len(args) != 2:
@@ -120,10 +120,15 @@ def main(argv: list[str] | None = None) -> int:
     issue, evidence = args
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {issue}",
+            landed="the record moved to the next stage",
+            rerun=False,
+            note="Approval is a driver action. If PDLC-APPROVED landed but the stage did not move, the next `pdlc next` poll heals it.",
+        ))
         result = approve(issue, evidence, attachment_inputs, force)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

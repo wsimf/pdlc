@@ -31,7 +31,7 @@ from pdlc.hosts.lib.github.transport import (
     run_graphql,
 )
 from pdlc.hosts.lib.process import run_process
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 
 # Every review thread on the pull request, oldest first, with only its root
 # comment — later replies aren't fetched, since the thread's own `isResolved`
@@ -92,7 +92,9 @@ def _local_branch_exists(branch: str) -> bool:
     """Whether ``branch`` is already a local ref. Only asked when the task has
     no pull request to check out from — an implemented-but-unsubmitted task."""
     try:
-        run_process(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"])
+        run_process(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], idempotent=True)
+    except TransientError:
+        raise
     except PdlcError:
         return False
     return True
@@ -194,6 +196,8 @@ class GitHubCodeHost(CodeHost):
         query = f"query($owner: String!, $repo: String!) {{ repository(owner: $owner, name: $repo) {{\n{selections}\n}} }}"
         try:
             data = run_graphql(query, owner=owner, repo=repository)["data"]["repository"]
+        except TransientError:
+            raise
         except PdlcError as error:
             if _is_pr_not_found(error):
                 match = _MISSING_PR_NUMBER.search(str(error))
@@ -213,6 +217,8 @@ class GitHubCodeHost(CodeHost):
     def _pull_request_view(number: int) -> PullRequest:
         try:
             pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
+        except TransientError:
+            raise
         except PdlcError as error:
             if _is_pr_not_found(error):
                 raise PdlcError(f"registered pull request #{number} could not be found") from error
@@ -259,6 +265,8 @@ class GitHubCodeHost(CodeHost):
         the same way and is left for the acting call to report."""
         try:
             data = run_gh_json(["stack", "view", "--json"])
+        except TransientError:
+            raise
         except PdlcError:
             return None
         return data if isinstance(data, dict) and data.get("branches") else None
@@ -320,6 +328,8 @@ class GitHubCodeHost(CodeHost):
     def _pull_request_view_by_branch(branch: str) -> PullRequest:
         try:
             pr = run_gh_json(["pr", "view", branch, *repo_args(), "--json", _PR_FIELDS])
+        except TransientError:
+            raise
         except PdlcError as error:
             if _is_pr_not_found(error):
                 raise PdlcError(f"no pull request found for {branch} after linking it into the stack") from error

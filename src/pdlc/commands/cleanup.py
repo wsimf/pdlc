@@ -35,6 +35,7 @@ from pdlc.internal.worktree import (
     target_path,
     worktree_root,
 )
+from pdlc.internal.failure import report_failure
 
 
 def _parse(argv: list[str]) -> tuple[str, bool]:
@@ -102,8 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         for branch in branches:
             delete_branch(branch)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(f"pdlc: cleaned up worktree and {len(branches)} branch(es) for {workitem}", file=sys.stderr)
     return 0

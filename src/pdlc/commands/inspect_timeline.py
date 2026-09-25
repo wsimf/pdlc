@@ -56,6 +56,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.scratch import scratch_path, write_scratch
 from pdlc.internal.workitem import comments_for_issue, resolve_item, timeline_compact, timeline_markdown
+from pdlc.internal.failure import report_failure
 
 NO_EVIDENCE = "No PDLC evidence comments found\n"
 
@@ -89,8 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         path = write_scratch(scratch_path(issue, f"timeline-{issue}"), full_text)
         sys.stdout.write(timeline_compact(issue, str(path), comments=comments))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     return 0
 

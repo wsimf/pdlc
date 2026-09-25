@@ -26,7 +26,7 @@ pdlc next loop WORK_ITEM   # one record
 
 The record's `# Due Next` section is the instruction for this pass. The front matter's `action` says whether you may carry it out: a `pdlc-*` skill name or `pdlc-post-ci` is autonomous; `human-input`, `human-approval`, `human-decision`, and `blocked` are stops; `none` means there is nothing to act on yet. See `pdlc next --help` for the full output.
 
-A controller failure — API error, malformed work item state, ambiguous identity — is a hard stop. Report it exactly; never retry around it or fall back to a guess. This step is complete when the poll returned an `action` and its `# Due Next` section.
+A poll that exits 75 or 76 failed transiently: follow the recovery its output prints, then poll again, at most 3 times for the same failure before you stop and report it. Any other controller failure — API error, malformed work item state, ambiguous identity — is a hard stop. Report it exactly; never retry around it or fall back to a guess. This step is complete when the poll returned an `action` and its `# Due Next` section.
 
 ## Dispatch
 

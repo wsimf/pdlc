@@ -31,6 +31,7 @@ import sys
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help
 from pdlc.templates.template import load_template, template_names
+from pdlc.internal.failure import report_failure
 
 
 def _help() -> str:
@@ -49,8 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         sys.stdout.write(load_template(args[0]))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     return 0
 
 

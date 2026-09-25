@@ -52,6 +52,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import assert_unmarked, print_help, resolve_text, wants_help
 from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Event, Outcome
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 REVIEW_OUTCOMES = {
     "changes-required": Outcome.FINDINGS,
@@ -129,8 +130,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 3:
         print(
             "usage: pdlc post review WORK_ITEM changes-required|approval-required|decision-required EVIDENCE_FILE|text:STR|-",
@@ -140,10 +140,15 @@ def main(argv: list[str] | None = None) -> int:
     issue, outcome, evidence = args
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect timeline {issue}",
+            landed=f"the newest PDLC-REVIEW is this review and `pdlc inspect {issue}` shows the gate moved to match it (or the record advanced)",
+            otherwise="if this PDLC-REVIEW is not on the timeline, or it is and the gate is still Review Required on a stage other than Verification, re-run: {rerun}. If the review landed on Verification and the gate did not move, stop and report this output to the driver.",
+            note="A re-run after the review landed posts a second PDLC-REVIEW; mention it in your report.",
+        ))
         result = review(issue, outcome, evidence, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

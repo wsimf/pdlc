@@ -46,6 +46,7 @@ from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.stack import TaskCheckout, resolve_task_checkout
 from pdlc.internal.worktree import working_tree_dirty
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def _action(target: TaskCheckout) -> str:
@@ -85,10 +86,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect task {args[0]}",
+            landed="its branch is the current branch (`git branch --show-current`)",
+        ))
         sys.stdout.write(checkout(args[0]))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     return 0
 
 

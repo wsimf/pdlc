@@ -186,6 +186,7 @@ from pdlc.domain.workflows.stages import (
     UI_STAGE,
     VERIFICATION_STAGE,
 )
+from pdlc.internal.failure import report_failure
 
 
 # Product, UI, and Tasks are the independently-reviewable stages whose Due
@@ -965,8 +966,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         full_output, compact_output, path = render(args.work_item)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     if args.file:
         print(write_scratch(path, full_output))

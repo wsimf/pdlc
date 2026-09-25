@@ -63,6 +63,7 @@ from pdlc.internal.worktree import (
     target_path,
     worktree_root,
 )
+from pdlc.internal.failure import report_failure
 
 
 def _parse(argv: list[str]) -> tuple[str, str | None, str | None, bool]:
@@ -167,8 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         ):
             run_init_script(path, config.worktree_init_script)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(path)
     return 0

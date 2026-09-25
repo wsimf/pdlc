@@ -38,6 +38,7 @@ from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.workitem import attach_pr
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import is_stdin, resolve_text, print_help, wants_help
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: list[dict]) -> dict:
@@ -70,8 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(description="Complete the PDLC Testing stage")
     parser.add_argument("work_item")
@@ -80,10 +80,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(script_args)
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {args.work_item}",
+            landed=f"the gate is Review Required and `pdlc inspect timeline {args.work_item}` shows this PDLC-TESTING evidence as the newest",
+            note="A re-run after the evidence landed posts a second PDLC-TESTING comment; mention it in your report.",
+        ))
         result = post_test(args.work_item, args.evidence, args.traceability, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

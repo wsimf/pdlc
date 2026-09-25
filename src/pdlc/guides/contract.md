@@ -200,5 +200,10 @@ New scope belongs in a new parent work item.
 Commands must address explicit stable IDs, validate backend responses, and preserve retry safety.
 Re-running a phase updates the same parent sections or stable task IDs instead of creating duplicates.
 Re-running a pending external check is safe when the command contract says it makes no mutation.
-Backend failures, missing fields, rate limits, ambiguous matches, and invalid transitions are hard failures.
+Backend failures, missing fields, ambiguous matches, and invalid transitions are hard failures and exit 1.
+A transient host failure (a timeout, a dropped connection, a rate limit, a WSL launch error) is retried inside the command when a retry cannot duplicate a write, and only surfaces once it persists.
+It then prints a first line starting `pdlc: transient:` and exits 75 or 76.
+Exit 75 means re-running the same command is safe: wait a minute and re-run it.
+Exit 76 means a write may have partly landed: follow the numbered recovery steps the command prints, which name the read-only check to run and when a re-run is safe.
+Repeat either at most 3 times for the same failure, then stop and report it.
 Never continue by guessing, silently dropping data, or inferring a state from prose.

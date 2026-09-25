@@ -43,6 +43,7 @@ from pdlc.domain.workflow import Event
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, work_item_number
 from pdlc.internal.inputs import assert_unmarked, print_help, resolve_text, wants_help
 from pdlc.internal.workitem import is_stage_skipped, item_for_issue, item_status, post_blocker, set_gate, workflow_for_item
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 DECISION_HEADING = "## Decision Required"
 
@@ -84,17 +85,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(command_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 2:
         print("usage: pdlc post escalate WORK_ITEM EVIDENCE_FILE|text:STR|-", file=sys.stderr)
         return 1
     issue, evidence = args
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {issue}",
+            landed="the gate is Decision Required",
+            note="A re-run after the PDLC-DECISION comment landed posts a second one; mention it in your report.",
+        ))
         result = escalate(issue, evidence, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     print(json.dumps(result))
     return 0
 

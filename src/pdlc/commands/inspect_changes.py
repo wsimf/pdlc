@@ -60,6 +60,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, item_status, timeline_formatted_at
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import comments_for_issue, pipeline_for_item, resolve_item
+from pdlc.internal.failure import report_failure
 
 def render(changes: OpenChanges) -> str:
     lines = [f"# Open Changes — {changes.stage}", ""]
@@ -106,8 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         sys.stdout.write(inspect_changes(args.work_item, args.stage))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     return 0
 
 

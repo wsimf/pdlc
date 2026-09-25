@@ -111,6 +111,7 @@ from pdlc.internal.workitem import (
     update_section,
     workflow_for_item,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 OPEN_QUESTIONS_SETTLED = "_Resolved at completion — see the completion comment._"
 
@@ -174,18 +175,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
     if len(args) != 2:
         print("usage: pdlc post complete WORK_ITEM EVIDENCE_FILE|-", file=sys.stderr)
         return 1
     issue, evidence = args
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {issue}",
+            landed="the stage is Complete",
+            then="the record is locked. If it is still open on the host, stop and report that it needs closing there; `pdlc cleanup` removes leftover branches.",
+        ))
         result = complete(issue, evidence, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

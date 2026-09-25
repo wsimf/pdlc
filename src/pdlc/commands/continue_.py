@@ -56,6 +56,7 @@ from pdlc.internal.workitem import (
     pipeline_for_item,
     resolve_item,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def continue_(issue: str) -> dict:
@@ -84,10 +85,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect {command_args[0]}",
+            landed="the record is no longer at the stray state",
+            note="A re-run after the heal comment landed posts a second one; mention it in your report.",
+        ))
         result = continue_(command_args[0])
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

@@ -60,7 +60,7 @@ import time
 
 from pdlc.commands.inspect import due_next_section
 from pdlc.internal.ci_gate import peek_ci_state
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.internal.inputs import print_help
 from pdlc.domain.model import blocked_reason
 from pdlc.domain.stages import Gate
@@ -78,6 +78,7 @@ from pdlc.internal.workitem import (
     resolve_item,
     set_state,
 )
+from pdlc.internal.failure import report_failure
 
 
 # The routing decision handed to the orchestrator: which record, where it sits,
@@ -223,10 +224,11 @@ def _with_due_next(result: dict, item: dict) -> dict:
     return result
 
 
-# Retries next_once with exponential backoff, but only while nothing is
-# actionable ("none"): API errors and malformed state raise immediately since
-# retrying those would hide a real failure. Each wait and the final give-up are
-# printed to stderr so the caller can see why the loop returned.
+# Retries next_once with exponential backoff while nothing is actionable
+# ("none") or a host call failed transiently: other API errors and malformed
+# state raise immediately since retrying those would hide a real failure. A
+# transient failure on the last attempt is raised. Each wait and the final
+# give-up are printed to stderr so the caller can see why the loop returned.
 def loop_(selector: str | None) -> tuple[dict, int | None]:
     config = get_config()
     max_attempts = config.max_attempts
@@ -236,12 +238,18 @@ def loop_(selector: str | None) -> tuple[dict, int | None]:
 
     result: dict = {"action": "none", "reason": "no PDLC work item is currently available"}
     for attempt in range(1, max_attempts + 1):
-        result = next_once(selector)
-        if result.get("action") != "none":
-            return result, None
-        if attempt == max_attempts:
-            break
-        print(f"No work ready, retrying in {delay}s (attempt {attempt} of {max_attempts})…", file=sys.stderr)
+        try:
+            result = next_once(selector)
+        except TransientError as error:
+            if attempt == max_attempts:
+                raise
+            print(f"pdlc: transient: {error}; retrying in {delay}s (attempt {attempt} of {max_attempts})…", file=sys.stderr)
+        else:
+            if result.get("action") != "none":
+                return result, None
+            if attempt == max_attempts:
+                break
+            print(f"No work ready, retrying in {delay}s (attempt {attempt} of {max_attempts})…", file=sys.stderr)
         if not no_sleep:
             time.sleep(delay)
         delay = min(delay * 2, max_delay)
@@ -308,8 +316,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             result, attempts = next_once(selector), None
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        # Routing only reads, and a self-heal re-applies on the next pass, so
+        # a transient failure always leaves `next` safe to re-run.
+        return report_failure(error, rerun_safe=True)
 
     sys.stdout.write(render(result, attempts=attempts))
     return 0

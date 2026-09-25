@@ -41,6 +41,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.domain.workflow import Pipeline
 from pdlc.domain.workflows.pipeline import PIPELINES
+from pdlc.internal.failure import report_failure
 
 
 def _readiness(item: dict, pipeline: Pipeline) -> tuple[bool, str]:
@@ -102,8 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = inspect(issue)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     sys.stdout.write(output)
     return 0

@@ -45,6 +45,7 @@ from pdlc.internal.workitem import (
     set_skipped_states,
     workflow_for_item,
 )
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def skip(issue: str, states_arg: str, justification: str | None, attachment_inputs: list[dict]) -> dict:
@@ -91,8 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--work-item")
@@ -108,10 +108,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        set_recovery(Recovery(
+            check=f"pdlc inspect timeline {args.work_item}",
+            landed="the newest PDLC-SKIPPED names these states",
+            note="A re-run after PDLC-SKIPPED landed posts a second one; the skipped states themselves merge.",
+        ))
         result = skip(args.work_item, args.state, args.justification, attachment_inputs)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     print(json.dumps(result))
     return 0

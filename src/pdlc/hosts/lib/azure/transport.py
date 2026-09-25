@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Literal, Sequence
 
 from pdlc.hosts.lib.process import parse_json, run_process
 from pdlc.config import get_config
@@ -29,8 +29,28 @@ WIT_API_VERSION = "7.1"
 PATCH_MEDIA_TYPE = "application/json-patch+json"
 
 
+# How an `az` call affects the host (see `gh_call_kind`): "read" changes
+# nothing, "set" replaces field values outright, "add" is anything a retry could
+# duplicate — creation, relation links, comment posts, an unknown call.
+_AZ_READS = {("boards", "work-item", "show"), ("boards", "query"), ("account", "show")}
+_AZ_SETS = {("boards", "work-item", "update")}
+
+
+def az_call_kind(args: Sequence[str]) -> Literal["read", "set", "add"]:
+    if tuple(args[:2]) == ("devops", "invoke"):
+        method = "GET"
+        if "--http-method" in args:
+            index = list(args).index("--http-method")
+            method = args[index + 1].upper() if index + 1 < len(args) else "GET"
+        return "read" if method == "GET" else "set" if method in {"PATCH", "PUT"} else "add"
+    if tuple(args[:3]) in _AZ_READS or tuple(args[:2]) in _AZ_READS:
+        return "read"
+    return "set" if tuple(args[:3]) in _AZ_SETS else "add"
+
+
 def run_az(args: Sequence[str], *, input: str | None = None) -> str:
-    return run_process(["az", *args], input=input)
+    kind = az_call_kind(args)
+    return run_process(["az", *args], input=input, idempotent=kind != "add", writes=kind != "read")
 
 
 def run_az_json(args: Sequence[str]) -> Any:

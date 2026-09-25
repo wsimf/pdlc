@@ -104,6 +104,7 @@ from pdlc.internal.workitem import (
 from pdlc.domain.lifecycle import PdlcError, duplicates
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
+from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
@@ -204,8 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         script_args, attachment_inputs = parse_attachment_arguments(raw_args)
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     parser = argparse.ArgumentParser(description="Publish the Technical Plan stage")
     parser.add_argument("--work-item", required=True)
@@ -249,6 +249,11 @@ def main(argv: list[str] | None = None) -> int:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, "Technical Plan"):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
+        set_recovery(Recovery(
+            check=f"pdlc inspect {args.work_item}",
+            landed="the gate is Review Required and `pdlc inspect task T` shows the new plan on every task in the manifest",
+            note="A re-run after the PDLC-PLAN evidence landed posts a second one; mention it in your report.",
+        ))
         tree = task_tree(args.work_item)
         if not tree:
             raise PdlcError("no delivery tasks: the Tasks stage produced nothing to plan against")
@@ -329,8 +334,7 @@ def main(argv: list[str] | None = None) -> int:
             "attachments": attachments,
         }))
     except PdlcError as error:
-        print(f"pdlc: {error}", file=sys.stderr)
-        return 1
+        return report_failure(error)
 
     return 0
 
