@@ -18,6 +18,7 @@ DESCRIPTION
     deferral durable, is unfinished work small enough to note and continue;
     every mechanical fact is resolved here, never by the agent querying the
     work-item store or `git` itself.
+    Live failed checks and unresolved threads on registered PRs also block readiness until triaged.
 
     ## Readiness
 
@@ -60,10 +61,11 @@ import sys
 
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
-from pdlc.domain.completion import completion_blockers
+from pdlc.domain.completion import Blocker, completion_blockers
 from pdlc.domain.completion_evidence import live_open_questions
 from pdlc.domain.verification import Report
 from pdlc.internal.verification import verification_state
+from pdlc.internal.triage import live_signals
 from pdlc.internal.workitem import (
     comments_for_issue,
     item_skipped_states,
@@ -127,10 +129,11 @@ def _open_questions_section(body: str) -> list[str]:
 
 def inspect(issue: str) -> str:
     item = resolve_item(issue)
-    pipeline, _ = workflow_for_item(item)
     attachments = attachments_for_item(item)
     tasks = task_tree(issue)
     pull_requests = record_pull_requests(issue, record=item, tasks=tasks)
+    pipeline, state = workflow_for_item(item)
+    signals = live_signals(issue, item, tasks, pipeline, state, pull_requests=pull_requests)
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
     verification_body, report, stale_rows, open_findings = verification_state(issue, comments, tasks)
@@ -148,6 +151,8 @@ def inspect(issue: str) -> str:
         open_findings=open_findings,
         open_questions=read_section(body, "Open Questions"),
     )
+    if signals.needed:
+        blockers.append(Blocker("live-pr-triage", "Live CI failures or unresolved review threads require triage; run pdlc inspect WORK_ITEM."))
 
     if blockers:
         sections = ["## Readiness", "", "Not ready — resolve each of these before completing:", ""]

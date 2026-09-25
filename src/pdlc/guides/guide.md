@@ -22,6 +22,8 @@ Resolve before acting.
 | Check configuration before work | `pdlc doctor` |
 | Look up a configuration setting | `pdlc guide config` |
 | Troubleshoot a task PR stack | `pdlc guide stacks` |
+| Triage a live CI failure | `pdlc guide triage-ci-failure` |
+| Triage an unresolved PR thread | `pdlc guide triage-pr-review` |
 | Orient on one work item | `pdlc inspect <WORK_ITEM>` |
 | Read the complete current specification | `pdlc inspect <WORK_ITEM> --full` |
 | Read stage evidence history | `pdlc inspect timeline <WORK_ITEM>` |

@@ -12,6 +12,7 @@ pdlc inspect <work-item>
 Proceed only if `Gate State` is `CI Pending` (equivalently `# Due Next` routes to
 `pdlc-post-ci`). Any other gate — this workflow does not apply; report the actual
 state.
+If `# Due Next` instead names live PR triage, follow the named triage guide; a newly failed check or unresolved thread takes priority over the ordinary CI wait.
 
 ## Step 1: Read the live check state
 

@@ -44,6 +44,7 @@ class Event(StrEnum):
     INVALIDATED = "invalidated"
     VERIFIED = "verified"
     BOUNCED = "bounced"
+    TRIAGED = "triaged"
     COMPLETED = "completed"
     AUTOAPPROVED = "autoapproved"
 
@@ -526,7 +527,7 @@ class Pipeline:
         overridden = self._override(state, event, outcome, requested_target)
         if overridden is not None:
             return overridden
-        if requested_target is not None and event != Event.INVALIDATED:
+        if requested_target is not None and event not in (Event.INVALIDATED, Event.TRIAGED):
             raise ValueError(f"transition {event.value} from {state.stage} does not accept a target")
 
         if event == Event.PUBLISHED:
@@ -601,6 +602,16 @@ class Pipeline:
             if not self.can_invalidate(state.stage, requested_target):
                 raise ValueError(f"cannot invalidate {requested_target}: it is downstream of the active stage {state.stage}")
             target = State(requested_target, Gate.STALE, Lifecycle.PLANNING)
+            self.validate_state(target)
+            return target
+        if event == Event.TRIAGED:
+            if requested_target is None or requested_target not in self.active_stage_names or not self.stage(requested_target).triage_target:
+                raise ValueError("triage requires a delivery rework target in this workflow")
+            if state.gate == Gate.DECISION_REQUIRED:
+                raise ValueError(f"triage cannot interrupt {state.stage} / {state.gate.value}")
+            if not self.can_reenter(state.stage, requested_target):
+                raise ValueError(f"{state.stage} cannot triage back to {requested_target}")
+            target = State(requested_target, Gate.CHANGES_REQUIRED, Lifecycle.PLANNING)
             self.validate_state(target)
             return target
         if event == Event.AUTOAPPROVED:

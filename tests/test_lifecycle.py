@@ -69,6 +69,19 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(route.action, Action.HUMAN_APPROVAL)
         self.assertFalse(route.autonomous)
 
+    def test_live_triage_reenters_only_an_allowed_delivery_stage(self):
+        source = State("Verification", Gate.APPROVAL_REQUIRED)
+        for stage in ("Implementation", "Testing"):
+            with self.subTest(stage=stage):
+                target = FEATURE_PIPELINE.next_state(source, Event.TRIAGED, requested_target=stage)
+                self.assertEqual((target.stage, target.gate), (stage, Gate.CHANGES_REQUIRED))
+        with self.assertRaises(ValueError):
+            FEATURE_PIPELINE.next_state(State("Implementation", Gate.APPROVAL_REQUIRED), Event.TRIAGED,
+                                        requested_target="Testing")
+        with self.assertRaises(ValueError):
+            FEATURE_PIPELINE.next_state(State("Verification", Gate.DECISION_REQUIRED), Event.TRIAGED,
+                                        requested_target="Implementation")
+
     def test_help_flag_is_recognized_in_any_argument_position(self):
         self.assertTrue(wants_help(["236", "--help"]))
         self.assertTrue(wants_help(["--work-item", "236", "-h"]))
@@ -88,7 +101,7 @@ class FeaturePipelineMatrixTests(unittest.TestCase):
             {
                 "published", "reviewed", "ci-reconciled", "approved", "skipped",
                 "reauthored", "decision-resolved", "escalated", "invalidated", "verified", "bounced",
-                "completed", "autoapproved",
+                "completed", "autoapproved", "triaged",
             },
         )
         with self.assertRaises(ValueError):

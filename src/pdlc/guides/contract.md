@@ -120,6 +120,7 @@ Commands record them; the controller never infers them from a branch name or `Cl
 
 `Approved` and `Complete` are human boundaries.
 Only the driver may approve, skip, invalidate, resolve decisions, or complete a record, and only in response to an explicit instruction.
+Live CI failures and unresolved review threads on registered PRs may interrupt a PR-backed stage or a later active stage. `pdlc inspect` and `pdlc next` route an agent to triage; `pdlc post triage` records the investigated signal and returns an allowed delivery stage to Changes Required without changing upstream intent.
 Agents may request or record other workflow gates only through their owning commands.
 
 Verification approval is consumed by the completion transition rather than by a normal next-stage approval.

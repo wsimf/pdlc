@@ -120,7 +120,7 @@ from pdlc.internal.workitem import due_next, item_slug, pipeline_for_item, recor
 
 # The change-request sources whose text is the whole record's, not one task's:
 # they cannot be attributed to a pull request, so they form the triage unit.
-_TRIAGE_SOURCES = ("review", "bounce", "resolution")
+_TRIAGE_SOURCES = ("review", "bounce", "resolution", "triage")
 
 @dataclass(frozen=True)
 class _Fix:

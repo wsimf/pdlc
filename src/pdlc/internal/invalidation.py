@@ -58,7 +58,7 @@ def reauthor_invalidate_stage(record: dict, stage: str, pipeline: Pipeline) -> N
     record["Lifecycle"] = target.lifecycle.value
 
 
-def _persist_reentry(record: dict, target: State) -> None:
+def persist_reentry(record: dict, target: State) -> None:
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)
 
     if is_stage_skipped(record, target.stage):
@@ -71,7 +71,7 @@ def _persist_reentry(record: dict, target: State) -> None:
 def _record_invalidation(issue: str, record: dict, target: State, evidence_body: str) -> None:
     body = f"Invalidated stage: {target.stage}\n\n{evidence_body.strip()}\n"
     post_comment(str(issue), body, "INVALIDATED")
-    _persist_reentry(record, target)
+    persist_reentry(record, target)
 
 
 def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) -> State:
@@ -80,7 +80,7 @@ def bounce_stage(record: dict, pipeline: Pipeline, source: State, stage: str) ->
         target = pipeline.next_state(source, Event.BOUNCED, requested_target=stage)
     except ValueError as error:
         raise PdlcError(str(error)) from None
-    _persist_reentry(record, target)
+    persist_reentry(record, target)
     return target
 
 

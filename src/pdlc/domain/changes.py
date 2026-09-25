@@ -44,6 +44,7 @@ from pdlc.domain.workflow import Pipeline, State
 _CI_STAGE_LINE = re.compile(r"^CI failed stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _RESOLVED_STAGE_LINE = re.compile(r"^Resolved stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _INVALIDATED_STAGE_LINE = re.compile(r"^Invalidated stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+_TRIAGE_STAGE_LINE = re.compile(r"^Triage target stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _LEGACY_CI_SENTENCE = re.compile(r"CI check has failed on the (.+?) pull request")
 
 
@@ -56,6 +57,7 @@ SOURCE_LABELS = {
     "ci": "CI failure",
     "resolution": "Decision resolution",
     "invalidation": "Invalidation",
+    "triage": "Live PR triage",
 }
 
 
@@ -101,6 +103,10 @@ def open_change_requests(comments: list[dict[str, Any]], pipeline: Pipeline, sta
             try:
                 review = parse_review(body)
             except PdlcError:
+                triage_owner = _stage_named(pipeline, _line(_TRIAGE_STAGE_LINE, body))
+                if triage_owner:
+                    requests.append((index, ChangeRequest(triage_owner, "triage", comment)))
+                    continue
                 owner = _stage_named(pipeline, _line(_CI_STAGE_LINE, body) or _line(_LEGACY_CI_SENTENCE, body))
                 if owner:
                     requests.append((index, ChangeRequest(owner, "ci", comment)))

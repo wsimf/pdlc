@@ -35,7 +35,7 @@ This step is complete when `## Readiness` reads ready, `## Source` lists no miss
 `## Readiness` lets through only these gates:
 
 - **`Pending`** — the first pass.
-- **`Changes Required`** — a reviewer found missing or failing coverage. Read `pdlc inspect changes WORK_ITEM`; that is this pass's scope. When it lists a CI failure, or a Verification bounce for a red check, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Map through Check; it ends at Publish, then Report.
+- **`Changes Required`** — read `pdlc inspect changes WORK_ITEM`; that is this pass's scope, including any live PR triage evidence. For a failed check assigned to Testing, follow [`references/fix-ci.md`](references/fix-ci.md) in place of Map through Check; it ends at Publish, then Report. For a review thread assigned to Testing, use the cited thread and diagnosis as the coverage change to make.
 - **`Stale`** — implementation changed under existing coverage; reconcile it.
 
 This step is complete when the gate and this pass's scope are known.

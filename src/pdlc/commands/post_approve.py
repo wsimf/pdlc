@@ -32,6 +32,7 @@ DESCRIPTION
     PDLC-APPROVED comment then ends with a line naming the evidence that was
     missing, and the JSON carries `forced: true`, so the override stays on the
     record.
+    Live failed checks and unresolved threads on registered PRs still require triage; --force does not override this guard.
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.domain.changes import approval_gap
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help, resolve_text, wants_help
+from pdlc.internal.triage import live_signals, require_clear
 from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.workitem import (
     comments_for_issue,
@@ -54,6 +56,7 @@ from pdlc.internal.workitem import (
     item_status,
     post_comment,
     set_state,
+    task_tree,
     workflow_for_item,
 )
 
@@ -78,6 +81,7 @@ def approve(issue: str, evidence: str, attachment_inputs: list[dict], force: boo
     gap = approval_gap(comments_for_issue(issue), pipeline, stage)
     if gap is not None and not force:
         raise PdlcError(f"cannot approve {stage}: {gap}")
+    require_clear(live_signals(issue, record, task_tree(issue), pipeline, state))
 
     login = current_actor()
 

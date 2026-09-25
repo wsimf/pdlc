@@ -29,8 +29,9 @@ Required or Stale record with no change request to act on routes to
 queue scan still selects by stage and gate, so it can surface such a record
 as a stop ahead of later autonomous work. An empty queue scan and a Complete
 record carry `action: none` and a short notice instead of a `# Due Next`
-section. A CI Pending record routes to `pdlc-post-ci`; its command waits for
+section. A CI Pending record normally routes to `pdlc-post-ci`; its command waits for
 the registered PR stack to settle.
+From PR-backed delivery onward, live failed checks or unresolved threads on registered PRs route to `pdlc-triage` ahead of the ordinary gate action. Signals already recorded for the active Changes Required pass stay with its owning stage; Decision Required remains a driver boundary. Its `# Due Next` names the signals and their guides. Triage records an allowed rework target before the pipeline continues.
 
 Two routing side effects mutate the record before the decision is returned,
 the same way for a single --work-item lookup or a queue scan:
@@ -60,6 +61,7 @@ import time
 
 from pdlc.commands.inspect import due_next_section
 from pdlc.internal.ci_gate import peek_ci_state
+from pdlc.internal.triage import live_signals, eligible as triage_eligible
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.inputs import print_help
 from pdlc.domain.model import blocked_reason
@@ -69,6 +71,7 @@ from pdlc.domain.workflows.pipeline import PIPELINE_REGISTRY
 from pdlc.internal.reporting import yaml_front_matter
 from pdlc.internal.workitem import (
     heal_item,
+    comments_for_issue,
     is_stage_skipped,
     item_gate,
     item_issue,
@@ -77,6 +80,7 @@ from pdlc.internal.workitem import (
     queue_items,
     resolve_item,
     set_state,
+    task_tree,
 )
 
 
@@ -164,6 +168,11 @@ def scan_for_candidate() -> dict | None:
             if fallback is None:
                 fallback = summary
             continue
+        if triage_eligible(pipeline, state):
+            candidate = resolve_item(issue)
+            timeline = comments_for_issue(issue) if state.gate == Gate.CHANGES_REQUIRED else None
+            if live_signals(issue, candidate, task_tree(issue), pipeline, state, comments=timeline).needed:
+                return candidate
         # A CI-Pending record is only actionable once its checks have settled;
         # while they run it is a back-off, not a dispatch.
         if state.gate == Gate.CI_PENDING and peek_ci_state(issue) == "pending":
@@ -216,7 +225,10 @@ def next_once(selector: str | None) -> dict:
 # whichever command surfaced it. An evidence gate with no evidence renders a
 # stop-and-confirm fallback, so its action becomes human-input to match.
 def _with_due_next(result: dict, item: dict) -> dict:
-    result["due_next"], unevidenced = due_next_section(item)
+    result["due_next"], unevidenced, triage = due_next_section(item)
+    if triage:
+        result["action"] = "pdlc-triage"
+        result["reason"] = "live pull-request signals require triage"
     if unevidenced and result["action"].startswith("pdlc-"):
         result["action"] = "human-input"
         result["reason"] = "no evidence identifies the required changes; the user must confirm how to continue"
