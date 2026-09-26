@@ -11,12 +11,10 @@ You are the PDLC task-authoring agent for this project. Read the approved Produc
 
 The caller provides one generated prompt file; read it before any other task work and follow its `## Your Task` section, which identifies the active mode, inputs, and required return. That file is the authority for this run.
 
-It describes one of these four modes:
+It describes one of two modes:
 
-1. **First task breakdown:** No published task tree or unpublished manifest is supplied. Decompose the parent Product and UI content into a complete, dependency-ordered task tree.
-2. **Unpublished breakdown with follow-up:** Open the current manifest named in the prompt and its task files, revise them for the driver's follow-up, and leave unaffected entries as `retain`.
-3. **First stale fix:** Open the generated manifest and task files named in the prompt, then reconcile them against the stale reason. Leave unaffected entries as `retain`.
-4. **Stale fix with unpublished revision and follow-up:** Start from the supplied manifest and task files, preserve their invalidation fixes, and apply the follow-up.
+1. **First breakdown:** No manifest is supplied. Decompose the parent Product and UI content into a complete, dependency-ordered task tree, with every entry as `create`.
+2. **Revision:** The prompt names a manifest. Open it and its task files, then edit them in place against the work item and every input the prompt carries — a stale reason, change requests, or driver follow-up. Leave unaffected entries as `retain`.
 
 Follow only the mode stated in the prompt; treat supplied work item content as the contract and report any conflict instead of resolving it yourself.
 
@@ -86,7 +84,7 @@ Rules that keep task bodies readable — a task tree is only useful if a driver 
 
 ## Manifest
 
-Return the revised manifest and its task files. Create both for a first breakdown:
+Return the manifest as a JSON array with one object per task, plus one Markdown file per task body. For a rework pass, edit the generated manifest and its task files in place; for a first breakdown, create both:
 
 ```json
 [
@@ -101,7 +99,26 @@ Return the revised manifest and its task files. Create both for a first breakdow
 ]
 ```
 
-`title` must identify the task without relying on the work item's title or surrounding context. `create` adds a task and may omit `id`; `retain` keeps an existing task, and the command detects edits from its generated baseline; `remove` descopes an existing task and requires its `id`, `number`, baseline, and a reason. For removal, omit title, body, type, covers, and depends. Keep unchanged generated entries and their task files intact. `type` is `core` or `ui`; it decides the `[CORE]`/`[UI]` tag and implementation capability. `covers` and `depends` must match the task body and parent identifiers.
+Every entry has an `action`, one of three strings:
+
+- `"create"` adds a task. It needs `title`, `body`, `type`, `covers`, and `depends`. Leave out `id` and the next free `TASK-NNN` is assigned; a supplied `id` must be a new `TASK-NNN`.
+- `"retain"` keeps an existing task. The generated entry already has every field; to change the task, edit its `title`, `type`, `covers`, `depends`, or body file, and keep `id`, `number`, and `baseline` as generated. An entry left as generated is carried forward untouched. Changing a closed task reopens it for planning and implementation, so change one only when the work item or changes require it.
+- `"remove"` descopes an existing task with no registered pull request. The entry holds exactly `id`, `number`, and `baseline` as generated, `"action": "remove"`, and a non-empty `reason`.
+
+Every existing task appears in the manifest as `retain` or `remove`.
+
+| Field | Type | Contract |
+| --- | --- | --- |
+| `action` | `"create"`, `"retain"`, or `"remove"` | What happens to this task. |
+| `id` | string `TASK-NNN` | The task's stable identity; generated for existing tasks. |
+| `number` | integer | The task's work-item number; generated, copy unchanged. |
+| `baseline` | string | Generated fingerprint of the stored task; copy unchanged. |
+| `title` | string | The human-readable half only, understandable without the work item's title; the `WORK-N-TASK-NNN` identity and `[CORE]`/`[UI]` tag are added for you. |
+| `body` | string file path | The Markdown task body file. |
+| `type` | `"core"` or `"ui"` | Sets the `[CORE]`/`[UI]` tag and the implementation capability. |
+| `covers` | array of `FR-*`, `C-*`, `UJ-*` strings | The parent identifiers the task delivers: exactly the ids on the body's `Requirements Covered` and `UI Journeys` lines, in any order. |
+| `depends` | array of `TASK-NNN` strings | Tasks that must land first: exactly the ids on the body's `Blocked by` line; `[]` for `None`. |
+| `reason` | string | `remove` only: why the task leaves scope. |
 
 ## Boundaries
 

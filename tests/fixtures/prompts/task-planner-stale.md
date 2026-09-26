@@ -35,11 +35,13 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-The published Tasks stage was invalidated for this reason:
+Revise the task breakdown at `$CACHE_ROOT/.pdlc/cache/60/pdlc-task-planner-manifest.json`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
+
+### Invalidation reason
+
+The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
 detail
-
-This is the first rework pass. An editable copy of the published breakdown is at `$CACHE_ROOT/.pdlc/cache/60/pdlc-task-planner-manifest.json`. Read its manifest and task files, then revise it to address the invalidation reason.
 
 Reconcile the change requests below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 

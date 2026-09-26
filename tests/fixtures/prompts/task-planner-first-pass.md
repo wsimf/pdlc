@@ -35,7 +35,7 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-We haven't planned delivery tasks before. This is the first breakdown; decompose the work item above.
+No delivery tasks exist yet. Decompose the work item above into a first breakdown.
 
 ## Sequencing the tasks
 

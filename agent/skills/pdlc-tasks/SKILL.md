@@ -39,8 +39,10 @@ Carry the driver's follow-up verbatim. For `Stale`, reconcile against the existi
 
 Dispatch exactly one owning planner:
 
-- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM [--follow-up FILE]` writes; `--follow-up` carries the driver's verbatim follow-up when there is one.
-- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM [--follow-up FILE]` writes; `--follow-up` carries the driver's verbatim follow-up when there is one.
+- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM` writes. For a follow-up, supply both the current UI fragment path and the driver's verbatim follow-up; use `pdlc prompt ui-planner --help` for the paired inputs.
+- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM` writes. For a follow-up, supply both the current task manifest path and the driver's verbatim follow-up; use `pdlc prompt task-planner --help` for the paired inputs.
+
+If a follow-up arrives before a local artifact exists, dispatch the first brief to obtain the planner's artifact, then rebrief that planner with the artifact path and verbatim follow-up before Validate.
 
 For either, `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 
@@ -74,7 +76,7 @@ The dry run must be clean before review; it writes nothing. Send every failure b
 
 Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
 
-On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` or `task-planner` — with `--follow-up FILE` carrying the findings, then repeat Validate and Review on the same paths. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
+On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` with the current UI fragment path, or `task-planner` with the current task manifest path — and the findings as its follow-up. Repeat Validate and Review on those same files. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 
 ## Land
 

@@ -24,7 +24,7 @@ class TaskManifestActionsTests(FileBackendTest):
     def _generated(self):
         brief = self.invoke("prompt_task_planner", 40)
         self.assertEqual(brief.code, 0, brief.stderr)
-        match = re.search(r"editable copy of the published breakdown is at `([^`]+)`", brief.stdout)
+        match = re.search(r"Revise the task breakdown at `([^`]+)`", brief.stdout)
         self.assertIsNotNone(match)
         path = Path(match.group(1))
         return path, json.loads(path.read_text(encoding="utf-8"))

@@ -13,30 +13,19 @@ Work from this brief. Author the breakdown and return the task files and manifes
 
 ## Your Task
 
+{{#IF MANIFEST_PATH}}
+Revise the task breakdown at `{{MANIFEST_PATH}}`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
+{{#ELSE}}
+No delivery tasks exist yet. Decompose the work item above into a first breakdown.
+{{/ELSE}}
+{{/IF}}
 {{#IF STALE_REASON}}
-The published Tasks stage was invalidated for this reason:
+
+### Invalidation reason
+
+The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
 {{STALE_REASON}}
-
-{{#IF CURRENT_TASKS_MANIFEST_PATH}}
-An unpublished revision is at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read its manifest and task files, revise that breakdown, and preserve its fixes for the invalidation reason.
-{{#ELSE}}
-This is the first rework pass. An editable copy of the published breakdown is at `{{STARTING_MANIFEST_PATH}}`. Read its manifest and task files, then revise it to address the invalidation reason.
-{{/ELSE}}
-{{/IF}}
-{{#ELSE}}
-{{#IF CURRENT_TASKS_MANIFEST_PATH}}
-An unpublished task breakdown is at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read its manifest and task files, then revise that breakdown.
-{{#ELSE}}
-{{#IF EXISTING_TASKS}}
-An editable copy of the published breakdown is at `{{STARTING_MANIFEST_PATH}}`. Read its manifest and task files, then reconcile it against the current work item.
-{{#ELSE}}
-We haven't planned delivery tasks before. This is the first breakdown; decompose the work item above.
-{{/ELSE}}
-{{/IF}}
-{{/ELSE}}
-{{/IF}}
-{{/ELSE}}
 {{/IF}}
 {{#IF CHANGE_SOURCES}}
 

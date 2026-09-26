@@ -567,7 +567,8 @@ def task_planner_brief(
     change_sources = " and ".join(
         name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
     )
-    starting_manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
+    # A supplied draft and a generated copy of the published tree are revised the same way.
+    manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
 
     return render(
         "task-planner",
@@ -576,8 +577,7 @@ def task_planner_brief(
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
             "STALE_REASON": _stale_reason(item, comments, status),
-            "CURRENT_TASKS_MANIFEST_PATH": current_tasks_manifest,
-            "STARTING_MANIFEST_PATH": starting_manifest,
+            "MANIFEST_PATH": manifest,
             "EXISTING_TASKS": [
                 {
                     "TASK_ID": str(task["taskId"]),

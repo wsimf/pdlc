@@ -35,11 +35,13 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-The published Tasks stage was invalidated for this reason:
+Revise the task breakdown at `$CACHE_ROOT/current-tasks.json`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
+
+### Invalidation reason
+
+The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
 detail
-
-An unpublished revision is at `$CACHE_ROOT/current-tasks.json`. Read its manifest and task files, revise that breakdown, and preserve its fixes for the invalidation reason.
 
 Reconcile the driver follow-up below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 
