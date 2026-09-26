@@ -50,7 +50,7 @@ Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage, HIT
 **UI Journeys:** UJ-1 (UI tasks only)
 
 **Scope:**
-<What changes, in the imperative — the vertical slice, not the requirement behind it. ~50 words.>
+<A brief, easy-to-understand summary of what changes, in the imperative — the vertical slice, not the requirement behind it.>
 
 **Non-goals:**
 <What this task does not do, and which sibling task owns it instead. Omit the field when nothing is genuinely at risk of being pulled in.>
@@ -68,7 +68,7 @@ Do not add generated task identity or phase tags to the title or body; return th
 
 Rules that keep task bodies readable — a task tree is only useful if a driver can scan it:
 
-- **Budget.** `Scope` at most ~50 words; at most 5 acceptance criteria including the standard build/test and runtime-check lines. A task needing more is two tasks.
+- **Keep the task easy to understand.** Write a brief `Scope` and only the acceptance criteria needed to define done. If the scope or criteria grow into independently verifiable concerns, split them into separate tasks.
 - **Do not restate requirements.** `Requirements Covered` already points at the `FR-*`/`C-*`; `Scope` says what changes because of them. Re-narrating the requirement is the main reason task trees become unreadable.
 - **Acceptance criteria are outcomes, not activities.** "Selecting a route preserves the browser's navigation path" is a criterion; "add tests for X, Y and Z" is a work item.
 - **Name no types, files, or APIs.** The technical shape belongs to `pdlc-tech-planner`; fixing it here pre-empts a stage you do not own and dates the body the moment the spike disagrees.
@@ -92,7 +92,7 @@ Return one file per task plus a manifest JSON array naming them:
 ]
 ```
 
-`title` is the human-readable half only. Supply `id` to update an existing task in place; omit it for a new task and the caller assigns the next free number. `ui` must be a strict `true`/`false` — never guessed, since it decides the `[UI]`/`[CORE]` tag and later routes the task to the `ui-implementer` or `core-implementer` capability. `covers` and `depends` must exactly match what each task body actually claims — the caller validates both against the parent's own `FR-*`/`C-*`/`UJ-*` before writing anything.
+`title` is the human-readable half only and must identify the task without relying on the work item's title or surrounding context. Supply `id` to update an existing task in place; omit it for a new task and the caller assigns the next free number. `ui` must be a strict `true`/`false` — never guessed, since it decides the `[UI]`/`[CORE]` tag and later routes the task to the `ui-implementer` or `core-implementer` capability. `covers` and `depends` must exactly match what each task body actually claims — the caller validates both against the parent's own `FR-*`/`C-*`/`UJ-*` before writing anything.
 
 ## Boundaries
 
