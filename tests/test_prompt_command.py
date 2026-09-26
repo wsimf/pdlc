@@ -323,7 +323,9 @@ class PromptCommandTest(PromptHarness):
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Existing tasks", result.stdout)
-        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("Reconcile the change requests below against the work item", result.stdout)
+        self.assertLess(result.stdout.index("### Change requests"), result.stdout.index("## Existing tasks"))
         self.assertIn("The published Tasks stage was invalidated for this reason:\n\ndetail", result.stdout)
         self.assertIn("number: 601", result.stdout)
         self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
@@ -337,7 +339,8 @@ class PromptCommandTest(PromptHarness):
             "--current-tasks-manifest-path", manifest,
             "--follow-up", "text:split the export task in two",
         )
-        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("Reconcile the driver follow-up below against the work item", result.stdout)
         self.assertNotIn("### Change requests", result.stdout)
         self.assertIn(
             "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
@@ -368,7 +371,8 @@ class PromptCommandTest(PromptHarness):
         self.add_rework_review(60, stage="Tasks")
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("Reconcile the change requests below against the work item", result.stdout)
         self.assertIn("## Findings\n\n- detail", result.stdout)
 
     def test_a_record_not_at_tasks_refuses(self):

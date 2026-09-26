@@ -39,11 +39,19 @@ The published Tasks stage was invalidated for this reason:
 
 detail
 
-An unpublished revision is described by the manifest at `$CACHE_ROOT/current-tasks.json`. Read the manifest and each task body it references, use that revision as the starting breakdown, preserve its fixes for the invalidation reason, and apply the changes below.
+An unpublished revision is described by the manifest at `$CACHE_ROOT/current-tasks.json`. Read the manifest and each task body it references, use that revision as the starting breakdown, and preserve its fixes for the invalidation reason.
+
+Reconcile the driver follow-up below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
+
+### Driver follow-up
+
+A change the driver asked for, or findings from a review of the breakdown, verbatim.
+
+also split the export task in two
 
 ## Existing tasks
 
-Reconcile this complete breakdown against the current work item and any changes below.
+Reconcile this complete breakdown against the current work item.
 
 - Rewrite, add, or remove only tasks affected by the current work item or the changes.
 - Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
@@ -71,20 +79,6 @@ x
 - ok
 
 --- END TASK BODY ---
-
-## Changes needed
-
-The following change inputs apply to this pass: driver follow-up. Reconcile each against the work item; the work item remains the contract.
-
-- Apply each change to the tasks it affects.
-- If a requested change conflicts with the work item, stop and report it.
-- If you cannot tell which task or requirement a change affects, stop and report it.
-
-### Driver follow-up
-
-A change the driver asked for, or findings from a review of the breakdown, verbatim.
-
-also split the export task in two
 
 ## Sequencing the tasks
 

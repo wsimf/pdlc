@@ -35,15 +35,9 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-An unpublished task breakdown is described by the manifest at `$CACHE_ROOT/current-tasks.json`. Read the manifest and each task body it references, use that revision as the starting breakdown, and apply the changes below.
+An unpublished task breakdown is described by the manifest at `$CACHE_ROOT/current-tasks.json`. Read the manifest and each task body it references, and use that revision as the starting breakdown.
 
-## Changes needed
-
-The following change inputs apply to this pass: driver follow-up. Reconcile each against the work item; the work item remains the contract.
-
-- Apply each change to the tasks it affects.
-- If a requested change conflicts with the work item, stop and report it.
-- If you cannot tell which task or requirement a change affects, stop and report it.
+Reconcile the driver follow-up below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 
 ### Driver follow-up
 

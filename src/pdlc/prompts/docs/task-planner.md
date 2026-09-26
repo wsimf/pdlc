@@ -19,17 +19,17 @@ The published Tasks stage was invalidated for this reason:
 {{STALE_REASON}}
 
 {{#IF CURRENT_TASKS_MANIFEST_PATH}}
-An unpublished revision is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, use that revision as the starting breakdown, preserve its fixes for the invalidation reason, and apply the changes below.
+An unpublished revision is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, use that revision as the starting breakdown, and preserve its fixes for the invalidation reason.
 {{#ELSE}}
-This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason and the changes below.
+This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason.
 {{/ELSE}}
 {{/IF}}
 {{#ELSE}}
 {{#IF CURRENT_TASKS_MANIFEST_PATH}}
-An unpublished task breakdown is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, use that revision as the starting breakdown, and apply the changes below.
+An unpublished task breakdown is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, and use that revision as the starting breakdown.
 {{#ELSE}}
 {{#IF EXISTING_TASKS}}
-The published task breakdown is included below. Reconcile it against the changes below.
+The published task breakdown is included below. Reconcile it against the current work item.
 {{#ELSE}}
 We haven't planned delivery tasks before. This is the first breakdown; decompose the work item above.
 {{/ELSE}}
@@ -38,37 +38,9 @@ We haven't planned delivery tasks before. This is the first breakdown; decompose
 {{/IF}}
 {{/ELSE}}
 {{/IF}}
-{{#IF EXISTING_TASKS}}
-
-## Existing tasks
-
-Reconcile this complete breakdown against the current work item and any changes below.
-
-- Rewrite, add, or remove only tasks affected by the current work item or the changes.
-- Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
-- Preserve complete requirement, journey, and dependency coverage across the resulting tree.
-{{#EACH EXISTING_TASKS}}
-
-### `{{TASK_ID}}`
-
-{{TASK_METADATA}}
-
---- BEGIN TASK BODY ---
-
-{{TASK_BODY}}
-
---- END TASK BODY ---
-{{/EACH}}
-{{/IF}}
 {{#IF CHANGE_SOURCES}}
 
-## Changes needed
-
-The following change inputs apply to this pass: {{CHANGE_SOURCES}}. Reconcile each against the work item; the work item remains the contract.
-
-- Apply each change to the tasks it affects.
-- If a requested change conflicts with the work item, stop and report it.
-- If you cannot tell which task or requirement a change affects, stop and report it.
+Reconcile the {{CHANGE_SOURCES}} below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 {{#IF CHANGE_REQUESTS}}
 
 ### Change requests
@@ -89,6 +61,28 @@ A change the driver asked for, or findings from a review of the breakdown, verba
 
 {{DRIVER_FOLLOWUP}}
 {{/IF}}
+{{/IF}}
+{{#IF EXISTING_TASKS}}
+
+## Existing tasks
+
+Reconcile this complete breakdown against the current work item.
+
+- Rewrite, add, or remove only tasks affected by the current work item or the changes.
+- Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
+- Preserve complete requirement, journey, and dependency coverage across the resulting tree.
+{{#EACH EXISTING_TASKS}}
+
+### `{{TASK_ID}}`
+
+{{TASK_METADATA}}
+
+--- BEGIN TASK BODY ---
+
+{{TASK_BODY}}
+
+--- END TASK BODY ---
+{{/EACH}}
 {{/IF}}
 
 {{INCLUDE:shared/task-sequencing.md}}

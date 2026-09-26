@@ -39,11 +39,26 @@ The published Tasks stage was invalidated for this reason:
 
 detail
 
-This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason and the changes below.
+This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason.
+
+Reconcile the change requests below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
+
+### Change requests
+
+Findings recorded against this stage since it last published.
+
+--- BEGIN CHANGE REQUESTS ---
+
+### Change request — 2026-04-01 00:00 UTC
+
+Invalidated stage: Tasks
+detail
+
+--- END CHANGE REQUESTS ---
 
 ## Existing tasks
 
-Reconcile this complete breakdown against the current work item and any changes below.
+Reconcile this complete breakdown against the current work item.
 
 - Rewrite, add, or remove only tasks affected by the current work item or the changes.
 - Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
@@ -71,27 +86,6 @@ x
 - ok
 
 --- END TASK BODY ---
-
-## Changes needed
-
-The following change inputs apply to this pass: change requests. Reconcile each against the work item; the work item remains the contract.
-
-- Apply each change to the tasks it affects.
-- If a requested change conflicts with the work item, stop and report it.
-- If you cannot tell which task or requirement a change affects, stop and report it.
-
-### Change requests
-
-Findings recorded against this stage since it last published.
-
---- BEGIN CHANGE REQUESTS ---
-
-### Change request — 2026-04-01 00:00 UTC
-
-Invalidated stage: Tasks
-detail
-
---- END CHANGE REQUESTS ---
 
 ## Sequencing the tasks
 
