@@ -84,7 +84,7 @@ def remove_subissue(parent: int | str, child: int | str) -> None:
       removeSubIssue(input: {issueId: $parentId, subIssueId: $childId}) { issue { id } }
     }"""
     result = run_graphql(mutation, parentId=parent_id, childId=child_id)
-    if ((result.get("data") or {}).get("removeSubIssue") or {}).get("issue", {}).get("id") != parent_id:
+    if (((result.get("data") or {}).get("removeSubIssue") or {}).get("issue") or {}).get("id") != parent_id:
         raise PdlcError("GitHub returned an incomplete sub-issue removal")
 
 

@@ -166,7 +166,7 @@ from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, re
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.task_artifact import snapshot, stored_fields
+from pdlc.domain.task_artifact import declared_links, snapshot, stored_fields
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -306,9 +306,39 @@ def _descope_ids(issue: str) -> set[str]:
     return ids
 
 
+def _descope_note(issue: str, reason: str) -> str:
+    return f"Descoped from work item #{issue}: {reason}"
+
+
+def _has_note(task: dict, note: str) -> bool:
+    return any(note in comment for comment in task.get("comments") or [])
+
+
+def _detached_task(entry: dict, task_id: str, issue: str) -> dict | None:
+    """A removal an earlier run already finished: closed, noted, and detached."""
+    number, reason = entry.get("number"), entry.get("reason")
+    if not isinstance(number, int) or number <= 0 or not isinstance(reason, str):
+        return None
+    found = tasks_by_number([str(number)])
+    if len(found) != 1:
+        return None
+    task = found[0]
+    if task.get("taskId") == task_id and task.get("state") == "CLOSED" and _has_note(task, _descope_note(issue, reason.strip())):
+        return task
+    return None
+
+
+def _id_list(value: object) -> object:
+    """Order-insensitive id lists; any other shape is left for build_plan to reject."""
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return sorted(set(value))
+    return value
+
+
 def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: str, reserved: set[str]) -> tuple[list[dict], list[dict]]:
     """Resolve editable planner entries to the established task-plan shape."""
     by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
+    linked = set(by_id)
     prepared: list[dict] = []
     removals: list[dict] = []
     seen_ids: set[str] = set()
@@ -319,11 +349,12 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             seen_ids.add(entry["id"])
         action = entry.get("action")
         if action is None:
-            if "type" in entry:
-                action = "create" if not entry.get("id") else None
-            else:
+            if "type" not in entry:
                 prepared.append(dict(entry))
                 continue
+            if entry.get("id"):
+                raise PdlcError(f"manifest entry {index} names id {entry['id']}; set its action to create, retain, or remove")
+            action = "create"
         if action not in ("create", "retain", "remove"):
             raise PdlcError(f"manifest entry {index} action must be create, retain, or remove")
         task_id = entry.get("id")
@@ -332,21 +363,9 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
                 raise PdlcError(f"{task_id} was descoped; use a new id")
         else:
             if action == "remove" and isinstance(task_id, str) and task_id not in by_id:
-                number = entry.get("number")
-                if isinstance(number, int) and number > 0:
-                    [detached] = tasks_by_number([str(number)])
-                    reason = entry.get("reason")
-                    note = f"Descoped from work item #{issue}: {reason}"
-                    if (detached.get("taskId") == task_id and detached.get("state") == "CLOSED"
-                            and isinstance(reason, str) and any(note in comment for comment in detached.get("comments", []))):
-                        by_id[task_id] = detached
-                        already_removed = True
-                    else:
-                        already_removed = False
-                else:
-                    already_removed = False
-            else:
-                already_removed = False
+                detached = _detached_task(entry, task_id, issue)
+                if detached is not None:
+                    by_id[task_id] = detached
             if not isinstance(task_id, str) or task_id not in by_id:
                 raise PdlcError(f"manifest entry {index} must name an existing task for {action}")
             baseline = entry.get("baseline")
@@ -358,11 +377,16 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
                 raise PdlcError(f"{task_id} removal requires a reason")
             if entry.get("number") != by_id[task_id]["number"]:
                 raise PdlcError(f"{task_id} removal requires its generated task number")
+            # A registered pull request is what marks a task implemented.
             if by_id[task_id].get("prs"):
-                raise PdlcError(f"{task_id} has completed work or a registered pull request; resolve it before removal")
+                raise PdlcError(f"{task_id} has a registered pull request; resolve it before removal")
             if any(key in entry for key in ("title", "body", "type", "covers", "depends", "ui")):
                 raise PdlcError(f"{task_id} removal must contain only id, number, action, baseline, and reason")
-            removals.append({"id": task_id, "number": by_id[task_id]["number"], "reason": reason.strip(), "already_removed": already_removed})
+            removals.append({
+                "id": task_id, "number": by_id[task_id]["number"], "reason": reason.strip(),
+                "detached": task_id not in linked,
+                "noted": _has_note(by_id[task_id], _descope_note(issue, reason.strip())),
+            })
             continue
         kind = entry.get("type")
         if kind not in ("core", "ui"):
@@ -374,16 +398,18 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
         task = {
             "id": task_id, "title": entry.get("title"), "body": body_path,
             "bodyText": body_text, "ui": kind == "ui",
-            "covers": entry.get("covers"), "depends": entry.get("depends") or [],
+            "covers": _id_list(entry.get("covers")), "depends": _id_list(entry.get("depends") or []),
         }
-        body_fields = stored_fields({"body": body_text})
-        if (task["covers"], task["depends"]) != (body_fields["covers"], body_fields["depends"]):
-            raise PdlcError(f"manifest entry {index} covers and depends must match its task body")
-        after = {"title": task["title"], "type": kind, "covers": task["covers"],
-                 "depends": task["depends"], "body": body_text}
+        # Only links the body labels are checked; an unlabelled body declares none.
+        for field, declared in declared_links(body_text).items():
+            if task[field] != declared:
+                raise PdlcError(f"manifest entry {index} {field} must match its task body: {declared}")
+        # covers and depends are derived from the body, so the stored content is title, type, and body.
+        after = {"title": task["title"], "type": kind, "body": body_text}
         if action == "retain" or task_id in by_id:
-            before = stored_fields(by_id[task_id])
-            already_applied = action == "retain" and entry.get("baseline") != snapshot(before)
+            stored = stored_fields(by_id[task_id])
+            before = {key: stored[key] for key in after}
+            already_applied = action == "retain" and entry.get("baseline") != snapshot(stored)
             if already_applied and after != before:
                 raise PdlcError(f"{task_id} changed since its planner artifact was generated; regenerate it")
             if action == "create" and after != before:
@@ -552,10 +578,12 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         )
         reopened = [task_ids[number] for number in numbers]
 
+    # The note is plain rather than marked: a descoped task carries no stage evidence.
     for removal in removals:
-        if removal["already_removed"]:
+        if removal["detached"]:
             continue
-        post_comment(str(removal["number"]), f"Descoped from work item #{issue}: {removal['reason']}\n", "TASKS")
+        if not removal["noted"]:
+            post_comment(str(removal["number"]), _descope_note(issue, removal["reason"]) + "\n")
         remove_task(issue, str(removal["number"]))
 
     # The evidence body is the durable judgement. Counts, order, and coverage

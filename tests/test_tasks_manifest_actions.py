@@ -126,7 +126,7 @@ class TaskManifestActionsTests(FileBackendTest):
         entries[1] = {"id": entries[1]["id"], "number": entries[1]["number"], "action": "remove",
                       "baseline": entries[1]["baseline"], "reason": "Superseded by TASK-001"}
         from pdlc.internal.workitem import post_comment, remove_task
-        post_comment("402", "Descoped from work item #40: Superseded by TASK-001\n", "TASKS")
+        post_comment("402", "Descoped from work item #40: Superseded by TASK-001\n")
         remove_task("40", "402")
         result = self._land(path, entries)
         self.assertEqual(result.code, 0, result.stderr)
@@ -162,3 +162,47 @@ class TaskManifestActionsTests(FileBackendTest):
         result = self._land(path, entries)
         self.assertEqual(result.code, 1)
         self.assertIn("registered pull request", result.stderr)
+
+    def test_covers_and_depends_are_order_insensitive(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", "**Blocked by:** TASK-002, TASK-001\n**Requirements Covered:** FR-2, FR-1\n\n**Scope:**\nNext seam.\n")
+        entries.append({"title": "Next seam", "body": body, "type": "core",
+                        "covers": ["FR-2", "FR-1"], "depends": ["TASK-002", "TASK-001"]})
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["created"], ["TASK-003"])
+
+    def test_unlabelled_body_is_not_checked_against_the_manifest(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", "**Scope:**\nNext seam, unlike FR-1 and TASK-001.\n")
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["created"], ["TASK-003"])
+
+    def test_labelled_covers_must_match_the_manifest(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-1\n\n**Scope:**\nNext seam.\n")
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 1)
+        self.assertIn("covers must match its task body", result.stderr)
+
+    def test_existing_id_without_action_is_refused_with_a_clear_reason(self):
+        path, entries = self._generated()
+        entries[0].pop("action")
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 1)
+        self.assertIn("names id TASK-001; set its action", result.stderr)
+
+    def test_retry_after_descope_note_does_not_repeat_it(self):
+        path, entries = self._generated()
+        entries[1] = {"id": entries[1]["id"], "number": entries[1]["number"], "action": "remove",
+                      "baseline": entries[1]["baseline"], "reason": "Superseded"}
+        from pdlc.internal.workitem import post_comment
+        post_comment("402", "Descoped from work item #40: Superseded\n")
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["removed"], ["TASK-002"])
+        self.assertEqual(self.task_comments_text(40, 402).count("Descoped from work item #40"), 1)
+        self.assertNotIn("PDLC-TASKS", self.task_comments_text(40, 402))

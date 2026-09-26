@@ -112,7 +112,7 @@ Writes:
 1. If re-authoring: `set_state` → Tasks / Stale.
 2. Before any remote write, assign missing `TASK-NNN` identities and save them atomically in the supplied manifest; then, per task, create and link a new task or edit a changed task, leaving unchanged tasks untouched. Tasks created but never linked by an earlier run are found and linked on retry.
 3. For each rewritten task that was already closed: `reopen` → `PDLC-INVALIDATED` on the task → delete its `## Implementation` and `## Technical Plan` comments.
-4. For each `remove` entry: post a descope comment on the task → close it → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
+4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
 6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
 
@@ -120,7 +120,7 @@ Partial failure:
 - In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.
 - Between 2 and 3: a rewritten task may still be closed. A re-run detects that its requested content landed and reopens it.
 - During 3: a task may have reopened before its invalidation comment or stale plan and implementation comments were cleared. Inspect it after retry; the current `reopen_tasks` helper skips already-open tasks.
-- In 4: a descope comment or close may have landed before detachment, or the task may already be detached. A re-run uses the task number and matching descope comment to recognize a completed detach, then finishes the remaining removals.
+- In 4: a descope comment or close may have landed before detachment, or the task may already be detached. A re-run skips a descope comment that already landed, uses the task number and matching descope comment to recognize a completed detach, then finishes the remaining removals.
 - After 5: `PDLC-TASKS` landed, state not moved; a re-run may post a duplicate evidence comment.
 
 Check: `pdlc inspect task T` for each rewritten task — it should be open with no stale `## Technical Plan` or `## Implementation` comment; check each removed task is closed and absent from the parent's active task list; `pdlc inspect N` should show Review Required and the timeline should show this `PDLC-TASKS` evidence.

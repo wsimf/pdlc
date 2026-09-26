@@ -17,20 +17,29 @@ def _field(body: str, label: str) -> str | None:
     return match.group(1) if match else None
 
 
+def declared_links(body: str) -> dict[str, list[str]]:
+    """The covers and depends a body declares on its labelled lines; an absent label declares nothing."""
+    requirements = _field(body, "Requirements Covered")
+    blocked = _field(body, "Blocked by")
+    links: dict[str, list[str]] = {}
+    if requirements is not None:
+        journeys = _field(body, "UI Journeys") or ""
+        links["covers"] = sorted(set(_COVER.findall(f"{requirements} {journeys}")))
+    if blocked is not None:
+        links["depends"] = sorted(set(_TASK.findall(blocked)))
+    return links
+
+
 def stored_fields(task: dict) -> dict:
     """Rebuild manifest fields from the stored title and task body."""
     body = task.get("body") or ""
-    requirements = _field(body, "Requirements Covered")
-    journeys = _field(body, "UI Journeys")
-    blocked = _field(body, "Blocked by")
-    covered_text = " ".join(part for part in (requirements, journeys) if part)
-    covers = sorted(set(_COVER.findall(covered_text if requirements is not None else body)))
+    links = declared_links(body)
     title_parts = (task.get("title") or "").split(" ", 2)
     return {
         "title": carried_title(task.get("title") or ""),
         "type": "ui" if "[UI]" in title_parts[:2] else "core",
-        "covers": covers,
-        "depends": sorted(set(_TASK.findall(blocked))) if blocked is not None else [],
+        "covers": links.get("covers", sorted(set(_COVER.findall(body)))),
+        "depends": links.get("depends", []),
         "body": body,
     }
 
