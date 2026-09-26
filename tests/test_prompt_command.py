@@ -324,7 +324,7 @@ class PromptCommandTest(PromptHarness):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Existing tasks", result.stdout)
         self.assertIn("## Changes needed", result.stdout)
-        self.assertIn("Invalidated stage: Tasks", result.stdout)
+        self.assertIn("The published Tasks stage was invalidated for this reason:\n\ndetail", result.stdout)
         self.assertIn("number: 601", result.stdout)
         self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
         self.assertIn("--- BEGIN TASK BODY ---\n\n## Scope\nx\n\n## Acceptance criteria\n- ok\n\n--- END TASK BODY ---", result.stdout)
@@ -332,7 +332,11 @@ class PromptCommandTest(PromptHarness):
 
     def test_follow_up_is_carried_verbatim(self):
         self._tasks_stage_pending()
-        result = self._planner_brief("--follow-up", "text:split the export task in two")
+        manifest = self.write_file("current-tasks.json", "[]\n")
+        result = self._planner_brief(
+            "--current-tasks-manifest-path", manifest,
+            "--follow-up", "text:split the export task in two",
+        )
         self.assertIn("## Changes needed", result.stdout)
         self.assertNotIn("### Change requests", result.stdout)
         self.assertIn(
@@ -341,6 +345,22 @@ class PromptCommandTest(PromptHarness):
             result.stdout,
         )
         self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
+
+    def test_rework_requires_an_existing_manifest_and_follow_up_together(self):
+        self._tasks_stage_pending()
+        manifest = self.write_file("current-tasks.json", "[]\n")
+        follow_up_only = self._planner_brief("--follow-up", "text:revise")
+        manifest_only = self._planner_brief("--current-tasks-manifest-path", manifest)
+        missing_manifest = self._planner_brief(
+            "--current-tasks-manifest-path", str(self.work / "missing.json"),
+            "--follow-up", "text:revise",
+        )
+        self.assertNotEqual(follow_up_only.code, 0)
+        self.assertIn("must be supplied together", follow_up_only.stderr)
+        self.assertNotEqual(manifest_only.code, 0)
+        self.assertIn("must be supplied together", manifest_only.stderr)
+        self.assertNotEqual(missing_manifest.code, 0)
+        self.assertIn("does not exist", missing_manifest.stderr)
 
     def test_changes_required_record_carries_open_review_findings(self):
         self.seed_record(60, "Tasks", "Changes Required", slug="record-60")

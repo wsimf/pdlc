@@ -10,6 +10,34 @@ Work from this brief. Author the breakdown and return the task files and manifes
 {{PARENT_BODY}}
 
 --- END WORK ITEM ---
+
+## Your Task
+
+{{#IF STALE_REASON}}
+The published Tasks stage was invalidated for this reason:
+
+{{STALE_REASON}}
+
+{{#IF CURRENT_TASKS_MANIFEST_PATH}}
+An unpublished revision is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, use that revision as the starting breakdown, preserve its fixes for the invalidation reason, and apply the changes below.
+{{#ELSE}}
+This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason and the changes below.
+{{/ELSE}}
+{{/IF}}
+{{#ELSE}}
+{{#IF CURRENT_TASKS_MANIFEST_PATH}}
+An unpublished task breakdown is described by the manifest at `{{CURRENT_TASKS_MANIFEST_PATH}}`. Read the manifest and each task body it references, use that revision as the starting breakdown, and apply the changes below.
+{{#ELSE}}
+{{#IF EXISTING_TASKS}}
+The published task breakdown is included below. Reconcile it against the changes below.
+{{#ELSE}}
+We haven't planned delivery tasks before. This is the first breakdown; decompose the work item above.
+{{/ELSE}}
+{{/IF}}
+{{/ELSE}}
+{{/IF}}
+{{/ELSE}}
+{{/IF}}
 {{#IF EXISTING_TASKS}}
 
 ## Existing tasks

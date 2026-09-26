@@ -33,6 +33,10 @@ UJ-1 covers the first run.
 
 --- END WORK ITEM ---
 
+## Your Task
+
+We haven't planned delivery tasks before. This is the first breakdown; decompose the work item above.
+
 ## Sequencing the tasks
 
 Tasks land in order, each on its own pull request stacked on the one before, so

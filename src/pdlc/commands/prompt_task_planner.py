@@ -3,7 +3,9 @@
     pdlc prompt task-planner - read-only: print the task planner's brief for a record's delivery-task breakdown
 
 USAGE
-    pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    pdlc prompt task-planner WORK_ITEM [--file]
+    - when revising a prior task breakdown:
+      pdlc prompt task-planner WORK_ITEM --current-tasks-manifest-path FILE --follow-up FILE|text:BODY [--file]
 
 DESCRIPTION
     Prints the complete brief for the sub-agent that decomposes a record into a
@@ -18,17 +20,20 @@ DESCRIPTION
     received since it last published; with none, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
-    with nothing given, that section is omitted.
+    with nothing given, that section is omitted. A rework pass also supplies
+    the current task manifest, whose task body files the agent reads and revises.
+    The two inputs must be supplied together.
 
 FLAGS
-    --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass
+    --current-tasks-manifest-path FILE  existing task manifest; required with --follow-up
+    --follow-up FILE|text:BODY    the driver's verbatim follow-up; requires --current-tasks-manifest-path
     --file                  write the brief to
                             the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt task-planner 236
-    pdlc prompt task-planner 236 --follow-up text:"split the export task in two"
+    pdlc prompt task-planner 236 --current-tasks-manifest-path /tmp/tasks.json --follow-up text:"split the export task in two"
 """
 
 from __future__ import annotations
@@ -51,12 +56,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Print the task planner's brief for a record's delivery-task breakdown")
     prompt.add_common_arguments(parser, COMMAND)
     parser.add_argument("--follow-up", help="the driver's verbatim follow-up (FILE or text:BODY)")
+    parser.add_argument("--current-tasks-manifest-path", metavar="FILE", help="the existing task manifest for a rework pass")
     args = parser.parse_args(command_args)
 
     return prompt.run(
         COMMAND,
         args,
-        lambda: prompt.task_planner_brief(args.work_item, args.follow_up),
+        lambda: prompt.task_planner_brief(
+            args.work_item, args.follow_up, args.current_tasks_manifest_path
+        ),
     )
 
 

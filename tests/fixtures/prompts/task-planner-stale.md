@@ -33,6 +33,14 @@ UJ-1 covers the first run.
 
 --- END WORK ITEM ---
 
+## Your Task
+
+The published Tasks stage was invalidated for this reason:
+
+detail
+
+This is the first rework pass. Reconcile any existing tasks below to address the invalidation reason and the changes below.
+
 ## Existing tasks
 
 Reconcile this complete breakdown against the current work item and any changes below.

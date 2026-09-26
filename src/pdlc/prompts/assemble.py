@@ -1,7 +1,7 @@
 """Assemble agent prompts from the Markdown fragments bundled in the sibling ``docs/``.
 
 The fragments are the contract; this module is only the substitution engine that
-joins them. It understands four directives:
+joins them. It understands these template forms:
 
 ``{{NAME}}``
     Replaced by ``context["NAME"]``. Substituted wherever it appears, including
@@ -13,10 +13,10 @@ joins them. It understands four directives:
     fragment's trailing newlines are dropped and the including line's own newline
     is kept, so an include on its own line contributes exactly its own lines.
 
-``{{#IF NAME}} ... {{/IF}}``
-    Kept when ``context["NAME"]`` is truthy, dropped entirely otherwise. This is
-    how a fragment marks a section as conditional instead of the caller having to
-    know which sections are optional.
+``{{#IF NAME}} ... {{#ELSE}} ... {{/ELSE}} ... {{/IF}}``
+    Kept when ``context["NAME"]`` is truthy under JavaScript/TypeScript rules; the
+    optional ``#ELSE`` body is kept when it is falsy. Empty lists and mappings are
+    truthy. Both ELSE directives must sit inside an IF block.
 
 ``{{#EACH NAME}} ... {{/EACH}}``
     The body is rendered once per item in ``context["NAME"]``, which must be a
@@ -24,7 +24,7 @@ joins them. It understands four directives:
     and the surrounding context second, so a repeated fragment can still reach
     values that belong to the whole prompt.
 
-The two block directives must sit alone on their line; the line itself is
+Block directives must sit alone on their line; the directive lines themselves are
 consumed. Every name a template references must be present in the context, so a
 typo fails loudly rather than rendering a prompt with a hole in it.
 """
@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from importlib.resources import files
+import math
 import re
 from typing import Protocol
 
@@ -54,6 +55,8 @@ class PromptError(Exception):
 _PLACEHOLDER = re.compile(r"\{\{(?:INCLUDE:(?P<path>[A-Za-z0-9_./-]+)|(?P<name>[A-Z0-9_]+))\}\}")
 _BLOCK_OPEN = re.compile(r"^[ \t]*\{\{#(?P<kind>IF|EACH)\s+(?P<name>[A-Z0-9_]+)\}\}[ \t]*$")
 _BLOCK_CLOSE = re.compile(r"^[ \t]*\{\{/(?P<kind>IF|EACH)\}\}[ \t]*$")
+_ELSE_OPEN = re.compile(r"^[ \t]*\{\{#ELSE\}\}[ \t]*$")
+_ELSE_CLOSE = re.compile(r"^[ \t]*\{\{/ELSE\}\}[ \t]*$")
 _SAFE_PATH = re.compile(r"^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\.md$")
 
 
@@ -96,7 +99,11 @@ def _render_lines(
     while index < len(lines):
         line = lines[index]
         directive = line.rstrip("\r\n")
-        if _BLOCK_CLOSE.match(directive):
+        if (
+            _BLOCK_CLOSE.match(directive)
+            or _ELSE_OPEN.match(directive)
+            or _ELSE_CLOSE.match(directive)
+        ):
             raise PromptError(f"unexpected {directive.strip()}")
         opened = _BLOCK_OPEN.match(directive)
         if opened is None:
@@ -104,31 +111,57 @@ def _render_lines(
             index += 1
             continue
         kind, name = opened.group("kind"), opened.group("name")
-        close = _find_close(lines, index + 1, kind, name)
+        close, alternate = _find_close(lines, index + 1, kind, name)
+        body_end = alternate[0] if alternate is not None else close
+        alternate_body = lines[alternate[0] + 1 : alternate[1]] if alternate is not None else None
         # The body stays unrendered until the block knows its scope: an #EACH
         # body must be rendered once per item, against that item.
-        out.append(_render_block(kind, name, lines[index + 1 : close], context, loader, stack))
+        out.append(
+            _render_block(
+                kind, name, lines[index + 1 : body_end], alternate_body, context, loader, stack
+            )
+        )
         index = close + 1
     return "".join(out)
 
 
-def _find_close(lines: Sequence[str], start: int, kind: str, name: str) -> int:
-    """Index of the ``{{/KIND}}`` closing the block opened before ``start``."""
+def _find_close(
+    lines: Sequence[str], start: int, kind: str, name: str,
+) -> tuple[int, tuple[int, int] | None]:
+    """Find the block close and, for IF, the ELSE markers at this nesting level."""
     depth = 1
+    else_open: int | None = None
+    else_close: int | None = None
     for index in range(start, len(lines)):
         directive = lines[index].rstrip("\r\n")
         if _BLOCK_OPEN.match(directive):
             depth += 1
             continue
         closed = _BLOCK_CLOSE.match(directive)
-        if closed is None:
+        if closed is not None:
+            depth -= 1
+            if depth:
+                continue
+            if closed.group("kind") != kind:
+                raise PromptError(f"{{{{#{kind} {name}}}}} closed by {{{{/{closed.group('kind')}}}}}")
+            if else_open is not None and else_close is None:
+                raise PromptError(f"unclosed {{{{#ELSE}}}} in {{{{#IF {name}}}}}")
+            alternate = (else_open, else_close) if else_open is not None and else_close is not None else None
+            return index, alternate
+        if depth != 1:
             continue
-        depth -= 1
-        if depth:
+        if _ELSE_OPEN.match(directive):
+            if kind != "IF":
+                raise PromptError("{{#ELSE}} is only valid inside {{#IF NAME}}")
+            if else_open is not None:
+                raise PromptError(f"multiple {{{{#ELSE}}}} branches in {{{{#IF {name}}}}}")
+            else_open = index
             continue
-        if closed.group("kind") != kind:
-            raise PromptError(f"{{{{#{kind} {name}}}}} closed by {{{{/{closed.group('kind')}}}}}")
-        return index
+        if _ELSE_CLOSE.match(directive):
+            if else_open is None or else_close is not None:
+                raise PromptError("unexpected {{/ELSE}}")
+            else_close = index
+            continue
     raise PromptError(f"unclosed {{{{#{kind} {name}}}}}")
 
 
@@ -136,14 +169,16 @@ def _render_block(
     kind: str,
     name: str,
     body: Sequence[str],
+    alternate_body: Sequence[str] | None,
     context: PromptContext,
     loader: FragmentLoader,
     stack: tuple[str, ...],
 ) -> str:
-    """Resolve one ``#IF``/``#EACH`` block over its still-unrendered body lines."""
+    """Render the selected IF branch or each item in an EACH block."""
     value = _lookup(name, context)
     if kind == "IF":
-        return _render_lines(body, context, loader, stack) if value else ""
+        selected = body if _is_truthy(value) else alternate_body
+        return _render_lines(selected, context, loader, stack) if selected is not None else ""
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         raise PromptError(
             f"{{{{#EACH {name}}}}} needs a sequence of mappings, got {type(value).__name__}"
@@ -156,6 +191,17 @@ def _render_block(
             )
         parts.append(_render_lines(body, _ChainedContext(item, context), loader, stack))
     return "".join(parts)
+
+
+def _is_truthy(value: object) -> bool:
+    """Apply JavaScript truthiness to prompt values, where empty collections are truthy."""
+    if value is None or value is False:
+        return False
+    if isinstance(value, str):
+        return bool(value)
+    if isinstance(value, (int, float)):
+        return value != 0 and not (isinstance(value, float) and math.isnan(value))
+    return True
 
 
 def _render_line(

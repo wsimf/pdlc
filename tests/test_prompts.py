@@ -81,6 +81,31 @@ class ConditionalBlockTests(unittest.TestCase):
         )
         self.assertEqual(rendered, "before\nafter\n")
 
+    def test_else_body_renders_for_falsey_value(self) -> None:
+        rendered = render_text(
+            "{{#IF VALUE}}\ntruthy\n{{#ELSE}}\nfalsy\n{{/ELSE}}\n{{/IF}}\n",
+            {"VALUE": 0},
+            loader=_loader({}),
+        )
+        self.assertEqual(rendered, "falsy\n")
+
+    def test_nested_else_bodies_render_for_each_selected_branch(self) -> None:
+        template = (
+            "{{#IF OUTER}}\n"
+            "outer true\n"
+            "{{#IF INNER}}\ninner true\n{{#ELSE}}\ninner false\n{{/ELSE}}\n{{/IF}}\n"
+            "{{#ELSE}}\nouter false\n{{/ELSE}}\n"
+            "{{/IF}}\n"
+        )
+        self.assertEqual(
+            render_text(template, {"OUTER": True, "INNER": ""}, loader=_loader({})),
+            "outer true\ninner false\n",
+        )
+        self.assertEqual(
+            render_text(template, {"OUTER": False, "INNER": True}, loader=_loader({})),
+            "outer false\n",
+        )
+
     def test_unclosed_block_is_an_error(self) -> None:
         with self.assertRaises(PromptError):
             render_text("{{#IF X}}\nbody\n", {"X": True}, loader=_loader({}))

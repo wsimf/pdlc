@@ -468,31 +468,50 @@ def _stage_invalidation(comments: list[dict], stage: str) -> dict | None:
     return max(matching, key=lambda comment: comment.get("createdAt") or "") if matching else None
 
 
-def _stale_reason(item: dict, comments: list[dict], stage: str) -> str:
-    """Why `stage` bounced back to Stale, or "n/a" when it never did."""
+def _stale_reason(item: dict, comments: list[dict], stage: str) -> str | None:
+    """Why `stage` bounced back to Stale, or `None` when no reason is recorded."""
     if item_gate(item) != "Stale":
-        return "n/a — first pass"
+        return None
     invalidation = _stage_invalidation(comments, stage)
     if not invalidation:
-        return "stale — no invalidation comment recorded"
+        return None
     lines = evidence_comment_text(invalidation).splitlines()
-    return "\n".join(lines[1:]).strip() if lines and lines[0].startswith("Invalidated stage:") else lines[0]
+    if not lines:
+        return None
+    reason = (
+        "\n".join(lines[1:]).strip()
+        if lines[0].startswith("Invalidated stage:")
+        else lines[0]
+    )
+    return reason or None
 
 
 def _task_tree_text(delivery: list[dict]) -> str:
-    """One line per existing delivery task, or "none" ahead of any breakdown."""
+    """One line per existing delivery task, or an empty string when none exist."""
     if not delivery:
-        return "none"
+        return ""
     return "\n".join(f"- `{task_tag(task)}` {task_headline(task)} ({task['state']})" for task in delivery)
 
 
-def ui_planner_brief(work_item: str, follow_up: str | None) -> str:
+def ui_planner_brief(
+    work_item: str,
+    follow_up: str | None,
+    current_journeys_path: str | None = None,
+) -> str:
     """The brief for the sub-agent authoring the record's UI section.
 
     Due only while `Status` is `UI`. `follow_up` carries the driver's verbatim
     request on a reconciling pass, read the same way `task_planner_brief`
-    reads its own `--follow-up`.
+    reads its own `--follow-up`. Rework also supplies the previous UI fragment
+    so the planner can revise the journeys the reviewer saw.
     """
+    if (follow_up is None) != (current_journeys_path is None):
+        raise PdlcError("--follow-up and --current-journies-path must be supplied together")
+    current_journeys = (
+        str(require_file("--current-journies-path", current_journeys_path).resolve())
+        if current_journeys_path is not None
+        else ""
+    )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "UI":
@@ -509,18 +528,31 @@ def ui_planner_brief(work_item: str, follow_up: str | None) -> str:
             "GATE_STATE": item_gate(item) or "unset",
             "STALE_REASON": _stale_reason(item, comments, status),
             "TASK_TREE": _task_tree_text(delivery),
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
+            "CURRENT_JOURNEYS_PATH": current_journeys,
+            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up is not None else "",
         },
     )
 
 
-def task_planner_brief(work_item: str, follow_up: str | None) -> str:
+def task_planner_brief(
+    work_item: str,
+    follow_up: str | None,
+    current_tasks_manifest_path: str | None = None,
+) -> str:
     """The brief for the sub-agent decomposing the record into delivery tasks.
 
     Due only while `Status` is `Tasks`; `follow_up` carries the driver's
     verbatim request on a re-authoring pass, read the same way `--findings`
-    reaches the test-writer briefs.
+    reaches the test-writer briefs. Rework also supplies the current task
+    manifest so the planner can revise the task bodies the reviewer saw.
     """
+    if (follow_up is None) != (current_tasks_manifest_path is None):
+        raise PdlcError("--follow-up and --current-tasks-manifest-path must be supplied together")
+    current_tasks_manifest = (
+        str(require_file("--current-tasks-manifest-path", current_tasks_manifest_path).resolve())
+        if current_tasks_manifest_path is not None
+        else ""
+    )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "Tasks":
@@ -539,6 +571,8 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
             "EXECUTION_SCOPE": "this one breakdown",
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
+            "STALE_REASON": _stale_reason(item, comments, status),
+            "CURRENT_TASKS_MANIFEST_PATH": current_tasks_manifest,
             "EXISTING_TASKS": [
                 {
                     "TASK_ID": str(task["taskId"]),
@@ -546,7 +580,7 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
                     "TASK_BODY": (task.get("body") or "").strip(),
                 }
                 for task in delivery
-            ],
+            ] or None,
             "CHANGE_SOURCES": change_sources,
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,

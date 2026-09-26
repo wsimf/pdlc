@@ -36,7 +36,7 @@ class GoldenMixin(unittest.TestCase):
         """Replace per-run temp paths with stable placeholders, so an output that
         names its scratch file or the record store still compares across runs."""
         for path, placeholder in ((self.home, "$PDLC_HOME"), (self.scratch, "$CACHE_ROOT")):
-            for form in {str(path), str(path.resolve())}:
+            for form in sorted({str(path), str(path.resolve())}, key=len, reverse=True):
                 text = text.replace(form, placeholder)
         return re.sub(r"-[0-9a-f]{6}(?=\.(?:md|json))", "", text)
 
