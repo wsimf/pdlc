@@ -46,7 +46,7 @@ Prefer AFK where possible.
 
 ## Write each task body
 
-Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage, HITL/AFK classification, acceptance criteria, risk, and expected implementation evidence:
+Each task body carries dependency links, FR/C/UJ coverage, HITL/AFK classification, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful:
 
 ```markdown
 **Blocked by:** TASK-001, or None
@@ -65,8 +65,6 @@ Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage, HIT
 - [ ] Focused tests pass and the affected build target compiles
 - [ ] Verify the running app per `pdlc inspect capability build-run` (UI tasks only)
 
-**Risk:** <Concrete risk, or None.>
-**Expected evidence:** <Artifacts the `## Implementation` comment must link — PR, test names, screenshot. Not a restatement of the acceptance criteria.>
 ```
 
 Do not add generated task identity or phase tags to the title or body; return the manifest fields separately.
@@ -78,7 +76,7 @@ Rules that keep task bodies readable — a task tree is only useful if a driver 
 - **Acceptance criteria are outcomes, not activities.** "Selecting a route preserves the browser's navigation path" is a criterion; "add tests for X, Y and Z" is a work item.
 - **Name no types, files, or APIs.** The technical shape belongs to `pdlc-tech-planner`; fixing it here pre-empts a stage you do not own and dates the body the moment the spike disagrees.
 - **`Non-goals` earns its place or disappears.** Use it to hand work to a named sibling task, not to list everything the task is not.
-- **`Expected evidence` points at artifacts**, never at the acceptance criteria in different words.
+- **`Expected evidence`, when useful, points at artifacts**, never at the acceptance criteria in different words.
 
 ## Manifest
 

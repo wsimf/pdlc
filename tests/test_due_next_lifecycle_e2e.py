@@ -63,7 +63,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.next_action(issue, "human-approval")
         self.assertEqual(self.invoke("post_approve", issue, evidence).code, 0)
 
-        task_body = self.write_file("task.md", "## Scope\nBuild the core.\n\n## Acceptance criteria\n- FR-1 works\n")
+        task_body = self.write_file("task.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nBuild the core.\n\n**Acceptance Criteria:**\n- [ ] FR-1 works.\n")
         manifest = self.write_file(
             "manifest.json",
             json.dumps([{

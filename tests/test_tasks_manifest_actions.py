@@ -10,8 +10,12 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.workitem import subissues_for
 
 
-NO_UI_BODY = BODY_DEFAULT.replace("UJ-1 covers the first run.", "No UI is required.")
-TASK_BODY = "**Blocked by:** None\n**Requirements Covered:** FR-1\n\n**Scope:**\nKeep the seam.\n"
+NO_UI_BODY = BODY_DEFAULT.replace("UJ-1 covers the first run.", "No UI is required.").replace("- C-1: Commands own every mutation.\n", "")
+TASK_BODY = "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2\n\n**Scope:**\nKeep the seam.\n\n**Acceptance Criteria:**\n- [ ] The seam persists.\n"
+
+
+def task_body(requirements="FR-2", blocked="None", scope="Next seam."):
+    return f"**Blocked by:** {blocked}\n**Type:** AFK\n**Requirements Covered:** {requirements}\n\n**Scope:**\n{scope}\n\n**Acceptance Criteria:**\n- [ ] The seam works.\n"
 
 
 class TaskManifestActionsTests(FileBackendTest):
@@ -52,7 +56,7 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def test_new_entry_creates_the_next_task(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Blocked by:** TASK-001\n**Requirements Covered:** FR-2\n\n**Scope:**\nAdd the next seam.\n")
+        body = self.write_file("third.md", task_body(blocked="TASK-001", scope="Add the next seam."))
         entries.append({"title": "Add next seam", "body": body,
                         "type": "core", "covers": ["FR-2"], "depends": ["TASK-001"]})
         result = self._land(path, entries)
@@ -65,7 +69,7 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def test_assigned_id_is_saved_before_the_first_remote_write(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("third.md", task_body())
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         with mock.patch("pdlc.commands.post_tasks.upsert_tasks", side_effect=PdlcError("host down")):
             result = self._land(path, entries)
@@ -75,7 +79,7 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def test_retry_after_a_created_task_uses_its_saved_id(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("third.md", task_body())
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         self.assertEqual(self._land(path, entries).code, 0)
         record_meta = self.records_dir() / "40" / "meta.json"
@@ -151,7 +155,7 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertEqual(self._land(path, entries).code, 0)
 
         path, entries = self._generated()
-        body = self.write_file("next.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("next.md", task_body())
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         result = self._land(path, entries)
         self.assertEqual(result.code, 0, result.stderr)
@@ -177,24 +181,25 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def test_covers_and_depends_are_order_insensitive(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Blocked by:** TASK-002, TASK-001\n**Requirements Covered:** FR-2, FR-1\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("third.md", task_body(requirements="FR-2, FR-1", blocked="TASK-002, TASK-001"))
         entries.append({"title": "Next seam", "body": body, "type": "core",
                         "covers": ["FR-2", "FR-1"], "depends": ["TASK-002", "TASK-001"]})
         result = self._land(path, entries)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["created"], ["TASK-003"])
 
-    def test_unlabelled_body_is_not_checked_against_the_manifest(self):
+    def test_unlabelled_body_is_refused_with_required_labels(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Scope:**\nNext seam, unlike FR-1 and TASK-001.\n")
+        body = self.write_file("third.md", "**Type:** AFK\n**Scope:**\nNext seam, unlike FR-1 and TASK-001.\n\n**Acceptance Criteria:**\n- [ ] The seam works.\n")
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         result = self._land(path, entries)
-        self.assertEqual(result.code, 0, result.stderr)
-        self.assertEqual(result.json["created"], ["TASK-003"])
+        self.assertEqual(result.code, 1)
+        self.assertIn("add **Blocked by:** None", result.stderr)
+        self.assertIn("add **Requirements Covered:**", result.stderr)
 
     def test_labelled_covers_must_match_the_manifest(self):
         path, entries = self._generated()
-        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-1\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("third.md", task_body(requirements="FR-1"))
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         result = self._land(path, entries)
         self.assertEqual(result.code, 1)
@@ -224,7 +229,7 @@ class TaskManifestActionsTests(FileBackendTest):
         Path(entries[0]["body"]).write_text(TASK_BODY + "\nOne more behavior.\n", encoding="utf-8")
         entries[1] = {"id": entries[1]["id"], "number": entries[1]["number"], "action": "remove",
                       "baseline": entries[1]["baseline"], "reason": "Superseded"}
-        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        body = self.write_file("third.md", task_body())
         entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
         self.assertEqual(self._land(path, entries).code, 0)
         saved = json.loads(path.read_text(encoding="utf-8"))

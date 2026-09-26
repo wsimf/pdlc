@@ -326,7 +326,7 @@ class PromptCommandTest(PromptHarness):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Existing tasks", result.stdout)
         self.assertNotIn("## Changes needed", result.stdout)
-        self.assertIn("Reconcile the change requests below against the work item", result.stdout)
+        self.assertIn("Findings recorded against this stage since it last published. Reconcile them against the work item", result.stdout)
         self.assertLess(result.stdout.index("### Change requests"), result.stdout.index("## Existing tasks"))
         self.assertIn("The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.\n\ndetail", result.stdout)
         self.assertIn("- `TASK-001` — [CORE] Core work (open, unplanned, unimplemented)", result.stdout)
@@ -350,11 +350,11 @@ class PromptCommandTest(PromptHarness):
             "--follow-up", "text:split the export task in two",
         )
         self.assertNotIn("## Changes needed", result.stdout)
-        self.assertIn("Reconcile the driver follow-up below against the work item", result.stdout)
         self.assertNotIn("### Change requests", result.stdout)
         self.assertIn(
             "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
-            "verbatim.\n\nsplit the export task in two",
+            "verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it."
+            "\n\nsplit the export task in two",
             result.stdout,
         )
         self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
@@ -382,7 +382,7 @@ class PromptCommandTest(PromptHarness):
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
         self.assertNotIn("## Changes needed", result.stdout)
-        self.assertIn("Reconcile the change requests below against the work item", result.stdout)
+        self.assertIn("Findings recorded against this stage since it last published. Reconcile them against the work item", result.stdout)
         self.assertIn("## Findings\n\n- detail", result.stdout)
 
     def test_a_record_not_at_tasks_refuses(self):

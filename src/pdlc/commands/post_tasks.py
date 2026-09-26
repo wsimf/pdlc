@@ -132,6 +132,15 @@ Tasks --manifest is a JSON array, one entry per delivery task:
 `baseline`, and keeps all editable fields above. `remove` requires id,
 number, action, baseline, and a nonempty reason. The printed `removed` array names
 descoped tasks. --dry-run lists them before any write.
+
+Every FR-* and C-* declared in Product must be covered by the resulting task tree.
+New or changed task bodies need `**Blocked by:**`, `**Requirements Covered:**`,
+`**Type:** AFK` or `HITL`, a nonempty `**Scope:**` section, and a nonempty
+`- [ ]` item under `**Acceptance Criteria:**`. UI task bodies also need
+`**UI Journeys:**`. Risk, expected evidence, and non-goals are
+optional. Retained tasks detected as unchanged are carried without body revalidation.
+The command checks this structure; the reviewer judges whether the scope,
+classification, and criteria are meaningful.
 """
 
 from __future__ import annotations
@@ -169,7 +178,7 @@ from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, re
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.task_artifact import declared_links, snapshot, stored_fields
+from pdlc.domain.task_artifact import declared_links, snapshot, stored_fields, task_body_errors
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -403,10 +412,10 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             "bodyText": body_text, "ui": kind == "ui",
             "covers": _id_list(entry.get("covers")), "depends": _id_list(entry.get("depends") or []),
         }
-        # Only links the body labels are checked; an unlabelled body declares none.
+        # Labelled links are checked here; missing labels are reported with the other body errors.
         for field, declared in declared_links(body_text).items():
             if task[field] != declared:
-                raise PdlcError(f"manifest entry {index} {field} must match its task body: {declared}")
+                raise PdlcError(f"manifest entry {index} {field} must match its task body: {declared}; update the manifest or the labelled body lines so they declare the same IDs")
         # covers and depends are derived from the body, so the stored content is title, type, and body.
         after = {"title": task["title"], "type": kind, "body": body_text}
         if action == "retain" or task_id in by_id:
@@ -501,9 +510,13 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
 
     resolved = resolve_task_ids(manifest, existing_ids)
     plan = build_plan(resolved, [task for task in existing if task.get("taskId") not in {r["id"] for r in removals}], requirements, journeys)
+    for task in resolved:
+        if task.get("unchanged") or "bodyText" not in task:
+            continue
+        plan["errors"].extend(f"{task['id']} body: {error}" for error in task_body_errors(task["bodyText"], is_ui=task.get("ui") is True))
 
     if plan["errors"]:
-        print("pdlc: the task breakdown does not satisfy the parent record:", file=sys.stderr)
+        print("pdlc: the task breakdown is invalid:", file=sys.stderr)
         for error in plan["errors"]:
             print(f"  - {error}", file=sys.stderr)
         raise SystemExit(1)

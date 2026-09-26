@@ -14,7 +14,16 @@ class PostTasksValidationTests(FileBackendTest):
         self.seed_record(30, "Tasks", "Pending")
         self.seed_task(30, 301, "TASK-001", "OPEN", "WORK-30-TASK-001 Old wording")
         self.seed_task(30, 309, "TASK-009", "OPEN", "WORK-30-TASK-009 Dropped")
-        self.body_file = self.write_file("task-body.md", "task body\n")
+        self.body_file = self.write_file("task-body.md", "**Type:** AFK\n**Scope:**\nLand the task.\n\n**Acceptance Criteria:**\n- [ ] The task works.\n")
+        self.body_count = 0
+
+    def _body(self, requirements: str, *, journeys: str = "", blocked: str = "None") -> str:
+        self.body_count += 1
+        journey_line = f"**UI Journeys:** {journeys}\n" if journeys else ""
+        return self.write_file(
+            f"task-body-{self.body_count}.md",
+            f"**Blocked by:** {blocked}\n**Type:** AFK\n**Requirements Covered:** {requirements}\n{journey_line}\n**Scope:**\nLand the task.\n\n**Acceptance Criteria:**\n- [ ] The task works.\n",
+        )
 
     def _dry_run(self, tasks):
         manifest = self.write_file("m.json", json.dumps(tasks))
@@ -23,15 +32,55 @@ class PostTasksValidationTests(FileBackendTest):
 
     def test_valid_breakdown_assigns_ids_orders_and_flags_orphans(self):
         result = self._dry_run([
-            {"id": "TASK-001", "title": "Reworded", "body": self.body_file,
+            {"id": "TASK-001", "title": "Reworded", "body": self._body("FR-1, C-1"),
              "ui": False, "covers": ["FR-1", "C-1"]},
-            {"title": "Ship the journey", "body": self.body_file, "ui": True,
+            {"title": "Ship the journey", "body": self._body("FR-2", journeys="UJ-1", blocked="TASK-001"), "ui": True,
              "covers": ["FR-2", "UJ-1"], "depends": ["TASK-001"]},
         ])
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["tasks"][1]["id"], "TASK-010")
         self.assertEqual(result.json["order"], ["TASK-001", "TASK-010"])
         self.assertEqual(result.json["orphans"], ["TASK-009"])
+
+    def test_body_structure_is_checked_before_publication(self):
+        base = "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nDo work.\n\n**Acceptance Criteria:**\n- [ ] It works.\n"
+        cases = [
+            (base.replace("**Blocked by:** None\n", ""), "add **Blocked by:** None"),
+            (base.replace("**Blocked by:** None", "**Blocked by:** later"), "**Blocked by:** must say None"),
+            (base.replace("**Requirements Covered:** FR-1, FR-2, C-1\n", ""), "add **Requirements Covered:**"),
+            (base.replace("**UI Journeys:** UJ-1\n", "").replace("FR-1, FR-2, C-1", "FR-1, FR-2, C-1, UJ-1"), "add **UI Journeys:**"),
+            (base.replace("**Type:** AFK\n", ""), "add **Type:** AFK or HITL"),
+            (base.replace("**Type:** AFK", "**Type:** maybe"), "add **Type:** AFK or HITL"),
+            (base.replace("Do work.\n", ""), "add a nonempty **Scope:** section"),
+            (base.replace("- [ ] It works.", "- [ ] "), "add at least one nonempty `- [ ]` item"),
+        ]
+        for body, message in cases:
+            with self.subTest(message=message):
+                path = self.write_file("invalid-task.md", body)
+                result = self._dry_run([{"id": "TASK-001", "title": "Complete the record", "body": path,
+                                         "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}])
+                self.assertEqual(result.code, 1)
+                self.assertIn(f"TASK-001 body: {message}", result.stderr)
+                self.assertEqual(self.fields(30)["Gate State"], "Pending")
+
+    def test_invalid_body_does_not_publish_or_rewrite_a_task(self):
+        manifest = self.write_file("invalid-body.json", json.dumps([
+            {"id": "TASK-001", "title": "Changed", "body": self.body_file,
+             "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]},
+        ]))
+        result = self.invoke("post_tasks", "--work-item", 30, "--stage", "Tasks",
+                             "--manifest", manifest, "--evidence", self.evidence_file())
+        self.assertEqual(result.code, 1)
+        self.assertIn("TASK-001 body: add **Blocked by:** None", result.stderr)
+        self.assertEqual(self.fields(30)["Gate State"], "Pending")
+        self.assertEqual(self.task_meta(30, 301)["title"], "WORK-30-TASK-001 Old wording")
+
+    def test_every_product_identifier_needs_task_coverage(self):
+        result = self._dry_run([{"id": "TASK-001", "title": "Complete the record", "body": self._body("FR-1", journeys="UJ-1"),
+                                 "ui": True, "covers": ["FR-1", "UJ-1"]}])
+        self.assertEqual(result.code, 1)
+        self.assertIn("no task covers FR-2; add it to a task's covers and Requirements Covered line", result.stderr)
+        self.assertIn("no task covers C-1; add it to a task's covers and Requirements Covered line", result.stderr)
 
     def test_rejections(self):
         cases = [
@@ -80,7 +129,7 @@ class PostTasksValidationTests(FileBackendTest):
     def test_approval_required_record_must_return_to_stale_before_dry_run(self):
         self.seed_record(31, "Tasks", "Approval Required")
         manifest = self.write_file("m2.json", json.dumps([
-            {"id": "TASK-001", "title": "A", "body": self.body_file, "ui": True, "covers": ["FR-1", "UJ-1"]}
+            {"id": "TASK-001", "title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
         ]))
         dry = self.invoke("post_tasks", "--work-item", 31, "--stage", "Tasks",
                           "--manifest", manifest, "--dry-run")
@@ -96,7 +145,7 @@ class PostTasksValidationTests(FileBackendTest):
             with self.subTest(gate=gate):
                 self.seed_record(number, "Tasks", gate)
                 manifest = self.write_file(f"m{number}.json", json.dumps([
-                    {"title": "A", "body": self.body_file, "ui": True, "covers": ["FR-1", "UJ-1"]}
+                    {"title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
                 ]))
                 dry = self.invoke("post_tasks", "--work-item", number, "--stage", "Tasks",
                                   "--manifest", manifest, "--dry-run")

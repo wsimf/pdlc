@@ -56,7 +56,7 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- Tasks ---
         task_body = self.write_file(
-            "task.md", "## Scope\nBuild the core.\n\n## Acceptance criteria\n- FR-1 works\n"
+            "task.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nBuild the core.\n\n**Acceptance Criteria:**\n- [ ] FR-1 works.\n"
         )
         manifest = self.write_file(
             "manifest.json",
@@ -92,7 +92,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.invoke("post_approve", issue, evidence)
 
         task_dir = self.records_dir() / str(issue) / "tasks" / str(task_number)
-        self.assertIn("## Scope", (task_dir / "body.md").read_text())
+        self.assertIn("**Scope:**", (task_dir / "body.md").read_text())
         plan_comments = (task_dir / "comments.jsonl").read_text()
         self.assertIn("Technical Plan", plan_comments)
         # The re-land above replaced the existing plan comment in place rather

@@ -37,11 +37,9 @@ UJ-1 covers the first run.
 
 Revise the task breakdown at `$CACHE_ROOT/current-tasks.json`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
 
-Reconcile the driver follow-up below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
-
 ### Driver follow-up
 
-A change the driver asked for, or findings from a review of the breakdown, verbatim.
+A change the driver asked for, or findings from a review of the breakdown, verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it.
 
 split the export task in two
 
@@ -94,7 +92,4 @@ Return the revised manifest and its task files. For a first breakdown, create bo
 - `title` is the human-readable half only. The command composes the stable identity and stamps `[UI]` or `[CORE]` from `type`.
 - `covers` and `depends` must agree with each task body and the parent work item. The command validates coverage and the dependency graph.
 
-Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage,
-HITL/AFK classification, acceptance criteria, risk, and expected implementation
-evidence. Every task covers at least one FR or C; every UI task covers a `UJ-*`
-and every `UJ-*` has a UI task.
+Each task body carries dependency links, FR/C/UJ coverage, HITL/AFK classification, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful. Every task covers at least one FR or C; every UI task covers a `UJ-*` and every `UJ-*` has a UI task.

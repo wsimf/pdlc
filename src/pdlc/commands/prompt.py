@@ -564,9 +564,6 @@ def task_planner_brief(
     delivery = [task for task in tasks if task.get("taskId")]
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
     driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
-    change_sources = " and ".join(
-        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
-    )
     # A supplied draft and a generated copy of the published tree are revised the same way.
     manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
 
@@ -590,7 +587,6 @@ def task_planner_brief(
                 }
                 for task in delivery
             ] or None,
-            "CHANGE_SOURCES": change_sources,
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
         },

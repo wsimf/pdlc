@@ -255,7 +255,7 @@ class PostTasksPatchTests(FileBackendTest):
 
     def manifest(self, **overrides: object) -> str:
         entries = [
-            {"id": "TASK-001", "title": "Land the record atomically", "body": self.write_file("t1.md", "## Scope\nnew\n"),
+            {"id": "TASK-001", "title": "Land the record atomically", "body": self.write_file("t1.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n\n**Scope:**\nLand the record.\n\n**Acceptance Criteria:**\n- [ ] The record lands atomically.\n"),
              "ui": False, "covers": ["FR-1", "FR-2", "C-1"], "depends": []},
             {"id": "TASK-002", "unchanged": True, "ui": True, "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
         ]
