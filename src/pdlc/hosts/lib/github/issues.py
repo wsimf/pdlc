@@ -14,6 +14,7 @@ from pdlc.hosts.lib.github.transport import (
     assignee_args,
     body_file,
     neutralize_refs,
+    restore_refs,
     owner_repository,
     repo_args,
     run_gh,
@@ -148,6 +149,26 @@ def link_subissues(parent: int | str, children: list[int | str]) -> None:
     raise PdlcError(message)
 
 
+# A task Issue in the form pdlc wrote it: the registry block split out into
+# `prs` and loose `#123` escapes restored.
+def _readable(node: dict) -> dict:
+    view = pr_registry.view(node)
+    return {**view, "body": restore_refs(view["body"])}
+
+
+# A GraphQL comment payload with every body restored, keeping its paging shape.
+def _restored_comments(raw: object) -> object:
+    def restored(comment: object) -> object:
+        if isinstance(comment, dict):
+            return {**comment, "body": restore_refs(comment.get("body") or "")}
+        return restore_refs(str(comment))
+    if isinstance(raw, dict):
+        return {**raw, "nodes": [restored(comment) for comment in raw.get("nodes") or []]}
+    if isinstance(raw, list):
+        return [restored(comment) for comment in raw]
+    return raw
+
+
 # Delivery task sub-issues of a parent, as a list of
 # {number, title, url, state, body, comments, taskId, prs}. taskId is the stable
 # WORK-NNN-TASK-NNN prefix parsed off the title, or None for a sub-issue
@@ -169,11 +190,12 @@ def subissues_for(issue: str, *, include_comments: bool = True) -> list[dict]:
     result = []
     for node in nodes:
         match = TASK_ID_PATTERN.match(node["title"])
-        result.append(pr_registry.view({
+        comments = _restored_comments(node.get("comments"))
+        result.append(_readable({
             **node,
-            "comments": comment_bodies(node.get("comments")),
-            "commentObjects": comment_objects(node.get("comments")),
-            "commentsMeta": _comments_metadata(node.get("comments")),
+            "comments": comment_bodies(comments),
+            "commentObjects": comment_objects(comments),
+            "commentsMeta": _comments_metadata(comments),
             "taskId": match.group(1) if match else None,
         }))
     return result
@@ -196,12 +218,12 @@ def _upsert_task(
     if match:
         number = match["number"]
         title_changed = match["title"] != full_title
-        # Compare against the neutralized human body only: a prior run wrote the
-        # neutralized form, so a `#123` in the body does not re-edit every pass.
-        # `match` already has its registry block split out, so the attached pull
-        # requests are re-attached to the rewrite rather than counted as a change.
+        # Compare the forms GitHub would store, so a body differing only in how
+        # a `#123` is escaped is not re-edited every pass. `match` already has
+        # its registry block split out, so the attached pull requests are
+        # re-attached to the rewrite rather than counted as a change.
         stored = match.get("body") or ""
-        body_changed = stored != neutralize_refs(body_text)
+        body_changed = neutralize_refs(stored) != neutralize_refs(body_text)
         if title_changed or body_changed:
             with body_file(pr_registry.attach(body_text, match.get("prs"))) as path:
                 run_gh(["issue", "edit", str(number), *repo_args(), "--title", full_title, "--body-file", path])
@@ -245,7 +267,7 @@ def _recover_unlinked_tasks(parent: str, task_ids: list[str], existing: list[dic
             raise PdlcError(f"multiple unlinked Issues carry stable identity WORK-{parent}-{task_id}")
         # Recovered candidates carry raw Issue bodies; normalize them to the
         # same shape as `existing` so the upsert compare sees one form.
-        recovered[task_id] = pr_registry.view({**candidate, "taskId": task_id})
+        recovered[task_id] = _readable({**candidate, "taskId": task_id})
     return list(recovered.values())
 
 
@@ -303,11 +325,12 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
     result = []
     for task in tasks:
         match = TASK_ID_PATTERN.match(task["title"])
-        result.append(pr_registry.view({
+        comments = _restored_comments(task.get("comments"))
+        result.append(_readable({
             **task,
-            "comments": comment_bodies(task.get("comments")),
-            "commentObjects": comment_objects(task.get("comments")),
-            "commentsMeta": _comments_metadata(task.get("comments")),
+            "comments": comment_bodies(comments),
+            "commentObjects": comment_objects(comments),
+            "commentsMeta": _comments_metadata(comments),
             "taskId": match.group(1) if match else None,
         }))
     return result
@@ -370,7 +393,7 @@ def comments_for_issue(issue: str) -> list[dict]:
     ])
     return [
         {
-            "body": comment["body"],
+            "body": restore_refs(comment["body"] or ""),
             "createdAt": comment["created_at"],
             "url": comment["html_url"],
             "author": {"login": (comment.get("user") or {}).get("login")},
@@ -396,7 +419,7 @@ def comments_page(issue: str, page: int = 1, per_page: int = 100):
     for api_page in range(oldest_page, newest_page + 1):
         raw_pages.append(run_gh_json(["api", "--method", "GET", f"repos/{owner}/{repository}/issues/{issue}/comments", "-f", f"per_page={per_page}", "-f", f"page={api_page}"]))
     raw = [comment for batch in raw_pages for comment in batch]
-    comments = [{"body": c["body"], "createdAt": c["created_at"], "url": c["html_url"], "author": {"login": (c.get("user") or {}).get("login")}} for c in reversed(raw)]
+    comments = [{"body": restore_refs(c["body"] or ""), "createdAt": c["created_at"], "url": c["html_url"], "author": {"login": (c.get("user") or {}).get("login")}} for c in reversed(raw)]
     offset = max(0, len(raw) - (total - (page - 1) * per_page))
     comments = comments[offset:offset + per_page]
     return CommentPage(comments, page, per_page, total, total > page * per_page)

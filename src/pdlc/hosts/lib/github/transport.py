@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from contextlib import contextmanager
-from typing import Any, Iterator, Literal, Sequence
+from typing import Any, Callable, Iterator, Literal, Sequence
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.process import parse_json, run_process
@@ -117,6 +117,8 @@ def owner_repository() -> tuple[str, str]:
 # character). A digit run followed by more word characters (`#123abc`) is not a
 # reference and is left alone.
 _LOOSE_ISSUE_REF = re.compile(r"(?<![\w#&\\])#(\d+)\b")
+# The escaped form `neutralize_refs` writes, under the same lookbehind.
+_ESCAPED_ISSUE_REF = re.compile(r"(?<![\w#&\\])\\#(\d+)\b")
 
 
 def neutralize_refs(text: str) -> str:
@@ -129,6 +131,22 @@ def neutralize_refs(text: str) -> str:
     and skips fenced code blocks; a `#123` inside an inline code span is escaped
     too, which is harmless (it renders in a code span either way).
     """
+    return _outside_fences(text, lambda line: _LOOSE_ISSUE_REF.sub(r"\\#\1", line))
+
+
+def restore_refs(text: str) -> str:
+    """The inverse of `neutralize_refs`, applied to every body and comment read
+    back, so callers above the host port see the text they wrote. Escaping is a
+    GitHub rendering concern and never leaves this backend.
+
+    `neutralize_refs(restore_refs(stored)) == stored` for anything this backend
+    wrote. The reverse is lossy only for text that already carried a loose `\\#123`
+    of its own, which reads back as `#123`.
+    """
+    return _outside_fences(text, lambda line: _ESCAPED_ISSUE_REF.sub(r"#\1", line))
+
+
+def _outside_fences(text: str, rewrite: Callable[[str], str]) -> str:
     out: list[str] = []
     in_fence = False
     for line in text.splitlines(keepends=True):
@@ -137,7 +155,7 @@ def neutralize_refs(text: str) -> str:
             in_fence = not in_fence
             out.append(line)
             continue
-        out.append(line if in_fence else _LOOSE_ISSUE_REF.sub(r"\\#\1", line))
+        out.append(line if in_fence else rewrite(line))
     return "".join(out)
 
 
