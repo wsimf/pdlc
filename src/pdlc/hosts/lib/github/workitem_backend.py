@@ -106,6 +106,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
 
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        github_issues.remove_subissue(parent, task_ref)
+
     def reopen_task(self, task_ref: str) -> None:
         run_gh(["issue", "reopen", str(task_ref), *repo_args()])
 

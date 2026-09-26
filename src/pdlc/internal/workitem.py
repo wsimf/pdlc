@@ -336,6 +336,10 @@ def close_task(task_ref: str) -> None:
     get_backend().close_task(str(task_ref))
 
 
+def remove_task(parent: str, task_ref: str) -> None:
+    get_backend().remove_task(str(parent), str(task_ref))
+
+
 def reopen_task(task_ref: str) -> None:
     get_backend().reopen_task(str(task_ref))
 

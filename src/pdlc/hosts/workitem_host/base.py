@@ -146,6 +146,10 @@ class WorkItemBackend(ABC):
     def close_task(self, task_ref: str) -> None: ...
 
     @abstractmethod
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        """Close and detach a descoped task, preserving its own record."""
+
+    @abstractmethod
     def reopen_task(self, task_ref: str) -> None:
         """Return a closed task to OPEN. Used to undo a task's Implementation
         closure when a driver invalidates Technical Plan or Implementation

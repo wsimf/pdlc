@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 from tests._prompts import PromptHarness
@@ -309,7 +311,7 @@ class PromptCommandTest(PromptHarness):
         )
         self.assertNotIn("## Existing tasks", result.stdout)
         self.assertNotIn("## Changes needed", result.stdout)
-        self.assertIn("## Return\n\nReturn one body file for each new or rewritten task", result.stdout)
+        self.assertIn("## Return\n\nReturn the revised manifest and its task files", result.stdout)
         self.assertNotIn("{{", result.stdout)
 
     def test_first_pass_brief_names_no_pdlc_command_or_stage(self):
@@ -327,10 +329,18 @@ class PromptCommandTest(PromptHarness):
         self.assertIn("Reconcile the change requests below against the work item", result.stdout)
         self.assertLess(result.stdout.index("### Change requests"), result.stdout.index("## Existing tasks"))
         self.assertIn("The published Tasks stage was invalidated for this reason:\n\ndetail", result.stdout)
-        self.assertIn("number: 601", result.stdout)
-        self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
-        self.assertIn("--- BEGIN TASK BODY ---\n\n## Scope\nx\n\n## Acceptance criteria\n- ok\n\n--- END TASK BODY ---", result.stdout)
+        self.assertIn("- `TASK-001` — [CORE] Core work (open, unplanned, unimplemented)", result.stdout)
+        self.assertNotIn("--- BEGIN TASK BODY ---", result.stdout)
+        self.assertIn("task-planner-manifest", result.stdout)
         self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
+        match = re.search(r"editable copy of the published breakdown is at `([^`]+)`", result.stdout)
+        self.assertIsNotNone(match)
+        manifest = json.loads(Path(match.group(1)).read_text(encoding="utf-8"))
+        self.assertEqual(manifest[0]["action"], "retain")
+        self.assertEqual(manifest[0]["id"], "TASK-001")
+        self.assertEqual(manifest[0]["type"], "core")
+        self.assertEqual(len(manifest[0]["baseline"]), 64)
+        self.assertIn("## Scope\nx", Path(manifest[0]["body"]).read_text(encoding="utf-8"))
 
     def test_follow_up_is_carried_verbatim(self):
         self._tasks_stage_pending()

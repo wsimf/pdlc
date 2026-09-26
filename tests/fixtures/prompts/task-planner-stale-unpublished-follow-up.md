@@ -39,7 +39,7 @@ The published Tasks stage was invalidated for this reason:
 
 detail
 
-An unpublished revision is described by the manifest at `$CACHE_ROOT/current-tasks.json`. Read the manifest and each task body it references, use that revision as the starting breakdown, and preserve its fixes for the invalidation reason.
+An unpublished revision is at `$CACHE_ROOT/current-tasks.json`. Read its manifest and task files, revise that breakdown, and preserve its fixes for the invalidation reason.
 
 Reconcile the driver follow-up below against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 
@@ -51,34 +51,11 @@ also split the export task in two
 
 ## Existing tasks
 
-Reconcile this complete breakdown against the current work item.
+The manifest above carries the complete editable breakdown. These titles identify its published tasks:
 
-- Rewrite, add, or remove only tasks affected by the current work item or the changes.
-- Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
-- Preserve complete requirement, journey, and dependency coverage across the resulting tree.
+- `TASK-001` — [CORE] Core work (open, unplanned, unimplemented)
 
-### `TASK-001`
-
----
-number: 601
-title: "WORK-60-TASK-001 [CORE] Core work"
-completed: false
-isUI: false
-hasPlan: false
-hasImplementation: false
-implementationInvalidated: false
-needsPlan: true
----
-
---- BEGIN TASK BODY ---
-
-## Scope
-x
-
-## Acceptance criteria
-- ok
-
---- END TASK BODY ---
+Rewrite or add only tasks affected by the work item or changes. Keep unaffected tasks as `"action": "retain"` without editing their files. If a task must leave scope, set `"action": "remove"` and give a reason. Preserve complete requirement, journey, and dependency coverage across the resulting tree.
 
 ## Sequencing the tasks
 
@@ -108,36 +85,26 @@ the stack proves itself.
 
 ## Return
 
-Return one body file for each new or rewritten task, plus a manifest:
+Return the revised manifest and its task files. For a first breakdown, create both:
 
 ```json
 [
   {
-    "id": "TASK-001",
+    "action": "create",
     "title": "Persist route profile geometry",
     "body": "/tmp/task-001.md",
-    "ui": false,
+    "type": "core",
     "covers": ["FR-2", "C-1"],
     "depends": []
   }
 ]
 ```
 
-- `title` is human-readable only — the script composes the stable
-  `WORK-<parent>-TASK-<nnn>` identity and stamps the `[UI]` / `[CORE]` tag from
-  `ui`, so `ui` must be a strict, accurate `true` / `false`.
-- `id` is optional: supply it to update an existing task, omit it for a new one
-  (the script assigns the next number).
-- Carry every unaffected existing task forward with `{"id": "TASK-002",
-  "unchanged": true, "ui": false, "covers": [...], "depends": [...]}` — no
-  `title`, no `body`. It stays in the breakdown and its coverage still counts,
-  but nothing about it is rewritten and no later stage revisits it.
-- Supplying a `title` or `body` for a task whose work already landed rewrites
-  it: a rewritten task that was closed is reopened and its plan and
-  implementation evidence retired, so it is planned and built again. Do that
-  only when the current work item or changes genuinely require it.
-- `covers` / `depends` are machine-checked against the parent's own identifiers
-  and against the graph — they must match what each task body actually says.
+- `create` adds a task; omit `action` and `id` for the next free number, or supply a new `TASK-NNN` id with `"action": "create"`.
+- `retain` keeps an existing task. Keep its generated fields and body path; the command compares its content with the stored task and updates it only when it changed. A changed closed task reopens for planning and implementation.
+- `remove` descopes an existing, unimplemented task. Keep its generated `id`, `number`, and `baseline`, add a nonempty `reason`, and remove title, body, type, covers, and depends. A task with a registered pull request cannot be removed.
+- `title` is the human-readable half only. The command composes the stable identity and stamps `[UI]` or `[CORE]` from `type`.
+- `covers` and `depends` must agree with each task body and the parent work item. The command validates coverage and the dependency graph.
 
 Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage,
 HITL/AFK classification, acceptance criteria, risk, and expected implementation

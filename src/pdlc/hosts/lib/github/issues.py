@@ -60,6 +60,34 @@ def link_subissue(parent: int | str, child: int | str) -> None:
     link_subissues(parent, [child])
 
 
+def remove_subissue(parent: int | str, child: int | str) -> None:
+    """Close and detach a descoped task while retaining its Issue history."""
+    if not str(parent).isdigit() or not str(child).isdigit():
+        raise PdlcError("sub-issue numbers must be numeric")
+    owner, repository = owner_repository()
+    query = f"""
+    query($owner: String!, $repo: String!) {{
+      repository(owner: $owner, name: $repo) {{
+        parent: issue(number: {int(parent)}) {{ id }}
+        child: issue(number: {int(child)}) {{ id state }}
+      }}
+    }}
+    """
+    issues = run_graphql(query, owner=owner, repo=repository)["data"]["repository"]
+    parent_id = (issues.get("parent") or {}).get("id")
+    child_id = (issues.get("child") or {}).get("id")
+    if not parent_id or not child_id:
+        raise PdlcError("one or more sub-issue nodes do not exist")
+    if issues["child"].get("state") != "CLOSED":
+        run_gh(["issue", "close", str(child), *repo_args()])
+    mutation = """mutation($parentId: ID!, $childId: ID!) {
+      removeSubIssue(input: {issueId: $parentId, subIssueId: $childId}) { issue { id } }
+    }"""
+    result = run_graphql(mutation, parentId=parent_id, childId=child_id)
+    if ((result.get("data") or {}).get("removeSubIssue") or {}).get("issue", {}).get("id") != parent_id:
+        raise PdlcError("GitHub returned an incomplete sub-issue removal")
+
+
 def _link_subissues_once(parent: int | str, children: list[int | str]) -> None:
     if not children:
         return

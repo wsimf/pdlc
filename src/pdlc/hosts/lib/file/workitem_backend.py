@@ -257,7 +257,7 @@ class FileWorkItemBackend(WorkItemBackend):
         if not tasks.is_dir():
             return []
         return sorted(
-            (child for child in tasks.iterdir() if child.is_dir()),
+            (child for child in tasks.iterdir() if child.is_dir() and not _read_meta(child).get("removed")),
             key=lambda child: int(child.name),
         )
 
@@ -316,6 +316,16 @@ class FileWorkItemBackend(WorkItemBackend):
         path = self._task_dir(task_ref)
         meta = _read_meta(path)
         meta["state"] = "CLOSED"
+        _write_meta(path, meta)
+
+    @single_writer
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        path = self._record_dir(parent) / "tasks" / str(task_ref)
+        if not path.is_dir():
+            raise NotFound(f"no delivery task #{task_ref} under #{parent}")
+        meta = _read_meta(path)
+        meta["state"] = "CLOSED"
+        meta["removed"] = True
         _write_meta(path, meta)
 
     @single_writer

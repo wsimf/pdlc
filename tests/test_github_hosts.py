@@ -468,6 +468,19 @@ class SubIssueUpsertTest(GitHubHostTest):
         create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
         self.assertEqual(create_call[create_call.index("--assignee") + 1], "@me")
 
+    def test_remove_subissue_closes_and_detaches_without_deleting(self) -> None:
+        self.gh.graphql(
+            "parent: issue(number:",
+            graphql_data({"repository": {"parent": {"id": "I_parent"}, "child": {"id": "I_child", "state": "OPEN"}}}),
+        )
+        self.gh.gh("issue", "close", response="")
+        self.gh.graphql("removeSubIssue", graphql_data({"removeSubIssue": {"issue": {"id": "I_parent"}}}))
+
+        github_issues.remove_subissue("3", "11")
+
+        self.assertTrue(self.gh.graphql_variables("removeSubIssue"))
+        self.assertTrue(any(args[:2] == ["issue", "close"] for args, _ in self.gh.calls))
+
 
 class PrRegistryFormatTest(unittest.TestCase):
     """The GitHub backend's own storage format for attached pull requests."""

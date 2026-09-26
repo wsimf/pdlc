@@ -51,6 +51,9 @@ Everything is validated before anything is written, so a manifest with a
 typo'd requirement or a dependency cycle fails without having touched the
 record. --dry-run stops after validation and prints the plan, which is how a
 breakdown is checked before it is worth landing.
+For a non-dry-run Tasks publication, the command writes auto-assigned IDs back
+to the manifest before its first remote write, so the same file identifies
+partly created tasks on a retry.
 
 A Tasks manifest entry matching a delivery task that is already closed re-lands
 onto that task. When the re-land changes its title or body, the task is
@@ -88,14 +91,14 @@ is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task b
 removes none, and keeps each task's `ui`. Only titles and bodies change, and
 `"unchanged": true` entries are allowed. A refusal writes nothing.
 
-An entry may instead carry a landed task forward untouched with
-`"unchanged": true`. It still declares `ui`, `covers`, and `depends`, so the
-breakdown stays complete and its coverage still counts, but it names no `title`
-and no `body` — both are read back from the record — and the task is never
-handed to the backend, so it cannot be rewritten, retitled, or reopened by this
-call. `"unchanged": true` on an id the record does not have is refused. This is
-how a breakdown says a task needs no rework, without restating a body
-byte-for-byte to avoid rewriting it.
+An existing task may be carried as `"action": "retain"`, with its generated
+title, body file, type, coverage, dependencies, and baseline hash. The command
+refuses a stale baseline, compares the returned content with the stored task,
+and writes only changed tasks. A `"remove"` entry needs an existing id,
+number, baseline, and reason; it closes and detaches an unimplemented task while
+preserving its Issue history. A task with a registered PR cannot be removed.
+Descoped task ids remain reserved for later breakdowns.
+Legacy `"unchanged": true` entries remain accepted.
 
 UI --body is the `## UI` section's content; a leading `## UI` heading is
 tolerated and stripped. Applicability is explicit, and it is carried by the
@@ -115,27 +118,33 @@ Tasks --manifest is a JSON array, one entry per delivery task:
                                        human-readable half only — the script
                                        composes the stable WORK-N-TASK-NNN
         "body": "/tmp/task-001.md",    the delivery task body
-        "ui": false,                   true when the task delivers UI
+        "type": "core",                core or ui
         "covers": ["FR-2", "C-1"],     FR-*/C-*/UJ-* this task delivers
-        "depends": ["TASK-001"],       tasks that must land first
-        "unchanged": false             true to carry a landed task forward
-                                       untouched; requires "id", forbids
-                                       "title" and "body"
+        "depends": [],                 tasks that must land first
+        "action": "create"             create, retain, or remove
       }
     ]
+
+`create` may omit `id`, and an entry with neither action nor id defaults to create; `retain` requires an existing id and generated
+`baseline`, and keeps all editable fields above. `remove` requires id,
+number, action, baseline, and a nonempty reason. The printed `removed` array names
+descoped tasks. --dry-run lists them before any write.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 
 from pdlc.internal.workitem import (
+    comments_for_issue,
     is_stage_skipped,
     item_gate,
     item_status,
@@ -147,14 +156,17 @@ from pdlc.internal.workitem import (
     splice_section,
     state_for_item,
     subissues_for,
+    remove_task,
+    tasks_by_number,
     upsert_tasks,
     write_body,
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan, reopen_tasks
-from pdlc.domain.model import UI_TAG, task_title
+from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -168,6 +180,8 @@ from pdlc.domain.task_plan import (
 )
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
 UI_HEADING_PATTERN = re.compile(r"^##[ \t]+UI[ \t]*$")
+_DESCOPED_LINE = re.compile(r"^Descoped tasks: (.*)$", re.MULTILINE)
+_TASK_ID = re.compile(r"\bTASK-[0-9]{3}\b")
 
 @dataclass(frozen=True)
 class PublicationContext:
@@ -281,6 +295,110 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
     }))
 
 
+def _descope_ids(issue: str) -> set[str]:
+    """Removed task identities stay reserved across later breakdown passes."""
+    ids: set[str] = set()
+    for comment in marked_comments(comments_for_issue(issue)):
+        if comment["marker"] != "TASKS":
+            continue
+        for match in _DESCOPED_LINE.finditer(comment["body"]):
+            ids.update(_TASK_ID.findall(match.group(1)))
+    return ids
+
+
+def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: str, reserved: set[str]) -> tuple[list[dict], list[dict]]:
+    """Resolve editable planner entries to the established task-plan shape."""
+    by_id = {task["taskId"]: task for task in existing if task.get("taskId")}
+    prepared: list[dict] = []
+    removals: list[dict] = []
+    seen_ids: set[str] = set()
+    for index, entry in enumerate(manifest, 1):
+        if isinstance(entry.get("id"), str):
+            if entry["id"] in seen_ids:
+                raise PdlcError(f"duplicate task id: {entry['id']}")
+            seen_ids.add(entry["id"])
+        action = entry.get("action")
+        if action is None:
+            if "type" in entry:
+                action = "create" if not entry.get("id") else None
+            else:
+                prepared.append(dict(entry))
+                continue
+        if action not in ("create", "retain", "remove"):
+            raise PdlcError(f"manifest entry {index} action must be create, retain, or remove")
+        task_id = entry.get("id")
+        if action == "create":
+            if task_id in reserved:
+                raise PdlcError(f"{task_id} was descoped; use a new id")
+        else:
+            if action == "remove" and isinstance(task_id, str) and task_id not in by_id:
+                number = entry.get("number")
+                if isinstance(number, int) and number > 0:
+                    [detached] = tasks_by_number([str(number)])
+                    reason = entry.get("reason")
+                    note = f"Descoped from work item #{issue}: {reason}"
+                    if (detached.get("taskId") == task_id and detached.get("state") == "CLOSED"
+                            and isinstance(reason, str) and any(note in comment for comment in detached.get("comments", []))):
+                        by_id[task_id] = detached
+                        already_removed = True
+                    else:
+                        already_removed = False
+                else:
+                    already_removed = False
+            else:
+                already_removed = False
+            if not isinstance(task_id, str) or task_id not in by_id:
+                raise PdlcError(f"manifest entry {index} must name an existing task for {action}")
+            baseline = entry.get("baseline")
+            if action == "remove" and (not isinstance(baseline, str) or baseline != snapshot(stored_fields(by_id[task_id]))):
+                raise PdlcError(f"{task_id} changed since its planner artifact was generated; regenerate it")
+        if action == "remove":
+            reason = entry.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise PdlcError(f"{task_id} removal requires a reason")
+            if entry.get("number") != by_id[task_id]["number"]:
+                raise PdlcError(f"{task_id} removal requires its generated task number")
+            if by_id[task_id].get("prs"):
+                raise PdlcError(f"{task_id} has completed work or a registered pull request; resolve it before removal")
+            if any(key in entry for key in ("title", "body", "type", "covers", "depends", "ui")):
+                raise PdlcError(f"{task_id} removal must contain only id, number, action, baseline, and reason")
+            removals.append({"id": task_id, "number": by_id[task_id]["number"], "reason": reason.strip(), "already_removed": already_removed})
+            continue
+        kind = entry.get("type")
+        if kind not in ("core", "ui"):
+            raise PdlcError(f"manifest entry {index} type must be core or ui")
+        body_path = entry.get("body")
+        if not isinstance(body_path, str):
+            raise PdlcError(f"manifest entry {index} body must be a file path string")
+        body_text = require_file("task body file", body_path).read_text(encoding="utf-8")
+        task = {
+            "id": task_id, "title": entry.get("title"), "body": body_path,
+            "bodyText": body_text, "ui": kind == "ui",
+            "covers": entry.get("covers"), "depends": entry.get("depends") or [],
+        }
+        body_fields = stored_fields({"body": body_text})
+        if (task["covers"], task["depends"]) != (body_fields["covers"], body_fields["depends"]):
+            raise PdlcError(f"manifest entry {index} covers and depends must match its task body")
+        after = {"title": task["title"], "type": kind, "covers": task["covers"],
+                 "depends": task["depends"], "body": body_text}
+        if action == "retain" or task_id in by_id:
+            before = stored_fields(by_id[task_id])
+            already_applied = action == "retain" and entry.get("baseline") != snapshot(before)
+            if already_applied and after != before:
+                raise PdlcError(f"{task_id} changed since its planner artifact was generated; regenerate it")
+            if action == "create" and after != before:
+                raise PdlcError(f"{task_id} already exists with different content; use a new id")
+            if after == before:
+                if already_applied and by_id[task_id].get("state") == "CLOSED":
+                    task["recoveryReopen"] = True
+                task["unchanged"] = True
+                task.pop("title")
+                task.pop("body")
+                task.pop("bodyText")
+        prepared.append(task)
+    return prepared, removals
+
+
 def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     manifest = load_json_array("--manifest", manifest_path, allow_empty=False)
     for index, task in enumerate(manifest, 1):
@@ -298,33 +416,47 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             if task.get("body") is not None:
                 raise PdlcError(f"manifest entry {index} is marked \"unchanged\" and cannot also set a body")
             continue
-        task["bodyText"] = require_file("task body file", task.get("body")).read_text(encoding="utf-8")
+        if task.get("action") is None and "type" not in task:
+            task["bodyText"] = require_file("task body file", task.get("body")).read_text(encoding="utf-8")
 
     existing = subissues_for(issue)
-    existing_ids = [task["taskId"] for task in existing if task.get("taskId")]
+    reserved_ids = _descope_ids(issue)
+    explicit_actions = any("action" in entry or "type" in entry for entry in manifest)
+    source_manifest = manifest
+    manifest, removals = _prepare_task_manifest(source_manifest, existing, issue, reserved_ids)
+    if not manifest:
+        raise PdlcError("a Tasks breakdown must retain or create at least one task")
+    existing_ids = [task["taskId"] for task in existing if task.get("taskId")] + sorted(reserved_ids)
     if context.patch is not None:
+        if removals:
+            raise PdlcError("a Tasks patch cannot remove tasks; return Tasks to Stale")
         _check_tasks_patch(manifest, existing)
 
     requirements = declared_identifiers(read_section(parent_body, "Product"), REQUIREMENT_ID_PATTERN)
     journeys = declared_identifiers(read_section(parent_body, "UI"), JOURNEY_ID_PATTERN)
 
     resolved = resolve_task_ids(manifest, existing_ids)
-    plan = build_plan(resolved, existing, requirements, journeys)
+    plan = build_plan(resolved, [task for task in existing if task.get("taskId") not in {r["id"] for r in removals}], requirements, journeys)
 
     if plan["errors"]:
         print("pdlc: the task breakdown does not satisfy the parent record:", file=sys.stderr)
         for error in plan["errors"]:
             print(f"  - {error}", file=sys.stderr)
         raise SystemExit(1)
+    if explicit_actions and plan["orphans"]:
+        names = ", ".join(task["taskId"] for task in plan["orphans"])
+        raise PdlcError(f"existing tasks missing from the manifest: {names}; retain or remove each explicitly")
 
     # A closed task named by the breakdown is only actually reopened when this
     # call changes its title or body; the dry run cannot know that yet, so it
     # reports the candidates rather than a prediction.
     carried_ids = {task["id"] for task in plan["tasks"] if task.get("unchanged")}
     writable = [task for task in plan["tasks"] if not task.get("unchanged")]
+    reopen_candidate_ids = {task["id"] for task in writable}
+    reopen_candidate_ids.update(task["id"] for task in plan["tasks"] if task.get("recoveryReopen"))
     closed_in_breakdown = sorted(
         task["taskId"] for task in existing
-        if task.get("taskId") and task["taskId"] in {t["id"] for t in writable} and task.get("state") == "CLOSED"
+        if task.get("taskId") in reopen_candidate_ids and task.get("state") == "CLOSED"
     )
 
     if dry_run:
@@ -344,11 +476,34 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             ],
             "order": plan["order"],
             "orphans": [task["taskId"] for task in plan["orphans"]],
+            "removed": [task["id"] for task in removals],
             "reopenCandidates": closed_in_breakdown,
             "attachmentCount": len(attachment_inputs),
             **(_patch_summary(context.patch) if context.patch else {}),
         }))
         return
+
+    # Fix auto-assigned identities in the local artifact before a remote create.
+    # A partial publication can then use this same manifest for recovery.
+    active_entries = [entry for entry in source_manifest if entry.get("action") != "remove"]
+    if any(not entry.get("id") for entry in active_entries):
+        for entry, task in zip(active_entries, resolved, strict=True):
+            if not entry.get("id"):
+                entry["id"] = task["id"]
+                if "type" in entry:
+                    entry["action"] = "create"
+        try:
+            descriptor, temporary = tempfile.mkstemp(prefix=".tasks-", suffix=".json", dir=manifest_path.parent)
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                    json.dump(source_manifest, handle, indent=2)
+                    handle.write("\n")
+                os.replace(temporary, manifest_path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        except OSError as error:
+            raise PdlcError(f"cannot save assigned task ids in {manifest_path}: {error}") from error
 
     if context.reauthor:
         reauthor_invalidate_stage(context.record, "Tasks", context.pipeline)
@@ -387,6 +542,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     # retires the plan as well as the implementation, matching the Tasks stage's
     # own evidence dependencies.
     changed = [str(r["number"]) for r in results if r["action"] in ("updated", "retitled")]
+    changed += [str(existing_by_id[task["id"]]["number"]) for task in plan["tasks"] if task.get("recoveryReopen")]
     task_ids = {str(r["number"]): r["taskId"] for r in results}
     reopened: list[str] = []
     if changed:
@@ -396,6 +552,12 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         )
         reopened = [task_ids[number] for number in numbers]
 
+    for removal in removals:
+        if removal["already_removed"]:
+            continue
+        post_comment(str(removal["number"]), f"Descoped from work item #{issue}: {removal['reason']}\n", "TASKS")
+        remove_task(issue, str(removal["number"]))
+
     # The evidence body is the durable judgement. Counts, order, and coverage
     # are already recoverable from the task tree and should not inflate history.
     assert evidence_body is not None
@@ -404,6 +566,8 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         summary_lines += ["", f"Exception: open tasks absent from this breakdown: {', '.join(open_orphans)}"]
     if reopened:
         summary_lines += ["", f"Reopened for rework, their plan and implementation retired: {', '.join(reopened)}"]
+    if removals:
+        summary_lines += ["", "Descoped tasks: " + ", ".join(f"{task['id']} ({task['reason']})" for task in removals)]
 
     post_comment(issue, "\n".join(summary_lines) + "\n", "TASKS")
 
@@ -425,6 +589,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         "unchanged": unchanged,
         "orphans": open_orphans,
         "reopened": reopened,
+        "removed": [task["id"] for task in removals],
         "order": plan["order"],
         "tasks": results,
         "attachments": attachments,
@@ -446,8 +611,9 @@ def _recovery(issue: str, stage: str, patch: bool) -> Recovery:
     note = f"A re-run after the PDLC-{marker} evidence landed posts a second one; mention it in your report."
     if stage == "Tasks":
         note += (
-            " After it succeeds, check each task the manifest rewrote with `pdlc inspect task T`; if one is still closed,"
-            f" stop and report to the driver that it needs `pdlc post invalidate {issue} \"Technical Plan\" EVIDENCE --task T`."
+            " After it succeeds, inspect each rewritten task for a closed state or stale plan/implementation evidence,"
+            " and each removed task for a closed state and absence from the parent's active task list."
+            " Report any incomplete task recovery to the driver with the task inspection output."
         )
     return Recovery(
         check=f"pdlc inspect {issue}",

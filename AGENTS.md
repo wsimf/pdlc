@@ -12,6 +12,8 @@ This repository contains the installable `pdlc` CLI and its GitHub-native produc
 
 Done means every modified behavior has a caller, a regression check or an explicit reason it cannot have one, and clean diff/check output.
 
+Error recovery is part of mutation correctness: before changing a host write or its order, read `docs/transient-errors-plan.md` and `docs/mutation-recovery.md`, then make partial writes safe to reconcile or give the agent a precise read-only check and recovery path. Update the recovery catalog and failure-path tests with the command.
+
 ## Repository map
 
 - `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and global CLI options become `Config` overrides layered over `.pdlc/config.toml` for that run. `prepare` and `cleanup` are human-only worktree commands, intentionally absent from `--help` and the agent workflow: `prepare` is backend-free scaffolding except `--after`, which resolves the predecessor work item and records it in the worktree's Git config for `inspect implement` to stack on, `cleanup` resolves the work item to confirm it is Complete before tearing down its worktree and `gh stack` branches.

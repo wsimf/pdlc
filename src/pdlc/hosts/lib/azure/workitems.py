@@ -217,6 +217,15 @@ def add_parent(child_id: int | str, parent_id: int | str) -> None:
     ])
 
 
+def remove_parent(child_id: int | str, parent_id: int | str) -> None:
+    """Detach a descoped delivery task without deleting its work item."""
+    run_az_json([
+        "boards", "work-item", "relation", "remove", *org_args(),
+        "--id", str(child_id), "--relation-type", "parent",
+        "--target-id", str(parent_id), "--yes",
+    ])
+
+
 # --- comments ---
 
 # Azure stores UI-authored comments as HTML, so their `text` comes back with

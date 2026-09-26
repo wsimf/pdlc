@@ -66,7 +66,8 @@ DESCRIPTION
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
-    the record and its live pull-request state; none of them changes anything.
+    the record and its live pull-request state; none changes the record.
+    `task-planner` may write editable copies to the work-item cache.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -92,19 +93,20 @@ LEARN MORE
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from pdlc.commands.inspect import _task_front_matter
 from pdlc.commands.inspect_capability import _name as capability_name
 from pdlc.commands.inspect_capability import _one as capability_line
 from pdlc.commands.inspect_test import readiness as testing_readiness
 from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
+from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
@@ -119,6 +121,7 @@ from pdlc.internal.workitem import (
     pipeline_for_item,
     record_snapshot,
     resolve_item,
+    tasks_by_number,
     task_tree,
 )
 from pdlc.commands.inspect_verify import _readiness as _verify_readiness
@@ -564,6 +567,7 @@ def task_planner_brief(
     change_sources = " and ".join(
         name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
     )
+    starting_manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
 
     return render(
         "task-planner",
@@ -573,11 +577,16 @@ def task_planner_brief(
             "PARENT_BODY": _parent_body(item).rstrip(),
             "STALE_REASON": _stale_reason(item, comments, status),
             "CURRENT_TASKS_MANIFEST_PATH": current_tasks_manifest,
+            "STARTING_MANIFEST_PATH": starting_manifest,
             "EXISTING_TASKS": [
                 {
                     "TASK_ID": str(task["taskId"]),
-                    "TASK_METADATA": _task_front_matter(task),
-                    "TASK_BODY": (task.get("body") or "").strip(),
+                    "TASK_TITLE": task_headline(task),
+                    "TASK_PROGRESS": ", ".join((
+                        str(task.get("state", "OPEN")).lower(),
+                        "planned" if task.get("hasPlan") else "unplanned",
+                        "implemented" if task.get("hasImplementation") else "unimplemented",
+                    )),
                 }
                 for task in delivery
             ] or None,
@@ -586,6 +595,27 @@ def task_planner_brief(
             "DRIVER_FOLLOWUP": driver_followup,
         },
     )
+
+
+def _task_planner_manifest(work_item: str, delivery: list[dict]) -> str:
+    """Give a rework pass editable copies without embedding task bodies in its brief."""
+    if not delivery:
+        return ""
+    entries = []
+    for task in delivery:
+        fields = stored_fields(task)
+        baseline = snapshot(fields)
+        body_path = write_scratch(scratch_path(work_item, f"task-planner-{task['taskId']}"), fields.pop("body"))
+        entries.append({
+            "id": task["taskId"], "number": task["number"], "action": "retain", **fields,
+            "body": str(body_path),
+            "baseline": baseline,
+        })
+    manifest_path = write_scratch(
+        scratch_path(work_item, "task-planner-manifest", ".json"),
+        json.dumps(entries, indent=2) + "\n",
+    )
+    return str(manifest_path)
 
 
 def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
@@ -644,25 +674,31 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
 
 
 def _manifest_artifact_text(manifest_path: Path) -> str:
-    """Every manifest entry rendered with its task body in full.
-
-    An `"unchanged": true` entry names no body file, so it is noted as carried
-    forward rather than dumped — there is nothing new for the reviewer to read.
-    """
+    """Every active manifest entry rendered with its task body in full."""
     entries = load_json_array("--manifest", manifest_path, allow_empty=False)
     blocks: list[str] = []
     for entry in entries:
-        header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
-        meta = f"ui: {entry.get('ui')}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
-        if entry.get("unchanged"):
-            body = "(unchanged — carried forward from the record)"
+        if entry.get("action") == "remove":
+            number = entry.get("number")
+            if not isinstance(number, int):
+                raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
+            [stored] = tasks_by_number([str(number)])
+            header = f"### {entry.get('id') or '?'} — {stored['title']}"
+            meta = f"remove: {entry.get('reason') or 'no reason'}"
+            body = (stored.get("body") or "").strip()
         else:
-            body_path = entry.get("body")
-            if not body_path:
-                raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
-            body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
-                encoding="utf-8"
-            ).strip()
+            header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
+            kind = f"type: {entry['type']}" if "type" in entry else f"ui: {entry.get('ui')}"
+            meta = f"{kind}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
+            if entry.get("unchanged"):
+                body = "(unchanged — carried forward from the record)"
+            else:
+                body_path = entry.get("body")
+                if not body_path:
+                    raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
+                body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
+                    encoding="utf-8"
+                ).strip()
         blocks.append(f"{header}\n{meta}\n\n{body}")
     return "\n\n---\n\n".join(blocks)
 

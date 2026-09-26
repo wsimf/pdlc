@@ -327,6 +327,15 @@ class DeliveryTaskTest(AzureHostTest):
         self.assertIn("--state", self.az.calls[-1])
         self.assertEqual(self.az.calls[-1][self.az.calls[-1].index("--state") + 1], "Done")
 
+    def test_remove_task_closes_and_detaches_it(self):
+        self.az.az("boards", "work-item", "update", response=self.TASK)
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.az("boards", "work-item", "relation", "remove", response={})
+        AzureWorkItemBackend().remove_task("7", "8")
+        relation = self.az.calls_matching("boards", "work-item", "relation", "remove")[0]
+        self.assertEqual(relation[relation.index("--target-id") + 1], "7")
+        self.assertIn("--yes", relation)
+
     def test_reopen_task_moves_the_work_item_state_back(self):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         AzureWorkItemBackend().reopen_task("8")

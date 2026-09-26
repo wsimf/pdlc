@@ -349,6 +349,11 @@ class AzureWorkItemBackend(WorkItemBackend):
     def close_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_closed_state())
 
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        child_id = azure.numeric(task_ref)
+        azure.update(child_id, state=_task_closed_state())
+        azure.remove_parent(child_id, self._record_id(parent))
+
     def reopen_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_open_state())
 

@@ -12,15 +12,15 @@ The caller provides one generated prompt file; read it before any other task wor
 It describes one of these four modes:
 
 1. **First task breakdown:** No published task tree or unpublished manifest is supplied. Decompose the parent Product and UI content into a complete, dependency-ordered task tree.
-2. **Unpublished breakdown with follow-up:** Open the current manifest named in the prompt and every task body it references, use them as your starting point, carry unaffected tasks forward as unchanged, and apply the driver's follow-up.
-3. **First stale fix:** The published task bodies and stale reason are supplied, with no unpublished manifest. Reconcile those tasks against the reason and carry unaffected tasks forward unchanged.
-4. **Stale fix with unpublished revision and follow-up:** The prompt gives the stale reason, current manifest, and follow-up. Start from the manifest and its task bodies, preserve their invalidation fixes, apply the follow-up, and carry every unaffected published task forward as unchanged.
+2. **Unpublished breakdown with follow-up:** Open the current manifest named in the prompt and its task files, revise them for the driver's follow-up, and leave unaffected entries as `retain`.
+3. **First stale fix:** Open the generated manifest and task files named in the prompt, then reconcile them against the stale reason. Leave unaffected entries as `retain`.
+4. **Stale fix with unpublished revision and follow-up:** Start from the supplied manifest and task files, preserve their invalidation fixes, and apply the follow-up.
 
 Follow only the mode stated in the prompt; treat supplied work item content as the contract and report any conflict instead of resolving it yourself.
 
 ## Required input
 
-The prompt file carries the complete parent body and any existing tasks, change requests, manifest path, and follow-up available for its mode. If it is missing or unreadable, stop and report that rather than rebuilding the brief from other sources.
+The prompt file carries the complete parent body, a manifest path and task titles when tasks exist, and any change requests and follow-up available for its mode. Read existing task bodies from the manifest's files. If an input is missing or unreadable, stop and report that rather than rebuilding the brief from other sources.
 
 ## Scope and mode
 
@@ -84,22 +84,22 @@ Rules that keep task bodies readable — a task tree is only useful if a driver 
 
 ## Manifest
 
-Return one file per task plus a manifest JSON array naming them:
+Return the revised manifest and its task files. Create both for a first breakdown:
 
 ```json
 [
   {
-    "id": "TASK-001",
+    "action": "create",
     "title": "Persist route profile geometry",
     "body": "/tmp/task-001.md",
-    "ui": false,
+    "type": "core",
     "covers": ["FR-2", "C-1"],
     "depends": []
   }
 ]
 ```
 
-`title` is the human-readable half only and must identify the task without relying on the work item's title or surrounding context. Supply `id` to update an existing task in place; omit it for a new task and the caller assigns the next free number. `ui` must be a strict `true`/`false` — never guessed, since it decides the `[UI]`/`[CORE]` tag and later routes the task to the `ui-implementer` or `core-implementer` capability. `covers` and `depends` must exactly match what each task body actually claims — the caller validates both against the parent's own `FR-*`/`C-*`/`UJ-*` before writing anything.
+`title` must identify the task without relying on the work item's title or surrounding context. `create` adds a task and may omit `id`; `retain` keeps an existing task, and the command detects edits from its generated baseline; `remove` descopes an existing task and requires its `id`, `number`, baseline, and a reason. For removal, omit title, body, type, covers, and depends. Keep unchanged generated entries and their task files intact. `type` is `core` or `ui`; it decides the `[CORE]`/`[UI]` tag and implementation capability. `covers` and `depends` must match the task body and parent identifiers.
 
 ## Boundaries
 

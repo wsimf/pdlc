@@ -13,14 +13,14 @@ DESCRIPTION
     sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
-    `Status` is not `Tasks`. Every existing task is carried with its complete
-    body and progress metadata, so a re-authoring pass can preserve unaffected
-    tasks and rewrite only those the current work item or change inputs affect.
+    `Status` is not `Tasks`. When tasks exist, the command writes an editable
+    manifest and task-body files to the work-item cache. The brief names the
+    manifest and lists task titles; it does not embed their bodies.
     The brief also carries every open change request the Tasks stage has
     received since it last published; with none, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
-    with nothing given, that section is omitted. A rework pass also supplies
+    with nothing given, that section is omitted. A follow-up pass supplies
     the current task manifest, whose task body files the agent reads and revises.
     The two inputs must be supplied together.
 
