@@ -336,6 +336,30 @@ class DeliveryTaskTest(AzureHostTest):
         self.assertEqual(relation[relation.index("--target-id") + 1], "7")
         self.assertIn("--yes", relation)
 
+    def test_remove_task_uses_the_configured_removed_state(self):
+        self.az.az("boards", "work-item", "update", response=self.TASK)
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.az("boards", "work-item", "relation", "remove", response={})
+        self.configure(azure_task_removed_state="Cut")
+        AzureWorkItemBackend().remove_task("7", "8")
+        update = self.az.calls_matching("boards", "work-item", "update")[0]
+        self.assertEqual(update[update.index("--state") + 1], "Cut")
+
+    def test_remove_task_falls_back_to_the_task_closed_state(self):
+        self.az.az("boards", "work-item", "update", response=self.TASK)
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.az("boards", "work-item", "relation", "remove", response={})
+        AzureWorkItemBackend().remove_task("7", "8")
+        update = self.az.calls_matching("boards", "work-item", "update")[0]
+        self.assertEqual(update[update.index("--state") + 1], "Done")
+
+    def test_a_custom_removed_state_reads_as_closed(self):
+        self.configure(azure_task_removed_state="Cut")
+        self.az.wiql("System.Parent", response=[
+            work_item(8, **{TITLE_FIELD: "WORK-7-TASK-001 a", STATE_FIELD: "Cut"}),
+        ])
+        self.assertEqual(AzureWorkItemBackend().tasks("7")[0]["state"], "CLOSED")
+
     def test_reopen_task_moves_the_work_item_state_back(self):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         AzureWorkItemBackend().reopen_task("8")

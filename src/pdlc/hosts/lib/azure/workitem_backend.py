@@ -69,6 +69,10 @@ def _task_closed_state() -> str:
     return get_config().azure_task_closed_state or _closed_state()
 
 
+def _task_removed_state() -> str:
+    return get_config().azure_task_removed_state or _task_closed_state()
+
+
 def _task_open_state() -> str:
     return get_config().azure_task_open_state or _open_state()
 
@@ -260,7 +264,7 @@ class AzureWorkItemBackend(WorkItemBackend):
             "number": number,
             "title": title,
             "url": azure.item_url(number),
-            "state": "CLOSED" if state in {_task_closed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
+            "state": "CLOSED" if state in {_task_closed_state(), _task_removed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
             "body": _text(fields, azure.DESCRIPTION_FIELD),
             "comments": [comment.get("text") or "" for comment in comments],
             "commentObjects": [_comment_view(comment) for comment in comments],
@@ -351,7 +355,7 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     def remove_task(self, parent: str, task_ref: str) -> None:
         child_id = azure.numeric(task_ref)
-        azure.update(child_id, state=_task_closed_state())
+        azure.update(child_id, state=_task_removed_state())
         azure.remove_parent(child_id, self._record_id(parent))
 
     def reopen_task(self, task_ref: str) -> None:

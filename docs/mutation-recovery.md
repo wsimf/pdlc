@@ -112,7 +112,7 @@ Writes:
 1. If re-authoring: `set_state` → Tasks / Stale.
 2. Before any remote write, assign missing `TASK-NNN` identities and save them atomically in the supplied manifest; then, per task, create and link a new task or edit a changed task, leaving unchanged tasks untouched. Tasks created but never linked by an earlier run are found and linked on retry.
 3. For each rewritten task that was already closed: `reopen` → `PDLC-INVALIDATED` on the task → delete its `## Implementation` and `## Technical Plan` comments.
-4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
+4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it (GitHub: as not planned; Azure: `task_removed_state`, else the task closed state) → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
 6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
 7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run.

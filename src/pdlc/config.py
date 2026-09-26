@@ -35,6 +35,7 @@ CONFIG_FIELDS = {
     ("backend.azure", "open_state"): "azure_open_state",
     ("backend.azure", "task_closed_state"): "azure_task_closed_state",
     ("backend.azure", "task_open_state"): "azure_task_open_state",
+    ("backend.azure", "task_removed_state"): "azure_task_removed_state",
     ("backend.azure", "task_in_progress_state"): "azure_task_in_progress_state",
     ("backend.azure", "assigned_to"): "azure_assigned_to",
     ("code_host", "name"): "code_host",
@@ -137,6 +138,9 @@ class Config:
     # equivalent to fall back to, so it stays `None` unless set.
     azure_task_closed_state: str | None = None
     azure_task_open_state: str | None = None
+    # State a descoped delivery task moves to, e.g. `Removed` on Agile/Scrum;
+    # unset falls back to `azure_task_closed_state` (Basic has no Removed state).
+    azure_task_removed_state: str | None = None
     azure_task_in_progress_state: str | None = None
     azure_assigned_to: str | None = None
     max_attempts: int = 5

@@ -80,7 +80,8 @@ def remove_subissue(parent: int | str, child: int | str) -> None:
     if not parent_id or not child_id:
         raise PdlcError("one or more sub-issue nodes do not exist")
     if issues["child"].get("state") != "CLOSED":
-        run_gh(["issue", "close", str(child), *repo_args()])
+        # "not planned" keeps a descoped task from reading as delivered work.
+        run_gh(["issue", "close", str(child), "--reason", "not planned", *repo_args()])
     mutation = """mutation($parentId: ID!, $childId: ID!) {
       removeSubIssue(input: {issueId: $parentId, subIssueId: $childId}) { issue { id } }
     }"""

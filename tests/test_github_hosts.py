@@ -522,7 +522,8 @@ class SubIssueUpsertTest(GitHubHostTest):
         github_issues.remove_subissue("3", "11")
 
         self.assertTrue(self.gh.graphql_variables("removeSubIssue"))
-        self.assertTrue(any(args[:2] == ["issue", "close"] for args, _ in self.gh.calls))
+        close = next(args for args, _ in self.gh.calls if args[:2] == ["issue", "close"])
+        self.assertEqual(close[close.index("--reason") + 1], "not planned")
 
 
     def test_remove_subissue_refuses_a_null_removal_result(self) -> None:

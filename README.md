@@ -169,6 +169,7 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 | `[backend.azure] closed_state` | `Done` | Work-item state a record is closed into by `pdlc post complete`. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
 | `[backend.azure] open_state` | `To Do` | Work-item state name. Falls back for `task_open_state` when that is unset. |
 | `[backend.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
+| `[backend.azure] task_removed_state` | Falls back to `task_closed_state` | Delivery task state a task descoped by `pdlc post tasks` moves to. Set `Removed` on Agile or Scrum so descoped work does not count as completed; Basic has no such state. |
 | `[backend.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
 | `[backend.azure] task_in_progress_state` | unset | Optional. No work-item fallback — set explicitly if your process has an in-progress `Task` state you want recorded. |
 | `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. New records and tasks are assigned to this identity, or to the signed-in `az` account when unset. |
