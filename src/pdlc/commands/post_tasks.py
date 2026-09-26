@@ -53,7 +53,10 @@ record. --dry-run stops after validation and prints the plan, which is how a
 breakdown is checked before it is worth landing.
 For a non-dry-run Tasks publication, the command writes auto-assigned IDs back
 to the manifest before its first remote write, so the same file identifies
-partly created tasks on a retry.
+partly created tasks on a retry. After a successful publication it rewrites the
+manifest onto the published tasks: every entry becomes `retain` with its task
+number and a fresh baseline, and removals are dropped, so reusing the file
+later changes nothing that has not changed since.
 
 A Tasks manifest entry matching a delivery task that is already closed re-lands
 onto that task. When the re-land changes its title or body, the task is
@@ -425,6 +428,41 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
     return prepared, removals
 
 
+def _save_manifest(manifest_path: Path, entries: list[dict]) -> None:
+    """Atomically replace the manifest so a crash never leaves it half written."""
+    descriptor, temporary = tempfile.mkstemp(prefix=".tasks-", suffix=".json", dir=manifest_path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            # bodyText is the command's in-memory read of a legacy entry's body file.
+            json.dump([{key: value for key, value in entry.items() if key != "bodyText"} for entry in entries], handle, indent=2)
+            handle.write("\n")
+        os.replace(temporary, manifest_path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _consume_manifest(manifest_path: Path, entries: list[dict], issue: str) -> None:
+    """Rebase a published manifest onto the tasks as now stored.
+
+    Every created or retained entry becomes `retain` with its number and a
+    fresh baseline, and removals are dropped. Reusing the file later then
+    carries each task unchanged instead of replaying this publication, which
+    would read as an interrupted run and reopen tasks delivered since. Legacy
+    entries carry no baseline and are kept as written.
+    """
+    stored = {task["taskId"]: task for task in subissues_for(issue) if task.get("taskId")}
+    consumed: list[dict] = []
+    for entry in entries:
+        if entry.get("action") == "remove":
+            continue
+        task = stored.get(entry.get("id") or "")
+        if task is not None and "type" in entry:
+            entry = {**entry, "action": "retain", "number": task["number"], "baseline": snapshot(stored_fields(task))}
+        consumed.append(entry)
+    _save_manifest(manifest_path, consumed)
+
+
 def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | None, dry_run: bool, parent_body: str, attachment_inputs: list[dict], target: State, context: PublicationContext) -> None:
     manifest = load_json_array("--manifest", manifest_path, allow_empty=False)
     for index, task in enumerate(manifest, 1):
@@ -519,15 +557,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
                 if "type" in entry:
                     entry["action"] = "create"
         try:
-            descriptor, temporary = tempfile.mkstemp(prefix=".tasks-", suffix=".json", dir=manifest_path.parent)
-            try:
-                with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                    json.dump(source_manifest, handle, indent=2)
-                    handle.write("\n")
-                os.replace(temporary, manifest_path)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
+            _save_manifest(manifest_path, source_manifest)
         except OSError as error:
             raise PdlcError(f"cannot save assigned task ids in {manifest_path}: {error}") from error
 
@@ -604,6 +634,13 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         target = context.patch.target
     else:
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
+
+    # The publication has landed; a manifest left unconsumed is only a hazard to warn about.
+    try:
+        _consume_manifest(manifest_path, source_manifest, issue)
+    except (OSError, PdlcError) as error:
+        print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the published tasks: {error};"
+              " do not reuse it", file=sys.stderr)
 
     print(json.dumps({
         "published": True,

@@ -23,7 +23,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post write --work-item` | slug? → body → `PRODUCT` → state | Safe; may duplicate `PRODUCT` | Duplicate evidence |
 | `post write --patch` | body → `PRODUCT` → `PATCHED` → rewind or state | Mostly safe; may duplicate markers | Evidence without state move |
 | `post tasks --stage UI` | state? → body → `UI` → state or patch | Safe; may duplicate `UI` | Duplicate evidence |
-| `post tasks --stage Tasks` | state? → task upserts → reopen changed → descope comments and close/detach → `TASKS` → state or patch | Check each task after retry | A reopened task may retain stale evidence if failure interrupts its invalidation |
+| `post tasks --stage Tasks` | state? → task upserts → reopen changed → descope comments and close/detach → `TASKS` → state or patch → rebase manifest | Check each task after retry | A reopened task may retain stale evidence if failure interrupts its invalidation |
 | `post plan` | state? → per-task plan comments → `PLAN` → state | Safe; may duplicate `PLAN` | Duplicate evidence |
 | `post implement-task` | stack submit → PR edit → attach PR → implementation comment → close task | Safe by design | Stack conflict |
 | `post implement` | stack submit → PRs ready → `IMPLEMENTATION` → state | Safe; may duplicate evidence | Duplicate evidence |
@@ -115,6 +115,7 @@ Writes:
 4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
 6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
+7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run.
 
 Partial failure:
 - In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.
@@ -122,6 +123,7 @@ Partial failure:
 - During 3: a task may have reopened before its invalidation comment or stale plan and implementation comments were cleared. Inspect it after retry; the current `reopen_tasks` helper skips already-open tasks.
 - In 4: a descope comment or close may have landed before detachment, or the task may already be detached. A re-run skips a descope comment that already landed, uses the task number and matching descope comment to recognize a completed detach, then finishes the remaining removals.
 - After 5: `PDLC-TASKS` landed, state not moved; a re-run may post a duplicate evidence comment.
+- In 7: the publication is complete and the command succeeds with a warning; the manifest still holds pre-publication baselines, so discard it rather than reuse it.
 
 Check: `pdlc inspect task T` for each rewritten task — it should be open with no stale `## Technical Plan` or `## Implementation` comment; check each removed task is closed and absent from the parent's active task list; `pdlc inspect N` should show Review Required and the timeline should show this `PDLC-TASKS` evidence.
 

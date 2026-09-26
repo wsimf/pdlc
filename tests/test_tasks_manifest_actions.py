@@ -3,8 +3,10 @@
 import json
 import re
 from pathlib import Path
+from unittest import mock
 
 from _support import BODY_DEFAULT, FileBackendTest
+from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.workitem import subissues_for
 
 
@@ -58,8 +60,18 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertEqual(result.json["created"], ["TASK-003"])
         saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(saved[-1]["id"], "TASK-003")
-        self.assertEqual(saved[-1]["action"], "create")
-        self.assertEqual(saved[0]["action"], "retain")
+        self.assertEqual(saved[-1]["action"], "retain")
+        self.assertIsInstance(saved[-1]["number"], int)
+
+    def test_assigned_id_is_saved_before_the_first_remote_write(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        with mock.patch("pdlc.commands.post_tasks.upsert_tasks", side_effect=PdlcError("host down")):
+            result = self._land(path, entries)
+        self.assertEqual(result.code, 1)
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual((saved[-1]["id"], saved[-1]["action"]), ("TASK-003", "create"))
 
     def test_retry_after_a_created_task_uses_its_saved_id(self):
         path, entries = self._generated()
@@ -206,3 +218,42 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertEqual(result.json["removed"], ["TASK-002"])
         self.assertEqual(self.task_comments_text(40, 402).count("Descoped from work item #40"), 1)
         self.assertNotIn("PDLC-TASKS", self.task_comments_text(40, 402))
+
+    def test_published_manifest_is_rebased_onto_the_stored_tasks(self):
+        path, entries = self._generated()
+        Path(entries[0]["body"]).write_text(TASK_BODY + "\nOne more behavior.\n", encoding="utf-8")
+        entries[1] = {"id": entries[1]["id"], "number": entries[1]["number"], "action": "remove",
+                      "baseline": entries[1]["baseline"], "reason": "Superseded"}
+        body = self.write_file("third.md", "**Blocked by:** None\n**Requirements Covered:** FR-2\n\n**Scope:**\nNext seam.\n")
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        self.assertEqual(self._land(path, entries).code, 0)
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual([entry["id"] for entry in saved], ["TASK-001", "TASK-003"])
+        self.assertEqual({entry["action"] for entry in saved}, {"retain"})
+        _, fresh = self._generated()
+        self.assertEqual({entry["id"]: entry["baseline"] for entry in saved},
+                         {entry["id"]: entry["baseline"] for entry in fresh})
+
+    def test_reused_published_manifest_does_not_reopen_delivered_work(self):
+        path, entries = self._generated()
+        Path(entries[0]["body"]).write_text(TASK_BODY + "\nOne more behavior.\n", encoding="utf-8")
+        self.assertEqual(self._land(path, entries).code, 0)
+        metadata = self.task_meta(40, 401)
+        metadata["state"] = "CLOSED"
+        (self.records_dir() / "40" / "tasks" / "401" / "meta.json").write_text(json.dumps(metadata))
+        record_meta = self.records_dir() / "40" / "meta.json"
+        record = json.loads(record_meta.read_text(encoding="utf-8"))
+        record["fields"]["Gate State"] = "Stale"
+        record_meta.write_text(json.dumps(record), encoding="utf-8")
+        result = self._land(path, json.loads(path.read_text(encoding="utf-8")))
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["reopened"], [])
+        self.assertEqual(self.task_meta(40, 401)["state"], "CLOSED")
+
+    def test_failed_rebase_warns_without_failing_the_publication(self):
+        path, entries = self._generated()
+        with mock.patch("pdlc.commands.post_tasks._consume_manifest", side_effect=OSError("read-only")):
+            result = self._land(path, entries)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertTrue(result.json["published"])
+        self.assertIn("do not reuse it", result.stderr)
