@@ -1,6 +1,6 @@
 ---
 name: pdlc-tech-planner
-description: "Spike supplied delivery tasks against current source, then write implementation-ready, heading-free plans into the supplied task files."
+description: "Spike supplied delivery tasks against current source, then write implementation-ready plans into the supplied task files."
 model: Claude Opus 5.5 (copilot)
 ---
 
@@ -68,7 +68,7 @@ A record whose plans leave your hands carries no Assumptions subsection at all.
 
 ## Write the plans
 
-For every task planned, write only that task's plan content between its tech plan markers, replacing any placeholder comment — no heading and no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
+For every task planned, write only that task's plan content between its tech plan markers, replacing any placeholder comment — no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
 
 ```markdown
 1. `path/to/File` — <specific type/member/behavior to change and why>.

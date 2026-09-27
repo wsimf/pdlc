@@ -46,7 +46,7 @@ The planner's task files carry every open task's body and existing plan. This st
 
 Dispatch `pdlc-tech-planner` once with the brief `pdlc prompt tech-planner WORK_ITEM [--follow-up FILE] --file` writes; `--follow-up` carries the driver's verbatim follow-up when there is one. The brief names a manifest of task files the planner edits in place; take its path from the planner's report. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing. Keep the dispatch addressable: Review returns findings to the same planner.
 
-The planner is the leaf author: it writes heading-free plan content into each task file and never edits a task's scope or acceptance criteria. A missing prerequisite or a decision only the driver can make stops the pass; surface it exactly rather than re-dispatching with a guessed answer.
+The planner is the leaf author: it writes plan content into each task file and never edits a task's scope or acceptance criteria. A missing prerequisite or a decision only the driver can make stops the pass; surface it exactly rather than re-dispatching with a guessed answer.
 
 The artifact is complete when the planner reports the manifest path, the tasks it planned or left unchanged, sequencing, dependency order, validation mapping, and any unresolved decision.
 

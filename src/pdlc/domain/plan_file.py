@@ -25,8 +25,6 @@ EMPTY_PLAN = "<!-- Tech plan is empty: write this task's plan here. -->"
 _MARKERS = (TASK_BEGIN, TASK_END, PLAN_BEGIN, PLAN_END)
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-# A `#` or `##` heading would break the `## Technical Plan` comment it lands in.
-_HEADING = re.compile(r"^ {0,3}#{1,2}(?:[ \t]|$)")
 
 
 def planner_command(work_item: str, manifest: object) -> str:
@@ -116,7 +114,8 @@ def parse(text: str) -> tuple[PlanFile | None, list[str]]:
     if any(line.strip() for line in outside):
         return None, ["the file holds text outside the task and tech plan blocks; write only between the tech plan markers"]
     task = "\n".join(lines[task_begin + 1:task_end]).strip()
-    plan = _COMMENT.sub("", "\n".join(lines[plan_begin + 1:plan_end])).strip()
+    # A plan that opens with its own `## Technical Plan` line would land it twice.
+    plan = stored_plan(_COMMENT.sub("", "\n".join(lines[plan_begin + 1:plan_end])))
     return PlanFile(task=task, plan=plan), []
 
 
@@ -124,10 +123,7 @@ def plan_errors(plan: str) -> list[str]:
     """What stops a plan landing as the body of its `## Technical Plan` comment."""
     if not plan.strip():
         return ["the tech plan is empty; write this task's plan between the tech plan markers"]
-    return [
-        f"the tech plan must be heading-free, but line {index + 1} of the plan is a heading: {line.strip()!r}"
-        for index, line in _unfenced(_lines(plan)) if _HEADING.match(line)
-    ]
+    return []
 
 
 def stored_plan(comment: str | None) -> str:

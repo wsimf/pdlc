@@ -61,11 +61,12 @@ class PlanFileTests(unittest.TestCase):
         self.assertIsNone(planned)
         self.assertIn("text outside the task and tech plan blocks", errors[0])
 
-    def test_headings_are_rejected_outside_code_fences_only(self):
-        self.assertIn("heading", plan_errors("# Plan\n1. Step.")[0])
-        self.assertIn("heading", plan_errors("1. Step.\n## Steps")[0])
-        self.assertEqual(plan_errors("### Detail\n1. Step."), [])
-        self.assertEqual(plan_errors("```bash\n# run the tests\n```"), [])
+    def test_a_plan_may_hold_headings(self):
+        self.assertEqual(plan_errors("# Plan\n## Steps\n1. Step."), [])
+
+    def test_a_leading_technical_plan_heading_is_not_landed_twice(self):
+        planned, _ = parse(render(BODY, "## Technical Plan\n\n## Steps\n1. Step."))
+        self.assertEqual(planned.plan, "## Steps\n1. Step.")
 
     def test_stored_plan_drops_its_heading(self):
         self.assertEqual(stored_plan("## Technical Plan\n\nTouch one module.\n"), "Touch one module.")

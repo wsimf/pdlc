@@ -63,7 +63,7 @@ Where one of these and a task conflict, say so in the plan rather than planning 
 
 ## Writing a plan
 
-Each plan is heading-free, with no `#` or `##` line, and covers:
+Each plan covers:
 
 - files and modules that will change
 - interfaces and call sites

@@ -78,7 +78,7 @@ Every field is generated; none is edited. Each task file holds the task body
 between `--- BEGIN TASK ---` and `--- END TASK ---`, then the plan between
 `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`, with nothing outside
 the two blocks. Only the plan block lands: HTML comments are stripped from it,
-and what remains must be non-empty and hold no `#` or `##` heading. The task
+and what remains must be non-empty. The task
 body is a read-only copy; an edit to it fails validation and is refused,
 because the plan must fit the task as recorded, and a change the task needs is
 a blocker to report. A task body or plan that changed on the record since the
@@ -233,7 +233,7 @@ def build_plan(tree: list[dict], entries: list[dict], work_item: str) -> dict:
         ("every task file keeps its task and tech plan blocks", files),
         ("no task changed on the record since the manifest was generated", stale),
         ("no task body was edited", edited),
-        ("every tech plan is non-empty and heading-free", plans),
+        ("every tech plan is non-empty", plans),
         ("every open task ends up with a plan", (
             [f"these tasks would be left unplanned: {', '.join(left_unplanned)}"] if left_unplanned else []
         )),

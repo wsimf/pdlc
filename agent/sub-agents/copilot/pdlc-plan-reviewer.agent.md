@@ -24,7 +24,7 @@ Require the parent work item body and the manifest of task files. Each file hold
 ## Review process
 
 1. Read the parent's Product and UI sections for context.
-2. Confirm each plan is heading-free content that fits the task it targets: it plans that task's scope and nothing beyond it, and it neither restates nor contradicts the scope, non-goals, or acceptance criteria already in the body. A plan that re-narrates the task, or that quietly widens it, is a finding.
+2. Confirm each plan fits the task it targets: it plans that task's scope and nothing beyond it, and it neither restates nor contradicts the scope, non-goals, or acceptance criteria already in the body. A plan that re-narrates the task, or that quietly widens it, is a finding.
 3. Confirm no task under review is already implemented — a task carrying a `## Implementation` comment (`hasImplementation: true`) must not be re-planned. Flag it if the calling skill included one.
 4. Verify the plan is actionable: real file and module ownership named where the spike could identify them, clear interfaces, and a sequencing that respects the task's dependency graph.
 5. Verify each acceptance criterion maps to how it will actually be validated — a focused test, a build target, or a named runtime/visual check — not left implicit.

@@ -67,7 +67,7 @@ A change the driver asked for, or findings from a review of your plans, verbatim
 
 ## Writing a plan
 
-Each plan is heading-free, with no `#` or `##` line, and covers:
+Each plan covers:
 
 - files and modules that will change
 - interfaces and call sites

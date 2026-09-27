@@ -264,10 +264,9 @@ class PostPlanValidationTests(FileBackendTest):
         self.assertIn("TASK-001", result.stdout)
         self.assertIn("the tech plan is empty", result.stdout)
 
-    def test_a_heading_in_the_plan_is_rejected(self):
-        result = self._dry_run(self.plan_manifest(40, {"TASK-001": "## Steps\n1. Touch core."}))
-        self.assertEqual(result.code, 1)
-        self.assertIn("must be heading-free", result.stdout)
+    def test_a_plan_may_hold_any_markdown(self):
+        result = self._dry_run(self.plan_manifest(40, {"TASK-001": "# Plan\n## Steps\n1. Touch core."}))
+        self.assertEqual(result.code, 0, result.stdout)
 
     def test_a_task_body_edit_fails_the_dry_run_and_is_refused(self):
         manifest = self.reviewed_plan_manifest(40, {"TASK-001": "Touch core."})
