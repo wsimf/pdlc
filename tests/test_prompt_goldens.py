@@ -180,6 +180,20 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             self._acceptance("--findings", "text:unit-tests: assertion failed at test_a.py:12"),
         )
 
+    # --- patch reviewer ---
+
+    def test_patch_reviewer_product_patch(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] First")
+        draft = self.write_file(
+            "product.md",
+            NO_UI_BODY.replace("The record lands.", "The record lands atomically."),
+        )
+        self.assertGolden(
+            "patch-reviewer-product",
+            self.invoke("prompt_patch_reviewer", "--inline", 60, "--stage", "Product", "--body", draft),
+        )
+
     # --- task planner ---
 
     def test_task_planner_first_pass(self):
