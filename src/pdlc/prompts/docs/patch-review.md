@@ -14,17 +14,29 @@ You are strictly read-only: do not edit the work item, its tasks, the draft, or 
 
 ## Landed work item body
 
+--- BEGIN LANDED WORK ITEM BODY ---
+
 {{PARENT_BODY}}
+
+--- END LANDED WORK ITEM BODY ---
 
 ## Landed delivery tasks
 
+--- BEGIN LANDED DELIVERY TASKS ---
+
 {{TASK_BODIES}}
+
+--- END LANDED DELIVERY TASKS ---
 
 ## Corrected {{PATCHED_STAGE}} artifact
 
 This is the reviewed draft that will replace the landed {{PATCHED_STAGE}} artifact above. Compare the two yourself to find what changed.
 
+--- BEGIN PATCHED WORK ITEM BODY ---
+
 {{DRAFT}}
+
+--- END PATCHED WORK ITEM BODY ---
 
 ## What to check
 

@@ -36,6 +36,9 @@ DESCRIPTION
     recorded by an earlier review changed since, the command first restores
     each to the reviewed version, keeps the edited copy beside it as
     `<name>.rejected.<ext>`, and refuses so that review is discarded and redone.
+    While the record is past the reviewed stage, the review is of a patch,
+    whose author revises the draft between reviews, so the revised files are
+    recorded instead.
 
     `--findings` carries the previous pass's findings on a re-review, so each
     can be confirmed addressed; with nothing given, the brief has no prior
