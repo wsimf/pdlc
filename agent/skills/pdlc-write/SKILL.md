@@ -8,7 +8,7 @@ argument-hint: "Fresh feature idea, or work item number to reconcile"
 
 Author a work item's `Product`, `Decisions`, and `Open Questions` sections through a source-backed interview with the driver. You draft the sections, `pdlc-product-reviewer` checks the local draft, and `pdlc post write` lands the reviewed file at `Product / Approval Required`. This skill owns those three sections and nothing else. Review runs on the local file, before anything is landed.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Read [`references/product-spec-format.md`](references/product-spec-format.md) before Interview for section format, numbering, and writing rules. `product-reviewer` builds the reviewer's brief; this skill passes it through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. Read [`references/product-spec-format.md`](references/product-spec-format.md) before Interview for section format, numbering, and writing rules. `product-reviewer` builds the reviewer's brief; this skill passes it through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 ## Resolve
 

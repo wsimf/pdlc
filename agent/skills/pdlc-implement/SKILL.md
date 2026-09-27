@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to implement"
 
 `pdlc inspect implement` names one unit of work per call: a task to implement, a task to fix, or the change requests to triage. Do that unit, land it with the command the output's `## Publish` section names, and run it again; the loop ends when it names the stage publish or says what it is waiting on. The task's implementer sub-agent writes the code, `pdlc-implementation-reviewer` checks it at `task` depth, `pdlc-test-writer` adds unit coverage for what each unit changed, and `pdlc post implement-task` lands each unit. This skill owns orchestration; it never decides the code's content.
 
-The sub-agents know nothing about the PDLC pipeline, so every brief must stand on its own. `pdlc prompt` builds them; this skill passes each one through untouched and never writes a brief of its own.
+The sub-agents know nothing about the PDLC pipeline, so every brief must stand on its own. `pdlc prompt` builds them; this skill passes each one through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 Read `pdlc guide contract` when resolving lifecycle questions. Read `pdlc guide stacks` when a task branch, its pull request, or the stack is not where `pdlc` expects it.
 

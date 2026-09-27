@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to verify"
 
 Prove the Work Item is done rather than assuming it, and record what was verified. You audit claims against current source, `user-journey-reviewer` checks journeys and UX, a general-purpose sub-agent runs the cumulative review, and `pdlc post verify` records the outcome. This skill never edits production source or tests; every fix bounces to its owning stage.
 
-Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-journey-reviewer` and `pdlc prompt cumulative-reviewer` build the two specialist briefs; this skill passes each through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-journey-reviewer` and `pdlc prompt cumulative-reviewer` build the two specialist briefs; this skill passes each through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 ## Resolve
 

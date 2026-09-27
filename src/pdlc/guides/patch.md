@@ -16,7 +16,7 @@ Write the corrected artifact yourself, in exactly the input form its landing com
 
 ## Step 2: Review the draft
 
-Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Revise the draft on findings and re-review; after three failed passes, stop and put the defect to the driver. The clean review is the `--evidence` body.
+Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Revise the draft on findings and re-review, running the `pdlc prompt` command afresh for every dispatch and never reusing an earlier brief; a re-review may go back to the same reviewer. After three failed passes, stop and put the defect to the driver. The clean review is the `--evidence` body.
 
 ## Step 3: Judge the impact
 

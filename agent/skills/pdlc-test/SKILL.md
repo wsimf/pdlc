@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to test"
 
 Verify acceptance coverage across the whole implemented feature — every in-scope requirement and user journey, end to end, on top of the per-task coverage each task already carries. You build the requirement-to-source traceability map, `pdlc-test-writer` writes the coverage and commits it on the current branch, so the top task PR carries the acceptance suite, and `pdlc post test` publishes the stage at `Review Required`. This skill never writes or runs tests itself.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Read `pdlc guide stacks` when a task branch, its pull request, or the stack is not where `pdlc` expects it. `pdlc prompt acceptance-test-writer` builds the test writer's brief; this skill passes it through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. Read `pdlc guide stacks` when a task branch, its pull request, or the stack is not where `pdlc` expects it. `pdlc prompt acceptance-test-writer` builds the test writer's brief; this skill passes it through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 ## Resolve
 
