@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
 import unittest
 
-from pdlc.prompts.assemble import PromptError, package_loader, render, render_text
+from pdlc.prompts.assemble import (
+    PromptError,
+    check_syntax,
+    package_loader,
+    render,
+    render_text,
+)
 
 
 def _loader(fragments: dict[str, str]):
@@ -81,6 +88,50 @@ class ConditionalBlockTests(unittest.TestCase):
         )
         self.assertEqual(rendered, "before\nafter\n")
 
+    def test_else_body_renders_for_falsey_value(self) -> None:
+        rendered = render_text(
+            "{{#IF VALUE}}\ntruthy\n{{#ELSE}}\nfalsy\n{{/IF}}\n",
+            {"VALUE": 0},
+            loader=_loader({}),
+        )
+        self.assertEqual(rendered, "falsy\n")
+
+    def test_else_body_keeps_lines_up_to_the_closing_if(self) -> None:
+        # Regression: the old {{#IF}}...{{#ELSE}}...{{/ELSE}}...{{/IF}} syntax silently
+        # dropped any line between {{/ELSE}} and {{/IF}}.
+        rendered = render_text(
+            "{{#IF X}}\nyes\n{{#ELSE}}\nno\nLOST\n{{/IF}}\n",
+            {"X": False},
+            loader=_loader({}),
+        )
+        self.assertEqual(rendered, "no\nLOST\n")
+
+    def test_empty_collection_is_falsy(self) -> None:
+        for value in ([], {}):
+            rendered = render_text(
+                "{{#IF VALUE}}\ntruthy\n{{#ELSE}}\nfalsy\n{{/IF}}\n",
+                {"VALUE": value},
+                loader=_loader({}),
+            )
+            self.assertEqual(rendered, "falsy\n")
+
+    def test_nested_else_bodies_render_for_each_selected_branch(self) -> None:
+        template = (
+            "{{#IF OUTER}}\n"
+            "outer true\n"
+            "{{#IF INNER}}\ninner true\n{{#ELSE}}\ninner false\n{{/IF}}\n"
+            "{{#ELSE}}\nouter false\n"
+            "{{/IF}}\n"
+        )
+        self.assertEqual(
+            render_text(template, {"OUTER": True, "INNER": ""}, loader=_loader({})),
+            "outer true\ninner false\n",
+        )
+        self.assertEqual(
+            render_text(template, {"OUTER": False, "INNER": True}, loader=_loader({})),
+            "outer false\n",
+        )
+
     def test_unclosed_block_is_an_error(self) -> None:
         with self.assertRaises(PromptError):
             render_text("{{#IF X}}\nbody\n", {"X": True}, loader=_loader({}))
@@ -92,6 +143,26 @@ class ConditionalBlockTests(unittest.TestCase):
     def test_stray_close_is_an_error(self) -> None:
         with self.assertRaises(PromptError):
             render_text("body\n{{/IF}}\n", {}, loader=_loader({}))
+
+    def test_stray_slash_else_is_an_error(self) -> None:
+        with self.assertRaises(PromptError):
+            render_text("body\n{{/ELSE}}\n", {}, loader=_loader({}))
+
+    def test_two_else_branches_in_one_if_is_an_error(self) -> None:
+        with self.assertRaises(PromptError):
+            render_text(
+                "{{#IF X}}\na\n{{#ELSE}}\nb\n{{#ELSE}}\nc\n{{/IF}}\n",
+                {"X": True},
+                loader=_loader({}),
+            )
+
+    def test_else_inside_each_is_an_error(self) -> None:
+        with self.assertRaises(PromptError):
+            render_text(
+                "{{#EACH STACK}}\na\n{{#ELSE}}\nb\n{{/EACH}}\n",
+                {"STACK": []},
+                loader=_loader({}),
+            )
 
 
 class EachBlockTests(unittest.TestCase):
@@ -150,6 +221,87 @@ class EachBlockTests(unittest.TestCase):
             loader=_loader({}),
         )
         self.assertEqual(rendered, "one\nplan: p\ntwo\n")
+
+
+class SyntaxCheckTests(unittest.TestCase):
+    """`check_syntax` validates template structure without needing a render context."""
+
+    def test_valid_template_passes(self) -> None:
+        check_syntax("{{#IF X}}\na\n{{#ELSE}}\nb\n{{/IF}}\n")
+
+    def test_unclosed_block_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#IF X}}\nbody\n")
+
+    def test_stray_close_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("body\n{{/IF}}\n")
+
+    def test_slash_else_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#IF X}}\na\n{{#ELSE}}\nb\n{{/ELSE}}\n{{/IF}}\n")
+
+    def test_two_else_branches_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#IF X}}\na\n{{#ELSE}}\nb\n{{#ELSE}}\nc\n{{/IF}}\n")
+
+    def test_else_inside_each_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#EACH X}}\na\n{{#ELSE}}\nb\n{{/EACH}}\n")
+
+    def test_else_outside_any_block_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#ELSE}}\n")
+
+    def test_block_directive_not_alone_on_line_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("prefix {{#IF X}} suffix\nbody\n{{/IF}}\n")
+
+    def test_unknown_directive_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{#WEIRD X}}\n")
+
+    def test_unsafe_include_path_is_invalid(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{INCLUDE:../../etc/passwd.md}}\n")
+
+    def test_missing_include_target_is_invalid_when_checked(self) -> None:
+        with self.assertRaises(PromptError):
+            check_syntax("{{INCLUDE:missing.md}}\n", path_exists=lambda path: False)
+
+    def test_include_target_present_is_valid(self) -> None:
+        check_syntax("{{INCLUDE:present.md}}\n", path_exists=lambda path: True)
+
+    def test_missing_include_target_not_checked_without_path_exists(self) -> None:
+        check_syntax("{{INCLUDE:missing.md}}\n")
+
+
+def _bundled_markdown_paths(root: object, base: str = "") -> list[str]:
+    """Docs-relative paths of every ``.md`` fragment under ``root``, recursing into ``shared/``."""
+    paths: list[str] = []
+    for entry in sorted(root.iterdir(), key=lambda item: item.name):  # type: ignore[attr-defined]
+        rel = f"{base}/{entry.name}" if base else entry.name
+        if entry.is_dir():
+            paths.extend(_bundled_markdown_paths(entry, rel))
+        elif entry.name.endswith(".md"):
+            paths.append(rel)
+    return paths
+
+
+class BundledPromptSyntaxTests(unittest.TestCase):
+    """Every bundled prompt fragment must have valid template syntax."""
+
+    def test_every_bundled_fragment_has_valid_syntax(self) -> None:
+        docs_root = files("pdlc.prompts").joinpath("docs")
+        paths = _bundled_markdown_paths(docs_root)
+        self.assertGreater(len(paths), 0)
+        for path in paths:
+            with self.subTest(path=path):
+                text = docs_root.joinpath(*path.split("/")).read_text(encoding="utf-8")
+                check_syntax(
+                    text,
+                    path_exists=lambda p: docs_root.joinpath(*p.split("/")).is_file(),
+                )
 
 
 class PackagedPromptTests(unittest.TestCase):

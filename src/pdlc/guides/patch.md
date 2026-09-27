@@ -12,7 +12,7 @@ The landing command's dry run confirms your stage may patch the artifact at all:
 
 ## Step 1: Draft the correction
 
-Write the corrected artifact yourself, in exactly the input form its landing command takes, starting from the landed artifact in `pdlc inspect <WORK_ITEM> --full` or `pdlc inspect task <DELIVERY_TASK>`. Change only what the defect needs. Do not dispatch another stage's planner. A Tasks manifest names every landed task by `id` and keeps each task's `ui`, `covers`, and `depends`; call the landing command's `--help` for what else a patch may not change.
+Write the corrected artifact yourself, in exactly the input form its landing command takes, starting from the landed artifact in `pdlc inspect <WORK_ITEM> --full` or `pdlc inspect task <DELIVERY_TASK>`. Change only what the defect needs. Do not dispatch another stage's planner. A Tasks manifest names every landed task by `id` and keeps each task's classification, coverage, and dependencies; call the landing command's `--help` for what else a patch may not change.
 
 ## Step 2: Review the draft
 

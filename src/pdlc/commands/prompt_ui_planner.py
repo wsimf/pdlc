@@ -4,6 +4,8 @@
 
 USAGE
     pdlc prompt ui-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    - when revising an unpublished UI fragment, such as a reviewed draft:
+      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE [--follow-up FILE|text:BODY] [--file]
 
 DESCRIPTION
     Prints the complete brief for the sub-agent that authors a record's `UI`
@@ -13,22 +15,30 @@ DESCRIPTION
     `Status` is not `UI`. The brief opens with the project's configured
     UX-design skill line, so the agent knows whether to invoke one before
     resolving any experience decision. It carries the record's `Gate State`,
-    why it is `Stale` when it is (from the record-level invalidation naming
-    `UI`, or that none is recorded), and its existing delivery-task tree, if
+    any recorded stale reason, every open change request the UI stage has
+    received since it last published, and its existing delivery-task tree, if
     any.
 
-    `--follow-up` carries the driver's verbatim request on a reconciling pass;
-    with nothing given, that section reads "none".
+    When the record already has a `UI` section, the command writes it to the
+    work-item cache as an editable fragment and the brief names that file; the
+    embedded parent body then omits the section, so the fragment is its only
+    copy.
+
+    `--follow-up` carries the driver's verbatim request; with nothing given,
+    that section is omitted. `--current-journeys-path` names an unpublished UI
+    fragment to revise instead of the published section.
 
 FLAGS
-    --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass
+    --current-journeys-path FILE  unpublished UI fragment to revise instead of the published section
+    --follow-up FILE|text:BODY    the driver's verbatim follow-up for this pass
     --file                  write the brief to
                             the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt ui-planner 236
-    pdlc prompt ui-planner 236 --follow-up text:"revisit UJ-2's offline flow"
+    pdlc prompt ui-planner 236 --follow-up text:"drop the offline journey"
+    pdlc prompt ui-planner 236 --current-journeys-path /tmp/pdlc-ui.md --follow-up /tmp/findings.md
 """
 
 from __future__ import annotations
@@ -51,9 +61,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Print the UI planner's brief for a record's UI section")
     prompt.add_common_arguments(parser, COMMAND)
     parser.add_argument("--follow-up", help="the driver's verbatim follow-up (FILE or text:BODY)")
+    parser.add_argument("--current-journeys-path", metavar="FILE", help="an unpublished UI fragment to revise")
     args = parser.parse_args(command_args)
 
-    return prompt.run(COMMAND, args, lambda: prompt.ui_planner_brief(args.work_item, args.follow_up))
+    return prompt.run(
+        COMMAND,
+        args,
+        lambda: prompt.ui_planner_brief(
+            args.work_item, args.follow_up, args.current_journeys_path
+        ),
+    )
 
 
 if __name__ == "__main__":

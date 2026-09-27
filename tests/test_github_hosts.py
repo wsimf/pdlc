@@ -348,6 +348,14 @@ class SubIssueReadTest(GitHubHostTest):
         self.assertEqual([c["body"] for c in comments], ["first", "second"])
         self.assertEqual(comments[0]["author"]["login"], "alice")
 
+    def test_comments_for_issue_restores_escaped_refs(self) -> None:
+        self.gh.api("issues/3/comments", [[{"body": "PDLC-TASKS\n\nsee \\#45", "created_at": "t",
+                                             "html_url": "h1", "user": {"login": "alice"}}]])
+
+        [comment] = github_issues.comments_for_issue("3")
+
+        self.assertEqual(comment["body"], "PDLC-TASKS\n\nsee #45")
+
     def test_post_comment_writes_marker_stamp(self) -> None:
         self.gh.gh("issue", "comment", response="https://github.com/wsimf/pdlc/issues/3#issuecomment-1")
 
@@ -425,6 +433,29 @@ class SubIssueUpsertTest(GitHubHostTest):
             "author": {"login": "sudara"},
         }])
 
+    def test_tasks_by_number_restores_escaped_refs_in_body_and_comments(self) -> None:
+        self.gh.graphql(
+            "issue0: issue(number:",
+            graphql_data({
+                "repository": {
+                    "issue0": {
+                        "number": 11, "title": "WORK-3-TASK-001 A", "url": "u11", "state": "CLOSED",
+                        "body": "<!-- pdlc:meta\nprs: 7\n-->\n\nSee \\#45\n",
+                        "comments": {"nodes": [{"body": "Descoped from work item \\#3: gone\n",
+                                                "createdAt": "2026-01-02T00:00:00Z", "url": "c1",
+                                                "author": {"login": "sudara"}}], "totalCount": 1},
+                    },
+                }
+            }),
+        )
+
+        [task] = github_issues.tasks_by_number(["11"])
+
+        self.assertEqual(task["body"], "See #45\n")
+        self.assertEqual(task["prs"], [7])
+        self.assertEqual(task["comments"], ["Descoped from work item #3: gone\n"])
+        self.assertEqual(task["commentObjects"][0]["body"], "Descoped from work item #3: gone\n")
+
     def test_tasks_by_number_raises_on_missing_issue(self) -> None:
         self.gh.graphql("issue0: issue(number:", graphql_data({"repository": {"issue0": None}}))
         with self.assertRaises(PdlcError):
@@ -468,6 +499,56 @@ class SubIssueUpsertTest(GitHubHostTest):
         create_call = next(call[0] for call in self.gh.calls if call[0][:2] == ["issue", "create"])
         self.assertEqual(create_call[create_call.index("--assignee") + 1], "@me")
 
+    def test_upsert_leaves_a_task_whose_body_differs_only_in_escaping(self) -> None:
+        existing = [{"taskId": "TASK-001", "number": 11, "title": "WORK-3-TASK-001 Same",
+                     "url": "u11", "body": "See #45\n", "prs": []}]
+        self.gh.graphql("subIssues(first: 100)", graphql_data({"repository": {"issue": {"subIssues": {"nodes": []}}}}))
+
+        results = github_issues.upsert_tasks(
+            "3", [{"id": "TASK-001", "title": "Same", "bodyText": "See #45\n"}], existing,
+        )
+
+        self.assertEqual(results[0]["action"], "unchanged")
+        self.assertFalse(any(args[:2] == ["issue", "edit"] for args, _ in self.gh.calls))
+
+    def test_remove_subissue_closes_and_detaches_without_deleting(self) -> None:
+        self.gh.graphql(
+            "parent: issue(number:",
+            graphql_data({"repository": {"parent": {"id": "I_parent"}, "child": {"id": "I_child", "state": "OPEN"}}}),
+        )
+        self.gh.gh("issue", "close", response="")
+        self.gh.graphql("removeSubIssue", graphql_data({"removeSubIssue": {"issue": {"id": "I_parent"}}}))
+
+        github_issues.remove_subissue("3", "11")
+
+        self.assertTrue(self.gh.graphql_variables("removeSubIssue"))
+        close = next(args for args, _ in self.gh.calls if args[:2] == ["issue", "close"])
+        self.assertEqual(close[close.index("--reason") + 1], "not planned")
+
+
+    def test_remove_subissue_retry_skips_close_but_still_detaches(self) -> None:
+        # A retry after the first run already closed the child: `gh issue
+        # close` must not run again, but the detach mutation still must.
+        self.gh.graphql(
+            "parent: issue(number:",
+            graphql_data({"repository": {"parent": {"id": "I_parent"}, "child": {"id": "I_child", "state": "CLOSED"}}}),
+        )
+        self.gh.graphql("removeSubIssue", graphql_data({"removeSubIssue": {"issue": {"id": "I_parent"}}}))
+
+        github_issues.remove_subissue("3", "11")
+
+        self.assertTrue(self.gh.graphql_variables("removeSubIssue"))
+        self.assertFalse(any(args[:2] == ["issue", "close"] for args, _ in self.gh.calls))
+
+    def test_remove_subissue_refuses_a_null_removal_result(self) -> None:
+        self.gh.graphql(
+            "parent: issue(number:",
+            graphql_data({"repository": {"parent": {"id": "I_parent"}, "child": {"id": "I_child", "state": "CLOSED"}}}),
+        )
+        self.gh.graphql("removeSubIssue", graphql_data({"removeSubIssue": {"issue": None}}))
+
+        with self.assertRaisesRegex(PdlcError, "incomplete sub-issue removal"):
+            github_issues.remove_subissue("3", "11")
 
 class PrRegistryFormatTest(unittest.TestCase):
     """The GitHub backend's own storage format for attached pull requests."""
@@ -553,7 +634,7 @@ class WorkItemBackendTest(GitHubHostTest):
                         "number": 3,
                         "title": "Record",
                         "url": "https://example.test/3",
-                        "body": "<!-- pdlc:meta\nprs: 148 152\n-->\n\n## Product\nkeep\n",
+                        "body": "<!-- pdlc:meta\nprs: 148 152\n-->\n\n## Product\nkeep \\#9\n",
                         "issueType": {"name": "Feature"},
                         "projectItems": {"nodes": [{
                             "id": "PVTI_1",
@@ -570,7 +651,7 @@ class WorkItemBackendTest(GitHubHostTest):
         )
         item = self.backend.resolve("3")
         self.assertEqual(item["prs"], [148, 152])
-        self.assertEqual(item["issueBody"], "## Product\nkeep\n")
+        self.assertEqual(item["issueBody"], "## Product\nkeep #9\n")
         self.assertNotIn("pdlc:meta", item["issueBody"])
 
     def test_write_body_preserves_attached_pull_requests(self) -> None:

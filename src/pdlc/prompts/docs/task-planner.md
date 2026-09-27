@@ -10,42 +10,27 @@ Work from this brief. Author the breakdown and return the task files and manifes
 {{PARENT_BODY}}
 
 --- END WORK ITEM ---
-{{#IF EXISTING_TASKS}}
 
-## Existing tasks
+## Your Task
 
-Reconcile this complete breakdown against the current work item and any changes below.
-
-- Rewrite, add, or remove only tasks affected by the current work item or the changes.
-- Carry every unaffected existing task in the manifest with `"unchanged": true`; return no body for it.
-- Preserve complete requirement, journey, and dependency coverage across the resulting tree.
-{{#EACH EXISTING_TASKS}}
-
-### `{{TASK_ID}}`
-
-{{TASK_METADATA}}
-
---- BEGIN TASK BODY ---
-
-{{TASK_BODY}}
-
---- END TASK BODY ---
-{{/EACH}}
+{{#IF MANIFEST_PATH}}
+Revise the task breakdown at `{{MANIFEST_PATH}}`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
+{{#ELSE}}
+No delivery tasks exist yet. Decompose the work item above into a first breakdown.
 {{/IF}}
-{{#IF CHANGE_SOURCES}}
+{{#IF STALE_REASON}}
 
-## Changes needed
+### Invalidation reason
 
-The following change inputs apply to this pass: {{CHANGE_SOURCES}}. Reconcile each against the work item; the work item remains the contract.
+The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
-- Apply each change to the tasks it affects.
-- If a requested change conflicts with the work item, stop and report it.
-- If you cannot tell which task or requirement a change affects, stop and report it.
+{{STALE_REASON}}
+{{/IF}}
 {{#IF CHANGE_REQUESTS}}
 
 ### Change requests
 
-Findings recorded against this stage since it last published.
+Findings recorded against this stage since it last published. Reconcile them against the work item; the work item remains the contract. Apply each change to the tasks it affects. If a change conflicts with the work item or cannot be mapped to a task or requirement, stop and report it.
 
 --- BEGIN CHANGE REQUESTS ---
 
@@ -57,48 +42,46 @@ Findings recorded against this stage since it last published.
 
 ### Driver follow-up
 
-A change the driver asked for, or findings from a review of the breakdown, verbatim.
+A change the driver asked for, or findings from a review of the breakdown, verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it.
 
 {{DRIVER_FOLLOWUP}}
 {{/IF}}
+{{#IF EXISTING_TASKS}}
+
+## Existing tasks
+
+The manifest above carries the complete editable breakdown. These titles identify its published tasks:
+
+{{#EACH EXISTING_TASKS}}
+- `{{TASK_ID}}` — {{TASK_TITLE}} ({{TASK_PROGRESS}})
+{{/EACH}}
+
+Rewrite or add only tasks affected by the work item or changes. Keep unaffected tasks as `"action": "retain"` without editing their files. If a task must leave scope, set `"action": "remove"` and give a reason. Preserve complete requirement, journey, and dependency coverage across the resulting tree.
 {{/IF}}
 
 {{INCLUDE:shared/task-sequencing.md}}
 
 ## Return
 
-Return one body file for each new or rewritten task, plus a manifest:
+Return the revised manifest and its task files. For a first breakdown, create both:
 
 ```json
 [
   {
-    "id": "TASK-001",
+    "action": "create",
     "title": "Persist route profile geometry",
     "body": "/tmp/task-001.md",
-    "ui": false,
+    "type": "core",
     "covers": ["FR-2", "C-1"],
     "depends": []
   }
 ]
 ```
 
-- `title` is human-readable only — the script composes the stable
-  `WORK-<parent>-TASK-<nnn>` identity and stamps the `[UI]` / `[CORE]` tag from
-  `ui`, so `ui` must be a strict, accurate `true` / `false`.
-- `id` is optional: supply it to update an existing task, omit it for a new one
-  (the script assigns the next number).
-- Carry every unaffected existing task forward with `{"id": "TASK-002",
-  "unchanged": true, "ui": false, "covers": [...], "depends": [...]}` — no
-  `title`, no `body`. It stays in the breakdown and its coverage still counts,
-  but nothing about it is rewritten and no later stage revisits it.
-- Supplying a `title` or `body` for a task whose work already landed rewrites
-  it: a rewritten task that was closed is reopened and its plan and
-  implementation evidence retired, so it is planned and built again. Do that
-  only when the current work item or changes genuinely require it.
-- `covers` / `depends` are machine-checked against the parent's own identifiers
-  and against the graph — they must match what each task body actually says.
+- `create` adds a task; omit `action` and `id` for the next free number, or supply a new `TASK-NNN` id with `"action": "create"`.
+- `retain` keeps an existing task. Keep its generated fields and body path; the command compares its content with the stored task and updates it only when it changed. A changed closed task reopens for planning and implementation.
+- `remove` descopes an existing, unimplemented task. Keep its generated `id`, `number`, and `baseline`, add a nonempty `reason`, and remove title, body, type, covers, and depends. A task with a registered pull request cannot be removed.
+- `title` is the human-readable half only. The command composes the stable identity and stamps `[UI]` or `[CORE]` from `type`.
+- `covers` and `depends` must agree with each task body and the parent work item. The command validates coverage and the dependency graph.
 
-Each task body carries scope, non-goals, dependency links, FR/C/UJ coverage,
-HITL/AFK classification, acceptance criteria, risk, and expected implementation
-evidence. Every task covers at least one FR or C; every UI task covers a `UJ-*`
-and every `UJ-*` has a UI task.
+Each task body carries dependency links, FR/C/UJ coverage, HITL/AFK classification, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful. Every task covers at least one FR or C; every UI task covers a `UJ-*` and every `UJ-*` has a UI task.

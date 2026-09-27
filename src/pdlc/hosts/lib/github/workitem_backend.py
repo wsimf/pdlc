@@ -17,6 +17,7 @@ from pdlc.hosts.lib.github.transport import (
     assignee_args,
     body_file,
     repo_args,
+    restore_refs,
     run_gh,
     run_gh_json,
 )
@@ -34,7 +35,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def resolve(self, ref: str) -> WorkItem:
         item = github_project.item_for_issue(ref if ref.isdigit() else github_project.issue_for_slug(ref))
         body = item.get("issueBody") or ""
-        return {**item, "issueBody": pr_registry.strip(body), "prs": pr_registry.prs(body)}
+        return {**item, "issueBody": restore_refs(pr_registry.strip(body)), "prs": pr_registry.prs(body)}
 
     def queue_items(self) -> list[QueueItemSummary]:
         return github_project.queue_items()
@@ -105,6 +106,9 @@ class GitHubWorkItemBackend(WorkItemBackend):
 
     def close_task(self, task_ref: str) -> None:
         run_gh(["issue", "close", str(task_ref), *repo_args()])
+
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        github_issues.remove_subissue(parent, task_ref)
 
     def reopen_task(self, task_ref: str) -> None:
         run_gh(["issue", "reopen", str(task_ref), *repo_args()])

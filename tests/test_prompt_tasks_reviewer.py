@@ -3,11 +3,41 @@
 from __future__ import annotations
 
 import json
+from unittest import mock
 
 from tests._support import FileBackendTest
 
 
 class PromptTasksReviewerTest(FileBackendTest):
+    def test_removed_task_lookup_requires_exactly_one_result(self):
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        manifest = self.write_file(
+            "manifest.json",
+            json.dumps([{"id": "TASK-001", "number": 42, "action": "remove", "reason": "Superseded"}]),
+        )
+        for matches in ([], [{"title": "First"}, {"title": "Second"}]):
+            with self.subTest(count=len(matches)):
+                with mock.patch("pdlc.commands.prompt.tasks_by_number", return_value=matches):
+                    result = self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest)
+                self.assertNotEqual(result.code, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(
+                    "manifest removes TASK-001 as task #42, which could not be read; the manifest is out of date"
+                    " or was edited by hand, so run `pdlc prompt task-planner 60`",
+                    result.stderr,
+                )
+
+    def test_unknown_removed_task_number_explains_the_recovery(self):
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        manifest = self.write_file(
+            "manifest.json",
+            json.dumps([{"id": "TASK-001", "number": 999, "action": "remove", "reason": "Superseded"}]),
+        )
+        result = self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest)
+        self.assertNotEqual(result.code, 0)
+        self.assertIn("manifest removes TASK-001 as task #999, which could not be read: ", result.stderr)
+        self.assertIn("run `pdlc prompt task-planner 60` for a fresh manifest", result.stderr)
+
     def test_a_manifest_carries_every_task_body_in_full(self):
         self.seed_record(60, "Tasks", "Pending", slug="record-60")
         task_body = self.write_file("task1.md", "## Scope\nBuild the seam.\n\nCovers FR-1.\n")

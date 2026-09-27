@@ -39,12 +39,12 @@ Carry the driver's follow-up verbatim. For `Stale`, reconcile against the existi
 
 Dispatch exactly one owning planner:
 
-- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM [--follow-up FILE]` writes; `--follow-up` carries the driver's verbatim follow-up when there is one.
-- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM [--follow-up FILE]` writes; `--follow-up` carries the driver's verbatim follow-up when there is one.
+- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current UI fragment only when revising an unpublished one; use `pdlc prompt ui-planner --help` for both inputs.
+- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current task manifest only when revising an unpublished one; use `pdlc prompt task-planner --help` for both inputs.
 
 For either, `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 
-The planner is the leaf author: it returns the UI fragment, or one task body per task plus a manifest. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
+The planner is the leaf author: it returns the UI fragment, or the revised task manifest and its task files. When a UI section or tasks already exist, the planner's brief points to generated editable copies. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
 
 The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run. For `UI`, the planner also reports whether UI is required; carry that verdict into Validate and Land.
 
@@ -68,13 +68,13 @@ Add `--no-ui` when the planner reported that UI is not required. The planner's a
 
 Call `pdlc post tasks --help` for more info about that command.
 
-The dry run must be clean before review; it writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. This step is complete when the command prints a clean resolved plan or UI applicability result.
+The dry run must be clean before review; it writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. If the error says to act differently, follow the instructions it gives instead. This step is complete when the command prints a clean resolved plan or UI applicability result.
 
 ## Review
 
 Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
 
-On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` or `task-planner` — with `--follow-up FILE` carrying the findings, then repeat Validate and Review on the same paths. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
+On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` with the current UI fragment path, or `task-planner` with the current task manifest path — and the findings as its follow-up. Repeat Validate and Review on those same files. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 
 ## Land
 
@@ -85,7 +85,7 @@ pdlc post tasks --work-item WORK_ITEM --stage Tasks \
   --manifest /tmp/pdlc-tasks.json --evidence /tmp/pdlc-tasks-evidence.md
 ```
 
-For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`, with the same `--no-ui` the dry run used. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
+For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`, with the same `--no-ui` the dry run used. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. If the error says to act differently, follow the instructions it gives instead. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
 
 ## Report
 
@@ -94,7 +94,7 @@ Relay the command's JSON output, plus:
 - the resolved stage and why it was eligible;
 - the planner's artifact paths and the review verdict/pass count;
 - for UI, applicability and journey count;
-- for Tasks, created/updated/retitled IDs, dependency order, and dropped tasks;
+- for Tasks, created/updated/retitled/removed IDs and dependency order;
 - that the stage is now `Approval Required` and needs driver approval;
 - whether an earlier plan or result is now stale, without invalidating it yourself.
 

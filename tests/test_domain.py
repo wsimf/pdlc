@@ -14,7 +14,7 @@ from pdlc.domain.evidence import ReviewVerdict, compose_review, parse_review
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import Report, Row, render
 from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, due_next, review_rework_count, user_comments, user_comments_markdown, verification_evidence_comments
-from pdlc.hosts.lib.github.transport import neutralize_refs
+from pdlc.hosts.lib.github.transport import neutralize_refs, restore_refs
 
 GOOD_VERIFICATION = render(Report(
     head="abc123" + "0" * 34, run_at="2026-01-01 00:00 UTC", recommendation="Approval Required",
@@ -390,6 +390,19 @@ class NeutralizeRefsTests(unittest.TestCase):
             neutralize_refs("```\ncode #5\n```\nprose #6\n"),
             "```\ncode #5\n```\nprose \\#6\n",
         )
+
+
+class RestoreRefsTests(unittest.TestCase):
+    def test_restores_what_neutralize_escaped(self):
+        written = "see #148 and owner/repo#9\n```\ncode \\#5\n```\n&#8212; ## Heading #2.\n"
+        self.assertEqual(restore_refs(neutralize_refs(written)), written)
+
+    def test_stored_text_survives_a_read_and_rewrite(self):
+        stored = neutralize_refs("prose #6, hex #123abc, url https://github.com/x/y/pull/12\n")
+        self.assertEqual(neutralize_refs(restore_refs(stored)), stored)
+
+    def test_fenced_escapes_are_left_alone(self):
+        self.assertEqual(restore_refs("```\n\\#5\n```\n\\#6\n"), "```\n\\#5\n```\n#6\n")
 
 
 class ReviewEvidenceTests(unittest.TestCase):

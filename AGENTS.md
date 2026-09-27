@@ -12,6 +12,8 @@ This repository contains the installable `pdlc` CLI and its GitHub-native produc
 
 Done means every modified behavior has a caller, a regression check or an explicit reason it cannot have one, and clean diff/check output.
 
+Error recovery is part of mutation correctness: before changing a host write or its order, read `docs/transient-errors-plan.md` and `docs/mutation-recovery.md`, then make partial writes safe to reconcile or give the agent a precise read-only check and recovery path. Update the recovery catalog and failure-path tests with the command.
+
 ## Repository map
 
 - `src/pdlc/cli.py` dispatches `inspect`, `next`, and `post` commands; `exec` is a compatibility alias and global CLI options become `Config` overrides layered over `.pdlc/config.toml` for that run. `prepare` and `cleanup` are human-only worktree commands, intentionally absent from `--help` and the agent workflow: `prepare` is backend-free scaffolding except `--after`, which resolves the predecessor work item and records it in the worktree's Git config for `inspect implement` to stack on, `cleanup` resolves the work item to confirm it is Complete before tearing down its worktree and `gh stack` branches.
@@ -23,7 +25,9 @@ Done means every modified behavior has a caller, a regression check or an explic
 - `src/pdlc/templates/` owns the evidence templates: `docs/` holds one Markdown template per body a `post` command checks, and `template.py` loads them and validates a body against one. A template is also its own schema — its `### ` headings are the required sections — so a command calls `require_template` rather than hardcoding sections, and `pdlc template NAME` prints the same file.
 - `tests/` contains package-level Python tests.
 - `agent/skills/` contains the agent-facing PDLC skills and their references; they drive the workflow through the installed `pdlc` CLI, which is expected on `PATH`.
-- `agent/sub-agents/` contains Claude and Codex specialist declarations.
+- `agent/sub-agents/` contains Claude, Codex and Github Copilot specialist declarations.
+
+Keep matching sub-agent declarations in `agent/sub-agents/claude/`, `agent/sub-agents/codex/`, and `agent/sub-agents/copilot/` behaviorally aligned. When updating one, update all three; only harness-specific syntax and capabilities should differ.
 
 When changing a lifecycle command or its evidence contract, inspect the matching package command under `src/pdlc/commands/` and the skills that call it, then update their tests/docs together when both surfaces are affected.
 

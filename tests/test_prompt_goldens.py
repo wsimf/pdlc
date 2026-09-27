@@ -14,8 +14,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pdlc.domain.model import remove_section
 from tests._goldens import GoldenMixin
 from tests._prompts import PromptHarness
+from tests._support import BODY_DEFAULT
+
+NO_UI_BODY = remove_section(BODY_DEFAULT, "UI")
 
 
 class PromptGoldenTest(GoldenMixin, PromptHarness):
@@ -34,6 +38,9 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             "--traceability", "text:FR-1 -> loads -> src/a.py",
             *extra,
         )
+
+    def _ui_planner(self, *extra: str):
+        return self.invoke("prompt_ui_planner", 60, *extra)
 
     # --- implement ---
 
@@ -178,9 +185,79 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self._tasks_stage_pending()
         self.assertGolden("task-planner-first-pass", self.invoke("prompt_task_planner", 60))
 
+    def test_task_planner_unpublished_revision_with_follow_up(self):
+        self._tasks_stage_pending()
+        manifest = self.write_file("current-tasks.json", '[{"id":"TASK-001","body":"task-001.md"}]\n')
+        self.write_file("task-001.md", "## Scope\nCurrent unpublished task.\n")
+        self.assertGolden(
+            "task-planner-unpublished-follow-up",
+            self.invoke(
+                "prompt_task_planner", 60,
+                "--current-tasks-manifest-path", manifest,
+                "--follow-up", "text:split the export task in two",
+            ),
+        )
+
     def test_task_planner_stale_with_existing_tree(self):
         self._tasks_stage_stale_with_existing_tree()
         self.assertGolden("task-planner-stale", self.invoke("prompt_task_planner", 60))
+
+    def test_task_planner_stale_with_unpublished_revision_and_follow_up(self):
+        self._tasks_stage_stale_with_existing_tree()
+        self.seed_publication(60, "Tasks")
+        manifest = self.write_file("current-tasks.json", '[{"id":"TASK-001","body":"task-001.md"}]\n')
+        self.write_file("task-001.md", "## Scope\nInvalidation fixes already applied.\n")
+        self.assertGolden(
+            "task-planner-stale-unpublished-follow-up",
+            self.invoke(
+                "prompt_task_planner", 60,
+                "--current-tasks-manifest-path", manifest,
+                "--follow-up", "text:also split the export task in two",
+            ),
+        )
+
+    # --- UI planner ---
+
+    def test_ui_planner_first_pass(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
+        self.assertGolden("ui-planner-first-pass", self._ui_planner())
+
+    def test_ui_planner_unpublished_revision_with_follow_up(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
+        fragment = self.write_file("current-ui.md", "## UI\n\nUJ-1 current draft.\n")
+        self.assertGolden(
+            "ui-planner-unpublished-follow-up",
+            self._ui_planner(
+                "--current-journeys-path", fragment,
+                "--follow-up", "text:revisit UJ-2's offline flow",
+            ),
+        )
+
+    def test_ui_planner_stale_with_published_section(self):
+        self.seed_record(60, "UI", "Stale", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.seed_publication(60, "UI")
+        self.add_invalidation(60, stage="UI")
+        self.assertGolden("ui-planner-stale", self._ui_planner())
+
+    def test_ui_planner_changes_required_with_published_section(self):
+        self.seed_record(60, "UI", "Changes Required", slug="record-60")
+        self.add_rework_review(60, stage="UI")
+        self.assertGolden("ui-planner-changes-required", self._ui_planner())
+
+    def test_ui_planner_stale_unpublished_revision_with_follow_up(self):
+        self.seed_record(60, "UI", "Stale", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.seed_publication(60, "UI")
+        self.add_invalidation(60, stage="UI")
+        fragment = self.write_file("current-ui.md", "## UI\n\nUJ-1 invalidation fixes applied.\n")
+        self.assertGolden(
+            "ui-planner-stale-unpublished-follow-up",
+            self._ui_planner(
+                "--current-journeys-path", fragment,
+                "--follow-up", "text:also clarify the retry journey",
+            ),
+        )
 
     # --- tech planner ---
 

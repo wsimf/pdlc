@@ -1,6 +1,6 @@
 # Mutation Recovery Catalog
 
-Status: reference for `docs/transient-errors-plan.md`. Describes the code as of `master` (`adbda65`).
+Status: reference for `docs/transient-errors-plan.md`. Update this catalog with each mutation change.
 
 ## Purpose
 
@@ -23,7 +23,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post write --work-item` | slug? → body → `PRODUCT` → state | Safe; may duplicate `PRODUCT` | Duplicate evidence |
 | `post write --patch` | body → `PRODUCT` → `PATCHED` → rewind or state | Mostly safe; may duplicate markers | Evidence without state move |
 | `post tasks --stage UI` | state? → body → `UI` → state or patch | Safe; may duplicate `UI` | Duplicate evidence |
-| `post tasks --stage Tasks` | state? → task Issues → reopen changed → `TASKS` → state or patch | **Unsafe in one window**: see below | Rewritten closed task stays closed |
+| `post tasks --stage Tasks` | state? → task upserts → reopen changed → descope comments and close/detach → `TASKS` → state or patch → rebase manifest | Check each task after retry | A reopened task may retain stale evidence if failure interrupts its invalidation |
 | `post plan` | state? → per-task plan comments → `PLAN` → state | Safe; may duplicate `PLAN` | Duplicate evidence |
 | `post implement-task` | stack submit → PR edit → attach PR → implementation comment → close task | Safe by design | Stack conflict |
 | `post implement` | stack submit → PRs ready → `IMPLEMENTATION` → state | Safe; may duplicate evidence | Duplicate evidence |
@@ -110,21 +110,28 @@ Re-run: safe; may duplicate `PDLC-UI`.
 
 Writes:
 1. If re-authoring: `set_state` → Tasks / Stale.
-2. Per task, by stable `TASK-NNN` identity: `gh issue create` + link as sub-issue for a new task (Azure: create with parent link), or `gh issue edit` (title/body) for a changed one; unchanged tasks are not touched. Before creating, tasks created but never linked by an earlier run are found and linked, not re-created.
+2. Before any remote write, assign missing `TASK-NNN` identities and save them atomically in the supplied manifest; then, per task, create and link a new task or edit a changed task, leaving unchanged tasks untouched. Tasks created but never linked by an earlier run are found and linked on retry.
 3. For each rewritten task that was already closed: `reopen` → `PDLC-INVALIDATED` on the task → delete its `## Implementation` and `## Technical Plan` comments.
-4. `PDLC-TASKS` comment (lists open orphans and reopened tasks).
-5. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
+4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it (GitHub: as not planned; Azure: `task_removed_state`, else the task closed state) → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
+5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
+6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
+7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run.
 
 Partial failure:
-- In 2: some tasks created or edited. Re-run is safe: edited tasks report `unchanged`, created-but-unlinked tasks are recovered.
-- **Between 2 and the end of 3**: a closed task whose body was rewritten may still be closed. A re-run sees the body already matches, reports it `unchanged`, and **never reopens it**, so no later stage rebuilds it.
-- After 4: `PDLC-TASKS` landed, state not moved.
+- In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.
+- Task body comparisons and manifest baselines ignore line-ending style; a CRLF-only difference does not rewrite or reopen a task during publication or retry.
+- Between 2 and 3: a rewritten task may still be closed. A re-run detects that its requested content landed and reopens it.
+- During 3: a task may have reopened before its invalidation comment or stale plan and implementation comments were cleared. Inspect it after retry; the current `reopen_tasks` helper skips already-open tasks.
+- In 4: a descope comment or close may have landed before detachment, or the task may already be detached. A re-run skips a descope comment that already landed, uses the task number and matching descope comment to recognize a completed detach, then finishes the remaining removals.
+- After 5: `PDLC-TASKS` landed, state not moved; a re-run may post a duplicate evidence comment.
+- In 7: the publication is complete and the command succeeds with a warning; the manifest still holds pre-publication baselines, so discard it rather than reuse it.
 
-Check: `pdlc inspect task T` for each task the manifest changed — it should be open with no `## Technical Plan`; `pdlc inspect N` — gate is Review Required.
+Check: `pdlc inspect task T` for each rewritten task — it should be open with no stale `## Technical Plan` or `## Implementation` comment; check each removed task is closed and absent from the parent's active task list; `pdlc inspect N` should show Review Required and the timeline should show this `PDLC-TASKS` evidence.
 
 Recovery:
 - Re-run the same command.
-- Then, for any task the manifest rewrote that is still closed: `pdlc post invalidate N "Technical Plan" EVIDENCE --task T`. Evidence: "Task body changed in a re-landed breakdown; the earlier run failed before reopening it."
+- If a rewritten task is still closed or still carries stale plan or implementation evidence after retry, stop and report its inspection output for host repair; `post invalidate` does not repair an already-open task and cannot target Technical Plan while the parent is still at Tasks.
+- If a removed task is still linked, inspect its task comment and state, then re-run the same manifest while the parent gate still allows Tasks publication; if the parent already reached Review Required, report the incomplete descope instead of reauthoring blindly.
 
 ### `pdlc post plan`
 
@@ -315,7 +322,7 @@ Re-run: safe. After `add` created the branch, a re-run takes the "existing local
 These are real recovery hazards independent of transient errors. Each is a candidate follow-up, not part of the transient-error change:
 
 1. **`post write` create is not idempotent.** A failure after `gh issue create` makes the obvious re-run open a duplicate Issue, and a failure before `project item-add` leaves an Issue `pdlc` cannot see.
-2. **`post tasks` can leave a rewritten closed task closed.** A failure between the task edit and its reopen is invisible to the re-run.
+2. **`post tasks` can leave stale task evidence after reopening.** A failure between reopen and comment cleanup leaves an open task that the current `reopen_tasks` helper skips on retry.
 3. **`post verify` appends Open Questions lines without a duplicate check.**
 4. **`post decision` child creation is not atomic with its slug**, so a re-run can create a second child.
 5. **`post complete` locks before closing.** A failure between them has no command to finish the close.

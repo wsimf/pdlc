@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 from tests._prompts import PromptHarness
@@ -309,7 +311,7 @@ class PromptCommandTest(PromptHarness):
         )
         self.assertNotIn("## Existing tasks", result.stdout)
         self.assertNotIn("## Changes needed", result.stdout)
-        self.assertIn("## Return\n\nReturn one body file for each new or rewritten task", result.stdout)
+        self.assertIn("## Return\n\nReturn the revised manifest and its task files", result.stdout)
         self.assertNotIn("{{", result.stdout)
 
     def test_first_pass_brief_names_no_pdlc_command_or_stage(self):
@@ -323,24 +325,67 @@ class PromptCommandTest(PromptHarness):
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("## Existing tasks", result.stdout)
-        self.assertIn("## Changes needed", result.stdout)
-        self.assertIn("Invalidated stage: Tasks", result.stdout)
-        self.assertIn("number: 601", result.stdout)
-        self.assertIn('title: "WORK-60-TASK-001 [CORE] Core work"', result.stdout)
-        self.assertIn("--- BEGIN TASK BODY ---\n\n## Scope\nx\n\n## Acceptance criteria\n- ok\n\n--- END TASK BODY ---", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("Findings recorded against this stage since it last published. Reconcile them against the work item", result.stdout)
+        self.assertLess(result.stdout.index("### Change requests"), result.stdout.index("## Existing tasks"))
+        self.assertIn("The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.\n\ndetail", result.stdout)
+        self.assertIn("- `TASK-001` — [CORE] Core work (open, unplanned, unimplemented)", result.stdout)
+        self.assertNotIn("--- BEGIN TASK BODY ---", result.stdout)
+        self.assertIn("task-planner-manifest", result.stdout)
         self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
+        match = re.search(r"Revise the task breakdown at `([^`]+)`", result.stdout)
+        self.assertIsNotNone(match)
+        manifest = json.loads(Path(match.group(1)).read_text(encoding="utf-8"))
+        self.assertEqual(manifest[0]["action"], "retain")
+        self.assertEqual(manifest[0]["id"], "TASK-001")
+        self.assertEqual(manifest[0]["type"], "core")
+        self.assertEqual(len(manifest[0]["baseline"]), 64)
+        self.assertIn("## Scope\nx", Path(manifest[0]["body"]).read_text(encoding="utf-8"))
 
     def test_follow_up_is_carried_verbatim(self):
         self._tasks_stage_pending()
-        result = self._planner_brief("--follow-up", "text:split the export task in two")
-        self.assertIn("## Changes needed", result.stdout)
+        manifest = self.write_file("current-tasks.json", "[]\n")
+        result = self._planner_brief(
+            "--current-tasks-manifest-path", manifest,
+            "--follow-up", "text:split the export task in two",
+        )
+        self.assertNotIn("## Changes needed", result.stdout)
         self.assertNotIn("### Change requests", result.stdout)
         self.assertIn(
             "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
-            "verbatim.\n\nsplit the export task in two",
+            "verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it."
+            "\n\nsplit the export task in two",
             result.stdout,
         )
         self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
+
+    def test_follow_up_alone_revises_the_published_tasks_or_a_first_breakdown(self):
+        self._tasks_stage_pending()
+        first = self._planner_brief("--follow-up", "text:split the export task")
+        self.assertEqual(first.code, 0, first.stderr)
+        self.assertIn("No delivery tasks exist yet.", first.stdout)
+        self.assertIn("### Driver follow-up", first.stdout)
+        self.assertIn("split the export task", first.stdout)
+
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        published = self._planner_brief("--follow-up", "text:split the export task")
+        self.assertEqual(published.code, 0, published.stderr)
+        self.assertRegex(published.stdout, r"Revise the task breakdown at `[^`]*task-planner-manifest[^`]*`")
+        self.assertIn("split the export task", published.stdout)
+
+    def test_supplied_manifest_is_revised_with_or_without_follow_up(self):
+        self._tasks_stage_pending()
+        manifest = self.write_file("current-tasks.json", "[]\n")
+        manifest_only = self._planner_brief("--current-tasks-manifest-path", manifest)
+        self.assertEqual(manifest_only.code, 0, manifest_only.stderr)
+        self.assertIn(f"Revise the task breakdown at `{Path(manifest).resolve()}`", manifest_only.stdout)
+        self.assertNotIn("### Driver follow-up", manifest_only.stdout)
+        missing_manifest = self._planner_brief(
+            "--current-tasks-manifest-path", str(self.work / "missing.json"),
+            "--follow-up", "text:revise",
+        )
+        self.assertNotEqual(missing_manifest.code, 0)
+        self.assertIn("does not exist", missing_manifest.stderr)
 
     def test_changes_required_record_carries_open_review_findings(self):
         self.seed_record(60, "Tasks", "Changes Required", slug="record-60")
@@ -348,7 +393,8 @@ class PromptCommandTest(PromptHarness):
         self.add_rework_review(60, stage="Tasks")
         result = self._planner_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("## Changes needed", result.stdout)
+        self.assertNotIn("## Changes needed", result.stdout)
+        self.assertIn("Findings recorded against this stage since it last published. Reconcile them against the work item", result.stdout)
         self.assertIn("## Findings\n\n- detail", result.stdout)
 
     def test_a_record_not_at_tasks_refuses(self):

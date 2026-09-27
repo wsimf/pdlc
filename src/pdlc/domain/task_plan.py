@@ -101,17 +101,17 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
 
     malformed_ids = [task_id for task_id in ids if not TASK_ID_FORMAT.match(task_id)]
     for task_id in malformed_ids:
-        errors.append(f"malformed task id: {task_id}")
+        errors.append(f"malformed task id: {task_id}; use TASK-NNN, such as TASK-001")
 
     for task_id in duplicates(ids):
-        errors.append(f"duplicate task id: {task_id}")
+        errors.append(f"duplicate task id: {task_id}; give each task a distinct TASK-NNN identity")
 
     for title in duplicates([task.get("title") or "" for task in resolved]):
-        errors.append(f"duplicate task title: {title}")
+        errors.append(f"duplicate task title: {title}; give each task a title that identifies its own scope")
 
     for task in resolved:
         if not (task.get("title") or ""):
-            errors.append(f"{task['id']} has no title")
+            errors.append(f"{task['id']} has no title; add a human-readable title for this task")
 
     for task in resolved:
         if not isinstance(task.get("ui"), bool):
@@ -120,31 +120,35 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
     for task in resolved:
         bad = sorted(set(task.get("covers") or []) - coverage_set)
         if bad:
-            errors.append(f"{task['id']} covers {', '.join(bad)}, which the parent does not declare")
+            errors.append(f"{task['id']} covers {', '.join(bad)}, which the parent does not declare; use FR-*/C-* from Product and UJ-* from UI")
 
     for task in resolved:
         if not any(token.startswith(("FR-", "C-")) for token in (task.get("covers") or [])):
-            errors.append(f"{task['id']} covers no FR-* or C-*")
+            errors.append(f"{task['id']} covers no FR-* or C-*; map every task to at least one Product requirement or constraint")
 
     for task in resolved:
         if task.get("ui") is True and not any(token.startswith("UJ-") for token in (task.get("covers") or [])):
-            errors.append(f"{task['id']} is a UI task but covers no UJ-*")
+            errors.append(f"{task['id']} is a UI task but covers no UJ-*; map it to a journey in the parent UI section")
 
     for task in resolved:
         if task.get("ui") is not True and any(token.startswith("UJ-") for token in (task.get("covers") or [])):
-            errors.append(f"{task['id']} covers a UJ-* but is not marked \"ui\": true")
+            errors.append(f"{task['id']} covers a UJ-* but is not marked \"ui\": true; mark the task as UI or remove the journey claim")
+
+    covered = {identifier for task in resolved for identifier in (task.get("covers") or [])}
+    for requirement in sorted(set(requirements) - covered):
+        errors.append(f"no task covers {requirement}; add it to a task's covers and Requirements Covered line, or report that Product needs revision")
 
     for journey in sorted(set(journeys) - ui_covered):
-        errors.append(f"no UI task covers {journey}")
+        errors.append(f"no UI task covers {journey}; add it to a UI task's covers and UI Journeys line, or report that UI needs revision")
 
     for task in resolved:
         missing = sorted(set(task.get("depends") or []) - (id_set | existing_id_set))
         if missing:
-            errors.append(f"{task['id']} depends on unknown {', '.join(missing)}")
+            errors.append(f"{task['id']} depends on unknown {', '.join(missing)}; add the missing task or remove the dependency")
 
     for task in resolved:
         if task["id"] in (task.get("depends") or []):
-            errors.append(f"{task['id']} depends on itself")
+            errors.append(f"{task['id']} depends on itself; remove its own ID from depends")
 
     # Kahn: peel tasks whose dependencies are already ordered. A dependency on
     # an already-landed task that this manifest does NOT redefine is satisfied
@@ -165,7 +169,7 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
         left = [task for task in left if task["id"] not in ready]
 
     if left:
-        errors.append(f"dependency cycle: {', '.join(task['id'] for task in left)}")
+        errors.append(f"dependency cycle: {', '.join(task['id'] for task in left)}; change depends so every task has an order")
 
     orphans = [task for task in existing if task.get("taskId") and task["taskId"] not in id_set]
 

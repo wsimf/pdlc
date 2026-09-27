@@ -22,6 +22,7 @@ import pdlc.hosts.lib.azure.workitems as azure
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_ID_PATTERN, TASK_TITLE_PATTERN
+from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.azure.transport import run_az
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
@@ -67,6 +68,10 @@ def _open_state() -> str:
 # work-item state name.
 def _task_closed_state() -> str:
     return get_config().azure_task_closed_state or _closed_state()
+
+
+def _task_removed_state() -> str:
+    return get_config().azure_task_removed_state or _task_closed_state()
 
 
 def _task_open_state() -> str:
@@ -260,7 +265,7 @@ class AzureWorkItemBackend(WorkItemBackend):
             "number": number,
             "title": title,
             "url": azure.item_url(number),
-            "state": "CLOSED" if state in {_task_closed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
+            "state": "CLOSED" if state in {_task_closed_state(), _task_removed_state(), *_ALWAYS_CLOSED_STATES} else "OPEN",
             "body": _text(fields, azure.DESCRIPTION_FIELD),
             "comments": [comment.get("text") or "" for comment in comments],
             "commentObjects": [_comment_view(comment) for comment in comments],
@@ -317,7 +322,7 @@ class AzureWorkItemBackend(WorkItemBackend):
         if match:
             number = match["number"]
             title_changed = match.get("title") != full_title
-            body_changed = (match.get("body") or "") != body_text
+            body_changed = not same_task_body(match.get("body") or "", body_text)
             if title_changed or body_changed:
                 azure.update(number, {
                     azure.TITLE_FIELD: full_title,
@@ -348,6 +353,11 @@ class AzureWorkItemBackend(WorkItemBackend):
 
     def close_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_closed_state())
+
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        child_id = azure.numeric(task_ref)
+        azure.update(child_id, state=_task_removed_state())
+        azure.remove_parent(child_id, self._record_id(parent))
 
     def reopen_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_open_state())

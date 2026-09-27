@@ -66,7 +66,8 @@ DESCRIPTION
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
-    the record and its live pull-request state; none of them changes anything.
+    the record and its live pull-request state; none changes the record.
+    `task-planner` and `ui-planner` may write editable copies to the work-item cache.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -92,21 +93,30 @@ LEARN MORE
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from pdlc.commands.inspect import _task_front_matter
 from pdlc.commands.inspect_capability import _name as capability_name
 from pdlc.commands.inspect_capability import _one as capability_line
 from pdlc.commands.inspect_test import readiness as testing_readiness
 from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
-from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
+from pdlc.domain.task_artifact import snapshot, stored_fields
+from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.domain.model import (
+    evidence_comment_text,
+    find_marked_comments,
+    item_gate,
+    item_status,
+    read_section,
+    remove_section,
+    timeline_formatted_at,
+)
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
 from pdlc.internal.invalidation import record_patch_plan
@@ -119,6 +129,7 @@ from pdlc.internal.workitem import (
     pipeline_for_item,
     record_snapshot,
     resolve_item,
+    tasks_by_number,
     task_tree,
 )
 from pdlc.commands.inspect_verify import _readiness as _verify_readiness
@@ -468,59 +479,98 @@ def _stage_invalidation(comments: list[dict], stage: str) -> dict | None:
     return max(matching, key=lambda comment: comment.get("createdAt") or "") if matching else None
 
 
-def _stale_reason(item: dict, comments: list[dict], stage: str) -> str:
-    """Why `stage` bounced back to Stale, or "n/a" when it never did."""
+def _stale_reason(item: dict, comments: list[dict], stage: str) -> str | None:
+    """Why `stage` bounced back to Stale, or `None` when no reason is recorded."""
     if item_gate(item) != "Stale":
-        return "n/a — first pass"
+        return None
     invalidation = _stage_invalidation(comments, stage)
     if not invalidation:
-        return "stale — no invalidation comment recorded"
+        return None
     lines = evidence_comment_text(invalidation).splitlines()
-    return "\n".join(lines[1:]).strip() if lines and lines[0].startswith("Invalidated stage:") else lines[0]
+    if not lines:
+        return None
+    reason = (
+        "\n".join(lines[1:]).strip()
+        if lines[0].startswith("Invalidated stage:")
+        else lines[0]
+    )
+    return reason or None
 
 
 def _task_tree_text(delivery: list[dict]) -> str:
-    """One line per existing delivery task, or "none" ahead of any breakdown."""
+    """One line per existing delivery task, or an empty string when none exist."""
     if not delivery:
-        return "none"
+        return ""
     return "\n".join(f"- `{task_tag(task)}` {task_headline(task)} ({task['state']})" for task in delivery)
 
 
-def ui_planner_brief(work_item: str, follow_up: str | None) -> str:
+def ui_planner_brief(
+    work_item: str,
+    follow_up: str | None,
+    current_journeys_path: str | None = None,
+) -> str:
     """The brief for the sub-agent authoring the record's UI section.
 
     Due only while `Status` is `UI`. `follow_up` carries the driver's verbatim
-    request on a reconciling pass, read the same way `task_planner_brief`
-    reads its own `--follow-up`.
+    request, read the same way `task_planner_brief` reads its own
+    `--follow-up`. `current_journeys_path` names an unpublished UI fragment to
+    revise, such as the draft a reviewer saw; without one, a published `## UI`
+    section is copied to the work-item cache for revision.
     """
+    current_journeys = (
+        str(require_file("--current-journeys-path", current_journeys_path).resolve())
+        if current_journeys_path is not None
+        else ""
+    )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "UI":
         raise PdlcError(f"no UI section is due: the record is at {status or 'an unset status'}, not UI")
 
     delivery = [task for task in tasks if task.get("taskId")]
+    parent_body = _parent_body(item)
+    published = read_section(parent_body, "UI")
+    # A supplied draft and a generated copy of the published section are revised the same way.
+    fragment = current_journeys or (
+        str(write_scratch(scratch_path(work_item, "ui-planner-fragment"), published)) if published.strip() else ""
+    )
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
     return render(
         "ui-planner",
         {
             "EXECUTION_SCOPE": "this one UI section",
             "UX_DESIGN_LINE": capability_line("ux-design"),
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
-            "PARENT_BODY": _parent_body(item).rstrip(),
+            # The fragment file is the only copy of the UI section the planner sees.
+            "PARENT_BODY": (remove_section(parent_body, "UI") if fragment else parent_body).rstrip(),
             "GATE_STATE": item_gate(item) or "unset",
             "STALE_REASON": _stale_reason(item, comments, status),
             "TASK_TREE": _task_tree_text(delivery),
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up else "none",
+            "FRAGMENT_PATH": fragment,
+            "CHANGE_REQUESTS": change_requests,
+            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up is not None else "",
         },
     )
 
 
-def task_planner_brief(work_item: str, follow_up: str | None) -> str:
+def task_planner_brief(
+    work_item: str,
+    follow_up: str | None,
+    current_tasks_manifest_path: str | None = None,
+) -> str:
     """The brief for the sub-agent decomposing the record into delivery tasks.
 
     Due only while `Status` is `Tasks`; `follow_up` carries the driver's
     verbatim request on a re-authoring pass, read the same way `--findings`
-    reaches the test-writer briefs.
+    reaches the test-writer briefs. `current_tasks_manifest_path` names an
+    unpublished manifest to revise, such as the draft a reviewer saw; without
+    one, the published tasks are copied to the work-item cache for revision.
     """
+    current_tasks_manifest = (
+        str(require_file("--current-tasks-manifest-path", current_tasks_manifest_path).resolve())
+        if current_tasks_manifest_path is not None
+        else ""
+    )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "Tasks":
@@ -529,9 +579,8 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
     delivery = [task for task in tasks if task.get("taskId")]
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
     driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
-    change_sources = " and ".join(
-        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
-    )
+    # A supplied draft and a generated copy of the published tree are revised the same way.
+    manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
 
     return render(
         "task-planner",
@@ -539,19 +588,45 @@ def task_planner_brief(work_item: str, follow_up: str | None) -> str:
             "EXECUTION_SCOPE": "this one breakdown",
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
+            "STALE_REASON": _stale_reason(item, comments, status),
+            "MANIFEST_PATH": manifest,
             "EXISTING_TASKS": [
                 {
                     "TASK_ID": str(task["taskId"]),
-                    "TASK_METADATA": _task_front_matter(task),
-                    "TASK_BODY": (task.get("body") or "").strip(),
+                    "TASK_TITLE": task_headline(task),
+                    "TASK_PROGRESS": ", ".join((
+                        str(task.get("state", "OPEN")).lower(),
+                        "planned" if task.get("hasPlan") else "unplanned",
+                        "implemented" if task.get("hasImplementation") else "unimplemented",
+                    )),
                 }
                 for task in delivery
             ],
-            "CHANGE_SOURCES": change_sources,
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
         },
     )
+
+
+def _task_planner_manifest(work_item: str, delivery: list[dict]) -> str:
+    """Give a rework pass editable copies without embedding task bodies in its brief."""
+    if not delivery:
+        return ""
+    entries = []
+    for task in delivery:
+        fields = stored_fields(task)
+        baseline = snapshot(fields)
+        body_path = write_scratch(scratch_path(work_item, f"task-planner-{task['taskId']}"), fields.pop("body"))
+        entries.append({
+            "id": task["taskId"], "number": task["number"], "action": "retain", **fields,
+            "body": str(body_path),
+            "baseline": baseline,
+        })
+    manifest_path = write_scratch(
+        scratch_path(work_item, "task-planner-manifest", ".json"),
+        json.dumps(entries, indent=2) + "\n",
+    )
+    return str(manifest_path)
 
 
 def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
@@ -609,26 +684,46 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
     )
 
 
-def _manifest_artifact_text(manifest_path: Path) -> str:
-    """Every manifest entry rendered with its task body in full.
-
-    An `"unchanged": true` entry names no body file, so it is noted as carried
-    forward rather than dumped — there is nothing new for the reviewer to read.
-    """
+def _manifest_artifact_text(manifest_path: Path, work_item: str) -> str:
+    """Every active manifest entry rendered with its task body in full."""
     entries = load_json_array("--manifest", manifest_path, allow_empty=False)
     blocks: list[str] = []
     for entry in entries:
-        header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
-        meta = f"ui: {entry.get('ui')}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
-        if entry.get("unchanged"):
-            body = "(unchanged — carried forward from the record)"
+        if entry.get("action") == "remove":
+            number = entry.get("number")
+            if not isinstance(number, int):
+                raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
+            try:
+                matches = tasks_by_number([str(number)])
+            except TransientError:
+                raise
+            except PdlcError as error:
+                matches, lookup = [], f": {error}"
+            else:
+                lookup = ""
+            if len(matches) != 1:
+                raise PdlcError(
+                    f"manifest removes {entry.get('id') or '?'} as task #{number}, which could not be read{lookup};"
+                    f" the manifest is out of date or was edited by hand, so run `pdlc prompt task-planner {work_item}`"
+                    " for a fresh manifest and re-dispatch the task planner agent with it"
+                )
+            stored = matches[0]
+            header = f"### {entry.get('id') or '?'} — {stored['title']}"
+            meta = f"remove: {entry.get('reason') or 'no reason'}"
+            body = (stored.get("body") or "").strip()
         else:
-            body_path = entry.get("body")
-            if not body_path:
-                raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
-            body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
-                encoding="utf-8"
-            ).strip()
+            header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
+            kind = f"type: {entry['type']}" if "type" in entry else f"ui: {entry.get('ui')}"
+            meta = f"{kind}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
+            if entry.get("unchanged"):
+                body = "(unchanged — carried forward from the record)"
+            else:
+                body_path = entry.get("body")
+                if not body_path:
+                    raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
+                body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
+                    encoding="utf-8"
+                ).strip()
         blocks.append(f"{header}\n{meta}\n\n{body}")
     return "\n\n---\n\n".join(blocks)
 
@@ -645,7 +740,7 @@ def tasks_reviewer_brief(
         raise PdlcError("pass exactly one of --manifest or --fragment")
     item = resolve_item(work_item)
     artifact = (
-        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        _manifest_artifact_text(require_file("--manifest", manifest), work_item) if manifest
         else resolve_text(fragment, label="--fragment").strip()
     )
     return render(
@@ -718,7 +813,7 @@ def patch_reviewer_brief(work_item: str, stage: str, body: str | None, manifest:
             f"no stage lies between {stage} and {plan.source.stage}; the patch needs no impact report"
         )
     draft = (
-        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        _manifest_artifact_text(require_file("--manifest", manifest), work_item) if manifest
         else require_file("--body", body).read_text(encoding="utf-8").strip()
     )
     delivery = [task for task in tasks if task.get("taskId")]

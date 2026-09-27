@@ -395,6 +395,29 @@ def read_section(body: str, section: str) -> str:
     return "\n".join(out) + ("\n" if out else "")
 
 
+# Drops one `## <section>` block, heading included, leaving the rest of the body
+# as written. Headings inside fenced code blocks are content.
+def remove_section(body: str, section: str) -> str:
+    heading = f"## {section}"
+    fence = False
+    skipping = False
+    out: list[str] = []
+
+    for line in body.splitlines():
+        probe = line.rstrip(" \t")
+        if line.startswith("```") or line.startswith("~~~"):
+            fence = not fence
+        elif not fence and probe == heading:
+            skipping = True
+            continue
+        elif skipping and not fence and line.startswith("## "):
+            skipping = False
+        if not skipping:
+            out.append(line)
+
+    return "\n".join(out) + ("\n" if out else "")
+
+
 # Evidence comment / timeline parsing -----------------------------------
 
 MARKER_PREFIX = re.compile(r"^PDLC-([A-Z]+)\b")

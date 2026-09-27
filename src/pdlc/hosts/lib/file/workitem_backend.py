@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pdlc.domain.lifecycle import NotFound, PdlcError
+from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.file.storage import atomic_write, single_writer
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
@@ -257,7 +258,7 @@ class FileWorkItemBackend(WorkItemBackend):
         if not tasks.is_dir():
             return []
         return sorted(
-            (child for child in tasks.iterdir() if child.is_dir()),
+            (child for child in tasks.iterdir() if child.is_dir() and not _read_meta(child).get("removed")),
             key=lambda child: int(child.name),
         )
 
@@ -286,7 +287,7 @@ class FileWorkItemBackend(WorkItemBackend):
             meta = _read_meta(path)
             title_changed = meta.get("title") != full_title
             stored = (path / "body.md").read_text(encoding="utf-8") if (path / "body.md").exists() else ""
-            body_changed = stored != body_text
+            body_changed = not same_task_body(stored, body_text)
             if title_changed or body_changed:
                 meta["title"] = full_title
                 _write_meta(path, meta)
@@ -316,6 +317,16 @@ class FileWorkItemBackend(WorkItemBackend):
         path = self._task_dir(task_ref)
         meta = _read_meta(path)
         meta["state"] = "CLOSED"
+        _write_meta(path, meta)
+
+    @single_writer
+    def remove_task(self, parent: str, task_ref: str) -> None:
+        path = self._record_dir(parent) / "tasks" / str(task_ref)
+        if not path.is_dir():
+            raise NotFound(f"no delivery task #{task_ref} under #{parent}")
+        meta = _read_meta(path)
+        meta["state"] = "CLOSED"
+        meta["removed"] = True
         _write_meta(path, meta)
 
     @single_writer

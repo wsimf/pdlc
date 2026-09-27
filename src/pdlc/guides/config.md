@@ -73,6 +73,7 @@ name = "file"
 | `closed_state` | Optional | `Done` | State written when `pdlc post complete` closes a record. |
 | `task_open_state` | Optional | `open_state` | Open state for delivery tasks, when their type uses a different vocabulary. |
 | `task_closed_state` | Optional | `closed_state` | Closed state for delivery tasks. `Removed` and `Closed` always count as closed. |
+| `task_removed_state` | Optional | `task_closed_state` | State for a descoped delivery task, e.g. `Removed` on Agile or Scrum; it counts as closed. |
 | `task_in_progress_state` | Optional | Unset | Accepted but not currently used. |
 | `assigned_to` | Optional | Signed-in `az` account | Limits queue scans to this identity and assigns new records and tasks to it; `@me` filters by the signed-in account. |
 

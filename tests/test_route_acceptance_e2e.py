@@ -122,9 +122,9 @@ class RouteAcceptanceE2ETests(FileBackendTest):
             body = self.write_file(f"ui-{record}.md", "## UI\n\nUJ-1 covers the first run.\n")
             return self.invoke("post_tasks", "--work-item", record, "--stage", "UI", "--body", body, "--evidence", self.evidence)
         if stage == "Tasks":
-            task = self.write_file(f"task-{record}.md", "## Scope\nBuild the core.\n\n## Acceptance criteria\n- FR-1 works\n")
+            task = self.write_file(f"task-{record}.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nBuild the core.\n\n**Acceptance Criteria:**\n- [ ] FR-1 works.\n")
             manifest = self.write_file(f"tasks-{record}.json", json.dumps([
-                {"id": "TASK-001", "title": "Build core", "body": task, "ui": True, "covers": ["FR-1", "C-1", "UJ-1"]},
+                {"id": "TASK-001", "title": "Build core", "body": task, "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]},
             ]))
             return self.invoke("post_tasks", "--work-item", record, "--stage", "Tasks", "--manifest", manifest, "--evidence", self.evidence)
         plan = self.write_file(f"plan-{record}.md", "Touch core_service.py.\n")
