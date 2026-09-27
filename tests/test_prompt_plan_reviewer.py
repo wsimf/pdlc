@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 from tests._support import FileBackendTest
 
@@ -15,40 +17,135 @@ class PromptPlanReviewerTest(FileBackendTest):
             body="## Scope\nBuild the seam.\n\nCovers FR-1.\n",
         )
 
-    def test_a_plan_carries_the_task_body_and_proposed_plan(self):
+    def _file(self, manifest: str) -> Path:
+        return Path(json.loads(Path(manifest).read_text())[0]["file"]).resolve()
+
+    def test_a_plan_is_named_by_its_file_not_inlined(self):
         self._seeded()
-        plan = self.write_file("plan.md", "Own src/a.py; add retry with backoff.")
-        manifest = self.write_file("plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
-        result = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest)
+        manifest = self.plan_manifest(60, {"TASK-001": "Own src/a.py; add retry with backoff."})
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("Review the supplied delivery-task plans", result.stdout)
-        self.assertIn("### WORK-60-TASK-001 — [CORE] Core work", result.stdout)
-        self.assertIn("Build the seam.", result.stdout)
-        self.assertIn("Own src/a.py; add retry with backoff.", result.stdout)
-        self.assertIn("none, first review", result.stdout)
+        self.assertIn(f"- `TASK-001` — [CORE] Core work (new plan): `{self._file(manifest)}`", result.stdout)
+        self.assertIn("Do not edit the manifest or any task file.", result.stdout)
+        self.assertNotIn("Own src/a.py", result.stdout)
+        self.assertNotIn("Prior findings", result.stdout)
         self.assertNotIn("{{", result.stdout)
 
-    def test_an_existing_plan_is_carried_alongside_the_proposal(self):
+    def test_a_replaced_plan_carries_the_recorded_one(self):
         self._seeded()
         self.seed_plan_comment(60, 601, "Original plan text.")
-        plan = self.write_file("plan.md", "Revised plan.")
-        manifest = self.write_file("plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
-        result = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest)
-        self.assertIn("Original plan text.", result.stdout)
-        self.assertIn("Revised plan.", result.stdout)
+        manifest = self.plan_manifest(60, {"TASK-001": "Revised plan."})
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
+        self.assertIn("(replaces its recorded plan)", result.stdout)
+        self.assertIn("--- BEGIN RECORDED PLAN ---\n\nOriginal plan text.\n\n--- END RECORDED PLAN ---", result.stdout)
+        self.assertNotIn("Revised plan.", result.stdout)
+
+    def test_an_unchanged_recorded_plan_is_marked_and_not_repeated(self):
+        self._seeded()
+        self.seed_plan_comment(60, 601, "Original plan text.")
+        manifest = self.plan_manifest(60, {})
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
+        self.assertIn("(recorded plan, unchanged)", result.stdout)
+        self.assertNotIn("Recorded plans being replaced", result.stdout)
 
     def test_findings_render_for_a_re_review(self):
         self._seeded()
-        plan = self.write_file("plan.md", "Plan.")
-        manifest = self.write_file("plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
-        result = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest, "--findings", "text:resolve the spike")
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", "text:resolve the spike")
+        self.assertIn("### Prior findings", result.stdout)
         self.assertIn("resolve the spike", result.stdout)
-        self.assertNotIn("none, first review", result.stdout)
 
-    def test_refuses_an_unknown_task_id(self):
+    def test_a_malformed_task_file_points_at_the_dry_run(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        self._file(manifest).write_text("just a plan\n")
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("--dry-run", result.stderr)
+
+    def test_a_hand_written_manifest_is_refused(self):
         self._seeded()
         plan = self.write_file("plan.md", "Plan.")
-        manifest = self.write_file("plan-manifest.json", json.dumps([{"id": "TASK-999", "plan": plan}]))
-        result = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest)
+        manifest = self.write_file("plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
         self.assertNotEqual(result.code, 0)
-        self.assertIn("TASK-999", result.stderr)
+        self.assertIn("is not a plan manifest pdlc generated", result.stderr)
+
+    def test_a_reviewer_edit_is_restored_before_the_next_review(self):
+        self._seeded()
+        manifest = self.reviewed_plan_manifest(60, {"TASK-001": "Plan."})
+        task_file = self._file(manifest)
+        reviewed = task_file.read_text()
+        self.write_plan(task_file, "Edited by the reviewer.")
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("pdlc restored each file to the version the reviewer was given", result.stderr)
+        self.assertEqual(task_file.read_text(), reviewed)
+        # Restored, the same files are handed to a fresh review.
+        self.assertEqual(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).code, 0)
+
+    def test_a_new_planning_pass_keeps_the_planners_edits(self):
+        self._seeded()
+        manifest = self.reviewed_plan_manifest(60, {"TASK-001": "Plan."})
+        brief = self.invoke("prompt_tech_planner", "--inline", 60, "--current-plan-manifest-path", manifest)
+        self.assertEqual(brief.code, 0, brief.stderr)
+        self.write_plan(self._file(manifest), "Revised by the planner.")
+        self.assertEqual(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).code, 0)
+        self.assertIn("Revised by the planner.", self._file(manifest).read_text())
+
+    def test_without_a_manifest_the_recorded_plans_are_reviewed_as_they_stand(self):
+        self._seeded()
+        self.seed_plan_comment(60, 601, "Published without review.")
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("(recorded plan, unchanged)", result.stdout)
+        manifest = re.search(r"the manifest at `([^`]+)`", result.stdout).group(1)
+        self.assertIn("Published without review.", self._file(manifest).read_text())
+        # The generated files were handed to the reviewer, so they land.
+        landed = self.invoke("post_plan", "--work-item", 60, "--manifest", manifest, "--evidence", self.evidence_file())
+        self.assertEqual(landed.code, 0, landed.stderr)
+        # The landing spends the review, so its findings file goes too.
+        self.assertFalse(self._findings_path(result.stdout).exists())
+
+    def _findings_path(self, stdout: str) -> Path:
+        return Path(re.search(r"Write your review into `([^`]+)`", stdout).group(1))
+
+    def test_the_brief_writes_a_findings_outline_for_the_reviewer(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        result = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest)
+        findings = self._findings_path(result.stdout)
+        self.assertEqual(findings.name, "pdlc-technical-plan-findings.md")
+        outline = findings.read_text(encoding="utf-8")
+        self.assertIn("Technical Plan review complete.", outline)
+        self.assertIn("Verdict: <Needs Revision|Ready to Land>", outline)
+
+    def test_an_unfilled_findings_outline_is_not_prior_findings(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).stdout)
+        # A re-run brief reads its own file after the first run reset it.
+        rerun = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", str(findings))
+        self.assertEqual(rerun.code, 0, rerun.stderr)
+        self.assertNotIn("### Prior findings", rerun.stdout)
+
+    def test_an_unfilled_findings_outline_is_no_planner_follow_up(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).stdout)
+        brief = self.invoke(
+            "prompt_tech_planner", "--inline", 60, "--current-plan-manifest-path", manifest, "--follow-up", str(findings),
+        )
+        self.assertEqual(brief.code, 0, brief.stderr)
+        self.assertNotIn("### Driver follow-up", brief.stdout)
+
+    def test_a_re_review_reads_the_findings_file_before_it_is_reset(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).stdout)
+        findings.write_text("TASK-001 skips the cache.\nVerdict: Needs Revision\n", encoding="utf-8")
+        rereview = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", str(findings))
+        self.assertEqual(rereview.code, 0, rereview.stderr)
+        self.assertIn("TASK-001 skips the cache.", rereview.stdout)
+        self.assertIn("Verdict: <Needs Revision|Ready to Land>", findings.read_text(encoding="utf-8"))

@@ -94,6 +94,15 @@ is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task b
 removes none, and keeps each task's `type`. Only titles and bodies change. A
 refusal writes nothing.
 
+Only a reviewed UI fragment or Tasks breakdown lands. `pdlc prompt
+tasks-reviewer` records the exact files it hands the reviewer: the --fragment
+file, or the manifest and its task body files. If any of them changed since,
+this command restores each to the reviewed version, keeps the edited copy
+beside it as `<name>.rejected.<ext>`, and refuses so the review is redone; a
+real landing also refuses a --body or --manifest the reviewer was not handed.
+Writing auto-assigned ids back to the manifest keeps it reviewed. A --patch is
+reviewed by the patch reviewer instead.
+
 An existing task may be carried as `"action": "retain"`, with its generated
 title, body file, type, coverage, dependencies, and baseline hash. The command
 refuses a stale baseline, compares the returned content with the stored task,
@@ -177,7 +186,19 @@ from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, re
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError, TransientError
-from pdlc.domain.task_artifact import baseline_matches, declared_links, same_task_content, snapshot, stored_fields, task_body_errors
+from pdlc.domain.task_artifact import (
+    baseline_matches,
+    declared_links,
+    planner_command,
+    reviewer_command,
+    same_task_content,
+    snapshot,
+    stored_fields,
+    task_body_errors,
+    ui_planner_command,
+    ui_reviewer_command,
+)
+from pdlc.internal.review_stamp import clear_findings, clear_stamp, refresh_stamp, require_reviewed, restore_reviewed
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -279,6 +300,9 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         }))
         return
 
+    if context.patch is None:
+        reviewed = body_path.resolve()
+        require_reviewed(issue, "UI", reviewed, ui_reviewer_command(issue, reviewed))
     if context.reauthor:
         reauthor_invalidate_stage(context.record, "UI", context.pipeline)
 
@@ -292,6 +316,8 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         target = context.patch.target
     else:
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
+        clear_stamp(issue, "UI")
+    clear_findings(issue, "UI")
 
     print(json.dumps({
         "published": True,
@@ -578,6 +604,10 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         }))
         return
 
+    # Only the reviewed breakdown lands; a patch is reviewed by the patch reviewer instead.
+    if context.patch is None:
+        require_reviewed(issue, "Tasks", manifest_path.resolve(), reviewer_command(issue, manifest_path.resolve()))
+
     # Fix auto-assigned identities in the local artifact before a remote create.
     # A partial publication can then use this same manifest for recovery.
     active_entries = [entry for entry in source_manifest if entry.get("action") != "remove"]
@@ -589,6 +619,8 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
                     entry["action"] = "create"
         try:
             _save_manifest(manifest_path, source_manifest)
+            # The ids are the command's own edit, so a retry still reads as reviewed.
+            refresh_stamp(issue, "Tasks", manifest_path.resolve())
         except OSError as error:
             raise PdlcError(f"cannot save assigned task ids in {manifest_path}: {error}") from error
 
@@ -669,6 +701,9 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     # The publication has landed; a manifest left unconsumed is only a hazard to warn about.
     try:
         _consume_manifest(manifest_path, source_manifest, issue)
+        if context.patch is None:
+            clear_stamp(issue, "Tasks")
+        clear_findings(issue, "Tasks")
     except (OSError, PdlcError) as error:
         print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the published tasks: {error};"
               " do not reuse it", file=sys.stderr)
@@ -693,17 +728,22 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     }))
 
 
-def _recovery(issue: str, stage: str, patch: bool) -> Recovery:
-    """How to check a failed landing; the Tasks stage also has to reopen any
-    rewritten task a failed run left closed, which a re-run never does."""
+def _patch_recovery(issue: str, stage: str) -> Recovery:
+    """How to check a failed `--patch` landing, against the dry run's report."""
     marker = "UI" if stage == "UI" else "TASKS"
-    if patch:
-        return Recovery(
-            check=f"pdlc inspect timeline {issue}",
-            landed=f"PDLC-PATCHED is newer than this PDLC-{marker} evidence and `pdlc inspect {issue}` shows the stage and gate the dry run reported",
-            otherwise="run the same command with --dry-run and, only if it still reports the same plan, re-run: {rerun}",
-            note="If the record already moved to the returned stage, do not re-run; stop and report to the driver any task still closed, which needs `pdlc post invalidate` for that task.",
-        )
+    return Recovery(
+        check=f"pdlc inspect timeline {issue}",
+        landed=f"PDLC-PATCHED is newer than this PDLC-{marker} evidence and `pdlc inspect {issue}` shows the stage and gate the dry run reported",
+        otherwise="run the same command with --dry-run and, only if it still reports the same plan, re-run: {rerun}",
+        note="If the record already moved to the returned stage, do not re-run; stop and report to the driver any task still closed, which needs `pdlc post invalidate` for that task.",
+    )
+
+
+def _recovery(issue: str, stage: str, target: State) -> Recovery:
+    """How to check a failed landing at `target`, the state `set_state` lands;
+    the Tasks stage also has to reopen any rewritten task a failed run left
+    closed, which a re-run never does."""
+    marker = "UI" if stage == "UI" else "TASKS"
     note = f"A re-run after the PDLC-{marker} evidence landed posts a second one; mention it in your report."
     if stage == "Tasks":
         note += (
@@ -713,7 +753,7 @@ def _recovery(issue: str, stage: str, patch: bool) -> Recovery:
         )
     return Recovery(
         check=f"pdlc inspect {issue}",
-        landed=f"the gate is Review Required and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
+        landed=f"the gate is {target.gate.value} and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
         note=note,
     )
 
@@ -751,6 +791,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.manifest:
                 raise PdlcError("--manifest is only valid with --stage Tasks")
             body_path = require_file("--body file", args.body)
+            if not args.patch:
+                # A reviewed fragment edited since its review is put back before anything reads it.
+                reviewed = body_path.resolve()
+                restore_reviewed(
+                    args.work_item, "UI",
+                    ui_reviewer_command(args.work_item, reviewed), ui_planner_command(args.work_item, reviewed),
+                )
         else:
             if not args.manifest:
                 raise PdlcError("--stage Tasks requires --manifest FILE")
@@ -759,6 +806,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.no_ui:
                 raise PdlcError("--no-ui is only valid with --stage UI")
             manifest_path = require_file("--manifest file", args.manifest)
+            if not args.patch:
+                # A reviewed file edited since its review is put back before anything reads it.
+                reviewed = manifest_path.resolve()
+                restore_reviewed(
+                    args.work_item, "Tasks",
+                    reviewer_command(args.work_item, reviewed), planner_command(args.work_item, reviewed),
+                )
 
         if args.impact and not args.patch:
             raise PdlcError("--impact is only valid with --patch")
@@ -786,8 +840,8 @@ def main(argv: list[str] | None = None) -> int:
         gate = item_gate(record)
         parent_body = record.get("issueBody") or ""
 
-        set_recovery(_recovery(args.work_item, args.stage, args.patch))
         if args.patch:
+            set_recovery(_patch_recovery(args.work_item, args.stage))
             impact = resolve_text(args.impact, label="--impact") if args.impact else None
             plan = record_patch_plan(record, args.stage, impact, args.dry_run)
             context = PublicationContext(record, pipeline, patch=plan, impact=impact)
@@ -827,6 +881,7 @@ def main(argv: list[str] | None = None) -> int:
             target = pipeline.next_state(state, Event.PUBLISHED)
         except ValueError as error:
             raise PdlcError(str(error)) from None
+        set_recovery(_recovery(args.work_item, args.stage, target))
 
         if args.stage == "UI":
             context = PublicationContext(record, pipeline, reauthor and not args.dry_run)

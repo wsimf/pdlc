@@ -60,10 +60,11 @@ from pdlc.internal.workitem import task_tree
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
-def _published(issue: str, marker: str) -> Recovery:
+def _published(issue: str, marker: str, gate: str) -> Recovery:
+    """How to check a failed landing at `gate`, the gate the publication lands."""
     return Recovery(
         check=f"pdlc inspect {issue}",
-        landed=f"the gate is Review Required and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
+        landed=f"the gate is {gate} and `pdlc inspect timeline {issue}` shows this PDLC-{marker} evidence as the newest",
         note=f"A re-run after the evidence landed posts a second PDLC-{marker} comment; mention it in your report.",
     )
 
@@ -84,8 +85,8 @@ def main(argv: list[str] | None = None) -> int:
 
     issue, evidence = args
     try:
-        set_recovery(_published(issue, "IMPLEMENTATION"))
         publication = prepare_transition(issue, "Implementation")
+        set_recovery(_published(issue, "IMPLEMENTATION", publication.target.gate.value))
         evidence_body = resolve_text(evidence, label="evidence")
         code_host = get_code_host()
         # The stack mechanism owns bases and rebases, so any commit left on a

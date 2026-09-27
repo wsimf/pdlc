@@ -38,7 +38,7 @@ class PromptUiJourneyReviewerTest(PromptHarness):
 
     def test_a_first_pass_carries_the_due_journey_and_ux(self):
         self._seeded()
-        result = self.invoke("prompt_ui_journey_reviewer", 60, "--description", "text:offline retry")
+        result = self.invoke("prompt_ui_journey_reviewer", "--inline", 60, "--description", "text:offline retry")
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("verifying acceptance for a feature: offline retry.", result.stdout)
         self.assertIn("### UJ-1: Retry sync", result.stdout)
@@ -47,17 +47,17 @@ class PromptUiJourneyReviewerTest(PromptHarness):
 
     def test_the_brief_names_no_pdlc_command_or_stage(self):
         self._seeded()
-        result = self.invoke("prompt_ui_journey_reviewer", 60, "--description", "text:offline retry")
+        result = self.invoke("prompt_ui_journey_reviewer", "--inline", 60, "--description", "text:offline retry")
         for leak in ("pdlc inspect", "pdlc post", "Gate State"):
             self.assertNotIn(leak, result.stdout)
 
     def test_refuses_when_verification_is_not_due(self):
         self._seeded(status="Testing")
-        result = self.invoke("prompt_ui_journey_reviewer", 60, "--description", "text:offline retry")
+        result = self.invoke("prompt_ui_journey_reviewer", "--inline", 60, "--description", "text:offline retry")
         self.assertNotEqual(result.code, 0)
 
     def test_refuses_when_the_record_has_no_ui_task(self):
         self._seeded(ui=False)
-        result = self.invoke("prompt_ui_journey_reviewer", 60, "--description", "text:offline retry")
+        result = self.invoke("prompt_ui_journey_reviewer", "--inline", 60, "--description", "text:offline retry")
         self.assertNotEqual(result.code, 0)
         self.assertIn("no UI tasks", result.stderr)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt - read-only: print the ready-to-send brief for a work item's next unit
+    pdlc prompt - write the ready-to-send brief for a work item's next unit; nothing is published to the backend
 
 USAGE
     pdlc prompt COMMAND WORK_ITEM [flags]
@@ -20,11 +20,11 @@ COMMANDS
     ui-journey-reviewer  brief the sub-agent walking a record's UI journeys against a fresh build
 
 DESCRIPTION
-    Prints one complete sub-agent brief for the unit of work a record has next,
-    with every value already filled in. The output is sent to the sub-agent
-    verbatim: it carries the task, its plan, the covered requirements, and the
-    boundaries the agent works inside, and it names no PDLC command, stage, or
-    gate.
+    Writes one complete sub-agent brief for the unit of work a record has next,
+    with every value already filled in, and prints only the brief file's path.
+    That file is sent to the sub-agent verbatim: it carries the task, its plan,
+    the covered requirements, and the boundaries the agent works inside, and it
+    names no PDLC command, stage, or gate.
 
     The three `task-*` commands describe the same unit, so the implementer,
     the reviewer, and the test writer are held to one task, one plan, and one
@@ -53,9 +53,10 @@ DESCRIPTION
 
     `tasks-reviewer` and `plan-reviewer` review a local, not-yet-landed
     artifact against the parent's own body, the same way `product-reviewer`
-    does; `tasks-reviewer` takes exactly one of `--manifest` (a Tasks
+    does; `tasks-reviewer` takes at most one of `--manifest` (a Tasks
     breakdown) or `--fragment` (a UI section), since one reviewer checks both
-    artifacts. `cumulative-reviewer` and `ui-journey-reviewer` brief the two
+    artifacts. Without one, either reviews the published artifact as it
+    stands. `cumulative-reviewer` and `ui-journey-reviewer` brief the two
     sub-agents a Verification pass dispatches; both sub-agents know nothing
     about PDLC, so the record's `FR-*`/`C-*` intent and a one-sentence account
     of what shipped arrive as flags in plain language rather than being
@@ -66,8 +67,13 @@ DESCRIPTION
 
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
-    the record and its live pull-request state; none changes the record.
-    `task-planner` and `ui-planner` may write editable copies to the work-item cache.
+    the record and its live pull-request state; none changes the record, and
+    nothing is published to the backend. `task-planner`, `tech-planner`, and
+    `ui-planner` may write editable copies to the work-item cache.
+    `tasks-reviewer` and `plan-reviewer` record the files they hand
+    the reviewer, so the stage lands only what was reviewed; they and the
+    matching planner briefs restore a reviewed file that changed since. Both
+    reviewer briefs also write a fresh findings file for the reviewer to fill.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -106,6 +112,20 @@ from pdlc.commands.inspect_test import readiness as testing_readiness
 from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
+from pdlc.domain.plan_file import (
+    manifest_errors,
+    parse as parse_plan_file,
+    plan_baseline,
+    planner_command as plan_planner_command,
+    regenerate,
+    render as render_plan_file,
+    reviewer_command as plan_reviewer_command,
+    same_plan,
+    stored_plan,
+)
+from pdlc.domain.task_artifact import planner_command as tasks_planner_command
+from pdlc.domain.task_artifact import reviewer_command as tasks_reviewer_command
+from pdlc.domain.task_artifact import ui_planner_command, ui_reviewer_command
 from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.model import (
@@ -122,7 +142,8 @@ from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
 from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
-from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.review_stamp import clear_stamp, findings_path, restore_reviewed, write_stamp
+from pdlc.internal.scratch import replace_cache_file, scratch_path, write_scratch
 from pdlc.internal.workitem import (
     comments_for_issue,
     item_slug,
@@ -158,6 +179,10 @@ from pdlc.commands.inspect_implement import (
     _stack_order,
 )
 from pdlc.internal.failure import report_failure
+
+TECH_PLAN_STAGE = "Technical Plan"
+TASKS_STAGE = "Tasks"
+UI_STAGE = "UI"
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
@@ -522,10 +547,17 @@ def ui_planner_brief(
         if current_journeys_path is not None
         else ""
     )
+    if current_journeys:
+        restore_reviewed(
+            work_item, UI_STAGE,
+            ui_reviewer_command(work_item, current_journeys), ui_planner_command(work_item, current_journeys),
+        )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "UI":
         raise PdlcError(f"no UI section is due: the record is at {status or 'an unset status'}, not UI")
+    # A new planning pass begins, so the fragment last reviewed is no longer the one to land.
+    clear_stamp(work_item, UI_STAGE)
 
     delivery = [task for task in tasks if task.get("taskId")]
     parent_body = _parent_body(item)
@@ -548,7 +580,7 @@ def ui_planner_brief(
             "TASK_TREE": _task_tree_text(delivery),
             "FRAGMENT_PATH": fragment,
             "CHANGE_REQUESTS": change_requests,
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up is not None else "",
+            "DRIVER_FOLLOWUP": _filled_text(follow_up, "--follow-up", UI_STAGE),
         },
     )
 
@@ -571,6 +603,12 @@ def task_planner_brief(
         if current_tasks_manifest_path is not None
         else ""
     )
+    if current_tasks_manifest:
+        restore_reviewed(
+            work_item, TASKS_STAGE,
+            tasks_reviewer_command(work_item, current_tasks_manifest),
+            tasks_planner_command(work_item, current_tasks_manifest),
+        )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "Tasks":
@@ -578,9 +616,11 @@ def task_planner_brief(
 
     delivery = [task for task in tasks if task.get("taskId")]
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
-    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    driver_followup = _filled_text(follow_up, "--follow-up", TASKS_STAGE)
     # A supplied draft and a generated copy of the published tree are revised the same way.
     manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
+    # A new planning pass begins, so the files last reviewed are no longer the ones to land.
+    clear_stamp(work_item, TASKS_STAGE)
 
     return render(
         "task-planner",
@@ -629,54 +669,125 @@ def _task_planner_manifest(work_item: str, delivery: list[dict]) -> str:
     return str(manifest_path)
 
 
-def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
+def _tech_plan_scope(tasks: list[dict]) -> list[dict]:
+    """The tasks the Technical Plan stage plans: open and not yet implemented, lowest in the stack first."""
+    return sorted(
+        (task for task in tasks if task.get("taskId") and task["state"] != "CLOSED" and not task["hasImplementation"]),
+        key=_stack_order,
+    )
+
+
+def _tech_plan_manifest(work_item: str, scope: list[dict]) -> Path:
+    """Write one editable task file per task in scope, plus the manifest naming them."""
+    entries = []
+    for task in scope:
+        body = task.get("body") or ""
+        plan = stored_plan(task.get("planComment"))
+        path = write_scratch(scratch_path(work_item, f"tech-planner-{task['taskId']}"), render_plan_file(body, plan))
+        entries.append({
+            "id": task["taskId"], "number": task["number"], "title": task_headline(task),
+            "file": str(path), "baseline": plan_baseline(body, plan),
+        })
+    return write_scratch(
+        scratch_path(work_item, "tech-planner-manifest", ".json"),
+        json.dumps(entries, indent=2) + "\n",
+    )
+
+
+def _plan_manifest_entries(manifest_path: Path, work_item: str) -> list[dict]:
+    entries = load_json_array("--manifest", manifest_path, allow_empty=False)
+    errors = manifest_errors(entries)
+    if errors:
+        listed = "\n".join(f"  - {error}" for error in errors)
+        raise PdlcError(f"{manifest_path} is not a plan manifest pdlc generated:\n{listed}\n{regenerate(work_item)}")
+    return entries
+
+
+_NO_PLAN, _DRAFTED, _PLANNED = "no plan yet", "drafted, not yet landed", "planned"
+
+
+def _task_plan_status(entry: dict, task: dict | None) -> str:
+    """Where a task's plan stands, read from its task file against its recorded plan.
+
+    An earlier pass's drafts live only in the files until they land, so the
+    record alone would call a drafted task unplanned. A file that no longer
+    parses was edited by an earlier pass, so it counts as a draft to revise.
+    """
+    recorded = stored_plan((task or {}).get("planComment"))
+    path = Path(entry["file"])
+    parsed = parse_plan_file(path.read_text(encoding="utf-8"))[0] if path.is_file() else None
+    if parsed is None:
+        return _DRAFTED if path.is_file() else (_PLANNED if recorded else _NO_PLAN)
+    if not parsed.plan:
+        return _NO_PLAN
+    return _PLANNED if same_plan(parsed.plan, recorded) else _DRAFTED
+
+
+def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manifest_path: str | None = None) -> str:
     """The brief for the sub-agent spiking the record's open tasks into plans.
 
     Due only while `Status` is `Technical Plan`. Every open, unimplemented task
-    is carried with its existing plan, so a reconciling pass sees what it would
-    overwrite; which of them the evidence sends back is the planner's call.
+    gets an editable file holding its body and its existing plan, so a
+    reconciling pass edits what it would overwrite in place; which of them the
+    evidence sends back is the planner's call. `current_plan_manifest_path`
+    names a manifest from an earlier pass to keep revising, such as the one a
+    reviewer saw; a new planning pass begins either way, so any review stamp
+    is cleared once the reviewed files are confirmed untouched.
     """
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "Technical Plan":
         raise PdlcError(f"no technical plan is due: the record is at {status or 'an unset status'}, not Technical Plan")
 
-    scope = sorted(
-        (
-            task for task in tasks
-            if task.get("taskId") and task["state"] != "CLOSED" and not task["hasImplementation"]
-        ),
-        key=_stack_order,
-    )
+    scope = _tech_plan_scope(tasks)
     if not scope:
         raise PdlcError("nothing to plan: no delivery task is open and unimplemented")
 
+    if current_plan_manifest_path is not None:
+        manifest = require_file("--current-plan-manifest-path", current_plan_manifest_path).resolve()
+        restore_reviewed(
+            work_item, TECH_PLAN_STAGE,
+            plan_reviewer_command(work_item, manifest), plan_planner_command(work_item, manifest),
+        )
+    else:
+        manifest = _tech_plan_manifest(work_item, scope)
+    entries = _plan_manifest_entries(manifest, work_item)
+    clear_stamp(work_item, TECH_PLAN_STAGE)
+
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
-    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    driver_followup = _filled_text(follow_up, "--follow-up", TECH_PLAN_STAGE)
     # The sections a planned task is checked against; only those that render are named.
     change_sources = " and ".join(
         name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
     )
-    unplanned = ", ".join(task["taskId"] for task in scope if not task["hasPlan"])
-    planned = ", ".join(task["taskId"] for task in scope if task["hasPlan"])
+    by_id = {task["taskId"]: task for task in tasks if task.get("taskId")}
+    statuses = {entry["id"]: _task_plan_status(entry, by_id.get(entry["id"])) for entry in entries}
+
+    def listed(status: str) -> str:
+        return ", ".join(task_id for task_id, value in statuses.items() if value == status)
+
+    unplanned, drafted, planned = listed(_NO_PLAN), listed(_DRAFTED), listed(_PLANNED)
     return render(
         "tech-planner",
         {
             "EXECUTION_SCOPE": "this one planning pass",
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
+            "MANIFEST_PATH": str(manifest),
             "UNPLANNED_TASKS": unplanned,
+            "DRAFTED_TASKS": drafted,
             "PLANNED_TASKS": planned,
             "PLANNED_TO_CHECK": bool(planned and change_sources),
             "PLANNED_SETTLED": bool(planned and not change_sources),
             "CHANGE_SOURCES": change_sources,
             "TASKS": [
                 {
-                    **_task_context(task),
-                    "TASK_NUMBER": str(task["number"]),
-                    "EXISTING_PLAN": plan_body(task) if task["hasPlan"] else "",
+                    "TASK_ID": entry["id"],
+                    "TASK_TITLE": entry["title"],
+                    "TASK_STATUS": statuses[entry["id"]],
+                    "TASK_FILE": entry["file"],
                 }
-                for task in scope
+                for entry in entries
             ],
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
@@ -775,29 +886,97 @@ def _manifest_review_tasks(manifest_path: Path, work_item: str) -> tuple[list[di
     return tasks, removed
 
 
+def _manifest_body_files(manifest_path: Path) -> list[Path]:
+    """The task body files a Tasks manifest names; a removal has none."""
+    return [
+        Path(entry["body"]).resolve()
+        for entry in load_json_array("--manifest", manifest_path)
+        if entry.get("action") != "remove" and isinstance(entry.get("body"), str)
+    ]
+
+
+def _findings_outline(review: str) -> str:
+    return render("templates/review-findings", {"REVIEW": review})
+
+
+def _findings_file(work_item: str, review: str) -> str:
+    """A fresh findings outline for one review, at a fixed path per review.
+
+    Written after the brief has read its own `--findings`, which may be this
+    same file from the previous pass.
+    """
+    return str(replace_cache_file(findings_path(work_item, review), _findings_outline(review)))
+
+
+def _filled_text(value: str | None, label: str, review: str) -> str:
+    """The text `value` names, or "" when there is none.
+
+    A findings file still holding the unfilled outline carries no findings,
+    e.g. when a reviewer brief is re-run and has already reset its own file,
+    or a reviewer replied without writing its findings.
+    """
+    text = resolve_text(value, label=label).strip() if value else ""
+    return "" if text == _findings_outline(review).strip() else text
+
+
+def _published_review_files(work_item: str) -> tuple[str | None, str | None]:
+    """Fresh files holding the published UI section or task breakdown, whichever
+    the record's status names, as (manifest, fragment)."""
+    item, tasks, _ = record_snapshot(work_item)
+    status = item_status(item)
+    if status == UI_STAGE:
+        published = read_section(_parent_body(item), "UI")
+        if not published.strip():
+            raise PdlcError("no UI section is published to review; pass --fragment FILE")
+        return None, str(write_scratch(scratch_path(work_item, "tasks-review-fragment"), published))
+    if status == TASKS_STAGE:
+        manifest = _task_planner_manifest(work_item, [task for task in tasks if task.get("taskId")])
+        if not manifest:
+            raise PdlcError("no delivery tasks are published to review; pass --manifest FILE")
+        return manifest, None
+    raise PdlcError(f"no UI section or task breakdown is due: the record is at {status or 'an unset status'}; pass --manifest or --fragment")
+
+
 def tasks_reviewer_brief(
     work_item: str, manifest: str | None, fragment: str | None, findings: str | None,
 ) -> str:
     """The brief for the reviewer checking a UI fragment or Tasks breakdown
-    before it lands. Pass exactly one of `manifest` (the Tasks breakdown) or
+    before it lands. Pass at most one of `manifest` (the Tasks breakdown) or
     `fragment` (the UI section's content) — the two artifacts this reviewer
-    checks, never both in the same pass. The reviewer reads the artifact from
-    its files rather than a copy inlined in the brief; a `text:` fragment is
-    written to the work-item cache so it has a file too.
+    checks, never both in the same pass. With neither, the artifact the record's
+    status names is written to fresh files as published, for review as it
+    stands. The reviewer reads the artifact from its files rather than a copy
+    inlined in the brief. The fragment must be a file, since the stage lands
+    that same file.
     """
-    if bool(manifest) == bool(fragment):
-        raise PdlcError("pass exactly one of --manifest or --fragment")
+    if manifest and fragment:
+        raise PdlcError("pass at most one of --manifest or --fragment")
+    if not manifest and not fragment:
+        manifest, fragment = _published_review_files(work_item)
+    manifest_path = str(require_file("--manifest", manifest).resolve()) if manifest else ""
+    if manifest_path:
+        restore_reviewed(
+            work_item, TASKS_STAGE,
+            tasks_reviewer_command(work_item, manifest_path), tasks_planner_command(work_item, manifest_path),
+        )
     item = resolve_item(work_item)
     parent_body = _parent_body(item)
-    manifest_path = str(require_file("--manifest", manifest).resolve()) if manifest else ""
     tasks, removed = _manifest_review_tasks(Path(manifest_path), work_item) if manifest else ([], [])
+    if manifest_path:
+        write_stamp(work_item, TASKS_STAGE, [Path(manifest_path), *_manifest_body_files(Path(manifest_path))])
     fragment_path = ""
     if fragment:
-        fragment_path = (
-            str(write_scratch(scratch_path(work_item, "tasks-review-fragment"), resolve_text(fragment, label="--fragment")))
-            if fragment.startswith("text:") or fragment == "-"
-            else str(require_file("--fragment", fragment).resolve())
+        if fragment.startswith("text:") or fragment == "-":
+            raise PdlcError("--fragment takes the UI fragment's FILE, the same file `pdlc post tasks --stage UI --body` lands")
+        fragment_path = str(require_file("--fragment", fragment).resolve())
+        restore_reviewed(
+            work_item, UI_STAGE,
+            ui_reviewer_command(work_item, fragment_path), ui_planner_command(work_item, fragment_path),
         )
+        write_stamp(work_item, UI_STAGE, [Path(fragment_path)])
+    review = UI_STAGE if fragment_path else TASKS_STAGE
+    prior_findings = _filled_text(findings, "--findings", review)
+    outline_path = _findings_file(work_item, review)
     return render(
         "tasks-review",
         {
@@ -810,47 +989,74 @@ def tasks_reviewer_brief(
             "TASKS": tasks,
             "REMOVED_TASKS": removed,
             # Empty on a first review, which drops the section from the brief.
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
+            "PRIOR_FINDINGS": prior_findings,
+            "FINDINGS_PATH": outline_path,
         },
     )
 
 
-def _plan_review_block(task: dict, plan_path: str) -> str:
-    proposed = require_file(f"manifest entry {task_tag(task)} plan", plan_path).read_text(encoding="utf-8").strip()
-    return (
-        f"### {task_tag(task)} — {task_headline(task)}\n\n"
-        f"Current task body:\n\n{(task.get('body') or '').strip()}\n\n"
-        f"Existing Technical Plan: {plan_body(task)}\n\n"
-        f"Proposed plan:\n\n{proposed}"
-    )
-
-
-def plan_reviewer_brief(work_item: str, manifest: str, findings: str | None) -> str:
+def plan_reviewer_brief(work_item: str, manifest: str | None, findings: str | None) -> str:
     """The brief for the reviewer checking a pass's delivery-task plans before
-    they land. `manifest` is the same `{"id", "plan"}` array `pdlc post plan`
-    takes; each entry's current task body and existing plan come off the
-    record, so the manifest need only point at the proposed plan file.
+    they land. `manifest` is the plan manifest `pdlc prompt tech-planner`
+    generated; without one, the recorded plans are written to fresh task files
+    for review as they stand. The reviewer reads each task file rather than a
+    copy inlined here. A plan that replaces a recorded one carries the recorded
+    plan too, since the file no longer shows it. The files handed over are
+    recorded, so the stage lands only what was reviewed.
     """
+    if manifest is not None:
+        manifest_path = require_file("--manifest", manifest).resolve()
+        restore_reviewed(
+            work_item, TECH_PLAN_STAGE,
+            plan_reviewer_command(work_item, manifest_path), plan_planner_command(work_item, manifest_path),
+        )
     item, tasks, _ = record_snapshot(work_item)
+    if manifest is None:
+        status = item_status(item)
+        if status != "Technical Plan":
+            raise PdlcError(f"no technical plan to review: the record is at {status or 'an unset status'}, not Technical Plan")
+        scope = _tech_plan_scope(tasks)
+        if not scope:
+            raise PdlcError("nothing to review: no delivery task is open and unimplemented")
+        manifest_path = _tech_plan_manifest(work_item, scope).resolve()
     by_id = {task["taskId"]: task for task in tasks if task.get("taskId")}
-    entries = load_json_array("--manifest", require_file("--manifest", manifest), allow_empty=False)
-    blocks: list[str] = []
+    entries = _plan_manifest_entries(manifest_path, work_item)
+    listed: list[dict] = []
+    replaced: list[dict] = []
     for entry in entries:
-        task_id = entry.get("id")
-        task = by_id.get(task_id)
+        task = by_id.get(entry["id"])
         if task is None:
-            raise PdlcError(f"--manifest names {task_id!r}, which is not a delivery task on this record")
-        plan_path = entry.get("plan")
-        if not plan_path:
-            raise PdlcError(f"--manifest entry {task_id!r} has no plan file")
-        blocks.append(_plan_review_block(task, plan_path))
+            raise PdlcError(f"--manifest names {entry['id']!r}, which is not a delivery task on this record")
+        path = require_file(f"manifest entry {entry['id']} file", entry["file"]).resolve()
+        planned, errors = parse_plan_file(path.read_text(encoding="utf-8"))
+        if planned is None:
+            raise PdlcError(
+                f"{entry['id']} file {path}: {'; '.join(errors)}; run `pdlc post plan --work-item {work_item}"
+                f" --manifest {manifest_path} --dry-run` and send its failures back to the planner before review"
+            )
+        recorded = stored_plan(task.get("planComment"))
+        if not recorded:
+            change = "new plan"
+        elif same_plan(planned.plan, recorded):
+            change = "recorded plan, unchanged"
+        else:
+            change = "replaces its recorded plan"
+            replaced.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "RECORDED_PLAN": recorded})
+        listed.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "TASK_CHANGE": change, "TASK_FILE": str(path)})
+    write_stamp(work_item, TECH_PLAN_STAGE, [manifest_path, *(Path(entry["TASK_FILE"]) for entry in listed)])
+    prior_findings = _filled_text(findings, "--findings", TECH_PLAN_STAGE)
     return render(
         "plan-review",
         {
             "EXECUTION_SCOPE": "this one planning review",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
-            "PLANS": "\n\n---\n\n".join(blocks),
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+            "MANIFEST_PATH": str(manifest_path),
+            "TASKS": listed,
+            "REPLACED_PLANS": replaced,
+            # Empty on a first review, which drops the section from the brief.
+            "PRIOR_FINDINGS": prior_findings,
+            "FINDINGS_PATH": _findings_file(work_item, TECH_PLAN_STAGE),
         },
     )
 
@@ -977,32 +1183,34 @@ def ui_journey_reviewer_brief(work_item: str, description: str) -> str:
 
 
 def add_common_arguments(parser: argparse.ArgumentParser, command: str) -> None:
-    """The work item and `--file`, which every brief command takes alike."""
+    """The work item and `--inline`, which every brief command takes alike."""
     parser.add_argument("work_item")
-    parser.add_argument(
-        "--file", action="store_true",
-        help="write the brief to the configured work-item cache and print its path",
-    )
+    add_inline_argument(parser)
 
 
-def emit(brief: str, work_item: str, command: str, to_file: bool) -> None:
-    """Print the brief, or the path of the scratch file now holding it.
+def add_inline_argument(parser: argparse.ArgumentParser) -> None:
+    """`--inline` prints the brief itself; a convenience for humans, kept out of help."""
+    parser.add_argument("--inline", action="store_true", help=argparse.SUPPRESS)
+
+
+def emit(brief: str, work_item: str, command: str, inline: bool) -> None:
+    """Print the path of the scratch file now holding the brief, or the brief itself.
 
     The command name is part of that path so one pass's three briefs cannot
     overwrite each other: a caller that still held the implementer's path would
     otherwise read the reviewer's brief back out of it.
     """
-    if to_file:
-        print(write_scratch(scratch_path(work_item, f"prompt-{command}-{work_item}"), brief))
-    else:
+    if inline:
         sys.stdout.write(brief)
+    else:
+        print(write_scratch(scratch_path(work_item, f"prompt-{command}-{work_item}"), brief))
 
 
 def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int:
     """Render one brief, reporting a refusal without writing or printing it."""
     try:
         brief = build()
-        emit(brief, args.work_item, command, args.file)
+        emit(brief, args.work_item, command, args.inline)
     except PdlcError as error:
         return report_failure(error)
     return 0

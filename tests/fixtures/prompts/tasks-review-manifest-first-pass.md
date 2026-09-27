@@ -52,4 +52,4 @@ Review each task below on its own, then the breakdown as a whole:
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Clean` or `Changes`.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-tasks-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the path of the manifest or UI fragment you were handed to review, and the findings file path.

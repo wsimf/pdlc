@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt ui-planner - read-only: print the UI planner's brief for a record's UI section
+    pdlc prompt ui-planner - read-only: write the UI planner's brief for a record's UI section
 
 USAGE
-    pdlc prompt ui-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    pdlc prompt ui-planner WORK_ITEM [--follow-up FILE|text:BODY]
     - when revising an unpublished UI fragment, such as a reviewed draft:
-      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE [--follow-up FILE|text:BODY] [--file]
+      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE [--follow-up FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that authors a record's `UI`
-    section. The output is sent to that sub-agent verbatim.
+    Writes the complete brief for the sub-agent that authors a record's `UI`
+    section. It prints only the brief file's path; that file is sent to that
+    sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
     `Status` is not `UI`. The brief opens with the project's configured
@@ -25,15 +26,13 @@ DESCRIPTION
     copy.
 
     `--follow-up` carries the driver's verbatim request; with nothing given,
-    that section is omitted. `--current-journeys-path` names an unpublished UI
+    or a reviewer's findings file still holding its unfilled outline, that
+    section is omitted. `--current-journeys-path` names an unpublished UI
     fragment to revise instead of the published section.
 
 FLAGS
     --current-journeys-path FILE  unpublished UI fragment to revise instead of the published section
     --follow-up FILE|text:BODY    the driver's verbatim follow-up for this pass
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt ui-planner 236

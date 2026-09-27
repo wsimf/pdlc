@@ -8,7 +8,7 @@ argument-hint: "Fresh feature idea, or work item number to reconcile"
 
 Author a work item's `Product`, `Decisions`, and `Open Questions` sections through a source-backed interview with the driver. You draft the sections, `pdlc-product-reviewer` checks the local draft, and `pdlc post write` lands the reviewed file at `Product / Approval Required`. This skill owns those three sections and nothing else. Review runs on the local file, before anything is landed.
 
-Read `pdlc guide contract` when resolving lifecycle questions. Read [`references/product-spec-format.md`](references/product-spec-format.md) before Interview for section format, numbering, and writing rules. `product-reviewer` builds the reviewer's brief; this skill passes it through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. Read [`references/product-spec-format.md`](references/product-spec-format.md) before Interview for section format, numbering, and writing rules. `product-reviewer` builds the reviewer's brief; this skill passes it through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 ## Resolve
 
@@ -73,9 +73,9 @@ This step is complete when the file holds exactly the three owned headings, in o
 
 ## Review
 
-Dispatch `pdlc-product-reviewer` with the brief `product-reviewer DRAFT_FILE [--work-item WORK_ITEM] [--findings FILE] --file` writes; pass `--work-item` only when reconciling an existing record, and `--findings` only on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only and must review the actual draft file, not a summary.
+Dispatch `pdlc-product-reviewer` with the brief `product-reviewer DRAFT_FILE [--work-item WORK_ITEM] [--findings FILE]` writes; pass `--work-item` only when reconciling an existing record, and `--findings` only on a re-review. The command prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only and must review the actual draft file, not a summary.
 
-On findings, fix them in the same file, going back to Interview when a finding needs the driver, then repeat Review on the same path, re-running `product-reviewer` with `--findings` carrying the prior findings. On a clean verdict, that exact file is what Land ships; do not rewrite, reformat, or regenerate it. After two failed reconciliation passes, stop and put the decision to the driver. This step is complete only when the actual file has a clean reviewer verdict within two reconciliations.
+On findings, fix them in the same file, going back to Interview when a finding needs the driver, then repeat Review on the same path, re-running `product-reviewer` with `--findings` carrying the prior findings. On a clean verdict, that exact file is what Land ships; do not rewrite, reformat, or regenerate it. After three failed reconciliation passes, stop and put the decision to the driver. This step is complete only when the actual file has a clean reviewer verdict within three reconciliations.
 
 ## Land
 

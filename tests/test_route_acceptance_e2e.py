@@ -120,15 +120,16 @@ class RouteAcceptanceE2ETests(FileBackendTest):
             return self.invoke("post_write", "--work-item", record, "--evidence", self.evidence, "--body", body)
         if stage == "UI":
             body = self.write_file(f"ui-{record}.md", "## UI\n\nUJ-1 covers the first run.\n")
+            self.mark_ui_reviewed(record, body)
             return self.invoke("post_tasks", "--work-item", record, "--stage", "UI", "--body", body, "--evidence", self.evidence)
         if stage == "Tasks":
             task = self.write_file(f"task-{record}.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nBuild the core.\n\n**Acceptance Criteria:**\n- [ ] FR-1 works.\n")
             manifest = self.write_file(f"tasks-{record}.json", json.dumps([
                 {"id": "TASK-001", "action": "create", "title": "Build core", "body": task, "type": "ui", "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]},
             ]))
+            self.mark_tasks_reviewed(record, manifest)
             return self.invoke("post_tasks", "--work-item", record, "--stage", "Tasks", "--manifest", manifest, "--evidence", self.evidence)
-        plan = self.write_file(f"plan-{record}.md", "Touch core_service.py.\n")
-        manifest = self.write_file(f"plan-{record}.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
+        manifest = self.reviewed_plan_manifest(record, {"TASK-001": "Touch core_service.py."})
         return self.invoke("post_plan", "--work-item", record, "--manifest", manifest, "--evidence", self.evidence)
 
     def _assert_accepted(self, record: int, action: str) -> None:

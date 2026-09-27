@@ -4,6 +4,7 @@ Verification recorded, and the record locked at completion. Also covers the
 re-author-in-place behaviour of each pre-publication stage."""
 
 import json
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from _support import FileBackendTest
@@ -42,11 +43,13 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- UI: land, re-author in place before approval, approve ---
         ui = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        self.mark_ui_reviewed(issue, ui)
         self.assertEqual(
             self.invoke("post_tasks", "--work-item", issue, "--stage", "UI",
                         "--body", ui, "--evidence", evidence).code,
             0,
         )
+        self.mark_ui_reviewed(issue, ui)
         reauth = self.invoke("post_tasks", "--work-item", issue, "--stage", "UI",
                              "--body", ui, "--evidence", evidence)
         self.assertEqual(reauth.json["gateState"], "Approval Required")
@@ -65,10 +68,12 @@ class WorkflowEndToEndTests(FileBackendTest):
                 "type": "ui", "covers": ["FR-1", "C-1", "UJ-1"],
             }]),
         )
+        self.mark_tasks_reviewed(issue, manifest)
         tasks_out = self.invoke("post_tasks", "--work-item", issue, "--stage", "Tasks",
                                 "--manifest", manifest, "--evidence", evidence)
         self.assertEqual(tasks_out.code, 0, tasks_out.stderr)
         task_number = tasks_out.json["tasks"][0]["number"]
+        self.mark_tasks_reviewed(issue, manifest)
         reauth_tasks = self.invoke("post_tasks", "--work-item", issue, "--stage", "Tasks",
                                    "--manifest", manifest, "--evidence", evidence)
         self.assertEqual(reauth_tasks.json["gateState"], "Approval Required")
@@ -76,15 +81,16 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.invoke("post_approve", issue, evidence)
 
         # --- Technical Plan: lands as a comment on the task, never its body ---
-        plan_body = self.write_file("plan.md", "Touch core_service.py.\n")
-        plan_manifest = self.write_file(
-            "plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan_body}])
-        )
+        plan_manifest = self.reviewed_plan_manifest(issue, {"TASK-001": "Touch core_service.py."})
         self.assertEqual(
             self.invoke("post_plan", "--work-item", issue,
                         "--manifest", plan_manifest, "--evidence", evidence).code,
             0,
         )
+        # Re-planning revises the same files in a new pass, then reviews them again.
+        self.invoke("prompt_tech_planner", "--inline", issue, "--current-plan-manifest-path", plan_manifest)
+        self.write_plan(json.loads(Path(plan_manifest).read_text())[0]["file"], "Touch core_service.py and its tests.")
+        self.review_plans(issue, plan_manifest)
         reauth_plan = self.invoke("post_plan", "--work-item", issue,
                                   "--manifest", plan_manifest, "--evidence", evidence)
         self.assertEqual(reauth_plan.json["gateState"], "Approval Required")

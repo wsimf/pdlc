@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-test-writer - read-only: print the test writer's brief for one dispatch's change
+    pdlc prompt task-test-writer - read-only: write the test writer's brief for one dispatch's change
 
 USAGE
     pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS
         --report FILE|text:BODY --traceability FILE|text:BODY
-        [--findings FILE|text:BODY] [--file]
+        [--findings FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the test writer covering what one dispatch
+    Writes the complete brief for the test writer covering what one dispatch
     changed in the unit a record has next, scoped to that task's unit coverage.
-    The output is sent to that sub-agent verbatim.
+    It prints only the brief file's path; that file is sent to that sub-agent
+    verbatim.
 
     The test writer reads a change that exists only in the working tree, so it
     takes the revisions to read. They are the caller's to pass because the range
@@ -38,9 +39,6 @@ FLAGS
                             against; required
     --findings FILE|text:BODY  reviewer findings accepted as non-blocking;
                             "none" when omitted
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt task-test-writer 236 --commits HEAD~2..HEAD \\

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-planner - read-only: print the task planner's brief for a record's delivery-task breakdown
+    pdlc prompt task-planner - write the task planner's brief for a record's delivery-task breakdown; nothing is published to the backend
 
 USAGE
-    pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY]
     - when revising an unpublished task manifest, such as a reviewed draft:
-      pdlc prompt task-planner WORK_ITEM --current-tasks-manifest-path FILE [--follow-up FILE|text:BODY] [--file]
+      pdlc prompt task-planner WORK_ITEM --current-tasks-manifest-path FILE [--follow-up FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that decomposes a record into a
-    dependency-ordered set of delivery tasks. The output is sent to that
-    sub-agent verbatim.
+    Writes the complete brief for the sub-agent that decomposes a record into a
+    dependency-ordered set of delivery tasks. It prints only the brief file's
+    path; that file is sent to that sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
     `Status` is not `Tasks`. When tasks exist, the command writes an editable
@@ -20,16 +20,20 @@ DESCRIPTION
     received since it last published; with none, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
-    with nothing given, that section is omitted. `--current-tasks-manifest-path`
+    with nothing given, or a reviewer's findings file still holding its unfilled
+    outline, that section is omitted. `--current-tasks-manifest-path`
     names an unpublished manifest to revise instead of the generated copy of
     the published tasks; the agent reads and revises its task body files.
+
+    A new planning pass begins either way, so the record of the files last
+    handed to the tasks reviewer is cleared. With
+    `--current-tasks-manifest-path`, if any of those files changed since, the
+    command first restores each to the reviewed version, keeps the edited copy
+    beside it as `<name>.rejected.<ext>`, and refuses so the review is redone.
 
 FLAGS
     --current-tasks-manifest-path FILE  unpublished task manifest to revise instead of the published tasks
     --follow-up FILE|text:BODY    the driver's verbatim follow-up for this pass
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt task-planner 236

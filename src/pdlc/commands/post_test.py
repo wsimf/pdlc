@@ -46,6 +46,11 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
         raise PdlcError("stdin can supply only one of EVIDENCE or --traceability")
 
     publication = prepare_transition(issue, "Testing")
+    set_recovery(Recovery(
+        check=f"pdlc inspect {issue}",
+        landed=f"the gate is {publication.target.gate.value} and `pdlc inspect timeline {issue}` shows this PDLC-TESTING evidence as the newest",
+        note="A re-run after the evidence landed posts a second PDLC-TESTING comment; mention it in your report.",
+    ))
     body = (
         f"{resolve_text(evidence, label='evidence').rstrip()}\n\n"
         f"## Traceability\n\n{resolve_text(traceability, label='--traceability').strip()}\n"
@@ -80,11 +85,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(script_args)
 
     try:
-        set_recovery(Recovery(
-            check=f"pdlc inspect {args.work_item}",
-            landed=f"the gate is Review Required and `pdlc inspect timeline {args.work_item}` shows this PDLC-TESTING evidence as the newest",
-            note="A re-run after the evidence landed posts a second PDLC-TESTING comment; mention it in your report.",
-        ))
         result = post_test(args.work_item, args.evidence, args.traceability, attachment_inputs)
     except PdlcError as error:
         return report_failure(error)

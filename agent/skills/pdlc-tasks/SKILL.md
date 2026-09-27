@@ -8,7 +8,7 @@ argument-hint: "Parent work item number to prepare"
 
 Prepare the artifact owned by the active `UI` or `Tasks` stage. The planner authors it, the reviewer checks the local files, and `pdlc post tasks` validates and lands the reviewed artifact at `Approval Required`. This skill owns orchestration; it never decides the artifact's product, UX, or technical content.
 
-Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-planner`, `pdlc prompt task-planner`, and `pdlc prompt tasks-reviewer` build the planners' and reviewer's briefs; this skill passes each through untouched and never writes a brief of its own.
+Read `pdlc guide contract` when resolving lifecycle questions. `pdlc prompt ui-planner`, `pdlc prompt task-planner`, and `pdlc prompt tasks-reviewer` build the planners' and reviewer's briefs; this skill passes each through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
 ## Resolve
 
@@ -26,14 +26,12 @@ Read the resolved `Status`, `Gate State`, `# Due Next`, parent body, and existin
 Follow `# Due Next` for what to do, whatever produced that state, including a record edited outside PDLC:
 
 - Names authoring or reauthoring (`Pending`, `Stale`): author the artifact.
-- Names the review procedure (`Review Required`): skip straight to Review with the existing artifact; do not author or validate first.
-- Says the work item needs changes (`Changes Required`): reconcile against the recorded evidence, the same as `Stale`, then continue through Author onward.
+- Names the review procedure (`Review Required`): the artifact was published without its local review. Go straight to Review, omitting `--manifest` and `--fragment` so the reviewer gets the published artifact as it stands, and take the manifest or fragment path from its reply; on `Ready to Land`, Validate and Land it unchanged. For UI, pass `--no-ui` exactly when the published section names no `UJ-N` journey.
+- Says the work item needs changes (`Changes Required`): go to Author.
 - Names user approval (`Approval Required`): re-author only when the driver explicitly requests an artifact change in this turn; Without that request, it's a human boundary: report it and stop.
 - Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
 Any other due next result, malformed record, missing evidence, unavailable workflow, or backend error is a blocker.
-
-Carry the driver's follow-up verbatim. For `Stale`, reconcile against the existing artifact and the recorded stale reason; preserve settled or implemented task scope unless the owning contract permits its change. This step is complete when the valid authoring mode and exact follow-up are included in the dispatch.
 
 ## Author
 
@@ -42,7 +40,7 @@ Dispatch exactly one owning planner:
 - `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current UI fragment only when revising an unpublished one; use `pdlc prompt ui-planner --help` for both inputs.
 - `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current task manifest only when revising an unpublished one; use `pdlc prompt task-planner --help` for both inputs.
 
-For either, `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
+For either, the command prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing. Keep the dispatch addressable: Review returns findings to the same planner.
 
 The planner is the leaf author: it returns the UI fragment, or the revised task manifest and its task files. When a UI section or tasks already exist, the planner's brief points to generated editable copies. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
 
@@ -72,9 +70,9 @@ The dry run must be clean before review; it writes nothing. Send every failure b
 
 ## Review
 
-Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
+Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM [--manifest FILE | --fragment FILE] [--findings FILE]` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section, neither only on the `Review Required` path; `--findings` takes the findings file the previous review named, on a re-review. The command prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer writes its findings to a file and replies with its verdict, the path of the manifest or UI fragment it was handed, and the findings file path.
 
-On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` with the current UI fragment path, or `task-planner` with the current task manifest path — and the findings as its follow-up. Repeat Validate and Review on those same files. On `Clean`, retain those exact reviewed files for landing. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
+On `Needs Revision`, re-run the planner's own `prompt` brief command — `ui-planner` with the current UI fragment path, or `task-planner` with the current task manifest path — with `--follow-up FINDINGS`, where `FINDINGS` is the findings file the reviewer named, and send the fresh brief to the same planner. Pass the findings file as it is; do not open, edit, or summarise it. Repeat Validate and Review on those same files, with `--findings FINDINGS`. On `Ready to Land`, land those files unchanged; pdlc refuses files that changed since their review. If a command reports that reviewed files changed, it has already restored them: follow its instructions and redo the review. After three failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a `Ready to Land` verdict within three reconciliations.
 
 ## Land
 

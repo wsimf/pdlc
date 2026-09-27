@@ -48,6 +48,7 @@ class TasksReopenTests(FileBackendTest):
 
     def _land(self, tasks):
         manifest = self.write_file("m.json", json.dumps(tasks))
+        self.mark_tasks_reviewed(40, manifest)
         return self.invoke("post_tasks", "--work-item", 40, "--stage", "Tasks",
                            "--manifest", manifest, "--evidence", self.evidence_file())
 
@@ -105,6 +106,7 @@ class TasksReopenTests(FileBackendTest):
              "title": "two", "body": self.unchanged_body, "type": "core",
              "covers": ["FR-1", "FR-2", "C-1"], "depends": []},
         ]))
+        self.mark_tasks_reviewed(40, manifest)
 
         def crlf_task(issue):
             tasks = subissues_for(issue)
@@ -160,6 +162,7 @@ class TasksCarryForwardTests(FileBackendTest):
 
     def _land(self, tasks):
         manifest = self.write_file("m.json", json.dumps(tasks))
+        self.mark_tasks_reviewed(41, manifest)
         return self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
                            "--manifest", manifest, "--evidence", self.evidence_file())
 

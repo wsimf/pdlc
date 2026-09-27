@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt acceptance-test-writer - read-only: print the test writer's brief for a record's whole implemented scope
+    pdlc prompt acceptance-test-writer - read-only: write the test writer's brief for a record's whole implemented scope
 
 USAGE
     pdlc prompt acceptance-test-writer WORK_ITEM --traceability FILE|text:BODY
-        [--findings FILE|text:BODY] [--file]
+        [--findings FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the test writer covering every implemented
-    task of a record with requirement-to-source acceptance tests. The output is
-    sent to that sub-agent verbatim.
+    Writes the complete brief for the test writer covering every implemented
+    task of a record with requirement-to-source acceptance tests. It prints only
+    the brief file's path; that file is sent to that sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever `pdlc inspect
     test` reads not ready, and when no task has closed with its implementation
@@ -32,12 +32,9 @@ FLAGS
                             against; required
     --findings FILE|text:BODY  findings the record does not carry, appended
                             after the record's own open change requests
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
-    pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md --file
+    pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md
     pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md \\
         --findings /tmp/red-checks.md
 """

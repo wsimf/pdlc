@@ -1,6 +1,6 @@
 ---
 name: pdlc-tasks-reviewer
-description: "Independently review a local UI fragment or delivery-task breakdown for journey and requirement coverage, dependency validity, and artifact quality. Strictly read-only."
+description: "Independently review a local UI fragment or delivery-task breakdown for journey and requirement coverage, dependency validity, and artifact quality. Read-only apart from its findings file."
 model: GPT-6 Luna (copilot)
 ---
 
@@ -23,7 +23,7 @@ You are a leaf worker for one PDLC stage, not a PDLC orchestrator. Do not invoke
 
 ## Read-only boundary
 
-- Do not edit the fragment, manifest, task body files, source, tests, project files.
+- Do not edit the fragment, manifest, task body files, source, tests, project files. An edited file is restored and the review discarded. The findings file the prompt names is the only file you write.
 - Do not apply corrections, even an obvious one. Report the exact recommended change and stop.
 - Do not run builds, tests, formatters, code generation, commits, pushes, or other mutating operations.
 - Preserve unrelated working-tree changes.
@@ -61,31 +61,6 @@ Use targeted repository search and direct file reads to confirm claims about exi
 
 ## Report
 
-```md
-PDLC <UI|Tasks> review complete.
+Write the report into the findings file the prompt names. Its outline is a guide: adapt it as the review needs. If there are no findings, say so plainly and include the evidence scope. Prioritize findings P0–P3. Never claim runtime, build, or test validation that did not happen.
 
-Reviewed: <fragment path, or manifest + task body paths>
-Scope: whole artifact
-
-Findings:
-
-### Factually wrong
-- [P1] <task/journey id> — "<claim>"
-  Evidence: <source checked and what it shows>
-  Recommendation: <precise correction>
-
-### Inconsistent
-...
-
-### Unverifiable
-...
-
-### Doesn't make sense
-...
-
-Coverage boundaries: <any FR-*/C-*/UJ-* left deliberately unaddressed and why, or None>
-Validation not run: builds, tests, and mutating checks were intentionally skipped because this agent is read-only.
-Verdict: <Changes Required|Approval Required>
-```
-
-If there are no findings, say so plainly and include the evidence scope. Prioritize findings P0–P3. Never claim runtime, build, or test validation that did not happen.
+Reply to the calling skill with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the path of the manifest or UI fragment you were handed to review, and the findings file path.

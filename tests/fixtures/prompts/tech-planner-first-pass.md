@@ -1,4 +1,4 @@
-Spike the delivery tasks below against current source and return an implementation-ready plan for each task that needs one.
+Spike the delivery tasks below against current source and write an implementation-ready plan for each task that needs one.
 
 ## Execution boundary
 
@@ -7,7 +7,7 @@ You are being invoked as a leaf worker for this one planning pass.
 Do not invoke any `pdlc-*` skill.
 Do not spawn, dispatch, or ask another agent to do this work.
 Bounded, read-only codebase exploration is the only delegation allowed.
-Work from this brief. Author the plans and return the plan files and manifest to the calling agent.
+Work from this brief. Write the plans into the task files below and report back to the calling agent.
 
 ## Work item `60`
 
@@ -34,48 +34,17 @@ UJ-1 covers the first run.
 
 --- END WORK ITEM ---
 
-## Tasks
+## Your Task
 
-The open, unimplemented tasks for this work item, lowest in the stack first.
+The manifest at `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-manifest.json` names one file for each open, unimplemented task of this work item, lowest in the stack first. Each file holds the task body between `--- BEGIN TASK ---` and `--- END TASK ---`, then its plan between `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`.
+
+Write each plan in place, between its tech plan markers, replacing the placeholder comment in a task with no plan yet. Everything else is read-only: don't edit the task body, the markers, or the manifest, and add nothing outside the two blocks. A change the task body needs is a blocker to report, not an edit.
+
+- `TASK-001` — [CORE] Core work (planned): `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-TASK-001.md`
+- `TASK-002` — [UI] Second (no plan yet): `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-TASK-002.md`
 
 - No plan yet (TASK-002): plan these from scratch.
-- Already planned (TASK-001): leave these alone. They are here as context for the tasks you plan.
-
-### `WORK-60-TASK-001` [CORE] Core work (#601)
-
---- BEGIN TASK ---
-
-## Scope
-Build the seam.
-
-Covers FR-1.
-
-## Acceptance criteria
-- it works
-
---- END TASK ---
-
-This task already has a plan:
-
---- BEGIN EXISTING PLAN ---
-
-Touch one module.
-
---- END EXISTING PLAN ---
-
-### `WORK-60-TASK-002` [UI] Second (#602)
-
---- BEGIN TASK ---
-
-## Scope
-Show it.
-
-Covers FR-2, UJ-1.
-
-## Acceptance criteria
-- it shows
-
---- END TASK ---
+- Already planned (TASK-001): leave their plans unchanged. They are here as context for the tasks you plan.
 
 ## Designing the plan
 
@@ -86,15 +55,53 @@ Plan the approach, not the code: name where the change goes and what it affects,
 - Subtract before you add. When the task replaces existing behaviour, plan the removal first when it simplifies what follows, or alongside its replacement.
 - When the task replaces an internal API, plan to migrate its callers and delete the old one in the same task. Don't plan a compatibility shim kept only for internal callers.
 - Prefer the smallest change that satisfies the task. Don't plan a wrapper, layer, or abstraction with one caller, or thread a new signal through types, schemas, or pipelines when a direct path exists.
-- Where the codebase has no precedent for a decision, name the alternative you rejected and why.
+- Where the codebase has no precedent for a decision, name the alternative you rejected and why it lost. Judge it by the complexity it would expose to callers against the complexity it would hide, not by how simple it is to implement.
 - Look for what the change can break beyond its call sites: persisted data, wire formats, config, flags, and code that reads the same data. Name the one fact the change's safety depends on and the check that proves it.
 - When the task touches a command, lifecycle step, or anything that can be retried or run concurrently, state what happens if it runs twice or stops halfway.
+- When the task adds a case to existing branching logic, plan the structure that owns the cases — a state machine, lookup table, or single model — instead of one more branch or a second flag that must stay in sync with the first.
+- Plan validation and parsing at the boundary where data enters (CLI, config, external API), and keep the rules themselves out of the I/O layer.
+- When two actors could write the same file, branch, key, or record, plan to give each its own target before planning a lock.
+- If the plan keeps a temporary compatibility path between stacked tasks, name the task that removes it.
 
 Where one of these and a task conflict, say so in the plan rather than planning around it.
 
-## Return
+## Design red flags
 
-Return a plan only for each task you plan or re-plan. Each plan is heading-free and covers:
+Screen every module, interface, or layer the plan introduces or reshapes. A red flag is a reason to revise or reject the shape.
+
+### Shallow module
+
+A shallow module exposes a large interface while hiding little complexity. Judge depth by the capability and policy hidden behind the public surface relative to the size of that surface. Prefer a simple interface backed by substantial behavior.
+
+Do not confuse a deep module with a deep call chain. A deep call chain scatters understanding across layers. A deep module concentrates capability behind one interface.
+
+Look for these signs:
+
+- Callers coordinate several methods to complete one operation.
+- Public options expose internal stages or implementation choices.
+- Learning the interface does not save the caller from learning the implementation.
+
+### Information leakage
+
+Information leakage makes multiple modules depend on the same internal decision. A representation, policy, or protocol detail appears in more than one place, so changing it requires coordinated edits.
+
+Public re-exports of transport or wire types are leakage. Parse external data into domain types behind the interface. Keep storage schemas, framework objects, and protocol details private.
+
+### Temporal decomposition
+
+Temporal decomposition organizes modules by execution order instead of the knowledge they own. Separate load, validate, transform, and save stages often repeat one representation and its invariants across several boundaries.
+
+Group code around domain knowledge and ownership. Methods that run at different times can still belong to one module when they protect the same decisions.
+
+### Pass-through method
+
+A pass-through method forwards the same arguments to another method with the same shape. It adds a layer without hiding complexity.
+
+Remove it or move responsibility to the module that can complete the operation. Keep a forwarding boundary only when it adds policy, adaptation, or a distinct abstraction.
+
+## Writing a plan
+
+Each plan covers:
 
 - files and modules that will change
 - interfaces and call sites
@@ -105,10 +112,6 @@ Return a plan only for each task you plan or re-plan. Each plan is heading-free 
 
 Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
 
-Return one plan file per task, plus a manifest:
+## Report back
 
-```json
-[{ "id": "TASK-003", "plan": "/tmp/plan-003.md" }]
-```
-
-A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.
+Name the tasks whose plans you wrote or changed, and those you left unchanged. A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.

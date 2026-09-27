@@ -141,6 +141,7 @@ class HealCommandTwinTests(FileBackendTest):
         self.seed_record(84, "UI", "Pending")
         self.assertEqual(self.invoke("continue_", 83).code, 0)
         ui = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        self.mark_ui_reviewed(84, ui)
         landed = self.invoke("post_tasks", "--work-item", 84, "--stage", "UI", "--body", ui, "--evidence", self.evidence_file())
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(self.state(83), self.state(84))

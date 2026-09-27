@@ -62,21 +62,21 @@ flowchart TD
     DryRun -->|"validation fails — hand problems to the sub-agent, re-run (no cap)"| Tasks
     DryRun -->|"clean"| LocalReview["pdlc-tasks-reviewer<br/>reads the local files, not the record"]
     LocalReview --> LocalVerdict{Findings?}
-    LocalVerdict -->|Changes, max 2 passes| UI
-    LocalVerdict -->|Changes, max 2 passes| Tasks
-    LocalVerdict -->|Clean| Land
+    LocalVerdict -->|Needs Revision, max 3 passes| UI
+    LocalVerdict -->|Needs Revision, max 3 passes| Tasks
+    LocalVerdict -->|Ready to Land| Land
 
-    Land["pdlc post tasks<br/>replace UI section, or create/update<br/>delivery tasks<br/>post evidence<br/>set Approval Required"]
+    Land["pdlc post tasks<br/>replace UI section, or create/update<br/>delivery tasks from the reviewed files<br/>post evidence<br/>set Approval Required"]
     Land --> Human
 
-    Plan --> PlanDryRun["pdlc post plan --dry-run<br/>guard stage + gate<br/>validate plan fragments<br/>against the task tree — writes nothing"]
+    Plan --> PlanDryRun["pdlc post plan --dry-run<br/>guard stage + gate<br/>validate each task file's plan<br/>against the task tree — writes nothing"]
     PlanDryRun -->|"validation fails — hand problems to the sub-agent, re-run (no cap)"| Plan
-    PlanDryRun -->|"clean"| PlanReview["pdlc-plan-reviewer<br/>reads the local task bodies"]
+    PlanDryRun -->|"clean"| PlanReview["pdlc-plan-reviewer<br/>reads the local task files, not the record"]
     PlanReview --> PlanVerdict{Findings?}
-    PlanVerdict -->|Changes, max 2 passes| Plan
-    PlanVerdict -->|Clean| PlanLand
+    PlanVerdict -->|Needs Revision, max 3 passes| Plan
+    PlanVerdict -->|Ready to Land| PlanLand
 
-    PlanLand["pdlc post plan<br/>post a ## Technical Plan comment per planned task<br/>post evidence<br/>set Approval Required"]
+    PlanLand["pdlc post plan<br/>lands only the reviewed files<br/>post a ## Technical Plan comment per changed plan<br/>post evidence<br/>set Approval Required"]
     PlanLand --> Human
     Test --> Publish
 
@@ -207,8 +207,8 @@ stateDiagram-v2
     }
     note left of TechnicalPlan
         Technical Plan is reviewed before publication:
-        pdlc-plan has pdlc-plan-reviewer review the rebuilt
-        task bodies before pdlc post plan writes any of them.
+        pdlc-plan has pdlc-plan-reviewer review the local
+        task files before pdlc post plan writes any plan.
     end note
     TechnicalPlan --> Implementation : pdlc post approve — human
 

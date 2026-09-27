@@ -8,7 +8,7 @@ from tests._support import FileBackendTest
 class PromptCumulativeReviewerTest(FileBackendTest):
     def _invoke(self, *extra: str):
         return self.invoke(
-            "prompt_cumulative_reviewer",
+            "prompt_cumulative_reviewer", "--inline",
             "--shipped", "text:routes retry with backoff",
             "--unchanged", "text:existing sync behaviour",
             "--constraints", "text:no more than 3 retries",

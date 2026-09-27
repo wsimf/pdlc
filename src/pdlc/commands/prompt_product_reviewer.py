@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt product-reviewer - read-only: print the reviewer's brief for a Product draft
+    pdlc prompt product-reviewer - read-only: write the reviewer's brief for a Product draft
 
 USAGE
-    pdlc prompt product-reviewer DRAFT [--work-item WORK_ITEM] [--findings FILE|text:BODY] [--file]
+    pdlc prompt product-reviewer DRAFT [--work-item WORK_ITEM] [--findings FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the reviewer checking a Product draft before
-    it is posted to the work item store. The output is sent to that sub-agent
-    verbatim.
+    Writes the complete brief for the reviewer checking a Product draft before
+    it is posted to the work item store. It prints only the brief file's path;
+    that file is sent to that sub-agent verbatim.
 
     Unlike the other `prompt` briefs, which resolve a unit already on a
     record, the draft this describes may exist only as a local scratch file,
@@ -25,15 +25,11 @@ DESCRIPTION
 FLAGS
     --work-item WORK_ITEM       the record being reconciled, when reconciling
     --findings FILE|text:BODY   the previous pass's findings, on a re-review
-    --file                      write the brief to
-                                the work-item cache, or the new directory when
-                                no work item exists, and print that path,
-                                instead of stdout
 
 EXAMPLES
     pdlc prompt product-reviewer /tmp/pdlc-route-shape-detection-body.md
     pdlc prompt product-reviewer /tmp/pdlc-route-shape-detection-body.md --work-item 236
-    pdlc prompt product-reviewer /tmp/draft.md --findings text:"tighten FR-2" --file
+    pdlc prompt product-reviewer /tmp/draft.md --findings text:"tighten FR-2"
 """
 
 from __future__ import annotations
@@ -57,10 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("draft", help="the draft file's path")
     parser.add_argument("--work-item", help="the record being reconciled")
     parser.add_argument("--findings", help="the previous pass's findings (FILE or text:BODY)")
-    parser.add_argument(
-        "--file", action="store_true",
-        help="write to the configured cache and print that path",
-    )
+    prompt.add_inline_argument(parser)
     args = parser.parse_args(command_args)
 
     work_item = args.work_item
