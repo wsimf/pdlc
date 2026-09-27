@@ -105,6 +105,8 @@ class PromptPlanReviewerTest(FileBackendTest):
         # The generated files were handed to the reviewer, so they land.
         landed = self.invoke("post_plan", "--work-item", 60, "--manifest", manifest, "--evidence", self.evidence_file())
         self.assertEqual(landed.code, 0, landed.stderr)
+        # The landing spends the review, so its findings file goes too.
+        self.assertFalse(self._findings_path(result.stdout).exists())
 
     def _findings_path(self, stdout: str) -> Path:
         return Path(re.search(r"Write your review into `([^`]+)`", stdout).group(1))

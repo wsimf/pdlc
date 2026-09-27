@@ -142,8 +142,8 @@ from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
 from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
-from pdlc.internal.review_stamp import clear_stamp, restore_reviewed, write_stamp
-from pdlc.internal.scratch import cache_file, replace_cache_file, scratch_path, write_scratch
+from pdlc.internal.review_stamp import clear_stamp, findings_path, restore_reviewed, write_stamp
+from pdlc.internal.scratch import replace_cache_file, scratch_path, write_scratch
 from pdlc.internal.workitem import (
     comments_for_issue,
     item_slug,
@@ -876,8 +876,7 @@ def _findings_file(work_item: str, review: str) -> str:
     Written after the brief has read its own `--findings`, which may be this
     same file from the previous pass.
     """
-    path = cache_file(work_item, f"{review.lower().replace(' ', '-')}-findings", ".md")
-    return str(replace_cache_file(path, render("review-findings", {"REVIEW": review})))
+    return str(replace_cache_file(findings_path(work_item, review), render("templates/review-findings", {"REVIEW": review})))
 
 
 def _published_review_files(work_item: str) -> tuple[str | None, str | None]:

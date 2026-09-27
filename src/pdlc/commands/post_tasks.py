@@ -198,7 +198,7 @@ from pdlc.domain.task_artifact import (
     ui_planner_command,
     ui_reviewer_command,
 )
-from pdlc.internal.review_stamp import clear_stamp, refresh_stamp, require_reviewed, restore_reviewed
+from pdlc.internal.review_stamp import clear_findings, clear_stamp, refresh_stamp, require_reviewed, restore_reviewed
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -317,6 +317,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
     else:
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
         clear_stamp(issue, "UI")
+    clear_findings(issue, "UI")
 
     print(json.dumps({
         "published": True,
@@ -702,6 +703,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         _consume_manifest(manifest_path, source_manifest, issue)
         if context.patch is None:
             clear_stamp(issue, "Tasks")
+        clear_findings(issue, "Tasks")
     except (OSError, PdlcError) as error:
         print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the published tasks: {error};"
               " do not reuse it", file=sys.stderr)

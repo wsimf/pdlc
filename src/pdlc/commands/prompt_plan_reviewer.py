@@ -43,7 +43,8 @@ DESCRIPTION
     to a fixed path in the work-item cache and names it in the brief; the
     reviewer writes its findings there. Each brief overwrites the previous
     one's file, after reading `--findings`, so that file may be passed back as
-    `--findings` on the re-review.
+    `--findings` on the re-review. A successful landing of the reviewed
+    files deletes it.
 
 FLAGS
     --manifest FILE             the plan manifest to review; omit it to review the recorded plans

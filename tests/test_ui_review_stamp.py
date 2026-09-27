@@ -36,6 +36,16 @@ class UiReviewStampTest(FileBackendTest):
         self.assertEqual(again.code, 1)
         self.assertIn("has not been reviewed since its last planning pass", again.stderr)
 
+    def test_the_findings_file_is_deleted_only_by_a_successful_landing(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60")
+        fragment = self.write_file("ui.md", FRAGMENT)
+        brief = self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment)
+        findings = Path(re.search(r"Write your review into `([^`]+)`", brief.stdout).group(1))
+        self.assertEqual(self._land(60, self.write_file("other-ui.md", FRAGMENT)).code, 1)
+        self.assertTrue(findings.exists())
+        self.assertEqual(self._land(60, fragment).code, 0)
+        self.assertFalse(findings.exists())
+
     def test_an_unreviewed_fragment_is_refused_and_nothing_is_written(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
         fragment = self.write_file("ui.md", FRAGMENT)

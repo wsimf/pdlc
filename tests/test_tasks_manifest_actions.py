@@ -63,10 +63,15 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertIn("changed after its brief was written", result.stderr)
         self.assertEqual(body.read_text(), reviewed)
         self.assertIn("Reviewer's own scope.", body.with_name(f"{body.stem}.rejected.md").read_text())
-        self.assertEqual(self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path)).code, 0)
+        rereview = self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path))
+        self.assertEqual(rereview.code, 0)
+        findings = Path(re.search(r"Write your review into `([^`]+)`", rereview.stdout).group(1))
+        self.assertTrue(findings.exists())
         landed = self._post(path)
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(landed.json["unchanged"], ["TASK-001", "TASK-002"])
+        # The landing spends the review, so its findings file goes too.
+        self.assertFalse(findings.exists())
 
     def test_without_a_manifest_the_published_breakdown_is_reviewed_and_lands_unchanged(self):
         self.seed_record(41, "Tasks", "Review Required", body=NO_UI_BODY)

@@ -7,6 +7,10 @@ brief command writes it; the planner's brief command restores any edit made
 since and clears it, because a new planning pass begins; the stage's post
 command restores any edit made since, and a real landing requires the stamp to
 cover the file it lands (the manifest, or the UI fragment), then clears it.
+
+Beside it sits the review's findings file, a Markdown report at a fixed path
+per work item and stage: the reviewer's brief command rewrites it with a fresh
+outline, and a successful landing deletes it, since its review is spent.
 """
 
 from __future__ import annotations
@@ -18,8 +22,17 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.scratch import cache_file, replace_cache_file
 
 
+def _stage_slug(stage: str) -> str:
+    return stage.lower().replace(" ", "-")
+
+
 def _stamp_path(work_item: str, stage: str) -> Path:
-    return cache_file(work_item, f"{stage.lower().replace(' ', '-')}-review")
+    return cache_file(work_item, f"{_stage_slug(stage)}-review")
+
+
+def findings_path(work_item: str, stage: str) -> Path:
+    """The fixed path of the stage's review findings file."""
+    return cache_file(work_item, f"{_stage_slug(stage)}-findings", ".md")
 
 
 def _key(path: str | Path) -> str:
@@ -66,6 +79,11 @@ def refresh_stamp(work_item: str, stage: str, path: Path) -> None:
 
 def clear_stamp(work_item: str, stage: str) -> None:
     _stamp_path(work_item, stage).unlink(missing_ok=True)
+
+
+def clear_findings(work_item: str, stage: str) -> None:
+    """Delete the stage's findings file once the reviewed artifact has landed."""
+    findings_path(work_item, stage).unlink(missing_ok=True)
 
 
 def _rejected_copy(path: Path) -> Path:

@@ -110,7 +110,7 @@ from pathlib import Path
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import reauthor_invalidate_stage
-from pdlc.internal.review_stamp import clear_stamp, require_reviewed, restore_reviewed
+from pdlc.internal.review_stamp import clear_findings, clear_stamp, require_reviewed, restore_reviewed
 from pdlc.internal.scratch import replace_file
 from pdlc.internal.workitem import (
     PLAN_COMMENT_HEADING,
@@ -429,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             _rebase_manifest(manifest_path, entries, tree)
             clear_stamp(args.work_item, STAGE)
+            clear_findings(args.work_item, STAGE)
         except (OSError, PdlcError) as error:
             print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the recorded plans: {error};"
                   " do not reuse it", file=sys.stderr)
