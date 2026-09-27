@@ -28,13 +28,11 @@ Follow `# Due Next` for what to do, whatever produced that state, including a re
 
 - Names authoring or reauthoring (`Pending`, `Stale`): plan the tasks.
 - Names the review procedure (`Review Required`): the plans were published without their local review. Go straight to Review, omitting `--manifest` so the reviewer gets the published plans as they stand, and take the manifest path from its report; on a clean verdict, Validate and Land that manifest unchanged.
-- Says the work item needs changes (`Changes Required`): reconcile against the recorded evidence, the same as `Stale`, then continue through Author onward.
+- Says the work item needs changes (`Changes Required`): go to Author.
 - Names user approval (`Approval Required`): re-plan only when the driver explicitly requests a plan change in this turn; landing overwrites the existing plans in place and returns to `Approval Required`. Without that request, it's a human boundary: report it and stop.
 - Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
 Any other due next result, a malformed record, missing evidence, unavailable workflow, or backend error is a blocker: report it and stop.
-
-Carry the driver's follow-up verbatim. For `Stale` and `Changes Required`, reconcile against the existing plans and the recorded evidence; preserve plans the evidence does not touch. This step is complete when the valid authoring mode is settled and the exact follow-up is in hand for the dispatch.
 
 ## Scope
 
