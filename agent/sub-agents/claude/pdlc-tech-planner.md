@@ -51,7 +51,7 @@ Write each plan in place, between its tech plan markers, replacing the placehold
 
 Write only between the `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---` markers of the supplied task files, and the reconciled `Product` fragment described under **Resolve assumptions**. Leave the task bodies, the markers, and the manifest exactly as supplied, and add nothing outside the two blocks. Do not publish, implement code, or run builds, tests, formatting, code generation, runtime checks, staging, commits, or pushes.
 
-Treat current source as the source of truth if it conflicts with the parent work item's Product/UI content — but do not rewrite that content yourself; report the drift instead. The plan is guidance for the future implementation owner: concrete file/type/method seams, no code snippets or patches.
+Treat current source as the source of truth if it conflicts with the parent work item's Product/UI content — but do not rewrite that content yourself; report the drift instead. The plan is guidance for the future implementation owner. Plan the approach, not the code: name where the change goes and what it affects, and leave types, signatures, and line-level edits to the implementer. No code snippets or patches.
 
 ## Orient and select work
 
@@ -99,7 +99,7 @@ For every task planned, write only that task's plan content between its tech pla
 A plan block might read like this, where each path is a source file the task changes:
 
 ```markdown
-1. `path/to/SourceFile` — <specific type, member, or behavior to change>.
+1. `path/to/SourceFile` — <the behavior that changes there and what it affects>.
 2. `path/to/OtherSourceFile` — <interface, call site, integration, ownership, or data-flow change>.
 3. Tests: `path/to/TestFile` — <behaviors and edge cases, mapped to the acceptance criteria>.
 
@@ -109,7 +109,7 @@ A plan block might read like this, where each path is a source file the task cha
 **Tradeoffs:** <optional: one "we accept X in exchange for Y" per choice a reader could mistake for an oversight>
 ```
 
-- Name exact existing files and types whenever the spike identifies them. If a new file is required, give its proposed package/folder and responsibility.
+- Name the exact existing files and modules where the change goes whenever the spike identifies them, and leave types, signatures, and line-level edits to the implementer. If a new file is required, give its proposed package/folder and responsibility.
 - Order steps by dependency and keep requirements traceable. Include only changes necessary for that task; do not plan already-completed work.
 - **Keep the plan scannable:** one line per numbered step, judged by readability rather than a step or word count. When a plan grows long enough that a reviewer loses the thread, the task should have been split — say so rather than writing a longer plan.
 - **Say where and how; don't restate the task's what and why.** The task body already carries scope, non-goals, and acceptance criteria; restating them here is duplication that goes stale the moment either side changes.
