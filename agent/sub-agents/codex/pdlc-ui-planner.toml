@@ -73,7 +73,7 @@ For `UI required`, write the fragment body only — no `## UI` heading, the call
 
 ```markdown
 **UI Phase:** Required — <journeys and surfaces in scope>
-**Invariants:** <3–5 bullets that hold across every journey: persistent context, single-ownership rules, what never changes>
+**Invariants:** <the few bullets that hold across every journey: persistent context, single-ownership rules, what never changes>
 **Journey map:**
 
     UJ-1 <name> ──<transition>──> UJ-3 <name> ──<transition>──> UJ-1
@@ -102,8 +102,8 @@ Define observable user intent, not UI implementation details. Every applicable U
 
 Rules that keep the fragment readable — a UI section is only useful if a reviewer can read it end to end:
 
-- **Budget.** At most ~200 words per journey, ~25 words per single-line field, 7 steps per flow. A journey that needs more is two journeys.
-- **3–5 journeys.** More than that usually means you split by screen rather than by independently verifiable user outcome.
+- **Keep each journey scannable.** Judge length by readability, not a word or step count: keep single-line fields to one short line and each flow step to one observable user action. When a flow grows long enough that a reviewer loses the thread, split it into two journeys along an independently verifiable user outcome.
+- **One journey per user outcome.** Split journeys by independently verifiable user outcome, not by screen; a growing journey count usually means the split followed screens.
 - **Never restate an invariant** inside a journey — state it once in `Invariants` and reference it. Repetition across journeys is the single biggest source of unreadable UI sections.
 - **Omit any field with nothing specific to say.** A missing field beats a generic restatement of the design system.
 - **No accessibility-only journey.** Accessibility, text scaling, and appearance are per-journey fields, never their own `UJ-*`.
