@@ -67,7 +67,7 @@ DESCRIPTION
     Nothing due prints what the record is waiting on and exits non-zero, so a
     caller never dispatches an agent against an empty unit. Every command reads
     the record and its live pull-request state; none changes the record.
-    `task-planner` may write editable copies to the work-item cache.
+    `task-planner` and `ui-planner` may write editable copies to the work-item cache.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -108,7 +108,15 @@ from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
 from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import evidence_comment_text, find_marked_comments, item_gate, item_status, timeline_formatted_at
+from pdlc.domain.model import (
+    evidence_comment_text,
+    find_marked_comments,
+    item_gate,
+    item_status,
+    read_section,
+    remove_section,
+    timeline_formatted_at,
+)
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
 from pdlc.internal.invalidation import record_patch_plan
@@ -506,7 +514,8 @@ def ui_planner_brief(
     Due only while `Status` is `UI`. `follow_up` carries the driver's verbatim
     request on a reconciling pass, read the same way `task_planner_brief`
     reads its own `--follow-up`. Rework also supplies the previous UI fragment
-    so the planner can revise the journeys the reviewer saw.
+    so the planner can revise the journeys the reviewer saw; without one, a
+    published `## UI` section is copied to the work-item cache for revision.
     """
     if (follow_up is None) != (current_journeys_path is None):
         raise PdlcError("--follow-up and --current-journeys-path must be supplied together")
@@ -521,17 +530,26 @@ def ui_planner_brief(
         raise PdlcError(f"no UI section is due: the record is at {status or 'an unset status'}, not UI")
 
     delivery = [task for task in tasks if task.get("taskId")]
+    parent_body = _parent_body(item)
+    published = read_section(parent_body, "UI")
+    # A supplied draft and a generated copy of the published section are revised the same way.
+    fragment = current_journeys or (
+        str(write_scratch(scratch_path(work_item, "ui-planner-fragment"), published)) if published.strip() else ""
+    )
+    change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
     return render(
         "ui-planner",
         {
             "EXECUTION_SCOPE": "this one UI section",
             "UX_DESIGN_LINE": capability_line("ux-design"),
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
-            "PARENT_BODY": _parent_body(item).rstrip(),
+            # The fragment file is the only copy of the UI section the planner sees.
+            "PARENT_BODY": (remove_section(parent_body, "UI") if fragment else parent_body).rstrip(),
             "GATE_STATE": item_gate(item) or "unset",
             "STALE_REASON": _stale_reason(item, comments, status),
             "TASK_TREE": _task_tree_text(delivery),
-            "CURRENT_JOURNEYS_PATH": current_journeys,
+            "FRAGMENT_PATH": fragment,
+            "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up is not None else "",
         },
     )

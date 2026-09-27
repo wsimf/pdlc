@@ -25,10 +25,6 @@ Work Item Id: `60`
 ### 5. Constraints
 - C-1: Commands own every mutation.
 
-## UI
-
-UJ-1 covers the first run.
-
 ## Decisions
 - none
 
@@ -45,10 +41,18 @@ Existing task tree: - `WORK-60-TASK-001` [CORE] Core work (OPEN).
 
 ## Your Task
 
-A previously published UI section, including its `UJ-*` journeys, is in the parent work item above. It was invalidated for this reason:
+Revise the UI section at `$CACHE_ROOT/current-ui.md`. Read it, then edit it in place against the work item and any inputs below, preserving journeys and decisions they do not affect. Return this file.
+
+### Invalidation reason
+
+The published UI stage was invalidated for this reason. Reconcile the section against it.
+
 detail
 
-An unpublished UI revision is at `$CACHE_ROOT/current-ui.md`. Preserve its fixes for the invalidation reason and apply the driver follow-up below:
+### Driver follow-up
+
+A change the driver asked for, or findings from a review of the section, verbatim. Apply it to the journeys it affects; if it conflicts with the work item, stop and report it.
+
 also clarify the retry journey
 
 ## What to return

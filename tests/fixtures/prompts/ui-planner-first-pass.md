@@ -25,10 +25,6 @@ Work Item Id: `60`
 ### 5. Constraints
 - C-1: Commands own every mutation.
 
-## UI
-
-UJ-1 covers the first run.
-
 ## Decisions
 - none
 
@@ -44,7 +40,7 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-We haven't done UI planning before. This is the first time; author the UI section from the parent work item above.
+No UI section exists yet. Author it from the parent work item above.
 
 ## What to return
 

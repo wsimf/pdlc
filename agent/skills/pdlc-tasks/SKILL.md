@@ -46,7 +46,7 @@ If a follow-up arrives before a local artifact exists, dispatch the first brief 
 
 For either, `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 
-The planner is the leaf author: it returns the UI fragment, or the revised task manifest and its task files. When tasks exist, the task-planner brief points to generated editable copies. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
+The planner is the leaf author: it returns the UI fragment, or the revised task manifest and its task files. When a UI section or tasks already exist, the planner's brief points to generated editable copies. It does not invoke PDLC skills, edit the record, inspect source for technical design, or validate runtime behavior.
 
 The returned artifact is complete when all required files exist, the manifest names every returned task body, and the planner reports requirement/journey coverage, dependency order, HITL/AFK classification, conflicts, and validation intentionally not run. For `UI`, the planner also reports whether UI is required; carry that verdict into Validate and Land.
 

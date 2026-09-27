@@ -25,26 +25,39 @@ Existing task tree: {{TASK_TREE}}.
 
 ## Your Task
 
+{{#IF FRAGMENT_PATH}}
+Revise the UI section at `{{FRAGMENT_PATH}}`. Read it, then edit it in place against the work item and any inputs below, preserving journeys and decisions they do not affect. Return this file.
+{{#ELSE}}
+No UI section exists yet. Author it from the parent work item above.
+{{/ELSE}}
+{{/IF}}
 {{#IF STALE_REASON}}
-A previously published UI section, including its `UJ-*` journeys, is in the parent work item above. It was invalidated for this reason:
-{{STALE_REASON}}
 
-{{#IF DRIVER_FOLLOWUP}}
-An unpublished UI revision is at `{{CURRENT_JOURNEYS_PATH}}`. Preserve its fixes for the invalidation reason and apply the driver follow-up below:
-{{DRIVER_FOLLOWUP}}
-{{#ELSE}}
-This is the first rework pass. Revise the published UI section above to address the invalidation reason.
-{{/ELSE}}
+### Invalidation reason
+
+The published UI stage was invalidated for this reason. Reconcile the section against it.
+
+{{STALE_REASON}}
 {{/IF}}
-{{#ELSE}}
-{{#IF DRIVER_FOLLOWUP}}
-An unpublished UI draft is at `{{CURRENT_JOURNEYS_PATH}}`. Revise it to apply the driver follow-up below:
-{{DRIVER_FOLLOWUP}}
-{{#ELSE}}
-We haven't done UI planning before. This is the first time; author the UI section from the parent work item above.
-{{/ELSE}}
+{{#IF CHANGE_REQUESTS}}
+
+### Change requests
+
+Findings recorded against this stage since it last published. Reconcile them against the work item; the work item remains the contract. Apply each change to the journeys it affects. If a change conflicts with the work item, stop and report it.
+
+--- BEGIN CHANGE REQUESTS ---
+
+{{CHANGE_REQUESTS}}
+
+--- END CHANGE REQUESTS ---
 {{/IF}}
-{{/ELSE}}
+{{#IF DRIVER_FOLLOWUP}}
+
+### Driver follow-up
+
+A change the driver asked for, or findings from a review of the section, verbatim. Apply it to the journeys it affects; if it conflicts with the work item, stop and report it.
+
+{{DRIVER_FOLLOWUP}}
 {{/IF}}
 
 ## What to return

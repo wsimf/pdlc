@@ -15,10 +15,18 @@ DESCRIPTION
     `Status` is not `UI`. The brief opens with the project's configured
     UX-design skill line, so the agent knows whether to invoke one before
     resolving any experience decision. It carries the record's `Gate State`,
-    any recorded stale reason, and its existing delivery-task tree, if any.
+    any recorded stale reason, every open change request the UI stage has
+    received since it last published, and its existing delivery-task tree, if
+    any.
 
-    A rework brief names the previous UI fragment and carries the driver's
-    verbatim follow-up. The two inputs must be supplied together.
+    When the record already has a `UI` section, the command writes it to the
+    work-item cache as an editable fragment and the brief names that file; the
+    embedded parent body then omits the section, so the fragment is its only
+    copy.
+
+    A rework brief names the previous UI fragment, used instead of the
+    published section, and carries the driver's verbatim follow-up. The two
+    inputs must be supplied together.
 
 FLAGS
     --current-journeys-path FILE  existing UI fragment; required with --follow-up

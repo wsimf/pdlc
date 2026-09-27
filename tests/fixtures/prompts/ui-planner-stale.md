@@ -25,10 +25,6 @@ Work Item Id: `60`
 ### 5. Constraints
 - C-1: Commands own every mutation.
 
-## UI
-
-UJ-1 covers the first run.
-
 ## Decisions
 - none
 
@@ -45,10 +41,13 @@ Existing task tree: - `WORK-60-TASK-001` [CORE] Core work (OPEN).
 
 ## Your Task
 
-A previously published UI section, including its `UJ-*` journeys, is in the parent work item above. It was invalidated for this reason:
-detail
+Revise the UI section at `$CACHE_ROOT/.pdlc/cache/60/pdlc-ui-planner-fragment.md`. Read it, then edit it in place against the work item and any inputs below, preserving journeys and decisions they do not affect. Return this file.
 
-This is the first rework pass. Revise the published UI section above to address the invalidation reason.
+### Invalidation reason
+
+The published UI stage was invalidated for this reason. Reconcile the section against it.
+
+detail
 
 ## What to return
 

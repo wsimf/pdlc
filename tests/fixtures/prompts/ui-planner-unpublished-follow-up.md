@@ -25,10 +25,6 @@ Work Item Id: `60`
 ### 5. Constraints
 - C-1: Commands own every mutation.
 
-## UI
-
-UJ-1 covers the first run.
-
 ## Decisions
 - none
 
@@ -44,7 +40,12 @@ UJ-1 covers the first run.
 
 ## Your Task
 
-An unpublished UI draft is at `$CACHE_ROOT/current-ui.md`. Revise it to apply the driver follow-up below:
+Revise the UI section at `$CACHE_ROOT/current-ui.md`. Read it, then edit it in place against the work item and any inputs below, preserving journeys and decisions they do not affect. Return this file.
+
+### Driver follow-up
+
+A change the driver asked for, or findings from a review of the section, verbatim. Apply it to the journeys it affects; if it conflicts with the work item, stop and report it.
+
 revisit UJ-2's offline flow
 
 ## What to return
