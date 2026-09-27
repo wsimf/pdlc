@@ -67,8 +67,8 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         manifest = self.write_file(
             "manifest.json",
             json.dumps([{
-                "id": "TASK-001", "title": "Build core", "body": task_body,
-                "ui": True, "covers": ["FR-1", "C-1", "UJ-1"],
+                "id": "TASK-001", "action": "create", "title": "Build core", "body": task_body,
+                "type": "ui", "covers": ["FR-1", "C-1", "UJ-1"],
             }]),
         )
         tasks = self.invoke(
@@ -104,7 +104,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
             "mergedAt": None, "checks": "SUCCESS",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=code_host):
-            implemented = self.invoke("post_implement_task", task_number, implementation, "--close")
+            implemented = self.invoke("post_implement_task", task_number, implementation)
         self.assertEqual(implemented.code, 0, implemented.stderr)
         self.seed_prs(issue, [{
             "number": 147, "title": "Task implementation", "url": "https://x/147",

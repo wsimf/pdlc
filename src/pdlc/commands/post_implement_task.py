@@ -8,7 +8,6 @@ USAGE
 FLAGS
     --attachment PATH (repeatable)       attach a local file's contents to the implementation comment
     --attachment-description TEXT        description for the --attachment immediately before it
-    --close                              accepted and ignored; closing is decided by the task's state
 
 DESCRIPTION
     Lands one delivery task's implementation: submits its pull request, records
@@ -288,9 +287,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Record one delivery task's implementation comment")
     parser.add_argument("delivery_task", help="Delivery task number")
     parser.add_argument("evidence", help="Implementation comment body — a file path, or text:<body> for a short one")
-    # Closing is decided by the task's state; the flag stays accepted so older
-    # callers keep working, and does nothing.
-    parser.add_argument("--close", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(script_args)
 
     try:

@@ -11,20 +11,23 @@ DESCRIPTION
     sent to that sub-agent verbatim.
 
     Exactly one of `--manifest` or `--fragment` is required: `--manifest`
-    names the Tasks-stage manifest `pdlc post tasks --stage Tasks` takes,
-    rendering every entry's full task body (or, for an `"unchanged": true`
-    entry, a note that it carries forward untouched instead); `--fragment`
-    carries the UI section's own content for the UI stage. The parent's
+    names the Tasks-stage manifest `pdlc post tasks --stage Tasks` takes; the
+    brief lists each entry's body file path rather than inlining it, except a
+    removed task's stored body, which has no file of its own and is inlined.
+    `--fragment` names the UI section's content for the UI stage; the brief
+    names its file path rather than inlining it, and a `text:` fragment is
+    first written to the work-item cache so it has a path too. The parent's
     complete body is always inlined, so the reviewer can check every cited
-    `FR-*`/`C-*`/`UJ-*` without a second read.
+    `FR-*`/`C-*`/`UJ-*` without a second read; for a fragment review, the
+    parent's own `## UI` section is left out, since the fragment replaces it.
 
     `--findings` carries the previous pass's findings on a re-review, so each
-    can be confirmed addressed; with nothing given, that section renders
-    "none, first review".
+    can be confirmed addressed; with nothing given, the brief has no prior
+    findings section.
 
 FLAGS
     --manifest FILE              a Tasks-stage manifest; mutually exclusive with --fragment
-    --fragment FILE|text:BODY    a UI section's content; mutually exclusive with --manifest
+    --fragment FILE|text:BODY    the proposed UI section; mutually exclusive with --manifest
     --findings FILE|text:BODY    the previous pass's findings, on a re-review
     --file                       write the brief to
                                  the work-item cache with a random filename

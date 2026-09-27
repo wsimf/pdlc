@@ -145,8 +145,9 @@ class TaskManifestActionsTests(FileBackendTest):
         path.write_text(json.dumps(entries), encoding="utf-8")
         review = self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path))
         self.assertEqual(review.code, 0, review.stderr)
-        self.assertIn("remove: Superseded", review.stdout)
-        self.assertIn("WORK-40-TASK-002 [CORE] Drop seam", review.stdout)
+        self.assertIn("(remove): leaves scope: Superseded", review.stdout)
+        self.assertIn("#### `TASK-002` — WORK-40-TASK-002 [CORE] Drop seam", review.stdout)
+        self.assertIn("Reason: Superseded", review.stdout)
         self.assertIn("Keep the seam.", review.stdout)
 
     def test_retry_after_detachment_finishes_publication(self):

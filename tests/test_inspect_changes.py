@@ -84,12 +84,12 @@ class OpenChangeRequestTests(unittest.TestCase):
         self.assertEqual(_open(comments, "Implementation"), [("bounce", "u2")])
         self.assertEqual(_open(comments, "Verification"), [])
 
-    def test_ci_note_is_attributed_by_its_stage_line_or_legacy_sentence(self):
+    def test_ci_note_is_attributed_by_its_stage_line(self):
         stamped = "PDLC-REVIEW\n\nCI failed stage: Implementation\n\nCI check has failed on the implementation pull request(s)."
-        legacy = "PDLC-REVIEW\n\nCI check has failed on the testing pull request(s) after the testing review was approved."
-        comments = _thread("PDLC-IMPLEMENTATION\n\npass", stamped, "PDLC-TESTING\n\ncoverage", legacy)
+        unstamped = "PDLC-REVIEW\n\nCI check has failed on the testing pull request(s) after the testing review was approved."
+        comments = _thread("PDLC-IMPLEMENTATION\n\npass", stamped, "PDLC-TESTING\n\ncoverage", unstamped)
         self.assertEqual(_open(comments, "Implementation"), [("ci", "u2")])
-        self.assertEqual(_open(comments, "Testing"), [("ci", "u4")])
+        self.assertEqual(_open(comments, "Testing"), [])
 
     def test_verification_changes_review_is_its_own_open_request(self):
         comments = _thread(

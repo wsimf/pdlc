@@ -684,48 +684,95 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
     )
 
 
+def _stored_task(entry: dict, work_item: str) -> dict:
+    """The published task a manifest `remove` entry names, read by its number."""
+    number = entry.get("number")
+    if not isinstance(number, int):
+        raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
+    try:
+        matches = tasks_by_number([str(number)])
+    except TransientError:
+        raise
+    except PdlcError as error:
+        matches, lookup = [], f": {error}"
+    else:
+        lookup = ""
+    if len(matches) != 1:
+        raise PdlcError(
+            f"manifest removes {entry.get('id') or '?'} as task #{number}, which could not be read{lookup};"
+            f" the manifest is out of date or was edited by hand, so run `pdlc prompt task-planner {work_item}`"
+            " for a fresh manifest and re-dispatch the task planner agent with it"
+        )
+    return matches[0]
+
+
 def _manifest_artifact_text(manifest_path: Path, work_item: str) -> str:
     """Every active manifest entry rendered with its task body in full."""
     entries = load_json_array("--manifest", manifest_path, allow_empty=False)
     blocks: list[str] = []
     for entry in entries:
         if entry.get("action") == "remove":
-            number = entry.get("number")
-            if not isinstance(number, int):
-                raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
-            try:
-                matches = tasks_by_number([str(number)])
-            except TransientError:
-                raise
-            except PdlcError as error:
-                matches, lookup = [], f": {error}"
-            else:
-                lookup = ""
-            if len(matches) != 1:
-                raise PdlcError(
-                    f"manifest removes {entry.get('id') or '?'} as task #{number}, which could not be read{lookup};"
-                    f" the manifest is out of date or was edited by hand, so run `pdlc prompt task-planner {work_item}`"
-                    " for a fresh manifest and re-dispatch the task planner agent with it"
-                )
-            stored = matches[0]
+            stored = _stored_task(entry, work_item)
             header = f"### {entry.get('id') or '?'} — {stored['title']}"
             meta = f"remove: {entry.get('reason') or 'no reason'}"
             body = (stored.get("body") or "").strip()
         else:
             header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
-            kind = f"type: {entry['type']}" if "type" in entry else f"ui: {entry.get('ui')}"
+            kind = f"type: {entry.get('type')}"
             meta = f"{kind}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
-            if entry.get("unchanged"):
-                body = "(unchanged — carried forward from the record)"
-            else:
-                body_path = entry.get("body")
-                if not body_path:
-                    raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
-                body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
-                    encoding="utf-8"
-                ).strip()
+            body_path = entry.get("body")
+            if not body_path:
+                raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
+            body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
+                encoding="utf-8"
+            ).strip()
         blocks.append(f"{header}\n{meta}\n\n{body}")
     return "\n\n---\n\n".join(blocks)
+
+
+def _manifest_review_tasks(manifest_path: Path, work_item: str) -> tuple[list[dict], list[dict]]:
+    """The manifest's entries as the reviewer's task list, plus the stored body
+    of every task it removes, which has no file of its own to read."""
+    entries = load_json_array("--manifest", manifest_path, allow_empty=False)
+    tasks: list[dict] = []
+    removed: list[dict] = []
+    for entry in entries:
+        task_id = entry.get("id") or "(new task)"
+        if entry.get("action") == "remove":
+            stored = _stored_task(entry, work_item)
+            reason = entry.get("reason") or "no reason"
+            tasks.append({
+                "TASK_ID": task_id, "TASK_TITLE": stored["title"], "TASK_ACTION": "remove",
+                "TASK_DETAIL": f"leaves scope: {reason}",
+            })
+            removed.append({
+                "TASK_ID": task_id, "TASK_TITLE": stored["title"], "REMOVE_REASON": reason,
+                "TASK_BODY": (stored.get("body") or "").strip(),
+            })
+            continue
+        kind = entry.get("type")
+        references: dict[str, list[str]] = {}
+        for field in ("covers", "depends"):
+            values = entry.get(field, [])
+            if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                raise PdlcError(
+                    f"manifest entry {task_id} {field} must be an array of strings; "
+                    "fix the manifest and rerun the reviewer"
+                )
+            references[field] = values
+        coverage = (
+            f"{kind}, covers {', '.join(references['covers']) or 'nothing'}, "
+            f"depends on {', '.join(references['depends']) or 'nothing'}"
+        )
+        body = require_file(f"manifest entry {task_id} body", entry.get("body")).resolve()
+        detail = f"`{body}`; {coverage}"
+        tasks.append({
+            "TASK_ID": task_id, "TASK_TITLE": entry.get("title") or "untitled",
+            # An existing task keeps its number; without an action it is retained, which may still rewrite it.
+            "TASK_ACTION": entry.get("action") or ("retain" if "number" in entry else "create"),
+            "TASK_DETAIL": detail,
+        })
+    return tasks, removed
 
 
 def tasks_reviewer_brief(
@@ -734,22 +781,36 @@ def tasks_reviewer_brief(
     """The brief for the reviewer checking a UI fragment or Tasks breakdown
     before it lands. Pass exactly one of `manifest` (the Tasks breakdown) or
     `fragment` (the UI section's content) — the two artifacts this reviewer
-    checks, never both in the same pass.
+    checks, never both in the same pass. The reviewer reads the artifact from
+    its files rather than a copy inlined in the brief; a `text:` fragment is
+    written to the work-item cache so it has a file too.
     """
     if bool(manifest) == bool(fragment):
         raise PdlcError("pass exactly one of --manifest or --fragment")
     item = resolve_item(work_item)
-    artifact = (
-        _manifest_artifact_text(require_file("--manifest", manifest), work_item) if manifest
-        else resolve_text(fragment, label="--fragment").strip()
-    )
+    parent_body = _parent_body(item)
+    manifest_path = str(require_file("--manifest", manifest).resolve()) if manifest else ""
+    tasks, removed = _manifest_review_tasks(Path(manifest_path), work_item) if manifest else ([], [])
+    fragment_path = ""
+    if fragment:
+        fragment_path = (
+            str(write_scratch(scratch_path(work_item, "tasks-review-fragment"), resolve_text(fragment, label="--fragment")))
+            if fragment.startswith("text:") or fragment == "-"
+            else str(require_file("--fragment", fragment).resolve())
+        )
     return render(
         "tasks-review",
         {
             "EXECUTION_SCOPE": "this one artifact review",
-            "PARENT_BODY": _parent_body(item).rstrip(),
-            "ARTIFACT": artifact,
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+            "PARENT_WORK_ITEM": str(item["content"]["number"]),
+            # A fragment replaces the published UI section, so only the fragment's copy is under review.
+            "PARENT_BODY": (remove_section(parent_body, "UI") if fragment_path else parent_body).rstrip(),
+            "FRAGMENT_PATH": fragment_path,
+            "MANIFEST_PATH": manifest_path,
+            "TASKS": tasks,
+            "REMOVED_TASKS": removed,
+            # Empty on a first review, which drops the section from the brief.
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
         },
     )
 

@@ -94,14 +94,7 @@ def snapshot(fields: dict) -> str:
 
 
 def baseline_matches(baseline: str, fields: dict) -> bool:
-    """Accept canonical hashes and older hashes made from raw line endings."""
-    body = _unix_line_endings(fields["body"])
-    return baseline in (
-        snapshot(fields),
-        _hash_fields(fields),
-        _hash_fields({**fields, "body": body}),
-        _hash_fields({**fields, "body": body.replace("\n", "\r\n")}),
-    )
+    return baseline == snapshot(fields)
 
 
 def _hash_fields(fields: dict) -> str:

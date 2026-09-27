@@ -66,7 +66,6 @@ class TaskPlanErrorTests(unittest.TestCase):
             ("title", 1, "manifest entry 1 title must be a string"),
             ("covers", "FR-1", "manifest entry 1 covers must be an array of strings"),
             ("depends", [1], "manifest entry 1 depends must be an array of strings"),
-            ("unchanged", "yes", "manifest entry 1 unchanged must be true or false"),
         ]
         for field, value, expected in cases:
             with self.subTest(field=field):
@@ -98,12 +97,16 @@ class TaskPlanErrorTests(unittest.TestCase):
                 tasks[index][field] = value
                 self.assertIn(expected, self._errors(tasks))
 
-    def test_carried_task_errors(self):
+    def test_carried_task_reads_its_title_back_from_the_record(self):
+        # Only `land_tasks` sets this marker, and only for a task already
+        # confirmed stored, so build_plan trusts it rather than re-validating.
         tasks = copy.deepcopy(self.tasks)
+        del tasks[0]["title"]
         tasks[0]["unchanged"] = True
-        self.assertIn('TASK-001 is marked "unchanged" but the record has no such delivery task', self._errors(tasks))
         existing = [{"taskId": "TASK-001", "title": "WORK-30-TASK-001 [CORE] Core"}]
-        self.assertIn('TASK-001 is marked "unchanged" and cannot also set a title', self._errors(tasks, existing))
+        plan = build_plan(tasks, existing, ["FR-1", "FR-2", "C-1"], ["UJ-1"])
+        self.assertEqual(plan["errors"], [])
+        self.assertEqual(next(task for task in plan["tasks"] if task["id"] == "TASK-001")["title"], "Core")
 
 
 class TaskValidationCliTests(FileBackendTest):
@@ -123,7 +126,6 @@ class TaskValidationCliTests(FileBackendTest):
             ("id", 1, "pdlc: manifest entry 1 id must be a string\n"),
             ("body", 1, "pdlc: manifest entry 1 body must be a file path string\n"),
             ("title", 1, "pdlc: manifest entry 1 title must be a string\n"),
-            ("unchanged", "yes", "pdlc: manifest entry 1 unchanged must be true or false\n"),
         ]
         for field, value, expected in cases:
             with self.subTest(field=field):
@@ -134,8 +136,8 @@ class TaskValidationCliTests(FileBackendTest):
 
         malformed = self._dry_run({**base, "id": "TASK-nope"})
         self.assertEqual(malformed.stderr, "pdlc: malformed task id: TASK-nope\n")
-        unchanged_with_body = self._dry_run({**base, "unchanged": True})
-        self.assertEqual(unchanged_with_body.stderr, 'pdlc: manifest entry 1 is marked "unchanged" and cannot also set a body\n')
+        legacy_unchanged = self._dry_run({**base, "unchanged": True})
+        self.assertEqual(legacy_unchanged.stderr, 'pdlc: manifest entry 1 uses "unchanged"; use "action": "retain" instead\n')
         invalid_type = self._dry_run({**base, "type": "service"})
         self.assertEqual(invalid_type.stderr, "pdlc: manifest entry 1 type must be core or ui\n")
         invalid_action = self._dry_run({**base, "action": "skip"})

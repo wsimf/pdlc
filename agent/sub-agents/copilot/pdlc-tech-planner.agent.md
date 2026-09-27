@@ -77,7 +77,7 @@ For every task planned, return only that task's plan content — no heading and 
 
 - Name exact existing files and types whenever the spike identifies them. If a new file is required, give its proposed package/folder and responsibility.
 - Order steps by dependency and keep requirements traceable. Include only changes necessary for that task; do not plan already-completed work.
-- **Budget:** at most 8 numbered steps, one line each, ~25 words per step. A task needing more than that is a task that should have been split — say so rather than writing a longer plan.
+- **Keep the plan scannable:** one line per numbered step, judged by readability rather than a step or word count. When a plan grows long enough that a reviewer loses the thread, the task should have been split — say so rather than writing a longer plan.
 - **Say where and how, never what and why.** The task body already carries scope, non-goals, and acceptance criteria; restating them here is duplication that goes stale the moment either side changes.
 - Record unanswered questions explicitly. If a task cannot be planned safely without an answer, mark it blocked and report it rather than presenting a speculative plan as ready.
 

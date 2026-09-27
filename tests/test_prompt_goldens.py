@@ -12,6 +12,7 @@ then read the resulting diff before committing it.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from pdlc.domain.model import remove_section
@@ -214,6 +215,51 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
                 "--current-tasks-manifest-path", manifest,
                 "--follow-up", "text:also split the export task in two",
             ),
+        )
+
+    # --- tasks reviewer ---
+
+    def test_tasks_reviewer_fragment_first_pass(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
+        fragment = self.write_file("ui.md", "**UI Phase:** Required.\n\n### UJ-1 — Land the record\n\nDraft journey.\n")
+        self.assertGolden("tasks-review-fragment-first-pass", self.invoke("prompt_tasks_reviewer", 60, "--fragment", fragment))
+
+    def test_tasks_reviewer_fragment_revision(self):
+        self.seed_record(60, "UI", "Stale", slug="record-60")
+        self.seed_publication(60, "UI")
+        fragment = self.write_file("ui.md", "**UI Phase:** Required.\n\n### UJ-1 — Land the record\n\nRevised journey.\n")
+        self.assertGolden(
+            "tasks-review-fragment-revision",
+            self.invoke("prompt_tasks_reviewer", 60, "--fragment", fragment, "--findings", "text:UJ-1 lacks an offline failure state"),
+        )
+
+    def test_tasks_reviewer_manifest_first_pass(self):
+        self._tasks_stage_pending()
+        core = self.write_file("task-001.md", "## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n")
+        ui = self.write_file("task-002.md", "## Scope\nShow it.\n\nCovers FR-2, UJ-1.\n\n## Acceptance criteria\n- it shows\n")
+        manifest = self.write_file("manifest.json", json.dumps([
+            {"id": "TASK-001", "title": "Core work", "body": core, "type": "core", "covers": ["FR-1"], "depends": []},
+            {"id": "TASK-002", "title": "Show it", "body": ui, "type": "ui", "covers": ["FR-2", "UJ-1"], "depends": ["TASK-001"]},
+        ]))
+        self.assertGolden("tasks-review-manifest-first-pass", self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest))
+
+    def test_tasks_reviewer_manifest_reconcile_with_findings(self):
+        self.seed_record(60, "Tasks", "Stale", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Show it")
+        self.seed_task(60, 603, "TASK-003", "OPEN", "WORK-60-TASK-003 [CORE] Export")
+        revised = self.write_file("task-002.md", "## Scope\nShow it offline too.\n\nCovers FR-2, UJ-1.\n\n## Acceptance criteria\n- it shows offline\n")
+        added = self.write_file("task-004.md", "## Scope\nRetry the sync.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it retries\n")
+        retained = self.write_file("task-001.md", "## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n")
+        manifest = self.write_file("manifest.json", json.dumps([
+            {"id": "TASK-001", "number": 601, "action": "retain", "body": retained, "type": "core", "covers": ["FR-1"], "depends": []},
+            {"id": "TASK-002", "number": 602, "title": "Show it", "body": revised, "type": "ui", "covers": ["FR-2", "UJ-1"], "depends": ["TASK-001"]},
+            {"id": "TASK-003", "number": 603, "action": "remove", "reason": "Folded into TASK-001"},
+            {"title": "Retry sync", "body": added, "type": "core", "covers": ["FR-1"], "depends": ["TASK-001"]},
+        ]))
+        self.assertGolden(
+            "tasks-review-manifest-reconcile",
+            self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest, "--findings", "text:TASK-002 lacks offline criteria"),
         )
 
     # --- UI planner ---

@@ -69,8 +69,6 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
             errors.append(f"manifest entry {index} covers must be an array of strings")
         if not isinstance(task.get("depends", []), list) or not all(isinstance(v, str) for v in task.get("depends", [])):
             errors.append(f"manifest entry {index} depends must be an array of strings")
-        if "unchanged" in task and not isinstance(task["unchanged"], bool):
-            errors.append(f"manifest entry {index} unchanged must be true or false")
     if errors:
         return {"tasks": resolved, "order": [], "cycle": [], "orphans": [], "errors": errors}
 
@@ -83,16 +81,12 @@ def build_plan(resolved: list[dict], existing: list[dict], requirements: list[st
 
     # A carried-forward task declares its own coverage and dependencies like any
     # other, but names no title or body: it is landed work the breakdown still
-    # claims, so its title comes from the record and nothing is rewritten.
+    # claims, so its title comes from the record and nothing is rewritten. Only
+    # `land_tasks` sets this marker, and only once it has confirmed the task is
+    # already stored unchanged, so no further validation is needed here.
     for task in resolved:
-        if not task.get("unchanged"):
-            continue
-        if task["id"] not in existing_id_set:
-            errors.append(f"{task['id']} is marked \"unchanged\" but the record has no such delivery task")
-            continue
-        if task.get("title"):
-            errors.append(f"{task['id']} is marked \"unchanged\" and cannot also set a title")
-        task["title"] = carried_title(existing_by_id[task["id"]].get("title") or "")
+        if task.get("unchanged"):
+            task["title"] = carried_title(existing_by_id[task["id"]].get("title") or "")
 
     ui_covered: set[str] = set()
     for task in resolved:

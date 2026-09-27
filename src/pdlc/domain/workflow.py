@@ -99,18 +99,6 @@ class TransitionOverride:
 
 
 @dataclass(frozen=True)
-class TransitionResult:
-    """Compatibility rendering of a resolved transition."""
-
-    event: str
-    source_stage: str
-    target_stage: str
-    gate: str
-    lifecycle: str
-    loop: str | None = None
-
-
-@dataclass(frozen=True)
 class Route:
     action: Action
     autonomous: bool
@@ -360,9 +348,6 @@ class Pipeline:
             if stage.name == name:
                 return stage
         raise ValueError(f"unknown workflow stage: {name}")
-
-    # Kept as a readable alias for callers of the initial spike.
-    rule_for = stage
 
     def marker_for_stage(self, stage: str) -> str:
         marker = self.stage(stage).marker
