@@ -53,8 +53,7 @@ Reason: {{REMOVE_REASON}}
 
 - Journey and requirement coverage: every task covers at least one FR or C; every UI task covers a `UJ-*`; every `UJ-*` has a UI task; no task claims a requirement the parent does not declare.
 - Dependency validity: dependencies exist, the graph is acyclic, ordering is sound.
-- Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK classification are concrete and testable; no empty detail block.
-- No delivery task carries a `## Technical Plan` or `## Implementation` comment — the Tasks stage precedes both.
+- Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK classification are concrete and testable.
 - Nothing contradicts approved Product or UI intent.
 
 ## Report back
