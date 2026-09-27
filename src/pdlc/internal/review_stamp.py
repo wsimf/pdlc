@@ -6,7 +6,7 @@ One JSON stamp per work item and stage sits in the work-item cache:
 brief command writes it; the planner's brief command restores any edit made
 since and clears it, because a new planning pass begins; the stage's post
 command restores any edit made since, and a real landing requires the stamp to
-cover the manifest it lands, then clears it.
+cover the file it lands (the manifest, or the UI fragment), then clears it.
 """
 
 from __future__ import annotations
@@ -107,17 +107,17 @@ def restore_reviewed(work_item: str, stage: str, rereview: str, replan: str) -> 
         )
 
 
-def require_reviewed(work_item: str, stage: str, manifest: Path, rereview: str) -> None:
-    """Refuse a landing whose manifest the reviewer was not handed as it is now.
+def require_reviewed(work_item: str, stage: str, path: Path, rereview: str) -> None:
+    """Refuse a landing whose file the reviewer was not handed as it is now.
 
     Call after `restore_reviewed`, which has already undone any edit made
-    since the review, so a stamp covering the manifest covers its files too.
+    since the review, so a stamp covering a manifest covers its files too.
     """
     files = _read(work_item, stage)
-    if files is None or _key(manifest) not in files:
+    if files is None or _key(path) not in files:
         raise PdlcError(
-            f"refusing to land: {manifest} has not been reviewed since its last planning pass.\n"
-            "Only reviewed files can land. Dispatch the reviewer on this manifest, and post again only after a clean verdict:\n"
+            f"refusing to land: {path} has not been reviewed since its last planning pass.\n"
+            "Only reviewed files can land. Dispatch the reviewer on this file, and post again only after a clean verdict:\n"
             f"  {rereview}\n"
             "Nothing was written to the record."
         )

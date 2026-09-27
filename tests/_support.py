@@ -341,6 +341,10 @@ class FileBackendTest(unittest.TestCase):
         bodies = [Path(entry["body"]) for entry in entries if entry.get("action") != "remove" and entry.get("body")]
         write_stamp(str(record), "Tasks", [Path(manifest), *bodies])
 
+    def mark_ui_reviewed(self, record: int, fragment: str | Path) -> None:
+        """Record a UI fragment as handed to the reviewer, as `pdlc prompt tasks-reviewer --fragment` does."""
+        write_stamp(str(record), "UI", [Path(fragment)])
+
     def write_plan(self, task_file: str | Path, plan: str) -> None:
         """Replace a generated task file's tech plan block, as the planner does."""
         path = Path(task_file)

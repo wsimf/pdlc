@@ -94,14 +94,14 @@ is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task b
 removes none, and keeps each task's `type`. Only titles and bodies change. A
 refusal writes nothing.
 
-Only a reviewed Tasks breakdown lands. `pdlc prompt tasks-reviewer --manifest`
-records the exact manifest and task body files it hands the reviewer. If any
-of them changed since, this command restores each to the reviewed version,
-keeps the edited copy beside it as `<name>.rejected.<ext>`, and refuses so the
-review is redone; a real landing also refuses a manifest the reviewer was not
-handed. Writing auto-assigned ids back to the manifest keeps it reviewed. A
---patch is reviewed by the patch reviewer instead, and a UI --body is not
-checked this way.
+Only a reviewed UI fragment or Tasks breakdown lands. `pdlc prompt
+tasks-reviewer` records the exact files it hands the reviewer: the --fragment
+file, or the manifest and its task body files. If any of them changed since,
+this command restores each to the reviewed version, keeps the edited copy
+beside it as `<name>.rejected.<ext>`, and refuses so the review is redone; a
+real landing also refuses a --body or --manifest the reviewer was not handed.
+Writing auto-assigned ids back to the manifest keeps it reviewed. A --patch is
+reviewed by the patch reviewer instead.
 
 An existing task may be carried as `"action": "retain"`, with its generated
 title, body file, type, coverage, dependencies, and baseline hash. The command
@@ -195,6 +195,8 @@ from pdlc.domain.task_artifact import (
     snapshot,
     stored_fields,
     task_body_errors,
+    ui_planner_command,
+    ui_reviewer_command,
 )
 from pdlc.internal.review_stamp import clear_stamp, refresh_stamp, require_reviewed, restore_reviewed
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
@@ -298,6 +300,9 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         }))
         return
 
+    if context.patch is None:
+        reviewed = body_path.resolve()
+        require_reviewed(issue, "UI", reviewed, ui_reviewer_command(issue, reviewed))
     if context.reauthor:
         reauthor_invalidate_stage(context.record, "UI", context.pipeline)
 
@@ -311,6 +316,7 @@ def land_ui(issue: str, item: str, parent_body: str, body_path: Path, evidence_b
         target = context.patch.target
     else:
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
+        clear_stamp(issue, "UI")
 
     print(json.dumps({
         "published": True,
@@ -778,6 +784,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.manifest:
                 raise PdlcError("--manifest is only valid with --stage Tasks")
             body_path = require_file("--body file", args.body)
+            if not args.patch:
+                # A reviewed fragment edited since its review is put back before anything reads it.
+                reviewed = body_path.resolve()
+                restore_reviewed(
+                    args.work_item, "UI",
+                    ui_reviewer_command(args.work_item, reviewed), ui_planner_command(args.work_item, reviewed),
+                )
         else:
             if not args.manifest:
                 raise PdlcError("--stage Tasks requires --manifest FILE")

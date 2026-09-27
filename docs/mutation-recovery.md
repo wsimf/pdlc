@@ -100,11 +100,13 @@ Writes:
 1. If re-authoring from Review/Approval Required: `set_state` → UI / Stale.
 2. `write_body` with the `## UI` section spliced in.
 3. `PDLC-UI` comment.
-4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Review Required.
+4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Review Required, then the local review stamp is cleared.
+
+Before any write, a non-patch post restores a reviewed `--body` edited since its review and refuses, and a real post refuses a `--body` the reviewer was not handed; neither touches the record.
 
 Check: `pdlc inspect N` and `pdlc inspect timeline N`, as for `post write`.
 
-Re-run: safe; may duplicate `PDLC-UI`.
+Re-run: safe while the stamp remains, that is before step 4 completes; may duplicate `PDLC-UI`.
 
 ### `pdlc post tasks --stage Tasks`
 

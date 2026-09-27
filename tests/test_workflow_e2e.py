@@ -43,11 +43,13 @@ class WorkflowEndToEndTests(FileBackendTest):
 
         # --- UI: land, re-author in place before approval, approve ---
         ui = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        self.mark_ui_reviewed(issue, ui)
         self.assertEqual(
             self.invoke("post_tasks", "--work-item", issue, "--stage", "UI",
                         "--body", ui, "--evidence", evidence).code,
             0,
         )
+        self.mark_ui_reviewed(issue, ui)
         reauth = self.invoke("post_tasks", "--work-item", issue, "--stage", "UI",
                              "--body", ui, "--evidence", evidence)
         self.assertEqual(reauth.json["gateState"], "Approval Required")

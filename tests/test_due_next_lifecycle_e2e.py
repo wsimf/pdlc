@@ -54,6 +54,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.next_action(issue, "pdlc-tasks")
 
         ui = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        self.mark_ui_reviewed(issue, ui)
         self.assertEqual(
             self.invoke("post_tasks", "--work-item", issue, "--stage", "UI",
                         "--body", ui, "--evidence", evidence).code,

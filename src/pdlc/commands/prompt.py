@@ -69,7 +69,7 @@ DESCRIPTION
     the record and its live pull-request state; none changes the record, and
     nothing is published to the backend. `task-planner`, `tech-planner`, and
     `ui-planner` may write editable copies to the work-item cache.
-    `tasks-reviewer --manifest` and `plan-reviewer` record the files they hand
+    `tasks-reviewer` and `plan-reviewer` record the files they hand
     the reviewer, so the stage lands only what was reviewed; they and the
     matching planner briefs restore a reviewed file that changed since.
 
@@ -123,6 +123,7 @@ from pdlc.domain.plan_file import (
 )
 from pdlc.domain.task_artifact import planner_command as tasks_planner_command
 from pdlc.domain.task_artifact import reviewer_command as tasks_reviewer_command
+from pdlc.domain.task_artifact import ui_planner_command, ui_reviewer_command
 from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.model import (
@@ -179,6 +180,7 @@ from pdlc.internal.failure import report_failure
 
 TECH_PLAN_STAGE = "Technical Plan"
 TASKS_STAGE = "Tasks"
+UI_STAGE = "UI"
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
@@ -543,10 +545,17 @@ def ui_planner_brief(
         if current_journeys_path is not None
         else ""
     )
+    if current_journeys:
+        restore_reviewed(
+            work_item, UI_STAGE,
+            ui_reviewer_command(work_item, current_journeys), ui_planner_command(work_item, current_journeys),
+        )
     item, tasks, comments = record_snapshot(work_item)
     status = item_status(item)
     if status != "UI":
         raise PdlcError(f"no UI section is due: the record is at {status or 'an unset status'}, not UI")
+    # A new planning pass begins, so the fragment last reviewed is no longer the one to land.
+    clear_stamp(work_item, UI_STAGE)
 
     delivery = [task for task in tasks if task.get("taskId")]
     parent_body = _parent_body(item)
@@ -866,8 +875,8 @@ def tasks_reviewer_brief(
     before it lands. Pass exactly one of `manifest` (the Tasks breakdown) or
     `fragment` (the UI section's content) — the two artifacts this reviewer
     checks, never both in the same pass. The reviewer reads the artifact from
-    its files rather than a copy inlined in the brief; a `text:` fragment is
-    written to the work-item cache so it has a file too.
+    its files rather than a copy inlined in the brief. The fragment must be a
+    file, since the stage lands that same file.
     """
     if bool(manifest) == bool(fragment):
         raise PdlcError("pass exactly one of --manifest or --fragment")
@@ -884,11 +893,14 @@ def tasks_reviewer_brief(
         write_stamp(work_item, TASKS_STAGE, [Path(manifest_path), *_manifest_body_files(Path(manifest_path))])
     fragment_path = ""
     if fragment:
-        fragment_path = (
-            str(write_scratch(scratch_path(work_item, "tasks-review-fragment"), resolve_text(fragment, label="--fragment")))
-            if fragment.startswith("text:") or fragment == "-"
-            else str(require_file("--fragment", fragment).resolve())
+        if fragment.startswith("text:") or fragment == "-":
+            raise PdlcError("--fragment takes the UI fragment's FILE, the same file `pdlc post tasks --stage UI --body` lands")
+        fragment_path = str(require_file("--fragment", fragment).resolve())
+        restore_reviewed(
+            work_item, UI_STAGE,
+            ui_reviewer_command(work_item, fragment_path), ui_planner_command(work_item, fragment_path),
         )
+        write_stamp(work_item, UI_STAGE, [Path(fragment_path)])
     return render(
         "tasks-review",
         {

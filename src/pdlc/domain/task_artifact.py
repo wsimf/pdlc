@@ -110,3 +110,13 @@ def planner_command(work_item: str, manifest: object) -> str:
 def reviewer_command(work_item: str, manifest: object) -> str:
     """The brief that hands a task manifest to its reviewer."""
     return f"pdlc prompt tasks-reviewer {work_item} --manifest {manifest} --file"
+
+
+def ui_planner_command(work_item: str, fragment: object) -> str:
+    """The brief that starts a planning pass on an existing UI fragment."""
+    return f"pdlc prompt ui-planner {work_item} --current-journeys-path {fragment} --file"
+
+
+def ui_reviewer_command(work_item: str, fragment: object) -> str:
+    """The brief that hands a UI fragment to its reviewer."""
+    return f"pdlc prompt tasks-reviewer {work_item} --fragment {fragment} --file"

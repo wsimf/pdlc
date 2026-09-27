@@ -577,6 +577,7 @@ class PostTasksUiGateTests(FileBackendTest):
                 dry = self.invoke("post_tasks", "--work-item", number, "--stage", "UI", "--body", body, "--dry-run")
                 self.assertEqual(dry.code, 0, dry.stderr)
                 self.assertEqual(self.fields(number)["Gate State"], gate)
+                self.mark_ui_reviewed(number, body)
                 landed = self.invoke("post_tasks", "--work-item", number, "--stage", "UI",
                                      "--body", body, "--evidence", self.evidence_file())
                 self.assertEqual(landed.code, 0, landed.stderr)

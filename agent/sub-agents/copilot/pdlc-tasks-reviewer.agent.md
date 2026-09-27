@@ -23,7 +23,7 @@ You are a leaf worker for one PDLC stage, not a PDLC orchestrator. Do not invoke
 
 ## Read-only boundary
 
-- Do not edit the fragment, manifest, task body files, source, tests, project files. An edited manifest or task body file is restored and the review discarded.
+- Do not edit the fragment, manifest, task body files, source, tests, project files. An edited file is restored and the review discarded.
 - Do not apply corrections, even an obvious one. Report the exact recommended change and stop.
 - Do not run builds, tests, formatters, code generation, commits, pushes, or other mutating operations.
 - Preserve unrelated working-tree changes.
