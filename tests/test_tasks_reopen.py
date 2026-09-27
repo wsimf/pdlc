@@ -1,15 +1,31 @@
 """`pdlc post tasks` reopening delivery tasks a re-landed breakdown rewrites,
 and carrying landed tasks forward untouched with `"unchanged": true`."""
 
+import hashlib
 import json
+from unittest.mock import patch
 
 from _support import BODY_DEFAULT, FileBackendTest
+from pdlc.domain.task_artifact import baseline_matches, same_task_body, snapshot, stored_fields
+from pdlc.internal.workitem import subissues_for
 
 # No journey to cover, so each case can land a single CORE task.
 NO_UI_BODY = BODY_DEFAULT.replace("UJ-1 covers the first run.", "No UI is required.")
 
 
 class TasksReopenTests(FileBackendTest):
+    def test_task_body_comparison_ignores_only_line_endings_and_trailing_whitespace(self):
+        self.assertTrue(same_task_body("one\r\ntwo\r\n", "one\ntwo\n"))
+        self.assertFalse(same_task_body("one\n two\n", "one\ntwo\n"))
+        self.assertTrue(same_task_body("one\ntwo\n", "one\ntwo"))
+        self.assertTrue(same_task_body("one\ntwo  \n\n", "one\ntwo\n"))
+        self.assertEqual(snapshot({"title": "one", "type": "core", "body": "one\ntwo\n"}),
+                         snapshot({"title": "one", "type": "core", "body": "one\ntwo"}))
+        fields = {"title": "one", "type": "core", "body": "one\r\ntwo\r\n"}
+        self.assertEqual(snapshot(fields), snapshot({**fields, "body": "one\ntwo\n"}))
+        legacy = hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        self.assertTrue(baseline_matches(legacy, {**fields, "body": "one\ntwo\n"}))
+
     def setUp(self):
         super().setUp()
         self.seed_record(40, "Tasks", "Pending", body=NO_UI_BODY)
@@ -67,6 +83,33 @@ class TasksReopenTests(FileBackendTest):
         self.assertEqual(self.task_meta(40, 402)["state"], "CLOSED")
         self.assertIn("Shipped the endpoint.", self.task_comments_text(40, 402))
         self.assertNotIn("Reopened for rework", self.comments_text(40))
+
+    def test_crlf_only_difference_does_not_rewrite_or_reopen_retained_task(self):
+        self.seed_task(40, 402, "TASK-002", "CLOSED", "WORK-40-TASK-002 [CORE] two", body=self.unchanged_text)
+        self.seed_plan_comment(40, 402, "Add the validation helper.")
+        self.seed_implementation_comment(40, 402, "Shipped the endpoint.")
+        stored = subissues_for("40")[0]
+        baseline = snapshot(stored_fields(stored))
+        manifest = self.write_file("m.json", json.dumps([
+            {"id": "TASK-002", "number": 402, "action": "retain", "baseline": baseline,
+             "title": "two", "body": self.unchanged_body, "type": "core",
+             "covers": ["FR-1", "FR-2", "C-1"], "depends": []},
+        ]))
+
+        def crlf_task(issue):
+            tasks = subissues_for(issue)
+            return [{**task, "body": task["body"].replace("\n", "\r\n")} for task in tasks]
+
+        with patch("pdlc.commands.post_tasks.subissues_for", side_effect=crlf_task):
+            result = self.invoke("post_tasks", "--work-item", 40, "--stage", "Tasks",
+                                 "--manifest", manifest, "--evidence", self.evidence_file())
+
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["unchanged"], ["TASK-002"])
+        self.assertEqual(result.json["reopened"], [])
+        self.assertEqual(self.task_meta(40, 402)["state"], "CLOSED")
+        self.assertIn("Add the validation helper.", self.task_comments_text(40, 402))
+        self.assertIn("Shipped the endpoint.", self.task_comments_text(40, 402))
 
     def test_rewriting_an_open_task_leaves_its_evidence_alone(self):
         self.seed_task(40, 403, "TASK-003", "OPEN", "WORK-40-TASK-003 [CORE] three")

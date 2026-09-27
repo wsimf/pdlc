@@ -345,6 +345,22 @@ class DeliveryTaskTest(AzureHostTest):
         update = self.az.calls_matching("boards", "work-item", "update")[0]
         self.assertEqual(update[update.index("--state") + 1], "Cut")
 
+    def test_remove_task_retry_is_idempotent_after_the_state_update_lands(self):
+        # A retry after a run that updated state but crashed before detaching
+        # the parent relation: calling remove_task again re-applies the same
+        # (already-applied) state update and still removes the relation.
+        self.az.az("boards", "work-item", "update", response=self.TASK)
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.az("boards", "work-item", "relation", "remove", response={})
+        AzureWorkItemBackend().remove_task("7", "8")
+        AzureWorkItemBackend().remove_task("7", "8")
+        updates = self.az.calls_matching("boards", "work-item", "update")
+        relations = self.az.calls_matching("boards", "work-item", "relation", "remove")
+        self.assertEqual(len(updates), 2)
+        self.assertEqual(len(relations), 2)
+        self.assertEqual(updates[1][updates[1].index("--state") + 1], "Done")
+        self.assertEqual(relations[1][relations[1].index("--target-id") + 1], "7")
+
     def test_remove_task_falls_back_to_the_task_closed_state(self):
         self.az.az("boards", "work-item", "update", response=self.TASK)
         self.az.az("boards", "work-item", "show", response=RECORD)

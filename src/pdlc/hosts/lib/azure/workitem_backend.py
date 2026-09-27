@@ -22,6 +22,7 @@ import pdlc.hosts.lib.azure.workitems as azure
 from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_ID_PATTERN, TASK_TITLE_PATTERN
+from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.azure.transport import run_az
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
@@ -321,7 +322,7 @@ class AzureWorkItemBackend(WorkItemBackend):
         if match:
             number = match["number"]
             title_changed = match.get("title") != full_title
-            body_changed = (match.get("body") or "") != body_text
+            body_changed = not same_task_body(match.get("body") or "", body_text)
             if title_changed or body_changed:
                 azure.update(number, {
                     azure.TITLE_FIELD: full_title,

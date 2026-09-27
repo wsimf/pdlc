@@ -77,6 +77,17 @@ class TaskManifestActionsTests(FileBackendTest):
         saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual((saved[-1]["id"], saved[-1]["action"]), ("TASK-003", "create"))
 
+    def test_assigned_id_save_failure_makes_no_remote_write(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", task_body())
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        with mock.patch("pdlc.commands.post_tasks._save_manifest", side_effect=OSError("disk full")), \
+             mock.patch("pdlc.commands.post_tasks.upsert_tasks") as upsert:
+            result = self._land(path, entries)
+        self.assertEqual(result.code, 1)
+        self.assertIn(f"cannot save assigned task ids in {path}: disk full", result.stderr)
+        upsert.assert_not_called()
+
     def test_retry_after_a_created_task_uses_its_saved_id(self):
         path, entries = self._generated()
         body = self.write_file("third.md", task_body())

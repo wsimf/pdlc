@@ -23,6 +23,7 @@ from pdlc.hosts.lib.github.transport import (
 )
 import pdlc.hosts.lib.github.pr_registry as pr_registry
 from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.model import (
     TASK_ID_PATTERN,
     TASK_TITLE_PATTERN,
@@ -224,7 +225,7 @@ def _upsert_task(
         # its registry block split out, so the attached pull requests are
         # re-attached to the rewrite rather than counted as a change.
         stored = match.get("body") or ""
-        body_changed = neutralize_refs(stored) != neutralize_refs(body_text)
+        body_changed = not same_task_body(neutralize_refs(stored), neutralize_refs(body_text))
         if title_changed or body_changed:
             with body_file(pr_registry.attach(body_text, match.get("prs"))) as path:
                 run_gh(["issue", "edit", str(number), *repo_args(), "--title", full_title, "--body-file", path])

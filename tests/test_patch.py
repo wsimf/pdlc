@@ -22,8 +22,10 @@ from pdlc.domain.patch import (
     requirement_changes,
     requirement_statements,
 )
+from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.workflow import Event, Gate, InvalidationPolicy, State
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
+from pdlc.internal.workitem import subissues_for
 
 NO_IMPACT = "Earliest affected stage: none\n\n## UI\nUnaffected.\n## Tasks\nUnaffected.\n"
 TASKS_AFFECTED = "Earliest affected stage: Tasks\n\n## UI\nUnaffected.\n## Tasks\nAffected — TASK-001 asserts the old FR-1.\n"
@@ -293,6 +295,20 @@ class PostTasksPatchTests(FileBackendTest):
                 self.assertIn(message, result.stderr)
                 self.assertEqual(self.comments_text(number), "")
                 self.assertEqual(self.task_meta(number, 1)["title"], f"WORK-{number}-TASK-001 [CORE] Land the record")
+
+    def test_tasks_patch_refuses_removal_and_writes_nothing(self):
+        self.seed_breakdown(88, "Technical Plan", "Pending")
+        baseline = snapshot(stored_fields(subissues_for("88")[0]))
+        entries = [
+            {"id": "TASK-001", "number": 1, "action": "remove", "baseline": baseline, "reason": "Descoped"},
+            {"id": "TASK-002", "unchanged": True, "ui": True, "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
+        ]
+        manifest = self.write_file("remove-patch.json", json.dumps(entries))
+        result = self.land(88, manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("a Tasks patch cannot remove tasks; return Tasks to Stale", result.stderr)
+        self.assertEqual(self.comments_text(88), "")
+        self.assertEqual(self.task_meta(88, 1)["state"], "OPEN")
 
     def test_ui_patch_lands_and_keeps_applicability(self):
         self.seed_record(85, "Tasks", "Pending")

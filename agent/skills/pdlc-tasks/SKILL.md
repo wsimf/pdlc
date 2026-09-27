@@ -39,10 +39,8 @@ Carry the driver's follow-up verbatim. For `Stale`, reconcile against the existi
 
 Dispatch exactly one owning planner:
 
-- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM` writes. For a follow-up, supply both the current UI fragment path and the driver's verbatim follow-up; use `pdlc prompt ui-planner --help` for the paired inputs.
-- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM` writes. For a follow-up, supply both the current task manifest path and the driver's verbatim follow-up; use `pdlc prompt task-planner --help` for the paired inputs.
-
-If a follow-up arrives before a local artifact exists, dispatch the first brief to obtain the planner's artifact, then rebrief that planner with the artifact path and verbatim follow-up before Validate.
+- `Status = UI`: dispatch `pdlc-ui-planner` with the brief `pdlc prompt ui-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current UI fragment only when revising an unpublished one; use `pdlc prompt ui-planner --help` for both inputs.
+- `Status = Tasks`: dispatch `pdlc-task-planner` with the brief `pdlc prompt task-planner WORK_ITEM` writes. Pass the driver's verbatim follow-up with the brief, and name the current task manifest only when revising an unpublished one; use `pdlc prompt task-planner --help` for both inputs.
 
 For either, `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 

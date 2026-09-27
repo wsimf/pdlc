@@ -119,6 +119,7 @@ Writes:
 
 Partial failure:
 - In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.
+- Task body comparisons and manifest baselines ignore line-ending style; a CRLF-only difference does not rewrite or reopen a task during publication or retry.
 - Between 2 and 3: a rewritten task may still be closed. A re-run detects that its requested content landed and reopens it.
 - During 3: a task may have reopened before its invalidation comment or stale plan and implementation comments were cleared. Inspect it after retry; the current `reopen_tasks` helper skips already-open tasks.
 - In 4: a descope comment or close may have landed before detachment, or the task may already be detached. A re-run skips a descope comment that already landed, uses the task number and matching descope comment to recognize a completed detach, then finishes the remaining removals.

@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pdlc.domain.lifecycle import NotFound, PdlcError
+from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.file.storage import atomic_write, single_writer
 from pdlc.hosts.workitem_host.base import CommentPage, WorkItemBackend
@@ -286,7 +287,7 @@ class FileWorkItemBackend(WorkItemBackend):
             meta = _read_meta(path)
             title_changed = meta.get("title") != full_title
             stored = (path / "body.md").read_text(encoding="utf-8") if (path / "body.md").exists() else ""
-            body_changed = stored != body_text
+            body_changed = not same_task_body(stored, body_text)
             if title_changed or body_changed:
                 meta["title"] = full_title
                 _write_meta(path, meta)

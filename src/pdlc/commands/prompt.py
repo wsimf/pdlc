@@ -512,13 +512,11 @@ def ui_planner_brief(
     """The brief for the sub-agent authoring the record's UI section.
 
     Due only while `Status` is `UI`. `follow_up` carries the driver's verbatim
-    request on a reconciling pass, read the same way `task_planner_brief`
-    reads its own `--follow-up`. Rework also supplies the previous UI fragment
-    so the planner can revise the journeys the reviewer saw; without one, a
-    published `## UI` section is copied to the work-item cache for revision.
+    request, read the same way `task_planner_brief` reads its own
+    `--follow-up`. `current_journeys_path` names an unpublished UI fragment to
+    revise, such as the draft a reviewer saw; without one, a published `## UI`
+    section is copied to the work-item cache for revision.
     """
-    if (follow_up is None) != (current_journeys_path is None):
-        raise PdlcError("--follow-up and --current-journeys-path must be supplied together")
     current_journeys = (
         str(require_file("--current-journeys-path", current_journeys_path).resolve())
         if current_journeys_path is not None
@@ -564,11 +562,10 @@ def task_planner_brief(
 
     Due only while `Status` is `Tasks`; `follow_up` carries the driver's
     verbatim request on a re-authoring pass, read the same way `--findings`
-    reaches the test-writer briefs. Rework also supplies the current task
-    manifest so the planner can revise the task bodies the reviewer saw.
+    reaches the test-writer briefs. `current_tasks_manifest_path` names an
+    unpublished manifest to revise, such as the draft a reviewer saw; without
+    one, the published tasks are copied to the work-item cache for revision.
     """
-    if (follow_up is None) != (current_tasks_manifest_path is None):
-        raise PdlcError("--follow-up and --current-tasks-manifest-path must be supplied together")
     current_tasks_manifest = (
         str(require_file("--current-tasks-manifest-path", current_tasks_manifest_path).resolve())
         if current_tasks_manifest_path is not None
@@ -604,7 +601,7 @@ def task_planner_brief(
                     )),
                 }
                 for task in delivery
-            ] or None,
+            ],
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
         },

@@ -12,6 +12,24 @@ _COVER = re.compile(r"\b(?:FR|C|UJ)-[0-9]+\b")
 _TASK = re.compile(r"\bTASK-[0-9]{3}\b")
 
 
+def _unix_line_endings(body: str) -> str:
+    return body.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def normalized_task_body(body: str) -> str:
+    """Compare task bodies without treating platform line endings or trailing
+    whitespace, which a host may add or trim on save, as edits."""
+    return _unix_line_endings(body).rstrip()
+
+
+def same_task_body(left: str, right: str) -> bool:
+    return normalized_task_body(left) == normalized_task_body(right)
+
+
+def same_task_content(left: dict, right: dict) -> bool:
+    return left["title"] == right["title"] and left["type"] == right["type"] and same_task_body(left["body"], right["body"])
+
+
 def _field(body: str, label: str) -> str | None:
     match = re.search(rf"^\*\*{re.escape(label)}:\*\*\s*(.*)$", body, re.MULTILINE)
     return match.group(1) if match else None
@@ -72,5 +90,20 @@ def stored_fields(task: dict) -> dict:
 
 def snapshot(fields: dict) -> str:
     """Reject a stale generated artifact before it can overwrite a task."""
+    return _hash_fields({**fields, "body": normalized_task_body(fields["body"])})
+
+
+def baseline_matches(baseline: str, fields: dict) -> bool:
+    """Accept canonical hashes and older hashes made from raw line endings."""
+    body = _unix_line_endings(fields["body"])
+    return baseline in (
+        snapshot(fields),
+        _hash_fields(fields),
+        _hash_fields({**fields, "body": body}),
+        _hash_fields({**fields, "body": body.replace("\n", "\r\n")}),
+    )
+
+
+def _hash_fields(fields: dict) -> str:
     payload = json.dumps(fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

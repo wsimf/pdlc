@@ -89,6 +89,15 @@ class ConditionalBlockTests(unittest.TestCase):
         )
         self.assertEqual(rendered, "falsy\n")
 
+    def test_empty_collection_is_falsy(self) -> None:
+        for value in ([], {}):
+            rendered = render_text(
+                "{{#IF VALUE}}\ntruthy\n{{#ELSE}}\nfalsy\n{{/ELSE}}\n{{/IF}}\n",
+                {"VALUE": value},
+                loader=_loader({}),
+            )
+            self.assertEqual(rendered, "falsy\n")
+
     def test_nested_else_bodies_render_for_each_selected_branch(self) -> None:
         template = (
             "{{#IF OUTER}}\n"

@@ -102,20 +102,34 @@ class PromptUiPlannerTest(FileBackendTest):
         self.assertIn("### Invalidation reason", result.stdout)
         self.assertNotIn("UJ-1 covers the first run.", result.stdout)
 
-    def test_rework_requires_an_existing_fragment_and_follow_up_together(self):
+    def test_follow_up_alone_revises_the_published_section_or_a_first_draft(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
+        first = self.invoke("prompt_ui_planner", 60, "--follow-up", "text:drop the offline journey")
+        self.assertEqual(first.code, 0, first.stderr)
+        self.assertIn("No UI section exists yet.", first.stdout)
+        self.assertIn("drop the offline journey", first.stdout)
+
+        self.seed_record(61, "UI", "Approval Required", slug="record-61")
+        published = self.invoke("prompt_ui_planner", 61, "--follow-up", "text:drop the offline journey")
+        self.assertEqual(published.code, 0, published.stderr)
+        match = re.search(r"Revise the UI section at `([^`]+)`", published.stdout)
+        self.assertIsNotNone(match)
+        self.assertIn("UJ-1 covers the first run.", Path(match.group(1)).read_text(encoding="utf-8"))
+        self.assertIn("### Driver follow-up", published.stdout)
+        self.assertIn("drop the offline journey", published.stdout)
+
+    def test_supplied_fragment_is_revised_with_or_without_follow_up(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
-        current_ui = self.write_file("current-ui.md", "## UI\n")
-        follow_up_only = self.invoke("prompt_ui_planner", 60, "--follow-up", "text:revise")
+        current_ui = self.write_file("current-ui.md", "UJ-2 draft.\n")
         fragment_only = self.invoke("prompt_ui_planner", 60, "--current-journeys-path", current_ui)
+        self.assertEqual(fragment_only.code, 0, fragment_only.stderr)
+        self.assertIn(f"Revise the UI section at `{Path(current_ui).resolve()}`", fragment_only.stdout)
+        self.assertNotIn("### Driver follow-up", fragment_only.stdout)
         missing_fragment = self.invoke(
             "prompt_ui_planner", 60,
             "--current-journeys-path", str(self.work / "missing.md"),
             "--follow-up", "text:revise",
         )
-        self.assertNotEqual(follow_up_only.code, 0)
-        self.assertIn("must be supplied together", follow_up_only.stderr)
-        self.assertNotEqual(fragment_only.code, 0)
-        self.assertIn("must be supplied together", fragment_only.stderr)
         self.assertNotEqual(missing_fragment.code, 0)
         self.assertIn("does not exist", missing_fragment.stderr)
 

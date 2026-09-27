@@ -359,19 +359,31 @@ class PromptCommandTest(PromptHarness):
         )
         self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
 
-    def test_rework_requires_an_existing_manifest_and_follow_up_together(self):
+    def test_follow_up_alone_revises_the_published_tasks_or_a_first_breakdown(self):
+        self._tasks_stage_pending()
+        first = self._planner_brief("--follow-up", "text:split the export task")
+        self.assertEqual(first.code, 0, first.stderr)
+        self.assertIn("No delivery tasks exist yet.", first.stdout)
+        self.assertIn("### Driver follow-up", first.stdout)
+        self.assertIn("split the export task", first.stdout)
+
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        published = self._planner_brief("--follow-up", "text:split the export task")
+        self.assertEqual(published.code, 0, published.stderr)
+        self.assertRegex(published.stdout, r"Revise the task breakdown at `[^`]*task-planner-manifest[^`]*`")
+        self.assertIn("split the export task", published.stdout)
+
+    def test_supplied_manifest_is_revised_with_or_without_follow_up(self):
         self._tasks_stage_pending()
         manifest = self.write_file("current-tasks.json", "[]\n")
-        follow_up_only = self._planner_brief("--follow-up", "text:revise")
         manifest_only = self._planner_brief("--current-tasks-manifest-path", manifest)
+        self.assertEqual(manifest_only.code, 0, manifest_only.stderr)
+        self.assertIn(f"Revise the task breakdown at `{Path(manifest).resolve()}`", manifest_only.stdout)
+        self.assertNotIn("### Driver follow-up", manifest_only.stdout)
         missing_manifest = self._planner_brief(
             "--current-tasks-manifest-path", str(self.work / "missing.json"),
             "--follow-up", "text:revise",
         )
-        self.assertNotEqual(follow_up_only.code, 0)
-        self.assertIn("must be supplied together", follow_up_only.stderr)
-        self.assertNotEqual(manifest_only.code, 0)
-        self.assertIn("must be supplied together", manifest_only.stderr)
         self.assertNotEqual(missing_manifest.code, 0)
         self.assertIn("does not exist", missing_manifest.stderr)
 

@@ -14,9 +14,8 @@ joins them. It understands these template forms:
     is kept, so an include on its own line contributes exactly its own lines.
 
 ``{{#IF NAME}} ... {{#ELSE}} ... {{/ELSE}} ... {{/IF}}``
-    Kept when ``context["NAME"]`` is truthy under JavaScript/TypeScript rules; the
-    optional ``#ELSE`` body is kept when it is falsy. Empty lists and mappings are
-    truthy. Both ELSE directives must sit inside an IF block.
+    Kept when ``context["NAME"]`` is truthy; the optional ``#ELSE`` body is kept
+    when it is falsy. Both ELSE directives must sit inside an IF block.
 
 ``{{#EACH NAME}} ... {{/EACH}}``
     The body is rendered once per item in ``context["NAME"]``, which must be a
@@ -33,7 +32,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from importlib.resources import files
-import math
 import re
 from typing import Protocol
 
@@ -177,7 +175,7 @@ def _render_block(
     """Render the selected IF branch or each item in an EACH block."""
     value = _lookup(name, context)
     if kind == "IF":
-        selected = body if _is_truthy(value) else alternate_body
+        selected = body if value else alternate_body
         return _render_lines(selected, context, loader, stack) if selected is not None else ""
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         raise PromptError(
@@ -191,17 +189,6 @@ def _render_block(
             )
         parts.append(_render_lines(body, _ChainedContext(item, context), loader, stack))
     return "".join(parts)
-
-
-def _is_truthy(value: object) -> bool:
-    """Apply JavaScript truthiness to prompt values, where empty collections are truthy."""
-    if value is None or value is False:
-        return False
-    if isinstance(value, str):
-        return bool(value)
-    if isinstance(value, (int, float)):
-        return value != 0 and not (isinstance(value, float) and math.isnan(value))
-    return True
 
 
 def _render_line(

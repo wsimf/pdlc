@@ -178,7 +178,7 @@ from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, re
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.task_artifact import declared_links, snapshot, stored_fields, task_body_errors
+from pdlc.domain.task_artifact import baseline_matches, declared_links, same_task_content, snapshot, stored_fields, task_body_errors
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -393,7 +393,7 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             baseline = entry.get("baseline")
             if not isinstance(baseline, str):
                 raise PdlcError(f"{task_id} {action} requires its generated baseline; {_regenerate(issue)}")
-            if action == "remove" and baseline != snapshot(stored_fields(by_id[task_id])):
+            if action == "remove" and not baseline_matches(baseline, stored_fields(by_id[task_id])):
                 raise PdlcError(_stale(task_id, issue))
         if action == "remove":
             reason = entry.get("reason")
@@ -433,12 +433,13 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
         if action == "retain" or task_id in by_id:
             stored = stored_fields(by_id[task_id])
             before = {key: stored[key] for key in after}
-            already_applied = action == "retain" and entry.get("baseline") != snapshot(stored)
-            if already_applied and after != before:
+            content_unchanged = same_task_content(after, before)
+            already_applied = action == "retain" and not baseline_matches(entry.get("baseline"), stored)
+            if already_applied and not content_unchanged:
                 raise PdlcError(_stale(task_id, issue))
-            if action == "create" and after != before:
+            if action == "create" and not content_unchanged:
                 raise PdlcError(f"{task_id} already exists with different content; use a new id")
-            if after == before:
+            if content_unchanged:
                 if already_applied and by_id[task_id].get("state") == "CLOSED":
                     task["recoveryReopen"] = True
                 task["unchanged"] = True

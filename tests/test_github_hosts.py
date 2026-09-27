@@ -526,6 +526,20 @@ class SubIssueUpsertTest(GitHubHostTest):
         self.assertEqual(close[close.index("--reason") + 1], "not planned")
 
 
+    def test_remove_subissue_retry_skips_close_but_still_detaches(self) -> None:
+        # A retry after the first run already closed the child: `gh issue
+        # close` must not run again, but the detach mutation still must.
+        self.gh.graphql(
+            "parent: issue(number:",
+            graphql_data({"repository": {"parent": {"id": "I_parent"}, "child": {"id": "I_child", "state": "CLOSED"}}}),
+        )
+        self.gh.graphql("removeSubIssue", graphql_data({"removeSubIssue": {"issue": {"id": "I_parent"}}}))
+
+        github_issues.remove_subissue("3", "11")
+
+        self.assertTrue(self.gh.graphql_variables("removeSubIssue"))
+        self.assertFalse(any(args[:2] == ["issue", "close"] for args, _ in self.gh.calls))
+
     def test_remove_subissue_refuses_a_null_removal_result(self) -> None:
         self.gh.graphql(
             "parent: issue(number:",

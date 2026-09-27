@@ -3,9 +3,9 @@
     pdlc prompt ui-planner - read-only: print the UI planner's brief for a record's UI section
 
 USAGE
-    pdlc prompt ui-planner WORK_ITEM [--file]
-    - when revising a prior UI fragment:
-      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE --follow-up FILE|text:BODY [--file]
+    pdlc prompt ui-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    - when revising an unpublished UI fragment, such as a reviewed draft:
+      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE [--follow-up FILE|text:BODY] [--file]
 
 DESCRIPTION
     Prints the complete brief for the sub-agent that authors a record's `UI`
@@ -24,19 +24,20 @@ DESCRIPTION
     embedded parent body then omits the section, so the fragment is its only
     copy.
 
-    A rework brief names the previous UI fragment, used instead of the
-    published section, and carries the driver's verbatim follow-up. The two
-    inputs must be supplied together.
+    `--follow-up` carries the driver's verbatim request; with nothing given,
+    that section is omitted. `--current-journeys-path` names an unpublished UI
+    fragment to revise instead of the published section.
 
 FLAGS
-    --current-journeys-path FILE  existing UI fragment; required with --follow-up
-    --follow-up FILE|text:BODY    the driver's verbatim follow-up; requires --current-journeys-path
+    --current-journeys-path FILE  unpublished UI fragment to revise instead of the published section
+    --follow-up FILE|text:BODY    the driver's verbatim follow-up for this pass
     --file                  write the brief to
                             the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt ui-planner 236
+    pdlc prompt ui-planner 236 --follow-up text:"drop the offline journey"
     pdlc prompt ui-planner 236 --current-journeys-path /tmp/pdlc-ui.md --follow-up /tmp/findings.md
 """
 
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Print the UI planner's brief for a record's UI section")
     prompt.add_common_arguments(parser, COMMAND)
     parser.add_argument("--follow-up", help="the driver's verbatim follow-up (FILE or text:BODY)")
-    parser.add_argument("--current-journeys-path", metavar="FILE", help="the existing UI fragment for a rework pass")
+    parser.add_argument("--current-journeys-path", metavar="FILE", help="an unpublished UI fragment to revise")
     args = parser.parse_args(command_args)
 
     return prompt.run(
