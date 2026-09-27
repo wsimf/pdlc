@@ -29,7 +29,6 @@ Existing task tree: {{TASK_TREE}}.
 Revise the UI section at `{{FRAGMENT_PATH}}`. Read it, then edit it in place against the work item and any inputs below, preserving journeys and decisions they do not affect. Return this file.
 {{#ELSE}}
 No UI section exists yet. Author it from the parent work item above.
-{{/ELSE}}
 {{/IF}}
 {{#IF STALE_REASON}}
 

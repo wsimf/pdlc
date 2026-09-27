@@ -17,7 +17,6 @@ Work from this brief. Author the breakdown and return the task files and manifes
 Revise the task breakdown at `{{MANIFEST_PATH}}`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
 {{#ELSE}}
 No delivery tasks exist yet. Decompose the work item above into a first breakdown.
-{{/ELSE}}
 {{/IF}}
 {{#IF STALE_REASON}}
 
