@@ -75,4 +75,4 @@ TASK-001 skips the cache
 
 ## Report back
 
-Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-technical-plan-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the files you reviewed, and that file's path.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-technical-plan-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the path of the manifest you were handed to review, and the findings file path.

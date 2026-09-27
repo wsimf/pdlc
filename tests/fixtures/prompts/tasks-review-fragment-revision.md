@@ -53,4 +53,4 @@ UJ-1 lacks an offline failure state
 
 ## Report back
 
-Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-ui-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the files you reviewed, and that file's path.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-ui-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the path of the manifest or UI fragment you were handed to review, and the findings file path.
