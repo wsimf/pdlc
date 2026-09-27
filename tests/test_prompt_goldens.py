@@ -319,6 +319,17 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             self.invoke("prompt_tech_planner", "--inline", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
         )
 
+    def test_tech_planner_revision_with_findings(self):
+        self._plan_stage()
+        manifest = self.plan_manifest(60, {"TASK-002": "Own src/b.py; render the list."})
+        self.assertGolden(
+            "tech-planner-revision",
+            self.invoke(
+                "prompt_tech_planner", "--inline", 60, "--current-plan-manifest-path", manifest,
+                "--follow-up", "text:Needs Revision: TASK-002 names no test for the empty list.",
+            ),
+        )
+
     # --- plan reviewer ---
 
     def test_plan_reviewer_first_pass(self):

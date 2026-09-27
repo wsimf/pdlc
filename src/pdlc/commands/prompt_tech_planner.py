@@ -23,8 +23,11 @@ DESCRIPTION
     between `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`. A manifest
     names every file with its task's id, number, and title, and a baseline of
     the recorded body and plan; `pdlc post plan` takes that manifest. The brief
-    names the manifest and each file and whether the task is already planned;
-    it does not embed their bodies. The planner edits only the plan blocks,
+    names the manifest and each file with its task's plan status, read from
+    the file against the recorded plan: `no plan yet` when the plan block is
+    empty or still the placeholder, `planned` when it matches the recorded
+    plan, and `drafted, not yet landed` when it holds a plan the record does
+    not; it does not embed their bodies. The planner edits only the plan blocks,
     so a reconciling pass edits what it would overwrite in place. The brief
     also carries every change request the stage has received since it last
     published, read off the record; with none, that section is omitted.

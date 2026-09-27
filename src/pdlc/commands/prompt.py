@@ -703,6 +703,26 @@ def _plan_manifest_entries(manifest_path: Path, work_item: str) -> list[dict]:
     return entries
 
 
+_NO_PLAN, _DRAFTED, _PLANNED = "no plan yet", "drafted, not yet landed", "planned"
+
+
+def _task_plan_status(entry: dict, task: dict | None) -> str:
+    """Where a task's plan stands, read from its task file against its recorded plan.
+
+    An earlier pass's drafts live only in the files until they land, so the
+    record alone would call a drafted task unplanned. A file that no longer
+    parses was edited by an earlier pass, so it counts as a draft to revise.
+    """
+    recorded = stored_plan((task or {}).get("planComment"))
+    path = Path(entry["file"])
+    parsed = parse_plan_file(path.read_text(encoding="utf-8"))[0] if path.is_file() else None
+    if parsed is None:
+        return _DRAFTED if path.is_file() else (_PLANNED if recorded else _NO_PLAN)
+    if not parsed.plan:
+        return _NO_PLAN
+    return _PLANNED if same_plan(parsed.plan, recorded) else _DRAFTED
+
+
 def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manifest_path: str | None = None) -> str:
     """The brief for the sub-agent spiking the record's open tasks into plans.
 
@@ -740,9 +760,13 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
     change_sources = " and ".join(
         name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
     )
-    planned_ids = {task["taskId"] for task in scope if task["hasPlan"]}
-    unplanned = ", ".join(task["taskId"] for task in scope if not task["hasPlan"])
-    planned = ", ".join(task["taskId"] for task in scope if task["hasPlan"])
+    by_id = {task["taskId"]: task for task in tasks if task.get("taskId")}
+    statuses = {entry["id"]: _task_plan_status(entry, by_id.get(entry["id"])) for entry in entries}
+
+    def listed(status: str) -> str:
+        return ", ".join(task_id for task_id, value in statuses.items() if value == status)
+
+    unplanned, drafted, planned = listed(_NO_PLAN), listed(_DRAFTED), listed(_PLANNED)
     return render(
         "tech-planner",
         {
@@ -751,6 +775,7 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
             "PARENT_BODY": _parent_body(item).rstrip(),
             "MANIFEST_PATH": str(manifest),
             "UNPLANNED_TASKS": unplanned,
+            "DRAFTED_TASKS": drafted,
             "PLANNED_TASKS": planned,
             "PLANNED_TO_CHECK": bool(planned and change_sources),
             "PLANNED_SETTLED": bool(planned and not change_sources),
@@ -759,7 +784,7 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
                 {
                     "TASK_ID": entry["id"],
                     "TASK_TITLE": entry["title"],
-                    "TASK_STATUS": "planned" if entry["id"] in planned_ids else "no plan yet",
+                    "TASK_STATUS": statuses[entry["id"]],
                     "TASK_FILE": entry["file"],
                 }
                 for entry in entries

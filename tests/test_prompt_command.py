@@ -455,6 +455,38 @@ class PromptCommandTest(PromptHarness):
         self.assertIn(f"The manifest at `{Path(manifest).resolve()}`", result.stdout)
         self.assertIn("tighten TASK-002", result.stdout)
 
+    def test_tech_planner_revision_reads_unlanded_drafts_from_the_task_files(self):
+        # Neither task has a recorded plan; the first pass drafted TASK-001 only.
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work", body="## Scope\nBuild.\n")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Second", body="## Scope\nShow.\n")
+        manifest = self.plan_manifest(60, {"TASK-001": "Own src/a.py."})
+        entries = json.loads(Path(manifest).read_text())
+        result = self._tech_brief("--current-plan-manifest-path", manifest, "--follow-up", "text:tighten TASK-001")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn(f"- `TASK-001` — [CORE] Core work (drafted, not yet landed): `{entries[0]['file']}`", result.stdout)
+        self.assertIn(f"- `TASK-002` — [UI] Second (no plan yet): `{entries[1]['file']}`", result.stdout)
+        self.assertIn("- No plan yet (TASK-002): plan these from scratch.", result.stdout)
+        self.assertIn("- Drafted, not yet landed (TASK-001): the plan in each file is an earlier pass's draft.", result.stdout)
+        self.assertNotIn("Already planned", result.stdout)
+        # The draft is left for the planner to revise, not reset.
+        self.assertIn("Own src/a.py.", Path(entries[0]["file"]).read_text())
+
+    def test_tech_planner_revision_tells_a_revised_recorded_plan_from_an_unchanged_one(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work", body="## Scope\nBuild.\n")
+        self.seed_plan_comment(60, 601, "Touch one module.")
+        self.seed_task(60, 602, "TASK-002", "OPEN", "WORK-60-TASK-002 [UI] Second", body="## Scope\nShow.\n")
+        self.seed_plan_comment(60, 602, "Render the list.")
+        manifest = self.plan_manifest(60, {"TASK-001": "Touch two modules."})
+        result = self._tech_brief("--current-plan-manifest-path", manifest, "--follow-up", "text:tighten TASK-001")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("- `TASK-001` — [CORE] Core work (drafted, not yet landed):", result.stdout)
+        self.assertIn("- `TASK-002` — [UI] Second (planned):", result.stdout)
+        self.assertIn("- Drafted, not yet landed (TASK-001):", result.stdout)
+        self.assertIn("- Already planned (TASK-002): check each against the driver follow-up below.", result.stdout)
+        self.assertNotIn("No plan yet", result.stdout)
+
     def test_tech_planner_carries_the_stage_evidence_and_follow_up(self):
         self._plan_stage(gate="Stale")
         self.add_invalidation(60, stage="Technical Plan")

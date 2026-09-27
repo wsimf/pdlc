@@ -25,6 +25,9 @@ Write each plan in place, between its tech plan markers, replacing the placehold
 {{#IF UNPLANNED_TASKS}}
 - No plan yet ({{UNPLANNED_TASKS}}): plan these from scratch.
 {{/IF}}
+{{#IF DRAFTED_TASKS}}
+- Drafted, not yet landed ({{DRAFTED_TASKS}}): the plan in each file is an earlier pass's draft. Start from it and revise it in place; don't plan these from scratch.
+{{/IF}}
 {{#IF PLANNED_TO_CHECK}}
 - Already planned ({{PLANNED_TASKS}}): check each against the {{CHANGE_SOURCES}} below. Re-plan only the ones that are out of date, starting from the existing plan.
 {{/IF}}
