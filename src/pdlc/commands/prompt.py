@@ -751,7 +751,19 @@ def _manifest_review_tasks(manifest_path: Path, work_item: str) -> tuple[list[di
             })
             continue
         kind = entry.get("type")
-        coverage = f"{kind}, covers {', '.join(entry.get('covers') or []) or 'nothing'}, depends on {', '.join(entry.get('depends') or []) or 'nothing'}"
+        references: dict[str, list[str]] = {}
+        for field in ("covers", "depends"):
+            values = entry.get(field, [])
+            if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                raise PdlcError(
+                    f"manifest entry {task_id} {field} must be an array of strings; "
+                    "fix the manifest and rerun the reviewer"
+                )
+            references[field] = values
+        coverage = (
+            f"{kind}, covers {', '.join(references['covers']) or 'nothing'}, "
+            f"depends on {', '.join(references['depends']) or 'nothing'}"
+        )
         body = require_file(f"manifest entry {task_id} body", entry.get("body")).resolve()
         detail = f"`{body}`; {coverage}"
         tasks.append({

@@ -67,6 +67,30 @@ class PromptTasksReviewerTest(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn(f"(retain): `{Path(task_body).resolve()}`", result.stdout)
 
+    def test_manifest_coverage_and_dependencies_must_be_arrays_of_strings(self):
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        task_body = self.write_file("task1.md", "## Scope\nBuild the seam.\n")
+        cases = (
+            ("covers", "FR-1"), ("covers", ["FR-1", 1]),
+            ("depends", "TASK-002"), ("depends", ["TASK-002", None]),
+        )
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                manifest = self.write_file(
+                    "manifest.json",
+                    json.dumps([{
+                        "id": "TASK-001", "title": "Build it", "body": task_body,
+                        "type": "core", field: value,
+                    }]),
+                )
+                result = self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest)
+                self.assertNotEqual(result.code, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(
+                    f"manifest entry TASK-001 {field} must be an array of strings; fix the manifest and rerun the reviewer",
+                    result.stderr,
+                )
+
     def test_a_fragment_path_is_named_and_the_parent_ui_section_dropped(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
         result = self.invoke("prompt_tasks_reviewer", 60, "--fragment", "text:**UI Phase:** Not required.")

@@ -91,7 +91,7 @@ A patch keeps the shape later stages were built on, and a change to it is
 refused with a pointer to `pdlc post invalidate`: a UI patch keeps the landed
 applicability (--no-ui or not) and, when --impact is required and its verdict
 is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task by `id`, adds and
-removes none, and keeps each task's `ui`. Only titles and bodies change. A
+removes none, and keeps each task's `type`. Only titles and bodies change. A
 refusal writes nothing.
 
 An existing task may be carried as `"action": "retain"`, with its generated
@@ -239,7 +239,7 @@ def _check_tasks_patch(manifest: list[dict], existing: list[dict]) -> None:
     for task in manifest:
         if task.get("ui") is not task_title(landed[task["id"]]).startswith(UI_TAG):
             raise PdlcError(
-                f"a patch must keep each task's ui flag, but {task['id']} changes it; "
+                f"a patch must keep each task's type, but {task['id']} changes it; "
                 "return Tasks to Stale with `pdlc post invalidate` instead"
             )
 
