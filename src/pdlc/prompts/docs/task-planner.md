@@ -26,6 +26,12 @@ The published Tasks stage was invalidated for this reason. Reconcile the breakdo
 
 {{STALE_REASON}}
 {{/IF}}
+{{#IF UPSTREAM_CHANGES}}
+
+### Changed since last publish
+
+{{INCLUDE:shared/changed-since-publish.md}}
+{{/IF}}
 {{#IF CHANGE_REQUESTS}}
 
 ### Change requests

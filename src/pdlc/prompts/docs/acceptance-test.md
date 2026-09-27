@@ -29,6 +29,12 @@ source file, type, and seam → why it needs coverage.
 
 - Task numbers and parent work item number: {{TASK_NUMBERS}} in `{{PARENT_WORK_ITEM}}`.
 - Implementation PRs: {{PULL_REQUESTS}}.
+{{#IF UPSTREAM_CHANGES}}
+
+## Changed since last publish
+
+{{INCLUDE:shared/changed-since-publish.md}}
+{{/IF}}
 {{#IF FINDINGS}}
 
 ## Findings to address

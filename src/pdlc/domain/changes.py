@@ -24,6 +24,11 @@ publishes has a passing review of that publication (`approval_gap`). A gate
 that claims more than this evidence shows is reported, never corrected, by
 `evidence_warnings`.
 
+Upstream changes are the other half of what a re-running stage must see: an
+upstream stage patched or invalidated since this stage last published
+(`upstream_changes`). They are context, never requests, so approval ignores
+them.
+
 Comments written before the stage lines existed fall back to inference: a
 resolution belongs to the newest decision-required review before it, and a CI
 note to the stage its sentence names. Nothing here does I/O.
@@ -44,6 +49,7 @@ from pdlc.domain.workflow import Pipeline, State
 _CI_STAGE_LINE = re.compile(r"^CI failed stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _RESOLVED_STAGE_LINE = re.compile(r"^Resolved stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _INVALIDATED_STAGE_LINE = re.compile(r"^Invalidated stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+_PATCHED_STAGE_LINE = re.compile(r"^Patched stage:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 
 
 # How each request source reads to a person or agent, shared by
@@ -130,6 +136,41 @@ def open_change_requests(comments: list[dict[str, Any]], pipeline: Pipeline, sta
     )
     published = tagged[published_at] if published_at is not None else None
     return OpenChanges(stage, published, open_requests)
+
+
+def upstream_changes(comments: list[dict[str, Any]], pipeline: Pipeline, stage: str) -> tuple[dict[str, Any], ...]:
+    """The `PDLC-PATCHED` and `PDLC-INVALIDATED` comments naming a stage
+    upstream of `stage` — one whose change leaves `stage`'s evidence stale —
+    posted since `stage` last published, oldest first.
+
+    These are context for a stage re-running over its own published work, not
+    requests aimed at it, so approval never reads them. A stage that never
+    published has none: its first pass reads the whole work item anyway.
+    `stage`'s own invalidation is a change request (`open_change_requests`).
+    """
+    policy = pipeline.invalidation_policy
+    upstream = {name for name in pipeline.all_stage_names if policy and stage in policy.dependencies_for(name)}
+    marker = pipeline.marker_for_stage(stage)
+    published = False
+    changes: list[dict[str, Any]] = []
+    for comment in marked_comments(comments):
+        kind = comment["marker"]
+        if kind == marker and (marker != "REVIEW" or _reviews(comment["body"], stage)):
+            published = True
+            changes = []
+            continue
+        pattern = {"PATCHED": _PATCHED_STAGE_LINE, "INVALIDATED": _INVALIDATED_STAGE_LINE}.get(kind)
+        if pattern and _stage_named(pipeline, _line(pattern, comment["body"])) in upstream:
+            changes.append(comment)
+    return tuple(changes) if published else ()
+
+
+def _reviews(body: str, stage: str) -> bool:
+    """Whether a `PDLC-REVIEW` body is `stage`'s own review — Verification's publication."""
+    try:
+        return parse_review(body).stage == stage
+    except PdlcError:
+        return False
 
 
 def publication_gap(comments: list[dict[str, Any]], pipeline: Pipeline, stage: str) -> str | None:

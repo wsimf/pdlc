@@ -27,6 +27,10 @@ DESCRIPTION
     record cannot carry, such as a red check's name and log excerpt. With
     neither, the section is omitted.
 
+    The brief also carries every patch or invalidation of an upstream stage
+    since this stage last published, under `Changed since last publish`; with
+    none, or before its first publication, that section is omitted.
+
 FLAGS
     --traceability FILE|text:BODY  the traceability map the coverage is written
                             against; required

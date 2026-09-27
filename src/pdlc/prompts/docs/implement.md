@@ -20,6 +20,12 @@ Implement the task below directly and return one report.
   Project design-system and platform constraints are already covered by
   `AGENTS.md` / `CLAUDE.md`.
 
+{{#IF UPSTREAM_CHANGES}}
+## Changed since last publish
+
+{{INCLUDE:shared/changed-since-publish.md}}
+
+{{/IF}}
 {{#IF FINDINGS}}
 ## Findings to address
 

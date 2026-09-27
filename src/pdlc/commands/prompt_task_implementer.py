@@ -27,6 +27,11 @@ DESCRIPTION
     - open change requests against the stage get the triage brief, carrying every
       request and the whole task stack with each branch and plan.
 
+    The implementation brief also carries every patch or invalidation of an
+    upstream stage since this stage last published, under `Changed since last
+    publish`; with none, or before its first publication, that section is
+    omitted.
+
 EXAMPLES
     pdlc prompt task-implementer 236
 """

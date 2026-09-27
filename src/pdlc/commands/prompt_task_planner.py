@@ -18,6 +18,9 @@ DESCRIPTION
     manifest and lists task titles; it does not embed their bodies.
     The brief also carries every open change request the Tasks stage has
     received since it last published; with none, that section is omitted.
+    It also carries every patch or invalidation of an upstream stage
+    since this stage last published, under `Changed since last publish`; with
+    none, or before its first publication, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
     with nothing given, or a reviewer's findings file still holding its unfilled
