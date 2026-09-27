@@ -13,9 +13,39 @@ The caller provides one generated prompt file; read it before any other planning
 
 ## Required input
 
-The prompt file carries the parent work item number and complete body, a manifest naming one task file for every task in scope, and any change requests and driver follow-up verbatim. Each task file holds the task's full current body between `--- BEGIN TASK ---` and `--- END TASK ---`, then its existing plan, or a placeholder comment, between `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`. If the prompt file or a file it names is missing or unreadable, stop and report that rather than rebuilding the brief from other sources.
+The prompt file carries the parent work item number and complete body, the manifest path, and any change requests and driver follow-up verbatim. If the prompt file or a file it names is missing or unreadable, stop and report that rather than rebuilding the brief from other sources.
 
 If given a follow-up (e.g. "re-spike TASK-003", "the last plan was wrong about the tile cache"), scope your spike to it instead of re-planning every task — but you must not leave an open, unimplemented task with no plan at all, counting plans already recorded.
+
+## Manifest and task files
+
+pdlc generates the manifest and every task file before you start. The manifest is a JSON array with one entry per open, unimplemented task, lowest in the stack first; read it to find each task's file, and never edit it.
+
+| Field | Type | Contract |
+| --- | --- | --- |
+| `id` | string `TASK-NNN` | The task's stable identity. |
+| `number` | integer | The task's work-item number. |
+| `title` | string | The task's title. |
+| `file` | string file path | The task file that holds the task body and its plan. |
+| `baseline` | string | Fingerprint of the task body and plan as recorded when the files were generated. |
+
+Each task file holds exactly two blocks:
+
+```markdown
+--- BEGIN TASK ---
+
+<the task's current body>
+
+--- END TASK ---
+
+--- BEGIN TECH PLAN ---
+
+<the task's recorded plan, or a placeholder comment when it has none>
+
+--- END TECH PLAN ---
+```
+
+Write each plan in place, between its tech plan markers, replacing the placeholder comment in a task with no plan yet. HTML comments in the plan block are dropped when the plan lands. A task whose plan block you leave unchanged keeps its recorded plan.
 
 ## Working boundary
 
@@ -25,12 +55,11 @@ Treat current source as the source of truth if it conflicts with the parent work
 
 ## Orient and select work
 
-1. Read the entire parent work item body: problem, goals, prior art & reuse, `FR-*`, `C-*`, non-goals, design considerations, assumptions, success metrics, the `UI` section and its `UJ-*` journeys, Decisions, and Open Questions. Then read every task file you were handed.
+1. Read the entire parent work item body: problem, goals, prior art & reuse, `FR-*`, `C-*`, non-goals, design considerations, assumptions, success metrics, the `UI` section and its `UJ-*` journeys, Decisions, and Open Questions. Then read the manifest and every task file it names; those are the only tasks to plan.
 2. Inspect `git status --short`, and preserve unrelated dirty work.
 3. Use targeted history across all branches to recover prior decisions — the record states current intent, not how it got there. Search on the record's title, task ids, feature terms, named types, files, branches, and commits: `git log --oneline --decorate --all --grep='<terms>'`. Read the stats and diffs of the commits that actually explain current state.
-4. Ignore any task that is already closed or already carries a `## Implementation` comment (`hasImplementation`) — never write a plan for completed work.
-5. If no unfinished task remains in scope, still check the Product section for a surviving Assumptions subsection before exiting. If one is present, resolve it per **Resolve assumptions** below — that is your responsibility and nothing downstream does it. Otherwise report that the record appears fully planned and leave the task files unchanged.
-6. For every task in scope, confirm its dependencies, `FR-*`/`C-*`/`UJ-*` coverage, and ordering. Surface an invalid dependency graph, a prerequisite that source shows is absent, or an unresolved product decision as a blocker rather than inventing a solution.
+4. Check the Product section for a surviving Assumptions subsection, and resolve it per **Resolve assumptions** below — that is your responsibility and nothing downstream does it.
+5. For every task in scope, confirm its dependencies, `FR-*`/`C-*`/`UJ-*` coverage, and ordering. Surface an invalid dependency graph, a prerequisite that source shows is absent, or an unresolved product decision as a blocker rather than inventing a solution.
 
 ## Technical spike
 
@@ -65,15 +94,18 @@ A record whose plans leave your hands carries no Assumptions subsection at all.
 
 ## Write the plans
 
-For every task planned, write only that task's plan content between its tech plan markers, replacing any placeholder comment — no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
+For every task planned, write only that task's plan content between its tech plan markers — no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
+
+A plan block might read like this, where each path is a source file the task changes:
 
 ```markdown
-1. `path/to/File` — <specific type/member/behavior to change and why>.
-2. `path/to/Other` — <integration, ownership, or data-flow change>.
-3. Tests: `path/to/Tests` — <behaviors and edge cases to cover>.
+1. `path/to/SourceFile` — <specific type, member, or behavior to change>.
+2. `path/to/OtherSourceFile` — <interface, call site, integration, ownership, or data-flow change>.
+3. Tests: `path/to/TestFile` — <behaviors and edge cases, mapped to the acceptance criteria>.
 
 **Validation:** <focused tests, build target, and required runtime/visual check>
-**Dependencies / risks:** <concrete blockers, assumptions, or driver decisions, or None>
+**Migration / rollback:** <data or contract migration and how to back it out, or None>
+**Dependencies / risks:** <sequencing against other tasks, concrete blockers, or driver decisions, or None>
 ```
 
 - Name exact existing files and types whenever the spike identifies them. If a new file is required, give its proposed package/folder and responsibility.

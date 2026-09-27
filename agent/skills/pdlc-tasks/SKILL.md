@@ -27,13 +27,11 @@ Follow `# Due Next` for what to do, whatever produced that state, including a re
 
 - Names authoring or reauthoring (`Pending`, `Stale`): author the artifact.
 - Names the review procedure (`Review Required`): the artifact was published without its local review. Go straight to Review, omitting `--manifest` and `--fragment` so the reviewer gets the published artifact as it stands, and take the file paths from its report; on a clean verdict, Validate and Land those files unchanged. For UI, pass `--no-ui` exactly when the published section names no `UJ-N` journey.
-- Says the work item needs changes (`Changes Required`): reconcile against the recorded evidence, the same as `Stale`, then continue through Author onward.
+- Says the work item needs changes (`Changes Required`): go to Author.
 - Names user approval (`Approval Required`): re-author only when the driver explicitly requests an artifact change in this turn; Without that request, it's a human boundary: report it and stop.
 - Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
 
 Any other due next result, malformed record, missing evidence, unavailable workflow, or backend error is a blocker.
-
-Carry the driver's follow-up verbatim. For `Stale`, reconcile against the existing artifact and the recorded stale reason; preserve settled or implemented task scope unless the owning contract permits its change. This step is complete when the valid authoring mode and exact follow-up are included in the dispatch.
 
 ## Author
 

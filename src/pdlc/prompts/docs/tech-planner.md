@@ -65,6 +65,8 @@ A change the driver asked for, or findings from a review of your plans, verbatim
 
 {{INCLUDE:shared/plan-design.md}}
 
+{{INCLUDE:shared/design-red-flags.md}}
+
 ## Writing a plan
 
 Each plan covers:
