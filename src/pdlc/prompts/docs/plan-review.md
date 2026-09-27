@@ -57,6 +57,12 @@ This is a re-review. The findings below were raised against the previous version
 - Every spike assumption is resolved, or recorded as an open question.
 - No blocking decision is left unanswered.
 - Nothing quietly contradicts approved Product or UI intent.
+- The safety fact the plan names is backed by evidence. Grade it: only stated, pointed at a `file:line`, or failure path walked step by step. A risky change whose safety is only stated is a finding.
+- The plan follows the design guidance below. The planner was given the same guidance; use it as your rubric for the plan's shape. A plan that breaks it without saying why is a finding.
+
+{{INCLUDE:shared/plan-design.md}}
+
+{{INCLUDE:shared/design-red-flags.md}}
 
 ## Report back
 

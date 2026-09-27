@@ -50,6 +50,61 @@ Do not edit the manifest or any task file. Only files left exactly as they were 
 - Every spike assumption is resolved, or recorded as an open question.
 - No blocking decision is left unanswered.
 - Nothing quietly contradicts approved Product or UI intent.
+- The safety fact the plan names is backed by evidence. Grade it: only stated, pointed at a `file:line`, or failure path walked step by step. A risky change whose safety is only stated is a finding.
+- The plan follows the design guidance below. The planner was given the same guidance; use it as your rubric for the plan's shape. A plan that breaks it without saying why is a finding.
+
+## Designing the plan
+
+Plan the approach, not the code: name where the change goes and what it affects, and leave types, signatures, and line-level edits to the implementer.
+
+- Plan the change as if the task's requirement had been in the design from the start. Don't bolt it onto the current shape when the current shape is what makes it awkward.
+- Name the module that owns the new behaviour. Put a decision behind one source of truth rather than repeating it across several places.
+- Subtract before you add. When the task replaces existing behaviour, plan the removal first when it simplifies what follows, or alongside its replacement.
+- When the task replaces an internal API, plan to migrate its callers and delete the old one in the same task. Don't plan a compatibility shim kept only for internal callers.
+- Prefer the smallest change that satisfies the task. Don't plan a wrapper, layer, or abstraction with one caller, or thread a new signal through types, schemas, or pipelines when a direct path exists.
+- Where the codebase has no precedent for a decision, name the alternative you rejected and why it lost. Judge it by the complexity it would expose to callers against the complexity it would hide, not by how simple it is to implement.
+- Look for what the change can break beyond its call sites: persisted data, wire formats, config, flags, and code that reads the same data. Name the one fact the change's safety depends on and the check that proves it.
+- When the task touches a command, lifecycle step, or anything that can be retried or run concurrently, state what happens if it runs twice or stops halfway.
+- When the task adds a case to existing branching logic, plan the structure that owns the cases — a state machine, lookup table, or single model — instead of one more branch or a second flag that must stay in sync with the first.
+- Plan validation and parsing at the boundary where data enters (CLI, config, external API), and keep the rules themselves out of the I/O layer.
+- When two actors could write the same file, branch, key, or record, plan to give each its own target before planning a lock.
+- If the plan keeps a temporary compatibility path between stacked tasks, name the task that removes it.
+
+Where one of these and a task conflict, say so in the plan rather than planning around it.
+
+## Design red flags
+
+Screen every module, interface, or layer the plan introduces or reshapes. A red flag is a reason to revise or reject the shape.
+
+### Shallow module
+
+A shallow module exposes a large interface while hiding little complexity. Judge depth by the capability and policy hidden behind the public surface relative to the size of that surface. Prefer a simple interface backed by substantial behavior.
+
+Do not confuse a deep module with a deep call chain. A deep call chain scatters understanding across layers. A deep module concentrates capability behind one interface.
+
+Look for these signs:
+
+- Callers coordinate several methods to complete one operation.
+- Public options expose internal stages or implementation choices.
+- Learning the interface does not save the caller from learning the implementation.
+
+### Information leakage
+
+Information leakage makes multiple modules depend on the same internal decision. A representation, policy, or protocol detail appears in more than one place, so changing it requires coordinated edits.
+
+Public re-exports of transport or wire types are leakage. Parse external data into domain types behind the interface. Keep storage schemas, framework objects, and protocol details private.
+
+### Temporal decomposition
+
+Temporal decomposition organizes modules by execution order instead of the knowledge they own. Separate load, validate, transform, and save stages often repeat one representation and its invariants across several boundaries.
+
+Group code around domain knowledge and ownership. Methods that run at different times can still belong to one module when they protect the same decisions.
+
+### Pass-through method
+
+A pass-through method forwards the same arguments to another method with the same shape. It adds a layer without hiding complexity.
+
+Remove it or move responsibility to the module that can complete the operation. Keep a forwarding boundary only when it adds policy, adaptation, or a distinct abstraction.
 
 ## Report back
 
