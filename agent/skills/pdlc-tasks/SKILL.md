@@ -26,7 +26,7 @@ Read the resolved `Status`, `Gate State`, `# Due Next`, parent body, and existin
 Follow `# Due Next` for what to do, whatever produced that state, including a record edited outside PDLC:
 
 - Names authoring or reauthoring (`Pending`, `Stale`): author the artifact.
-- Names the review procedure (`Review Required`): skip straight to Review with the existing artifact; do not author or validate first.
+- Names the review procedure (`Review Required`): the artifact was published without its local review. Go straight to Review, omitting `--manifest` and `--fragment` so the reviewer gets the published artifact as it stands, and take the file paths from its report; on a clean verdict, Validate and Land those files unchanged. For UI, pass `--no-ui` exactly when the published section names no `UJ-N` journey.
 - Says the work item needs changes (`Changes Required`): reconcile against the recorded evidence, the same as `Stale`, then continue through Author onward.
 - Names user approval (`Approval Required`): re-author only when the driver explicitly requests an artifact change in this turn; Without that request, it's a human boundary: report it and stop.
 - Names a user decision (`Decision Required`): a human boundary. Report it, point the driver at `pdlc guide decisions`, and stop.
@@ -72,7 +72,7 @@ The dry run must be clean before review; it writes nothing. Send every failure b
 
 ## Review
 
-Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
+Dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer WORK_ITEM [--manifest FILE | --fragment FILE] [--findings FILE] --file` writes — `--manifest` for a Tasks breakdown, `--fragment` for a UI section, neither only on the `Review Required` path; `--findings` carries the prior pass's findings on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only.
 
 On `Changes`, send the findings verbatim to the same planner by re-running its own `prompt` brief command — `ui-planner` with the current UI fragment path, or `task-planner` with the current task manifest path — and the findings as its follow-up. Repeat Validate and Review on those same files. On `Clean`, land those files unchanged; pdlc refuses files that changed since their review. If a command reports that reviewed files changed, it has already restored them: follow its instructions and redo the review. After two failed reconciliation passes, stop and put the decision to the driver. The review step is complete only when the actual files have a clean reviewer verdict within two reconciliations.
 

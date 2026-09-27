@@ -117,8 +117,15 @@ class PromptTasksReviewerTest(FileBackendTest):
         self.assertIn("tighten UJ-1", result.stdout)
         self.assertIn("### Prior findings", result.stdout)
 
-    def test_refuses_when_both_or_neither_artifact_flag_is_given(self):
+    def test_refuses_both_artifact_flags(self):
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        ui = self.write_file("ui.md", "content")
+        result = self.invoke("prompt_tasks_reviewer", 60, "--manifest", ui, "--fragment", ui)
+        self.assertNotEqual(result.code, 0)
+        self.assertIn("at most one of --manifest or --fragment", result.stderr)
+
+    def test_without_a_flag_an_unpublished_artifact_is_refused(self):
         self.seed_record(60, "Tasks", "Pending", slug="record-60")
         result = self.invoke("prompt_tasks_reviewer", 60)
         self.assertNotEqual(result.code, 0)
-        self.assertIn("exactly one of --manifest or --fragment", result.stderr)
+        self.assertIn("no delivery tasks are published to review; pass --manifest FILE", result.stderr)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from tests._support import FileBackendTest
@@ -74,3 +75,13 @@ class UiReviewStampTest(FileBackendTest):
         self.assertEqual(landed.code, 1)
         self.assertIn("has not been reviewed", landed.stderr)
         self.assertIn("revised by the planner", Path(fragment).read_text(encoding="utf-8"))
+
+    def test_without_a_fragment_the_published_section_is_reviewed_and_lands_unchanged(self):
+        self.seed_record(60, "UI", "Review Required", slug="record-60")
+        brief = self.invoke("prompt_tasks_reviewer", 60)
+        self.assertEqual(brief.code, 0, brief.stderr)
+        fragment = re.search(r"section at `([^`]+)`", brief.stdout).group(1)
+        self.assertIn("UJ-1", Path(fragment).read_text(encoding="utf-8"))
+        landed = self._land(60, fragment)
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertEqual(landed.json["gateState"], "Approval Required")

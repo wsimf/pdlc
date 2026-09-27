@@ -3,14 +3,17 @@
     pdlc prompt tasks-reviewer - print the reviewer's brief for a UI fragment or Tasks breakdown; nothing is published to the backend
 
 USAGE
-    pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE|text:BODY] [--file]
+    - if reviewing a local, unpublished breakdown or UI fragment:
+        pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE|text:BODY] [--file]
+    - if reviewing the published UI section or breakdown as it stands:
+        pdlc prompt tasks-reviewer WORK_ITEM [--findings FILE|text:BODY] [--file]
 
 DESCRIPTION
     Prints the complete brief for the reviewer checking a UI fragment or
     Tasks breakdown before it is posted to the work item store. The output is
     sent to that sub-agent verbatim.
 
-    Exactly one of `--manifest` or `--fragment` is required: `--manifest`
+    At most one of `--manifest` or `--fragment` is given: `--manifest`
     names the Tasks-stage manifest `pdlc post tasks --stage Tasks` takes; the
     brief lists each entry's body file path rather than inlining it, except a
     removed task's stored body, which has no file of its own and is inlined.
@@ -20,6 +23,12 @@ DESCRIPTION
     complete body is always inlined, so the reviewer can check every cited
     `FR-*`/`C-*`/`UJ-*` without a second read; for a fragment review, the
     parent's own `## UI` section is left out, since the fragment replaces it.
+
+    With neither, the command writes the artifact the record's status names —
+    the published `## UI` section, or a manifest retaining every published
+    task — to fresh files in the work-item cache and names them in the brief,
+    so a published artifact can be reviewed and landed unchanged. It refuses
+    when the record is at neither stage or has nothing published.
 
     The command records the exact files it hands the reviewer in the work-item
     cache — the fragment, or the manifest and its task body files — and
@@ -43,6 +52,7 @@ FLAGS
 EXAMPLES
     pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json
     pdlc prompt tasks-reviewer 236 --fragment /tmp/pdlc-ui.md
+    pdlc prompt tasks-reviewer 236 --file
     pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json --findings text:"tighten TASK-2"
 """
 

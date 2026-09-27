@@ -68,6 +68,19 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(landed.json["unchanged"], ["TASK-001", "TASK-002"])
 
+    def test_without_a_manifest_the_published_breakdown_is_reviewed_and_lands_unchanged(self):
+        self.seed_record(41, "Tasks", "Review Required", body=NO_UI_BODY)
+        self.seed_task(41, 411, "TASK-001", "OPEN", "WORK-41-TASK-001 [CORE] Keep seam", body=TASK_BODY)
+        brief = self.invoke("prompt_tasks_reviewer", 41)
+        self.assertEqual(brief.code, 0, brief.stderr)
+        match = re.search(r"task breakdown at `([^`]+)`", brief.stdout)
+        self.assertIsNotNone(match, brief.stdout)
+        landed = self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
+                             "--manifest", match.group(1), "--evidence", self.evidence_file())
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertEqual(landed.json["unchanged"], ["TASK-001"])
+        self.assertEqual(self.state(41), ("Tasks", "Approval Required"))
+
     def test_a_new_planning_pass_needs_a_new_review(self):
         path, entries = self._generated()
         self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)

@@ -53,9 +53,10 @@ DESCRIPTION
 
     `tasks-reviewer` and `plan-reviewer` review a local, not-yet-landed
     artifact against the parent's own body, the same way `product-reviewer`
-    does; `tasks-reviewer` takes exactly one of `--manifest` (a Tasks
+    does; `tasks-reviewer` takes at most one of `--manifest` (a Tasks
     breakdown) or `--fragment` (a UI section), since one reviewer checks both
-    artifacts. `cumulative-reviewer` and `ui-journey-reviewer` brief the two
+    artifacts. Without one, either reviews the published artifact as it
+    stands. `cumulative-reviewer` and `ui-journey-reviewer` brief the two
     sub-agents a Verification pass dispatches; both sub-agents know nothing
     about PDLC, so the record's `FR-*`/`C-*` intent and a one-sentence account
     of what shipped arrive as flags in plain language rather than being
@@ -868,18 +869,40 @@ def _manifest_body_files(manifest_path: Path) -> list[Path]:
     ]
 
 
+def _published_review_files(work_item: str) -> tuple[str | None, str | None]:
+    """Fresh files holding the published UI section or task breakdown, whichever
+    the record's status names, as (manifest, fragment)."""
+    item, tasks, _ = record_snapshot(work_item)
+    status = item_status(item)
+    if status == UI_STAGE:
+        published = read_section(_parent_body(item), "UI")
+        if not published.strip():
+            raise PdlcError("no UI section is published to review; pass --fragment FILE")
+        return None, str(write_scratch(scratch_path(work_item, "tasks-review-fragment"), published))
+    if status == TASKS_STAGE:
+        manifest = _task_planner_manifest(work_item, [task for task in tasks if task.get("taskId")])
+        if not manifest:
+            raise PdlcError("no delivery tasks are published to review; pass --manifest FILE")
+        return manifest, None
+    raise PdlcError(f"no UI section or task breakdown is due: the record is at {status or 'an unset status'}; pass --manifest or --fragment")
+
+
 def tasks_reviewer_brief(
     work_item: str, manifest: str | None, fragment: str | None, findings: str | None,
 ) -> str:
     """The brief for the reviewer checking a UI fragment or Tasks breakdown
-    before it lands. Pass exactly one of `manifest` (the Tasks breakdown) or
+    before it lands. Pass at most one of `manifest` (the Tasks breakdown) or
     `fragment` (the UI section's content) — the two artifacts this reviewer
-    checks, never both in the same pass. The reviewer reads the artifact from
-    its files rather than a copy inlined in the brief. The fragment must be a
-    file, since the stage lands that same file.
+    checks, never both in the same pass. With neither, the artifact the record's
+    status names is written to fresh files as published, for review as it
+    stands. The reviewer reads the artifact from its files rather than a copy
+    inlined in the brief. The fragment must be a file, since the stage lands
+    that same file.
     """
-    if bool(manifest) == bool(fragment):
-        raise PdlcError("pass exactly one of --manifest or --fragment")
+    if manifest and fragment:
+        raise PdlcError("pass at most one of --manifest or --fragment")
+    if not manifest and not fragment:
+        manifest, fragment = _published_review_files(work_item)
     manifest_path = str(require_file("--manifest", manifest).resolve()) if manifest else ""
     if manifest_path:
         restore_reviewed(
