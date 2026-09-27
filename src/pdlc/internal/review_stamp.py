@@ -3,7 +3,10 @@ what was reviewed and a reviewer's edits can be undone.
 
 One JSON stamp per work item and stage sits in the work-item cache:
 `{"stage", "workItem", "files": {absolute path: content}}`. The reviewer's
-brief command writes it; the planner's brief command restores any edit made
+brief command writes it, first restoring any edit made since the last review,
+or, while the record is past the stage, clearing the stamp instead, since a
+patch's author revises the draft between reviews; the planner's brief command
+restores any edit made
 since and clears it, because a new planning pass begins; the stage's post
 command restores any edit made since, and a real landing requires the stamp to
 cover the file it lands (the manifest, or the UI fragment), then clears it.
@@ -90,12 +93,14 @@ def _rejected_copy(path: Path) -> Path:
     return path.with_name(f"{path.stem}.rejected{path.suffix}")
 
 
-def restore_reviewed(work_item: str, stage: str, rereview: str, replan: str) -> None:
+def restore_reviewed(work_item: str, stage: str, rereview: str, replan: str | None) -> None:
     """Undo any change to a reviewed file, then refuse so the review is redone.
 
-    With no stamp there is nothing reviewed to protect. An edited file is kept
-    beside the restored one as `<name>.rejected<suffix>`, so nothing is lost.
-    `rereview` and `replan` are the reviewer's and planner's brief commands.
+    With no stamp there is nothing reviewed to protect, and a file since
+    deleted is left deleted. An edited file is kept beside the restored one as
+    `<name>.rejected<suffix>`, so nothing is lost. `rereview` and `replan` are
+    the reviewer's and planner's brief commands; `replan` is None for a patch,
+    whose author revises the draft itself between reviews.
     """
     files = _read(work_item, stage)
     if files is None:
@@ -103,11 +108,12 @@ def restore_reviewed(work_item: str, stage: str, rereview: str, replan: str) -> 
     restored: list[str] = []
     for name, reviewed in files.items():
         path = Path(name)
-        current = path.read_text(encoding="utf-8") if path.is_file() else None
+        if not path.is_file():
+            continue
+        current = path.read_text(encoding="utf-8")
         if current == reviewed:
             continue
-        if current is not None:
-            _rejected_copy(path).write_text(current, encoding="utf-8")
+        _rejected_copy(path).write_text(current, encoding="utf-8")
         path.write_text(reviewed, encoding="utf-8")
         restored.append(name)
     if restored:
@@ -120,8 +126,13 @@ def restore_reviewed(work_item: str, stage: str, rereview: str, replan: str) -> 
             " <name>.rejected<suffix>. Nothing was written to the record.\n"
             "Discard that review's verdict and findings, then re-dispatch the reviewer with a fresh brief:\n"
             f"  {rereview}\n"
-            "If the planner made these edits, it did so without a fresh planning brief: start every planning pass"
-            f" with `{replan}`, then carry the edits over from the .rejected copies."
+            + (
+                "If the planner made these edits, it did so without a fresh planning brief: start every planning pass"
+                f" with `{replan}`, then carry the edits over from the .rejected copies."
+                if replan is not None
+                else "If you made these edits as the patch's author, carry them over from the .rejected copies and"
+                " re-run that brief, which hands the revised draft to the reviewer."
+            )
         )
 
 

@@ -100,9 +100,9 @@ Writes:
 1. If re-authoring from Review/Approval Required: `set_state` → UI / Stale.
 2. `write_body` with the `## UI` section spliced in.
 3. `PDLC-UI` comment.
-4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Approval Required, then the local review stamp is cleared.
+4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Approval Required. Either way, the local review stamp is then cleared and the findings file deleted.
 
-Before any write, a non-patch post restores a reviewed `--body` edited since its review and refuses, and a real post refuses a `--body` the reviewer was not handed; neither touches the record.
+Before any write, a post restores a reviewed `--body` edited since its review and refuses, and a real post refuses a `--body` the reviewer was not handed; neither touches the record.
 
 Check: `pdlc inspect N` and `pdlc inspect timeline N`, as for `post write`.
 
@@ -110,7 +110,7 @@ Re-run: safe while the stamp remains, that is before step 4 completes; may dupli
 
 ### `pdlc post tasks --stage Tasks`
 
-Without `--patch`, before any write it restores a reviewed file edited since its review and refuses a manifest the reviewer was not handed; both are local and leave the record untouched.
+Before any write it restores a reviewed file edited since its review and refuses a manifest the reviewer was not handed; both are local and leave the record untouched.
 
 Writes:
 1. If re-authoring: `set_state` → Tasks / Stale.
@@ -119,7 +119,7 @@ Writes:
 4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it (GitHub: as not planned; Azure: `task_removed_state`, else the task closed state) → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
 6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Approval Required.
-7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run — and clear the review stamp.
+7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run — then clear the review stamp and delete the findings file.
 
 Partial failure:
 - In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.

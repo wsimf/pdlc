@@ -16,7 +16,9 @@ Write the corrected artifact yourself, in exactly the input form its landing com
 
 ## Step 2: Review the draft
 
-Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Revise the draft on findings and re-review, running the `pdlc prompt` command afresh for every dispatch and never reusing an earlier brief; a re-review may go back to the same reviewer. After three failed passes, stop and put the defect to the driver. The clean review is the `--evidence` body.
+Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Run the `pdlc prompt` command afresh for every dispatch and never reuse an earlier brief; a re-review may go back to the same reviewer. The Product reviewer replies with its findings and verdict; the UI and Tasks reviewer writes its findings to a file and replies with its verdict and that file's path.
+
+On `Changes Required` or `Needs Revision`, revise the draft yourself from the findings and re-review, passing the previous findings with `--findings`. After three failed passes, stop and put the defect to the driver. On `Approval Required` or `Ready to Land`, the draft lands exactly as last reviewed, so do not touch it again. The clean review is the `--evidence` body: copy it to its own file before landing, since landing deletes the findings file.
 
 ## Step 3: Judge the impact
 

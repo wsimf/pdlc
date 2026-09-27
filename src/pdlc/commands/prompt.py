@@ -919,6 +919,20 @@ def _filled_text(value: str | None, label: str, review: str) -> str:
     return "" if text == _findings_outline(review).strip() else text
 
 
+def _restore_or_restart(work_item: str, stage: str, status: str | None, rereview: str, replan: str) -> None:
+    """Protect the files handed to the stage's last review before a new one.
+
+    At the stage itself, an edit since that review is undone and refused, since
+    only a planning brief starts a new pass. From a later stage the review is of
+    a patch, whose author revises the draft itself, so its revision starts the
+    new pass here instead.
+    """
+    if status == stage:
+        restore_reviewed(work_item, stage, rereview, replan)
+    else:
+        clear_stamp(work_item, stage)
+
+
 def _published_review_files(work_item: str) -> tuple[str | None, str | None]:
     """Fresh files holding the published UI section or task breakdown, whichever
     the record's status names, as (manifest, fragment)."""
@@ -954,12 +968,13 @@ def tasks_reviewer_brief(
     if not manifest and not fragment:
         manifest, fragment = _published_review_files(work_item)
     manifest_path = str(require_file("--manifest", manifest).resolve()) if manifest else ""
+    item = resolve_item(work_item)
+    status = item_status(item)
     if manifest_path:
-        restore_reviewed(
-            work_item, TASKS_STAGE,
+        _restore_or_restart(
+            work_item, TASKS_STAGE, status,
             tasks_reviewer_command(work_item, manifest_path), tasks_planner_command(work_item, manifest_path),
         )
-    item = resolve_item(work_item)
     parent_body = _parent_body(item)
     tasks, removed = _manifest_review_tasks(Path(manifest_path), work_item) if manifest else ([], [])
     if manifest_path:
@@ -969,8 +984,8 @@ def tasks_reviewer_brief(
         if fragment.startswith("text:") or fragment == "-":
             raise PdlcError("--fragment takes the UI fragment's FILE, the same file `pdlc post tasks --stage UI --body` lands")
         fragment_path = str(require_file("--fragment", fragment).resolve())
-        restore_reviewed(
-            work_item, UI_STAGE,
+        _restore_or_restart(
+            work_item, UI_STAGE, status,
             ui_reviewer_command(work_item, fragment_path), ui_planner_command(work_item, fragment_path),
         )
         write_stamp(work_item, UI_STAGE, [Path(fragment_path)])

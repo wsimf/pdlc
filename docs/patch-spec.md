@@ -27,7 +27,7 @@ Today the only way to fix an upstream artifact after its stage settled is `pdlc 
 
 1. A planning-stage owner (or its reviewer) finds an issue in an upstream planning artifact.
 2. The active stage's owner drafts the corrected artifact itself, in the same input form that artifact's landing command already takes. The planner sub-agents are not dispatched for a patch: their briefs stay gated to their own stage.
-3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. This produces `--evidence`.
+3. The artifact's own stage reviewer reviews the draft (e.g. `pdlc-product-reviewer` for Product), exactly as for a normal re-land. Its clean review becomes `--evidence`. A UI or Tasks draft lands only as last reviewed; its author may revise it between reviews, and the next review picks the revision up.
 4. If any non-skipped stage lies between the patched stage and the active stage, the internal patch reviewer (see below) compares the reviewed draft with the landed artifact, reads every intermediate artifact, and returns the earliest affected stage, or `none`. This produces `--impact`.
 5. Land with `--patch --impact`. If the verdict is `none` the record stays on the active stage; if it names a stage, the record returns to that stage at `Stale` and the normal stage flow takes over from there, with the impact report as that stage's open change request.
 

@@ -5,7 +5,9 @@ Approval Required, and the internal `pdlc prompt patch-reviewer` brief."""
 from __future__ import annotations
 
 import json
+import re
 import unittest
+from pathlib import Path
 
 from _support import BODY_DEFAULT, FileBackendTest
 
@@ -277,6 +279,7 @@ class PostTasksPatchTests(FileBackendTest):
         return self.write_file(f"manifest-{len(list(self.work.glob('manifest-*')))}.json", json.dumps(entries))
 
     def land(self, number: int, manifest: str, *extra: object):
+        self.mark_tasks_reviewed(number, manifest)
         return self.invoke(
             "post_tasks", "--work-item", number, "--stage", "Tasks", "--manifest", manifest,
             "--evidence", self.evidence_file(), "--patch", *extra,
@@ -330,6 +333,7 @@ class PostTasksPatchTests(FileBackendTest):
     def test_ui_patch_lands_and_keeps_applicability(self):
         self.seed_record(85, "Tasks", "Pending")
         body = self.write_file("ui.md", "UJ-1 covers the first run, offline too.\n")
+        self.mark_ui_reviewed(85, body)
         result = self.invoke(
             "post_tasks", "--work-item", 85, "--stage", "UI", "--body", body, "--evidence", self.evidence_file(), "--patch",
         )
@@ -348,6 +352,7 @@ class PostTasksPatchTests(FileBackendTest):
     def test_ui_patch_refuses_changed_journeys_when_intermediate_stages_exist(self):
         self.seed_breakdown(86, "Technical Plan", "Pending")
         body = self.write_file("ui.md", "UJ-1 and UJ-2 cover the first run.\n")
+        self.mark_ui_reviewed(86, body)
         impact = self.write_file("impact.md", "Earliest affected stage: none\n")
         result = self.invoke(
             "post_tasks", "--work-item", 86, "--stage", "UI", "--body", body, "--evidence", self.evidence_file(),
@@ -374,6 +379,79 @@ class PostTasksPatchTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["impactRequired"], False)
         self.assertEqual(result.json["activeStage"], "Technical Plan")
+
+
+class PatchReviewLoopTests(FileBackendTest):
+    """A patch's own author revises its draft between reviews, and only a
+    reviewed draft lands; the stamp and findings file end with the landing."""
+
+    seed_breakdown = PostTasksPatchTests.seed_breakdown
+    manifest = PostTasksPatchTests.manifest
+
+    def review(self, number: int, *args: object):
+        result = self.invoke("prompt_tasks_reviewer", "--inline", number, *args)
+        self.assertEqual(result.code, 0, result.stderr)
+        return Path(re.search(r"Write your review into `([^`]+)`", result.stdout).group(1))
+
+    def post(self, number: int, *args: object):
+        return self.invoke("post_tasks", "--work-item", number, *args, "--evidence", self.evidence_file(), "--patch")
+
+    def test_a_tasks_patch_revised_between_reviews_lands_the_revision(self):
+        self.seed_breakdown(92, "Technical Plan", "Pending")
+        manifest = self.manifest(92)
+        findings = self.review(92, "--manifest", manifest)
+        findings.write_text("F1 [P1] TASK-001 — scope too vague\nVerdict: Needs Revision\n", encoding="utf-8")
+        body = Path(json.loads(Path(manifest).read_text())[0]["body"])
+        body.write_text(body.read_text().replace("Land the record.", "Land the record in one write."))
+        self.review(92, "--manifest", manifest, "--findings", str(findings))
+        self.assertIn("in one write", body.read_text())
+        self.assertFalse(body.with_name(f"{body.stem}.rejected.md").exists())
+        landed = self.post(92, "--stage", "Tasks", "--manifest", manifest)
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertFalse(findings.exists())
+        # The stamp is spent with the landing, so the same draft needs a fresh review.
+        again = self.post(92, "--stage", "Tasks", "--manifest", manifest)
+        self.assertEqual(again.code, 1)
+        self.assertIn("has not been reviewed", again.stderr)
+
+    def test_a_ui_patch_revised_between_reviews_lands_the_revision(self):
+        self.seed_record(93, "Tasks", "Pending")
+        fragment = self.write_file("ui.md", "UJ-1 covers the first run.\n")
+        self.review(93, "--fragment", fragment)
+        Path(fragment).write_text("UJ-1 covers the first run, offline too.\n")
+        self.review(93, "--fragment", fragment)
+        landed = self.post(93, "--stage", "UI", "--body", fragment)
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertIn("offline too", self.body(93))
+
+    def test_an_unreviewed_patch_draft_is_refused(self):
+        self.seed_record(94, "Tasks", "Pending")
+        fragment = self.write_file("ui.md", "UJ-1 covers the first run, offline too.\n")
+        refused = self.post(94, "--stage", "UI", "--body", fragment)
+        self.assertEqual(refused.code, 1)
+        self.assertIn("has not been reviewed", refused.stderr)
+        self.assertNotIn("offline too", self.body(94))
+
+    def test_an_edit_after_the_last_patch_review_is_restored_and_refused(self):
+        self.seed_record(95, "Tasks", "Pending")
+        fragment = self.write_file("ui.md", "UJ-1 covers the first run.\n")
+        self.review(95, "--fragment", fragment)
+        Path(fragment).write_text("UJ-1 covers the first run, edited after review.\n")
+        refused = self.post(95, "--stage", "UI", "--body", fragment)
+        self.assertEqual(refused.code, 1)
+        self.assertIn("as the patch's author", refused.stderr)
+        self.assertNotIn("prompt ui-planner", refused.stderr)
+        self.assertEqual(Path(fragment).read_text(), "UJ-1 covers the first run.\n")
+
+    def test_a_deleted_reviewed_file_is_left_deleted(self):
+        self.seed_record(96, "UI", "Pending")
+        old = self.write_file("old/ui.md", "UJ-1 covers the first run.\n")
+        self.mark_ui_reviewed(96, old)
+        Path(old).unlink()
+        Path(old).parent.rmdir()
+        result = self.invoke("prompt_tasks_reviewer", "--inline", 96, "--fragment", self.write_file("ui.md", "UJ-1.\n"))
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertFalse(Path(old).exists())
 
 
 class PatchVisibilityTests(FileBackendTest):
