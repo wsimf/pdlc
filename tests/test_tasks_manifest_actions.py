@@ -36,8 +36,60 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def _land(self, path, entries):
         path.write_text(json.dumps(entries), encoding="utf-8")
+        self.mark_tasks_reviewed(40, path)
         return self.invoke("post_tasks", "--work-item", 40, "--stage", "Tasks",
                            "--manifest", str(path), "--evidence", self.evidence_file())
+
+    def _post(self, path):
+        return self.invoke("post_tasks", "--work-item", 40, "--stage", "Tasks",
+                           "--manifest", str(path), "--evidence", self.evidence_file())
+
+    def test_an_unreviewed_breakdown_is_refused_without_writing(self):
+        path, _ = self._generated()
+        result = self._post(path)
+        self.assertEqual(result.code, 1)
+        self.assertIn("has not been reviewed since its last planning pass", result.stderr)
+        self.assertIn(f"pdlc prompt tasks-reviewer 40 --manifest {path.resolve()} --file", result.stderr)
+        self.assertEqual(self.state(40), ("Tasks", "Pending"))
+
+    def test_a_reviewer_edit_is_restored_and_the_review_redone(self):
+        path, entries = self._generated()
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        body = Path(entries[0]["body"])
+        reviewed = body.read_text()
+        body.write_text(reviewed + "\nReviewer's own scope.\n")
+        result = self._post(path)
+        self.assertEqual(result.code, 1)
+        self.assertIn("changed after its brief was written", result.stderr)
+        self.assertEqual(body.read_text(), reviewed)
+        self.assertIn("Reviewer's own scope.", body.with_name(f"{body.stem}.rejected.md").read_text())
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        landed = self._post(path)
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertEqual(landed.json["unchanged"], ["TASK-001", "TASK-002"])
+
+    def test_a_new_planning_pass_needs_a_new_review(self):
+        path, entries = self._generated()
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        brief = self.invoke("prompt_task_planner", 40, "--current-tasks-manifest-path", str(path))
+        self.assertEqual(brief.code, 0, brief.stderr)
+        Path(entries[0]["body"]).write_text(TASK_BODY + "\nOne more behavior.\n", encoding="utf-8")
+        self.assertIn("has not been reviewed", self._post(path).stderr)
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        landed = self._post(path)
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertEqual(landed.json["updated"], ["TASK-001"])
+
+    def test_saved_ids_keep_the_breakdown_reviewed_for_a_retry(self):
+        path, entries = self._generated()
+        body = self.write_file("third.md", task_body())
+        entries.append({"title": "Next seam", "body": body, "type": "core", "covers": ["FR-2"], "depends": []})
+        with mock.patch("pdlc.commands.post_tasks.upsert_tasks", side_effect=PdlcError("host down")):
+            self.assertEqual(self._land(path, entries).code, 1)
+        # The retry reuses the manifest the failed run rewrote, without another review.
+        retry = self._post(path)
+        self.assertEqual(retry.code, 0, retry.stderr)
+        self.assertEqual(retry.json["created"], ["TASK-003"])
 
     def test_unedited_generated_tasks_are_carried(self):
         path, entries = self._generated()

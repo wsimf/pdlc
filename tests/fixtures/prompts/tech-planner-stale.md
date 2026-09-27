@@ -1,4 +1,4 @@
-Spike the delivery tasks below against current source and return an implementation-ready plan for each task that needs one.
+Spike the delivery tasks below against current source and write an implementation-ready plan for each task that needs one.
 
 ## Execution boundary
 
@@ -7,7 +7,7 @@ You are being invoked as a leaf worker for this one planning pass.
 Do not invoke any `pdlc-*` skill.
 Do not spawn, dispatch, or ask another agent to do this work.
 Bounded, read-only codebase exploration is the only delegation allowed.
-Work from this brief. Author the plans and return the plan files and manifest to the calling agent.
+Work from this brief. Write the plans into the task files below and report back to the calling agent.
 
 ## Work item `60`
 
@@ -34,55 +34,24 @@ UJ-1 covers the first run.
 
 --- END WORK ITEM ---
 
-## Tasks
+## Your Task
 
-The open, unimplemented tasks for this work item, lowest in the stack first.
+The manifest at `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-manifest.json` names one file for each open, unimplemented task of this work item, lowest in the stack first. Each file holds the task body between `--- BEGIN TASK ---` and `--- END TASK ---`, then its plan between `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`.
+
+Write each plan in place, between its tech plan markers, replacing the placeholder comment in a task with no plan yet. Everything else is read-only: don't edit the task body, the markers, or the manifest, and add nothing outside the two blocks. A change the task body needs is a blocker to report, not an edit.
+
+- `TASK-001` — [CORE] Core work (planned): `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-TASK-001.md`
+- `TASK-002` — [UI] Second (no plan yet): `$CACHE_ROOT/.pdlc/cache/60/pdlc-tech-planner-TASK-002.md`
 
 - No plan yet (TASK-002): plan these from scratch.
 - Already planned (TASK-001): check each against the change requests and driver follow-up below. Re-plan only the ones that are out of date, starting from the existing plan.
-
-### `WORK-60-TASK-001` [CORE] Core work (#601)
-
---- BEGIN TASK ---
-
-## Scope
-Build the seam.
-
-Covers FR-1.
-
-## Acceptance criteria
-- it works
-
---- END TASK ---
-
-This task already has a plan:
-
---- BEGIN EXISTING PLAN ---
-
-Touch one module.
-
---- END EXISTING PLAN ---
-
-### `WORK-60-TASK-002` [UI] Second (#602)
-
---- BEGIN TASK ---
-
-## Scope
-Show it.
-
-Covers FR-2, UJ-1.
-
-## Acceptance criteria
-- it shows
-
---- END TASK ---
 
 ## Changes needed
 
 The change requests and driver follow-up below apply to this pass. They take precedence over everything above except the task bodies.
 
 - Re-plan each task they affect. Start from its current plan and change only what they ask for.
-- Leave tasks they don't affect alone, and don't return them.
+- Leave the plans of tasks they don't affect unchanged.
 - If they ask for something the task body doesn't allow, say so in the plan. Don't plan outside the task's scope.
 - If you can't tell which task they mean, stop and report it.
 
@@ -120,9 +89,9 @@ Plan the approach, not the code: name where the change goes and what it affects,
 
 Where one of these and a task conflict, say so in the plan rather than planning around it.
 
-## Return
+## Writing a plan
 
-Return a plan only for each task you plan or re-plan. Each plan is heading-free and covers:
+Each plan is heading-free, with no `#` or `##` line, and covers:
 
 - files and modules that will change
 - interfaces and call sites
@@ -133,10 +102,6 @@ Return a plan only for each task you plan or re-plan. Each plan is heading-free 
 
 Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
 
-Return one plan file per task, plus a manifest:
+## Report back
 
-```json
-[{ "id": "TASK-003", "plan": "/tmp/plan-003.md" }]
-```
-
-A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.
+Name the tasks whose plans you wrote or changed, and those you left unchanged. A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.

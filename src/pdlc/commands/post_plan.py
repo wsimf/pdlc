@@ -7,7 +7,7 @@ USAGE
 
 FLAGS
     --work-item N                        required; the work item's number
-    --manifest FILE                      required; JSON array of per-task technical plans
+    --manifest FILE                      required; the plan manifest `pdlc prompt tech-planner` generated
     --evidence FILE|-                    required unless --dry-run; the review evidence body
     --dry-run                            validate the plan and print a markdown report without landing it
     --attachment PATH (repeatable)       attach a local file's contents to the evidence comment
@@ -58,25 +58,47 @@ refused. A refusal leaves the record untouched.
     None.
 
 Verdict is `Fail` and exits 1 if any check failed, with its specific errors
-listed under Failed Validations instead of Passed Validations. When the
-record is at `Technical Plan / Approval Required`, Warnings instead reads:
-"This record is at Approval Required. Running this for real will overwrite
-the existing plan in place with the new content. Only proceed if that's the
-driver's intention — confirm with the user first if it isn't already clear
-from the conversation." Dry run never mutates the record regardless of gate
-state.
+listed under Failed Validations instead of Passed Validations. `Targeted`
+names the tasks whose plan this call writes; `Already planned` names the
+tasks whose recorded plan it leaves as it is. When the record is at
+`Technical Plan / Approval Required`, Warnings instead reads: "This record is
+at Approval Required. Running this for real will overwrite the existing plan
+in place with the new content. Only proceed if that's the driver's intention —
+confirm with the user first if it isn't already clear from the conversation."
+Dry run never mutates the record regardless of gate state; it may restore the
+local review files, as described below.
 
-The manifest is a JSON array naming the tasks this pass plans:
+The manifest is the one `pdlc prompt tech-planner` generates, one entry per
+open, unimplemented delivery task:
 
-    [{"id": "TASK-003", "plan": "/tmp/plan-003.md"}]
+    [{"id": "TASK-003", "number": 413, "title": "[CORE] Render elevation profile",
+      "file": "<cache>/pdlc-tech-planner-TASK-003.md", "baseline": "<sha256>"}]
 
-Each plan file holds that task's plan content only, with no heading. The plan
-is recorded as its own artifact on the task, so scope, non-goals,
-dependencies, coverage, and acceptance criteria stay exactly as the Tasks
-stage authored them.
+Every field is generated; none is edited. Each task file holds the task body
+between `--- BEGIN TASK ---` and `--- END TASK ---`, then the plan between
+`--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`, with nothing outside
+the two blocks. Only the plan block lands: HTML comments are stripped from it,
+and what remains must be non-empty and hold no `#` or `##` heading. The task
+body is a read-only copy; an edit to it fails validation and is refused,
+because the plan must fit the task as recorded, and a change the task needs is
+a blocker to report. A task body or plan that changed on the record since the
+manifest was generated is refused as stale, unless the record already holds
+exactly this file's content, as it does after an interrupted landing.
 
-A pass may plan a subset of tasks, as long as every open task ends up with a
-plan (counting plans already recorded).
+The manifest names exactly the open, unimplemented tasks, and every other open
+task must already have a plan. Only plans that differ from the recorded plan
+are written, so a re-run after a partial landing skips the plans that already
+landed. The plan is recorded as its own artifact on the task, so scope,
+non-goals, dependencies, coverage, and acceptance criteria stay exactly as the
+Tasks stage authored them.
+
+Only reviewed files land. `pdlc prompt plan-reviewer` records the exact
+manifest and task files it hands the reviewer. If any of them changed since,
+this command restores each to the reviewed version, keeps the edited copy
+beside it as `<name>.rejected.md`, and refuses so the review is redone; a
+real landing also refuses a manifest the reviewer was not handed. After a
+successful landing the manifest's baselines are rewritten onto the recorded
+plans, so reusing it later changes nothing.
 """
 
 from __future__ import annotations
@@ -84,10 +106,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-
+from pathlib import Path
 
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import reauthor_invalidate_stage
+from pdlc.internal.review_stamp import clear_stamp, require_reviewed, restore_reviewed
+from pdlc.internal.scratch import replace_file
 from pdlc.internal.workitem import (
     PLAN_COMMENT_HEADING,
     edit_comment,
@@ -102,24 +126,94 @@ from pdlc.internal.workitem import (
     task_tree,
 )
 from pdlc.domain.lifecycle import PdlcError, duplicates
+from pdlc.domain.plan_file import (
+    PlanFile,
+    manifest_errors,
+    parse,
+    plan_baseline,
+    plan_errors,
+    planner_command,
+    regenerate,
+    reviewer_command,
+    same_plan,
+    same_task,
+    stored_plan,
+)
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, decision_required_message
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
+STAGE = "Technical Plan"
 
-def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
-    known = [task["taskId"] for task in tree if task.get("taskId") is not None]
-    targeted = [entry["id"] for entry in replacements]
-    # Scope is every OPEN task, not just unplanned ones: a targeted task already
-    # carrying a plan is a legitimate re-land-in-place, not an error, so
-    # eligibility is checked on state alone here, not on `needsPlan`.
-    untouched = [
-        task for task in tree
-        if task.get("state") == "OPEN" and task.get("taskId") not in targeted
+
+def _in_scope(task: dict) -> bool:
+    """A task this stage plans: open and not yet implemented."""
+    return bool(task.get("taskId")) and task.get("state") == "OPEN" and not task.get("hasImplementation")
+
+
+def _read_file(entry: dict) -> tuple[PlanFile | None, list[str]]:
+    path = Path(entry["file"])
+    if not path.is_file():
+        return None, [f"its task file does not exist: {path}"]
+    return parse(path.read_text(encoding="utf-8"))
+
+
+def build_plan(tree: list[dict], entries: list[dict], work_item: str) -> dict:
+    """Check the manifest against the task tree and sort its plans into the
+    ones this call writes and the ones already recorded as they stand."""
+    by_id = {task["taskId"]: task for task in tree if task.get("taskId")}
+    scope = [task["taskId"] for task in tree if _in_scope(task)]
+    named = [entry["id"] for entry in entries]
+    unknown: list[str] = []
+    numbers: list[str] = []
+    files: list[str] = []
+    stale: list[str] = []
+    edited: list[str] = []
+    plans: list[str] = []
+    targeted: list[dict] = []
+    unchanged: list[str] = []
+
+    for entry in entries:
+        task_id = entry["id"]
+        task = by_id.get(task_id)
+        if task is None or not _in_scope(task):
+            unknown.append(f"{task_id} is not an open, unimplemented task of this record; {regenerate(work_item)}")
+            continue
+        if entry["number"] != task["number"]:
+            numbers.append(f"{task_id} is task #{task['number']}, not #{entry['number']}; {regenerate(work_item)}")
+            continue
+        planned, errors = _read_file(entry)
+        if planned is None:
+            files.extend(f"{task_id} file {entry['file']}: {error}; {regenerate(work_item)}" for error in errors)
+            continue
+        body = task.get("body") or ""
+        recorded = stored_plan(task.get("planComment"))
+        if plan_baseline(body, recorded) != entry["baseline"]:
+            # An interrupted landing already recorded this exact content.
+            if not (same_task(planned.task, body) and same_plan(planned.plan, recorded)):
+                stale.append(f"{task_id} changed on the record after this manifest was generated; {regenerate(work_item)}")
+                continue
+        if not same_task(planned.task, body):
+            edited.append(
+                f"{task_id}: the task body between `--- BEGIN TASK ---` and `--- END TASK ---` was edited. The task"
+                " body is read-only in this stage: pdlc lands only the tech plan, and the plan must fit the task as"
+                f" recorded. Restore it from the record (`pdlc inspect task {task_id}`) and report the needed task"
+                " change as a blocker instead"
+            )
+            continue
+        errors = plan_errors(planned.plan)
+        if errors:
+            plans.extend(f"{task_id} ({entry['file']}): {error}" for error in errors)
+            continue
+        if same_plan(planned.plan, recorded):
+            unchanged.append(task_id)
+        else:
+            targeted.append({"id": task_id, "task": task, "plan": planned.plan})
+
+    left_unplanned = [
+        task["taskId"] for task in tree
+        if task.get("taskId") and task.get("state") == "OPEN" and task["taskId"] not in named and not task.get("hasPlan")
     ]
-
-    left_unplanned = [task["taskId"] for task in untouched if not task.get("hasPlan")]
-
     # Each check is named so dry-run can report which validations passed
     # alongside which failed, rather than only surfacing failures.
     checks = [
@@ -128,30 +222,31 @@ def build_plan(tree: list[dict], replacements: list[dict]) -> dict:
             for task in tree if task.get("taskId") is None
         ]),
         ("no duplicate manifest entries", [
-            f"duplicate manifest entry: {task_id}" for task_id in duplicates(targeted)
+            f"duplicate manifest entry: {task_id}" for task_id in duplicates(named)
         ]),
-        ("every manifest entry matches a task on this record", [
-            f"no such task on this record: {task_id}" for task_id in targeted if task_id not in known
+        ("every manifest entry names an open, unimplemented task", unknown),
+        ("the manifest names every open, unimplemented task", [
+            f"{task_id} is open and unimplemented but missing from the manifest; {regenerate(work_item)}"
+            for task_id in scope if task_id not in named
         ]),
-        ("no empty plan files", [
-            f"the plan file for {entry['id']} is empty"
-            for entry in replacements if not entry["planText"].strip()
-        ]),
-        ("no targeted task is closed", [
-            f"{task['taskId']} is closed; it is not in scope for planning"
-            for task in tree
-            if task.get("taskId") is not None and task["taskId"] in targeted and task.get("state") != "OPEN"
-        ]),
+        ("every manifest entry carries its task's number", numbers),
+        ("every task file keeps its task and tech plan blocks", files),
+        ("no task changed on the record since the manifest was generated", stale),
+        ("no task body was edited", edited),
+        ("every tech plan is non-empty and heading-free", plans),
         ("every open task ends up with a plan", (
             [f"these tasks would be left unplanned: {', '.join(left_unplanned)}"] if left_unplanned else []
         )),
     ]
 
     errors = [error for _, group in checks for error in group]
-    already_planned = [task["taskId"] for task in untouched if task.get("hasPlan")]
-
+    already_planned = unchanged + [
+        task["taskId"] for task in tree
+        if task.get("taskId") and task.get("state") == "OPEN" and task["taskId"] not in named and task.get("hasPlan")
+    ]
     return {
-        "targeted": targeted,
+        "targeted": [write["id"] for write in targeted],
+        "writes": targeted,
         "alreadyPlanned": already_planned,
         "errors": errors,
         "checks": checks,
@@ -195,6 +290,28 @@ def _render_dry_run(gate: str, plan: dict, attachment_count: int) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _load_manifest(manifest_path: Path, work_item: str) -> list[dict]:
+    entries = load_json_array("--manifest", manifest_path)
+    errors = manifest_errors(entries)
+    if errors:
+        listed = "\n".join(f"  - {error}" for error in errors)
+        raise PdlcError(f"the manifest is not the one pdlc generated:\n{listed}\n{regenerate(work_item)}")
+    return entries
+
+
+def _rebase_manifest(manifest_path: Path, entries: list[dict], tree: list[dict]) -> None:
+    """Point every baseline at the plans as now recorded, so reusing the
+    manifest reads as unchanged rather than stale."""
+    by_id = {task["taskId"]: task for task in tree if task.get("taskId")}
+    rebased = []
+    for entry in entries:
+        planned, _ = _read_file(entry)
+        task = by_id[entry["id"]]
+        plan = planned.plan if planned is not None else stored_plan(task.get("planComment"))
+        rebased.append({**entry, "baseline": plan_baseline(task.get("body") or "", plan)})
+    replace_file(manifest_path, json.dumps(rebased, indent=2) + "\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     command_args = list(sys.argv[1:] if argv is None else argv)
     raw_args = command_args
@@ -215,8 +332,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(script_args)
 
     try:
-        manifest_path = require_file("--manifest file", args.manifest)
-        manifest = load_json_array("--manifest", manifest_path)
+        manifest_path = require_file("--manifest file", args.manifest).resolve()
+        rereview = reviewer_command(args.work_item, manifest_path)
+        # A reviewed file edited since its review is put back before anything reads it.
+        restore_reviewed(args.work_item, STAGE, rereview, planner_command(args.work_item, manifest_path))
+        entries = _load_manifest(manifest_path, args.work_item)
         validate_attachments(attachment_inputs)
 
         evidence_body: str | None = None
@@ -232,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         stage = item_status(record)
         gate = item_gate(record)
 
-        if stage != "Technical Plan":
+        if stage != STAGE:
             raise PdlcError(f"cannot land Technical Plan: the record is at {stage}")
         # Changes Required lands exactly like Stale: a resolved decision parks
         # the stage there, and the re-planned artifact publishes from it.
@@ -247,37 +367,18 @@ def main(argv: list[str] | None = None) -> int:
             raise PdlcError(decision_required_message(stage))
         else:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
-        if is_stage_skipped(record, "Technical Plan"):
+        if is_stage_skipped(record, STAGE):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
         set_recovery(Recovery(
             check=f"pdlc inspect {args.work_item}",
             landed="the gate is Review Required and `pdlc inspect task T` shows the new plan on every task in the manifest",
-            note="A re-run after the PDLC-PLAN evidence landed posts a second one; mention it in your report.",
+            note="A re-run skips plans that already landed, but after the PDLC-PLAN evidence landed it posts a second one; mention it in your report.",
         ))
         tree = task_tree(args.work_item)
         if not tree:
             raise PdlcError("no delivery tasks: the Tasks stage produced nothing to plan against")
-        tree_by_id = {task["taskId"]: task for task in tree if task.get("taskId")}
 
-        replacements: list[dict] = []
-        for index, entry in enumerate(manifest, 1):
-            task_id = entry.get("id") or ""
-            path = entry.get("plan") or ""
-            if not isinstance(task_id, str):
-                raise PdlcError(f"manifest entry {index} id must be a string")
-            if not isinstance(path, str):
-                raise PdlcError(f"manifest entry {index} plan must be a file path string")
-            if not task_id:
-                raise PdlcError('every manifest entry needs an "id"')
-            plan_path = require_file(f"plan file for {task_id}", path)
-
-            replacements.append({
-                "id": task_id,
-                "plan": str(plan_path),
-                "planText": plan_path.read_text(encoding="utf-8"),
-            })
-
-        plan = build_plan(tree, replacements)
+        plan = build_plan(tree, entries, args.work_item)
 
         if args.dry_run:
             sys.stdout.write(_render_dry_run(gate, plan, len(attachment_inputs)))
@@ -289,10 +390,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {error}", file=sys.stderr)
             return 1
 
+        require_reviewed(args.work_item, STAGE, manifest_path, rereview)
         assert evidence_body is not None
 
         if gate in ("Review Required", "Approval Required"):
-            reauthor_invalidate_stage(record, "Technical Plan", pipeline)
+            reauthor_invalidate_stage(record, STAGE, pipeline)
 
         state = state_for_item(record, pipeline)
         try:
@@ -302,29 +404,38 @@ def main(argv: list[str] | None = None) -> int:
 
         attachments = save_attachments(args.work_item, attachment_inputs)
         results = []
-        for entry in replacements:
-            task = tree_by_id[entry["id"]]
-            body = f"{PLAN_COMMENT_HEADING}\n\n{entry['planText'].strip()}\n"
+        for write in plan["writes"]:
+            task = write["task"]
+            body = f"{PLAN_COMMENT_HEADING}\n\n{write['plan']}\n"
             existing = task.get("planCommentUrl")
             if existing:
                 edit_comment(str(task["number"]), existing, body)
             else:
                 post_comment(str(task["number"]), body)
-            results.append({"taskId": entry["id"], "number": task["number"]})
+            results.append({"taskId": write["id"], "number": task["number"]})
 
-        summary = (
-            f"{evidence_body}\n---\n\n"
-            f"Planned {len(results)} task(s): {', '.join(result['taskId'] for result in results)}\n"
+        planned_line = (
+            f"Planned {len(results)} task(s): {', '.join(result['taskId'] for result in results)}\n" if results
+            else "Planned 0 task(s): every reviewed plan was already recorded\n"
         )
+        summary = f"{evidence_body}\n---\n\n{planned_line}"
         if plan["alreadyPlanned"]:
             summary += f"Already planned, left untouched by this pass: {', '.join(plan['alreadyPlanned'])}\n"
 
         post_comment(args.work_item, summary, "PLAN")
         set_state(item, target.stage, target.gate.value, target.lifecycle.value)
 
+        # The landing is done; a manifest left un-rebased is only a hazard to warn about.
+        try:
+            _rebase_manifest(manifest_path, entries, tree)
+            clear_stamp(args.work_item, STAGE)
+        except (OSError, PdlcError) as error:
+            print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the recorded plans: {error};"
+                  " do not reuse it", file=sys.stderr)
+
         print(json.dumps({
             "published": True,
-            "stage": "Technical Plan",
+            "stage": STAGE,
             "itemId": item,
             "work_item": int(args.work_item),
             "gateState": target.gate.value,

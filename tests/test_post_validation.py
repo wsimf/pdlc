@@ -4,8 +4,11 @@ plus the re-author-in-place / return-to-Stale guard — and the gate guards ever
 `pdlc post` command applies at Review Required and Decision Required."""
 
 import json
+from pathlib import Path
+from unittest import mock
 
-from _support import FileBackendTest
+from _support import TASK_BODY_DEFAULT, FileBackendTest
+from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.internal.workitem import subissues_for
 
@@ -151,6 +154,7 @@ class PostTasksValidationTests(FileBackendTest):
                           "--manifest", manifest, "--dry-run")
         self.assertEqual(dry.code, 1)
         self.assertIn("return it to Stale with pdlc post invalidate", dry.stderr)
+        self.mark_tasks_reviewed(31, manifest)
         reauth = self.invoke("post_tasks", "--work-item", 31, "--stage", "Tasks",
                              "--manifest", manifest, "--evidence", self.evidence_file())
         self.assertEqual(reauth.json["gateState"], "Approval Required")
@@ -167,6 +171,7 @@ class PostTasksValidationTests(FileBackendTest):
                                   "--manifest", manifest, "--dry-run")
                 self.assertEqual(dry.code, 0, dry.stderr)
                 self.assertEqual(self.fields(number)["Gate State"], gate)
+                self.mark_tasks_reviewed(number, manifest)
                 landed = self.invoke("post_tasks", "--work-item", number, "--stage", "Tasks",
                                      "--manifest", manifest, "--evidence", self.evidence_file())
                 self.assertEqual(landed.code, 0, landed.stderr)
@@ -230,54 +235,156 @@ class PostPlanValidationTests(FileBackendTest):
     def setUp(self):
         super().setUp()
         self.seed_record(40, "Technical Plan", "Pending")
-        self.seed_task(40, 401, "TASK-001", "OPEN", "WORK-40-TASK-001 One")
-        self.seed_task(40, 402, "TASK-002", "OPEN", "WORK-40-TASK-002 Two")
+        self.seed_task(40, 401, "TASK-001", "OPEN", "WORK-40-TASK-001 One", body=TASK_BODY_DEFAULT)
+        self.seed_task(40, 402, "TASK-002", "OPEN", "WORK-40-TASK-002 Two", body=TASK_BODY_DEFAULT)
         # TASK-002 already carries a plan comment.
-        comment = {
-            "body": "## Technical Plan\n\nalready planned\n",
-            "createdAt": "2026-01-01T00:00:00Z", "url": "u", "author": {"login": "x"},
-        }
-        (self.records_dir() / "40" / "tasks" / "402" / "comments.jsonl").write_text(
-            json.dumps(comment) + "\n"
-        )
-        self.plan_body = self.write_file("plan-body.md", "Files: core_service.py\n")
+        self.seed_plan_comment(40, 402, "already planned\n")
 
-    def _dry_run(self, entries):
-        manifest = self.write_file("pm.json", json.dumps(entries))
-        return self.invoke("post_plan", "--work-item", 40, "--manifest", manifest, "--dry-run")
+    def _dry_run(self, manifest, record=40):
+        return self.invoke("post_plan", "--work-item", record, "--manifest", manifest, "--dry-run")
 
-    def test_only_the_unplanned_task_is_targeted(self):
-        result = self._dry_run([{"id": "TASK-001", "plan": self.plan_body}])
-        self.assertEqual(result.code, 0, result.stderr)
+    def _post(self, manifest, record=40):
+        return self.invoke("post_plan", "--work-item", record, "--manifest", manifest, "--evidence", self.evidence_file())
+
+    def _entries(self, manifest):
+        return json.loads(Path(manifest).read_text(encoding="utf-8"))
+
+    def test_only_the_changed_plan_is_targeted(self):
+        result = self._dry_run(self.plan_manifest(40, {"TASK-001": "Files: core_service.py"}))
+        self.assertEqual(result.code, 0, result.stdout)
         self.assertEqual(result.front_matter("Verdict"), "Pass")
         self.assertEqual(result.front_matter("Targeted"), "TASK-001")
         self.assertEqual(result.front_matter("Already planned"), "TASK-002")
-        self.assertIn("## Warnings", result.stdout)
-        self.assertIn("None.", result.stdout)
+        self.assertIn("## Warnings\n\nNone.", result.stdout)
 
-    def test_empty_plan_file_is_rejected(self):
-        empty = self.write_file("empty.md", "\n")
-        result = self._dry_run([{"id": "TASK-001", "plan": empty}])
+    def test_a_placeholder_plan_is_empty(self):
+        result = self._dry_run(self.plan_manifest(40, {}))
         self.assertEqual(result.code, 1)
         self.assertEqual(result.front_matter("Verdict"), "Fail")
-        self.assertIn("the plan file for TASK-001 is empty", result.stdout)
+        self.assertIn("TASK-001", result.stdout)
+        self.assertIn("the tech plan is empty", result.stdout)
 
-    def test_unknown_task_is_rejected(self):
-        result = self._dry_run([{"id": "TASK-404", "plan": self.plan_body}])
+    def test_a_heading_in_the_plan_is_rejected(self):
+        result = self._dry_run(self.plan_manifest(40, {"TASK-001": "## Steps\n1. Touch core."}))
         self.assertEqual(result.code, 1)
-        self.assertEqual(result.front_matter("Verdict"), "Fail")
-        self.assertIn("no such task on this record: TASK-404", result.stdout)
+        self.assertIn("must be heading-free", result.stdout)
+
+    def test_a_task_body_edit_fails_the_dry_run_and_is_refused(self):
+        manifest = self.reviewed_plan_manifest(40, {"TASK-001": "Touch core."})
+        task_file = Path(self._entries(manifest)[0]["file"])
+        # The planner, not the reviewer, edits: a new pass clears the review stamp.
+        self.invoke("prompt_tech_planner", 40, "--current-plan-manifest-path", manifest)
+        task_file.write_text(task_file.read_text().replace("- ok", "- ok, and more"))
+        dry = self._dry_run(manifest)
+        self.assertEqual(dry.code, 1)
+        self.assertIn("TASK-001: the task body between `--- BEGIN TASK ---` and `--- END TASK ---` was edited", dry.stdout)
+        self.review_plans(40, manifest)
+        result = self._post(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("was edited", result.stderr)
+        self.assertEqual(self.fields(40)["Gate State"], "Pending")
+
+    def test_text_outside_the_blocks_is_rejected(self):
+        manifest = self.plan_manifest(40, {"TASK-001": "Touch core."})
+        task_file = Path(self._entries(manifest)[0]["file"])
+        task_file.write_text(task_file.read_text() + "\nNotes for the driver.\n")
+        result = self._dry_run(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("text outside the task and tech plan blocks", result.stdout)
+
+    def test_a_task_changed_on_the_record_is_stale(self):
+        manifest = self.plan_manifest(40, {"TASK-001": "Touch core."})
+        self.seed_plan_comment(40, 401, "someone else's plan")
+        result = self._dry_run(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("TASK-001 changed on the record after this manifest was generated", result.stdout)
+
+    def test_the_manifest_names_exactly_the_open_unimplemented_tasks(self):
+        manifest = self.plan_manifest(40, {"TASK-001": "Touch core."})
+        entries = self._entries(manifest)
+        Path(manifest).write_text(json.dumps(entries[:1]))
+        result = self._dry_run(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("TASK-002 is open and unimplemented but missing from the manifest", result.stdout)
+
+    def test_a_hand_written_manifest_is_refused(self):
+        plan = self.write_file("plan.md", "Files: core_service.py\n")
+        manifest = self.write_file("pm.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
+        result = self._dry_run(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("the manifest is not the one pdlc generated", result.stderr)
+        self.assertIn("TASK-001 needs its generated 'number'", result.stderr)
+        self.assertIn("pdlc prompt tech-planner 40", result.stderr)
+
+    def test_an_unreviewed_manifest_is_refused_without_writing(self):
+        manifest = self.plan_manifest(40, {"TASK-001": "Touch core."})
+        result = self._post(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("has not been reviewed since its last planning pass", result.stderr)
+        self.assertIn(f"pdlc prompt plan-reviewer 40 --manifest {Path(manifest).resolve()} --file", result.stderr)
+        self.assertEqual(self.fields(40)["Gate State"], "Pending")
+        self.assertNotIn("Touch core.", self.task_comments_text(40, 401))
+
+    def test_a_reviewer_edit_is_restored_and_refused(self):
+        manifest = self.reviewed_plan_manifest(40, {"TASK-001": "Touch core."})
+        task_file = Path(self._entries(manifest)[0]["file"])
+        reviewed = task_file.read_text()
+        self.write_plan(task_file, "The reviewer's own plan.")
+        result = self._post(manifest)
+        self.assertEqual(result.code, 1)
+        self.assertIn("changed after its brief was written", result.stderr)
+        self.assertIn(str(task_file.resolve()), result.stderr)
+        self.assertIn("Discard that review's verdict and findings", result.stderr)
+        self.assertEqual(task_file.read_text(), reviewed)
+        rejected = task_file.with_name(f"{task_file.stem}.rejected.md")
+        self.assertIn("The reviewer's own plan.", rejected.read_text())
+        self.assertEqual(self.fields(40)["Gate State"], "Pending")
+        # The restored files are what was reviewed, so they land once reviewed again.
+        self.review_plans(40, manifest)
+        self.assertEqual(self._post(manifest).code, 0)
+
+    def test_a_reviewed_plan_lands_and_rebases_the_manifest(self):
+        manifest = self.reviewed_plan_manifest(40, {"TASK-001": "Touch core."})
+        result = self._post(manifest)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["planned"], ["TASK-001"])
+        self.assertEqual(result.json["alreadyPlanned"], ["TASK-002"])
+        self.assertIn("Touch core.", self.task_comments_text(40, 401))
+        self.assertEqual(self.task_comments_text(40, 402).count("## Technical Plan"), 1)
+        self.assertEqual(self.fields(40)["Gate State"], "Approval Required")
+        # Reused, the rebased manifest reads as unchanged rather than stale.
+        again = self._dry_run(manifest)
+        self.assertEqual(again.code, 0, again.stdout)
+        self.assertEqual(again.front_matter("Targeted"), "None")
+
+    def test_a_retry_after_a_partial_landing_skips_the_plans_that_landed(self):
+        self.seed_record(46, "Technical Plan", "Pending")
+        self.seed_task(46, 461, "TASK-001", "OPEN", "WORK-46-TASK-001 One", body=TASK_BODY_DEFAULT)
+        self.seed_task(46, 462, "TASK-002", "OPEN", "WORK-46-TASK-002 Two", body=TASK_BODY_DEFAULT)
+        manifest = self.reviewed_plan_manifest(46, {"TASK-001": "Plan one.", "TASK-002": "Plan two."})
+        from pdlc.commands import post_plan
+        real = post_plan.post_comment
+        calls = []
+
+        def flaky(ref, body, marker=None):
+            calls.append(ref)
+            if len(calls) == 2:
+                raise PdlcError("host down")
+            return real(ref, body, marker) if marker else real(ref, body)
+
+        with mock.patch.object(post_plan, "post_comment", side_effect=flaky):
+            failed = self._post(manifest, record=46)
+        self.assertEqual(failed.code, 1)
+        self.assertIn("Plan one.", self.task_comments_text(46, 461))
+        retry = self._post(manifest, record=46)
+        self.assertEqual(retry.code, 0, retry.stderr)
+        self.assertEqual(retry.json["planned"], ["TASK-002"])
+        self.assertEqual(self.task_comments_text(46, 461).count("## Technical Plan"), 1)
 
     def test_approval_required_dry_run_warns_instead_of_blocking(self):
         self.seed_record(41, "Technical Plan", "Approval Required")
-        self.seed_task(41, 411, "TASK-001", "OPEN", "WORK-41-TASK-001 One")
-        result = self.invoke(
-            "post_plan", "--work-item", 41,
-            "--manifest", self.write_file("pm41.json", json.dumps(
-                [{"id": "TASK-001", "plan": self.plan_body}]
-            )),
-            "--dry-run",
-        )
+        self.seed_task(41, 411, "TASK-001", "OPEN", "WORK-41-TASK-001 One", body=TASK_BODY_DEFAULT)
+        result = self._dry_run(self.plan_manifest(41, {"TASK-001": "Touch core."}), record=41)
         self.assertEqual(result.code, 0, result.stdout)
         self.assertEqual(result.front_matter("Verdict"), "Pass")
         self.assertIn("Approval Required", result.stdout)
@@ -286,32 +393,26 @@ class PostPlanValidationTests(FileBackendTest):
 
     def test_changes_required_lands_like_stale(self):
         self.seed_record(42, "Technical Plan", "Changes Required")
-        self.seed_task(42, 421, "TASK-001", "OPEN", "WORK-42-TASK-001 One")
-        evidence = self.write_file("plan-evidence.md", "Re-planned after the resolved decision.\n")
-        result = self.invoke(
-            "post_plan", "--work-item", 42,
-            "--manifest", self.write_file("pm42.json", json.dumps(
-                [{"id": "TASK-001", "plan": self.plan_body}]
-            )),
-            "--evidence", evidence,
-        )
+        self.seed_task(42, 421, "TASK-001", "OPEN", "WORK-42-TASK-001 One", body=TASK_BODY_DEFAULT)
+        result = self._post(self.reviewed_plan_manifest(42, {"TASK-001": "Touch core."}), record=42)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["planned"], ["TASK-001"])
         self.assertEqual(self.fields(42)["Status"], "Technical Plan")
         self.assertEqual(self.fields(42)["Gate State"], "Approval Required")
 
-    def test_review_required_re_lands_at_approval_required(self):
+    def test_review_required_re_lands_the_published_plan_at_approval_required(self):
         self.seed_record(43, "Technical Plan", "Review Required")
-        self.seed_task(43, 431, "TASK-001", "OPEN", "WORK-43-TASK-001 One")
-        manifest = self.write_file("pm43.json", json.dumps(
-            [{"id": "TASK-001", "plan": self.plan_body}]
-        ))
-        dry = self.invoke("post_plan", "--work-item", 43, "--manifest", manifest, "--dry-run")
-        self.assertEqual(dry.code, 0, dry.stderr)
+        self.seed_task(43, 431, "TASK-001", "OPEN", "WORK-43-TASK-001 One", body=TASK_BODY_DEFAULT)
+        self.seed_plan_comment(43, 431, "Published without review.")
+        # The published plan is reviewed as it stands: no file is edited.
+        manifest = self.reviewed_plan_manifest(43, {})
+        dry = self._dry_run(manifest, record=43)
+        self.assertEqual(dry.code, 0, dry.stdout)
+        self.assertEqual(dry.front_matter("Targeted"), "None")
         self.assertEqual(self.fields(43)["Gate State"], "Review Required")
-        evidence = self.write_file("plan-evidence-43.md", "Reviewed the published plan.\n")
-        result = self.invoke("post_plan", "--work-item", 43, "--manifest", manifest, "--evidence", evidence)
+        result = self._post(manifest, record=43)
         self.assertEqual(result.code, 0, result.stderr)
+        self.assertEqual(result.json["planned"], [])
         self.assertEqual(self.fields(43)["Gate State"], "Approval Required")
 
     def test_blocking_gates_are_refused_without_writing(self):
@@ -321,14 +422,8 @@ class PostPlanValidationTests(FileBackendTest):
         ):
             with self.subTest(gate=gate):
                 self.seed_record(number, "Technical Plan", gate)
-                self.seed_task(number, number * 10 + 1, "TASK-001", "OPEN", f"WORK-{number}-TASK-001 One")
-                result = self.invoke(
-                    "post_plan", "--work-item", number,
-                    "--manifest", self.write_file(f"pm{number}.json", json.dumps(
-                        [{"id": "TASK-001", "plan": self.plan_body}]
-                    )),
-                    "--dry-run",
-                )
+                self.seed_task(number, number * 10 + 1, "TASK-001", "OPEN", f"WORK-{number}-TASK-001 One", body=TASK_BODY_DEFAULT)
+                result = self._dry_run(self.plan_manifest(number, {"TASK-001": "Touch core."}), record=number)
                 self.assertEqual(result.code, 1)
                 self.assertIn(expected, result.stderr)
                 self.assertEqual(self.fields(number)["Gate State"], gate)

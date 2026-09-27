@@ -409,24 +409,42 @@ class PromptCommandTest(PromptHarness):
     def _tech_brief(self, *extra: str):
         return self.invoke("prompt_tech_planner", 60, *extra)
 
-    def test_tech_planner_carries_open_tasks_and_skips_implemented_ones(self):
+    def test_tech_planner_writes_a_file_per_open_task_and_skips_implemented_ones(self):
         self._plan_stage()
         result = self._tech_brief()
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("### `WORK-60-TASK-001` [CORE] Core work (#601)\n\n--- BEGIN TASK ---", result.stdout)
-        self.assertIn("--- BEGIN EXISTING PLAN ---\n\nTouch one module.\n\n--- END EXISTING PLAN ---", result.stdout)
-        self.assertIn("### `WORK-60-TASK-002` [UI] Second (#602)\n\n--- BEGIN TASK ---", result.stdout)
-        self.assertEqual(result.stdout.count("--- BEGIN EXISTING PLAN ---"), 1)
+        manifest = Path(re.search(r"The manifest at `([^`]+)`", result.stdout).group(1))
+        entries = json.loads(manifest.read_text())
+        self.assertEqual([entry["id"] for entry in entries], ["TASK-001", "TASK-002"])
+        self.assertEqual(entries[0]["number"], 601)
+        planned = Path(entries[0]["file"]).read_text()
+        self.assertTrue(planned.startswith("--- BEGIN TASK ---\n\n## Scope\nBuild the seam."))
+        self.assertIn("--- BEGIN TECH PLAN ---\n\nTouch one module.\n\n--- END TECH PLAN ---\n", planned)
+        self.assertIn("<!-- Tech plan is empty", Path(entries[1]["file"]).read_text())
+        self.assertIn(f"- `TASK-001` — [CORE] Core work (planned): `{entries[0]['file']}`", result.stdout)
+        self.assertIn(f"- `TASK-002` — [UI] Second (no plan yet): `{entries[1]['file']}`", result.stdout)
+        # Bodies and plans live in the files, not the brief.
+        self.assertNotIn("Build the seam.", result.stdout)
+        self.assertNotIn("Touch one module.", result.stdout)
         self.assertIn("- No plan yet (TASK-002): plan these from scratch.", result.stdout)
         # Nothing to check a planned task against, so it is left alone.
-        self.assertIn("- Already planned (TASK-001): leave these alone.", result.stdout)
-        self.assertNotIn("WORK-60-TASK-003", result.stdout)
+        self.assertIn("- Already planned (TASK-001): leave their plans unchanged.", result.stdout)
+        self.assertNotIn("TASK-003", result.stdout)
         self.assertIn("## Designing the plan", result.stdout)
         self.assertNotIn("## Shape of the change", result.stdout)
         self.assertNotIn("## Changes needed", result.stdout)
         self.assertNotIn("{{", result.stdout)
         for leak in ("pdlc inspect", "pdlc post", "pdlc prompt"):
             self.assertNotIn(leak, result.stdout)
+
+    def test_tech_planner_revises_an_earlier_passes_files(self):
+        self._plan_stage()
+        first = self._tech_brief()
+        manifest = re.search(r"The manifest at `([^`]+)`", first.stdout).group(1)
+        result = self._tech_brief("--current-plan-manifest-path", manifest, "--follow-up", "text:tighten TASK-002")
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn(f"The manifest at `{Path(manifest).resolve()}`", result.stdout)
+        self.assertIn("tighten TASK-002", result.stdout)
 
     def test_tech_planner_carries_the_stage_evidence_and_follow_up(self):
         self._plan_stage(gate="Stale")

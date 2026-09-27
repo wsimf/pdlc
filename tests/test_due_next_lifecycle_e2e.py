@@ -71,6 +71,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
                 "type": "ui", "covers": ["FR-1", "C-1", "UJ-1"],
             }]),
         )
+        self.mark_tasks_reviewed(issue, manifest)
         tasks = self.invoke(
             "post_tasks", "--work-item", issue, "--stage", "Tasks",
             "--manifest", manifest, "--evidence", evidence,
@@ -81,10 +82,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         self.next_action(issue, "human-approval")
         self.assertEqual(self.invoke("post_approve", issue, evidence).code, 0)
 
-        plan = self.write_file("plan.md", "Touch core_service.py.\n")
-        plan_manifest = self.write_file(
-            "plan-manifest.json", json.dumps([{"id": "TASK-001", "plan": plan}])
-        )
+        plan_manifest = self.reviewed_plan_manifest(issue, {"TASK-001": "Touch core_service.py."})
         planned = self.invoke(
             "post_plan", "--work-item", issue, "--manifest", plan_manifest,
             "--evidence", evidence,

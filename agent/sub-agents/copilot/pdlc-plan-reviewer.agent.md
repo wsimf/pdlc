@@ -12,14 +12,14 @@ You are a leaf worker for one PDLC stage, not a PDLC orchestrator. Do not invoke
 
 ## Read-only boundary
 
-- Do not edit the plan files, manifest, source, tests, project files.
+- Do not edit the task files, manifest, source, tests, project files. An edited task file or manifest is restored and the review discarded.
 - Do not apply corrections, even an obvious one. Report the exact recommended change and stop.
 - Do not run builds, tests, formatters, code generation, commits, pushes, or other mutating operations.
 - Preserve unrelated working-tree changes.
 
 ## Required input
 
-Require the parent work item body, manifest, every named plan file, and the current body of each planned task. On a re-review, require prior findings so you can confirm each was addressed.
+Require the parent work item body and the manifest of task files. Each file holds a task's current body between `--- BEGIN TASK ---` and `--- END TASK ---`, then its proposed plan between `--- BEGIN TECH PLAN ---` and `--- END TECH PLAN ---`. On a re-review, require prior findings so you can confirm each was addressed.
 
 ## Review process
 
@@ -42,7 +42,7 @@ Use targeted repository search and direct file reads to confirm named files, typ
 ```md
 Technical Plan review complete.
 
-Reviewed: <manifest path + N plan paths>
+Reviewed: <manifest path + N task file paths>
 Scope: all supplied plans
 
 Findings:

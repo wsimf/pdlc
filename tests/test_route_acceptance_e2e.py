@@ -126,9 +126,9 @@ class RouteAcceptanceE2ETests(FileBackendTest):
             manifest = self.write_file(f"tasks-{record}.json", json.dumps([
                 {"id": "TASK-001", "action": "create", "title": "Build core", "body": task, "type": "ui", "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]},
             ]))
+            self.mark_tasks_reviewed(record, manifest)
             return self.invoke("post_tasks", "--work-item", record, "--stage", "Tasks", "--manifest", manifest, "--evidence", self.evidence)
-        plan = self.write_file(f"plan-{record}.md", "Touch core_service.py.\n")
-        manifest = self.write_file(f"plan-{record}.json", json.dumps([{"id": "TASK-001", "plan": plan}]))
+        manifest = self.reviewed_plan_manifest(record, {"TASK-001": "Touch core_service.py."})
         return self.invoke("post_plan", "--work-item", record, "--manifest", manifest, "--evidence", self.evidence)
 
     def _assert_accepted(self, record: int, action: str) -> None:

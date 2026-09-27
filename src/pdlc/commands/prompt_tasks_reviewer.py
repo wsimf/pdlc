@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt tasks-reviewer - read-only: print the reviewer's brief for a UI fragment or Tasks breakdown
+    pdlc prompt tasks-reviewer - print the reviewer's brief for a UI fragment or Tasks breakdown; nothing is published to the backend
 
 USAGE
     pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE|text:BODY) [--findings FILE|text:BODY] [--file]
@@ -20,6 +20,13 @@ DESCRIPTION
     complete body is always inlined, so the reviewer can check every cited
     `FR-*`/`C-*`/`UJ-*` without a second read; for a fragment review, the
     parent's own `## UI` section is left out, since the fragment replaces it.
+
+    For a `--manifest` review, the command records the exact manifest and task
+    body files it hands the reviewer in the work-item cache, and
+    `pdlc post tasks --stage Tasks` lands only those files unchanged. If a file
+    recorded by an earlier review changed since, the command first restores
+    each to the reviewed version, keeps the edited copy beside it as
+    `<name>.rejected.<ext>`, and refuses so that review is discarded and redone.
 
     `--findings` carries the previous pass's findings on a re-review, so each
     can be confirmed addressed; with nothing given, the brief has no prior

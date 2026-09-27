@@ -71,10 +71,10 @@ For Python syntax validation in this environment, use `PYTHONPYCACHEPREFIX=/tmp/
 
 Every command's printed `--help` (its module docstring under `src/pdlc/commands/`) and the
 top-level `pdlc --help` (`_usage()` in `src/pdlc/cli.py`) follow the same section convention,
-adapted from `gh`'s help layout to pdlc's own read-only/mutating split:
+adapted from `gh`'s help layout to pdlc's own non-publishing/publishing split:
 
 - The top-level `pdlc --help` is a "parent with children" surface. Its sections are `USAGE`,
-  `READ-ONLY COMMANDS` (setup, inspect*, prompt*, next), `MUTATING COMMANDS` (post*), `FLAGS` (the
+  `NON-PUBLISHING COMMANDS` (setup, inspect*, prompt*, next), `PUBLISHING COMMANDS` (post*), `FLAGS` (the
   global `--repo`/`--project-number`/`--project-owner`/`--backend`/`--home` overrides),
   `ARGUMENTS`, `EXAMPLES`, and `LEARN MORE`.
 - `pdlc prompt --help` is the only other one. It is an index, not a brief builder: a `COMMANDS`

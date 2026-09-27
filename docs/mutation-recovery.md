@@ -24,7 +24,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post write --patch` | body → `PRODUCT` → `PATCHED` → rewind or state | Mostly safe; may duplicate markers | Evidence without state move |
 | `post tasks --stage UI` | state? → body → `UI` → state or patch | Safe; may duplicate `UI` | Duplicate evidence |
 | `post tasks --stage Tasks` | state? → task upserts → reopen changed → descope comments and close/detach → `TASKS` → state or patch → rebase manifest | Check each task after retry | A reopened task may retain stale evidence if failure interrupts its invalidation |
-| `post plan` | state? → per-task plan comments → `PLAN` → state | Safe; may duplicate `PLAN` | Duplicate evidence |
+| `post plan` | state? → changed per-task plan comments → `PLAN` → state → rebase manifest, clear review stamp | Safe; skips landed plans, may duplicate `PLAN` | Duplicate evidence |
 | `post implement-task` | stack submit → PR edit → attach PR → implementation comment → close task | Safe by design | Stack conflict |
 | `post implement` | stack submit → PRs ready → `IMPLEMENTATION` → state | Safe; may duplicate evidence | Duplicate evidence |
 | `post test` | stack submit → attach PR → `TESTING` → state | Safe; may duplicate evidence | Duplicate evidence |
@@ -108,14 +108,16 @@ Re-run: safe; may duplicate `PDLC-UI`.
 
 ### `pdlc post tasks --stage Tasks`
 
+Without `--patch`, before any write it restores a reviewed file edited since its review and refuses a manifest the reviewer was not handed; both are local and leave the record untouched.
+
 Writes:
 1. If re-authoring: `set_state` → Tasks / Stale.
-2. Before any remote write, assign missing `TASK-NNN` identities and save them atomically in the supplied manifest; then, per task, create and link a new task or edit a changed task, leaving unchanged tasks untouched. Tasks created but never linked by an earlier run are found and linked on retry.
+2. Before any remote write, assign missing `TASK-NNN` identities and save them atomically in the supplied manifest, carrying the saved manifest into the review stamp so a retry still reads as reviewed; then, per task, create and link a new task or edit a changed task, leaving unchanged tasks untouched. Tasks created but never linked by an earlier run are found and linked on retry.
 3. For each rewritten task that was already closed: `reopen` → `PDLC-INVALIDATED` on the task → delete its `## Implementation` and `## Technical Plan` comments.
 4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it (GitHub: as not planned; Azure: `task_removed_state`, else the task closed state) → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
 6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
-7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run.
+7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run — and clear the review stamp.
 
 Partial failure:
 - In 2: some tasks may be created or edited. The manifest keeps generated IDs across retries; a `create` whose task already exists with the requested content and a `retain` whose edit already landed are carried forward.
@@ -135,15 +137,18 @@ Recovery:
 
 ### `pdlc post plan`
 
+Before any write it restores a reviewed file edited since its review and refuses a manifest the reviewer was not handed; both are local and leave the record untouched.
+
 Writes:
 1. If re-authoring: `set_state` → Technical Plan / Stale.
-2. Per planned task: edit the existing `## Technical Plan` comment on the task, or post one.
+2. Per task whose plan file differs from its recorded plan: edit the existing `## Technical Plan` comment on the task, or post one.
 3. `PDLC-PLAN` comment on the record.
 4. `set_state` → Technical Plan / Review Required.
+5. Local: rewrite the manifest's baselines onto the recorded plans and clear the review stamp. A failure here only warns.
 
 Check: `pdlc inspect task T` shows the new plan on every task in the manifest; `pdlc inspect N` — gate is Review Required.
 
-Re-run: safe. Step 2 edits in place when a plan comment exists. A failure *during* step 2's post (not edit) can leave two plan comments on one task; the newest wins. After 3, a re-run posts a second `PDLC-PLAN`.
+Re-run: safe, with the same manifest and no new review. Step 2 writes only plans that still differ from the record, and a task whose recorded plan already matches its file is accepted rather than refused as stale, so plans landed before the failure are skipped. A failure *during* step 2's post (not edit) can leave two plan comments on one task; the newest wins. After 3, a re-run posts a second `PDLC-PLAN`.
 
 ### `pdlc post implement-task`
 

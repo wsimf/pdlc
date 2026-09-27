@@ -26,7 +26,10 @@ from pathlib import Path
 
 from pdlc.config import Capabilities, Config, install_config, reset_config, set_config
 from pdlc.domain.evidence import ReviewVerdict, compose_review
+from pdlc.domain.plan_file import parse as parse_plan_file
+from pdlc.domain.plan_file import render as render_plan_file
 from pdlc.hosts import attachment_host, code_host, workitem_host
+from pdlc.internal.review_stamp import write_stamp
 
 BODY_DEFAULT = """## Product
 
@@ -330,6 +333,42 @@ class FileBackendTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
         return str(path)
+
+    def mark_tasks_reviewed(self, record: int, manifest: str | Path) -> None:
+        """Record a Tasks manifest and its body files as handed to the reviewer,
+        as `pdlc prompt tasks-reviewer --manifest` does."""
+        entries = json.loads(Path(manifest).read_text(encoding="utf-8"))
+        bodies = [Path(entry["body"]) for entry in entries if entry.get("action") != "remove" and entry.get("body")]
+        write_stamp(str(record), "Tasks", [Path(manifest), *bodies])
+
+    def write_plan(self, task_file: str | Path, plan: str) -> None:
+        """Replace a generated task file's tech plan block, as the planner does."""
+        path = Path(task_file)
+        parsed, errors = parse_plan_file(path.read_text(encoding="utf-8"))
+        assert parsed is not None, errors
+        path.write_text(render_plan_file(parsed.task, plan), encoding="utf-8")
+
+    def plan_manifest(self, record: int, plans: dict[str, str]) -> str:
+        """Generate the plan manifest through `pdlc prompt tech-planner` and
+        write each given plan into its task's file."""
+        brief = self.invoke("prompt_tech_planner", record)
+        assert brief.code == 0, brief.stderr
+        match = re.search(r"The manifest at `([^`]+)`", brief.stdout)
+        assert match is not None, brief.stdout
+        for entry in json.loads(Path(match.group(1)).read_text(encoding="utf-8")):
+            if entry["id"] in plans:
+                self.write_plan(entry["file"], plans[entry["id"]])
+        return match.group(1)
+
+    def review_plans(self, record: int, manifest: str) -> None:
+        """Hand a plan manifest to the reviewer, which is what lets it land."""
+        review = self.invoke("prompt_plan_reviewer", record, "--manifest", manifest)
+        assert review.code == 0, review.stderr
+
+    def reviewed_plan_manifest(self, record: int, plans: dict[str, str]) -> str:
+        manifest = self.plan_manifest(record, plans)
+        self.review_plans(record, manifest)
+        return manifest
 
     def evidence_file(self, content: str = "evidence body\n") -> str:
         return self.write_file("evidence.md", content)

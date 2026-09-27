@@ -100,3 +100,13 @@ def baseline_matches(baseline: str, fields: dict) -> bool:
 def _hash_fields(fields: dict) -> str:
     payload = json.dumps(fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def planner_command(work_item: str, manifest: object) -> str:
+    """The brief that starts a planning pass on an existing task manifest."""
+    return f"pdlc prompt task-planner {work_item} --current-tasks-manifest-path {manifest} --file"
+
+
+def reviewer_command(work_item: str, manifest: object) -> str:
+    """The brief that hands a task manifest to its reviewer."""
+    return f"pdlc prompt tasks-reviewer {work_item} --manifest {manifest} --file"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-planner - read-only: print the task planner's brief for a record's delivery-task breakdown
+    pdlc prompt task-planner - print the task planner's brief for a record's delivery-task breakdown; nothing is published to the backend
 
 USAGE
     pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
@@ -23,6 +23,12 @@ DESCRIPTION
     with nothing given, that section is omitted. `--current-tasks-manifest-path`
     names an unpublished manifest to revise instead of the generated copy of
     the published tasks; the agent reads and revises its task body files.
+
+    A new planning pass begins either way, so the record of the files last
+    handed to the tasks reviewer is cleared. With
+    `--current-tasks-manifest-path`, if any of those files changed since, the
+    command first restores each to the reviewed version, keeps the edited copy
+    beside it as `<name>.rejected.<ext>`, and refuses so the review is redone.
 
 FLAGS
     --current-tasks-manifest-path FILE  unpublished task manifest to revise instead of the published tasks

@@ -94,6 +94,15 @@ is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task b
 removes none, and keeps each task's `type`. Only titles and bodies change. A
 refusal writes nothing.
 
+Only a reviewed Tasks breakdown lands. `pdlc prompt tasks-reviewer --manifest`
+records the exact manifest and task body files it hands the reviewer. If any
+of them changed since, this command restores each to the reviewed version,
+keeps the edited copy beside it as `<name>.rejected.<ext>`, and refuses so the
+review is redone; a real landing also refuses a manifest the reviewer was not
+handed. Writing auto-assigned ids back to the manifest keeps it reviewed. A
+--patch is reviewed by the patch reviewer instead, and a UI --body is not
+checked this way.
+
 An existing task may be carried as `"action": "retain"`, with its generated
 title, body file, type, coverage, dependencies, and baseline hash. The command
 refuses a stale baseline, compares the returned content with the stored task,
@@ -177,7 +186,17 @@ from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, re
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError, TransientError
-from pdlc.domain.task_artifact import baseline_matches, declared_links, same_task_content, snapshot, stored_fields, task_body_errors
+from pdlc.domain.task_artifact import (
+    baseline_matches,
+    declared_links,
+    planner_command,
+    reviewer_command,
+    same_task_content,
+    snapshot,
+    stored_fields,
+    task_body_errors,
+)
+from pdlc.internal.review_stamp import clear_stamp, refresh_stamp, require_reviewed, restore_reviewed
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
 
@@ -578,6 +597,10 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         }))
         return
 
+    # Only the reviewed breakdown lands; a patch is reviewed by the patch reviewer instead.
+    if context.patch is None:
+        require_reviewed(issue, "Tasks", manifest_path.resolve(), reviewer_command(issue, manifest_path.resolve()))
+
     # Fix auto-assigned identities in the local artifact before a remote create.
     # A partial publication can then use this same manifest for recovery.
     active_entries = [entry for entry in source_manifest if entry.get("action") != "remove"]
@@ -589,6 +612,8 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
                     entry["action"] = "create"
         try:
             _save_manifest(manifest_path, source_manifest)
+            # The ids are the command's own edit, so a retry still reads as reviewed.
+            refresh_stamp(issue, "Tasks", manifest_path.resolve())
         except OSError as error:
             raise PdlcError(f"cannot save assigned task ids in {manifest_path}: {error}") from error
 
@@ -669,6 +694,8 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     # The publication has landed; a manifest left unconsumed is only a hazard to warn about.
     try:
         _consume_manifest(manifest_path, source_manifest, issue)
+        if context.patch is None:
+            clear_stamp(issue, "Tasks")
     except (OSError, PdlcError) as error:
         print(f"pdlc: warning: published, but could not rebase {manifest_path} onto the published tasks: {error};"
               " do not reuse it", file=sys.stderr)
@@ -759,6 +786,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.no_ui:
                 raise PdlcError("--no-ui is only valid with --stage UI")
             manifest_path = require_file("--manifest file", args.manifest)
+            if not args.patch:
+                # A reviewed file edited since its review is put back before anything reads it.
+                reviewed = manifest_path.resolve()
+                restore_reviewed(
+                    args.work_item, "Tasks",
+                    reviewer_command(args.work_item, reviewed), planner_command(args.work_item, reviewed),
+                )
 
         if args.impact and not args.patch:
             raise PdlcError("--impact is only valid with --patch")

@@ -318,3 +318,18 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             "tech-planner-stale",
             self.invoke("prompt_tech_planner", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
         )
+
+    # --- plan reviewer ---
+
+    def test_plan_reviewer_first_pass(self):
+        self._plan_stage()
+        manifest = self.plan_manifest(60, {"TASK-002": "Own src/b.py; render the list."})
+        self.assertGolden("plan-review-first-pass", self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest))
+
+    def test_plan_reviewer_replacing_a_plan_with_findings(self):
+        self._plan_stage(gate="Stale")
+        manifest = self.plan_manifest(60, {"TASK-001": "Touch two modules.", "TASK-002": "Own src/b.py."})
+        self.assertGolden(
+            "plan-review-replace-with-findings",
+            self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest, "--findings", "text:TASK-001 skips the cache"),
+        )
