@@ -72,7 +72,8 @@ DESCRIPTION
     `ui-planner` may write editable copies to the work-item cache.
     `tasks-reviewer` and `plan-reviewer` record the files they hand
     the reviewer, so the stage lands only what was reviewed; they and the
-    matching planner briefs restore a reviewed file that changed since.
+    matching planner briefs restore a reviewed file that changed since. Both
+    reviewer briefs also write a fresh findings file for the reviewer to fill.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -142,7 +143,7 @@ from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
 from pdlc.internal.review_stamp import clear_stamp, restore_reviewed, write_stamp
-from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.scratch import cache_file, replace_cache_file, scratch_path, write_scratch
 from pdlc.internal.workitem import (
     comments_for_issue,
     item_slug,
@@ -869,6 +870,16 @@ def _manifest_body_files(manifest_path: Path) -> list[Path]:
     ]
 
 
+def _findings_file(work_item: str, review: str) -> str:
+    """A fresh findings outline for one review, at a fixed path per review.
+
+    Written after the brief has read its own `--findings`, which may be this
+    same file from the previous pass.
+    """
+    path = cache_file(work_item, f"{review.lower().replace(' ', '-')}-findings", ".md")
+    return str(replace_cache_file(path, render("review-findings", {"REVIEW": review})))
+
+
 def _published_review_files(work_item: str) -> tuple[str | None, str | None]:
     """Fresh files holding the published UI section or task breakdown, whichever
     the record's status names, as (manifest, fragment)."""
@@ -924,6 +935,8 @@ def tasks_reviewer_brief(
             ui_reviewer_command(work_item, fragment_path), ui_planner_command(work_item, fragment_path),
         )
         write_stamp(work_item, UI_STAGE, [Path(fragment_path)])
+    prior_findings = resolve_text(findings, label="--findings").strip() if findings else ""
+    findings_path = _findings_file(work_item, UI_STAGE if fragment_path else TASKS_STAGE)
     return render(
         "tasks-review",
         {
@@ -936,7 +949,8 @@ def tasks_reviewer_brief(
             "TASKS": tasks,
             "REMOVED_TASKS": removed,
             # Empty on a first review, which drops the section from the brief.
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
+            "PRIOR_FINDINGS": prior_findings,
+            "FINDINGS_PATH": findings_path,
         },
     )
 
@@ -990,6 +1004,7 @@ def plan_reviewer_brief(work_item: str, manifest: str | None, findings: str | No
             replaced.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "RECORDED_PLAN": recorded})
         listed.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "TASK_CHANGE": change, "TASK_FILE": str(path)})
     write_stamp(work_item, TECH_PLAN_STAGE, [manifest_path, *(Path(entry["TASK_FILE"]) for entry in listed)])
+    prior_findings = resolve_text(findings, label="--findings").strip() if findings else ""
     return render(
         "plan-review",
         {
@@ -1000,7 +1015,8 @@ def plan_reviewer_brief(work_item: str, manifest: str | None, findings: str | No
             "TASKS": listed,
             "REPLACED_PLANS": replaced,
             # Empty on a first review, which drops the section from the brief.
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
+            "PRIOR_FINDINGS": prior_findings,
+            "FINDINGS_PATH": _findings_file(work_item, TECH_PLAN_STAGE),
         },
     )
 

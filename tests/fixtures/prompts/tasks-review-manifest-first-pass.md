@@ -52,4 +52,4 @@ Review each task below on its own, then the breakdown as a whole:
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Clean` or `Changes`.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-tasks-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and that file's path.

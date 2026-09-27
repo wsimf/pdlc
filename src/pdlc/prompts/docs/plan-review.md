@@ -60,4 +60,4 @@ This is a re-review. The findings below were raised against the previous version
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Changes Required` or `Approval Required`.
+Write your review into `{{FINDINGS_PATH}}`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and that file's path.

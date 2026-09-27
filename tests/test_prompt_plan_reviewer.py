@@ -105,3 +105,26 @@ class PromptPlanReviewerTest(FileBackendTest):
         # The generated files were handed to the reviewer, so they land.
         landed = self.invoke("post_plan", "--work-item", 60, "--manifest", manifest, "--evidence", self.evidence_file())
         self.assertEqual(landed.code, 0, landed.stderr)
+
+    def _findings_path(self, stdout: str) -> Path:
+        return Path(re.search(r"Write your review into `([^`]+)`", stdout).group(1))
+
+    def test_the_brief_writes_a_findings_outline_for_the_reviewer(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        result = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest)
+        findings = self._findings_path(result.stdout)
+        self.assertEqual(findings.name, "pdlc-technical-plan-findings.md")
+        outline = findings.read_text(encoding="utf-8")
+        self.assertIn("Technical Plan review complete.", outline)
+        self.assertIn("Verdict: <Changes Required|Approval Required>", outline)
+
+    def test_a_re_review_reads_the_findings_file_before_it_is_reset(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest).stdout)
+        findings.write_text("TASK-001 skips the cache.\nVerdict: Changes Required\n", encoding="utf-8")
+        rereview = self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest, "--findings", str(findings))
+        self.assertEqual(rereview.code, 0, rereview.stderr)
+        self.assertIn("TASK-001 skips the cache.", rereview.stdout)
+        self.assertIn("Verdict: <Changes Required|Approval Required>", findings.read_text(encoding="utf-8"))

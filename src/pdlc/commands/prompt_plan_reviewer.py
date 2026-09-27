@@ -39,6 +39,12 @@ DESCRIPTION
     can be confirmed addressed; with nothing given, the brief has no prior
     findings section.
 
+    The command also writes a fresh findings file, an outline of the report,
+    to a fixed path in the work-item cache and names it in the brief; the
+    reviewer writes its findings there. Each brief overwrites the previous
+    one's file, after reading `--findings`, so that file may be passed back as
+    `--findings` on the re-review.
+
 FLAGS
     --manifest FILE             the plan manifest to review; omit it to review the recorded plans
     --findings FILE|text:BODY   the previous pass's findings, on a re-review

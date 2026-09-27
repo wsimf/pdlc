@@ -85,3 +85,10 @@ class UiReviewStampTest(FileBackendTest):
         landed = self._land(60, fragment)
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(landed.json["gateState"], "Approval Required")
+
+    def test_ui_and_tasks_reviews_keep_separate_findings_files(self):
+        self._reviewed(60)
+        brief = self.invoke("prompt_tasks_reviewer", 60, "--fragment", self.write_file("ui.md", FRAGMENT))
+        findings = Path(re.search(r"Write your review into `([^`]+)`", brief.stdout).group(1))
+        self.assertEqual(findings.name, "pdlc-ui-findings.md")
+        self.assertIn("UI review complete.", findings.read_text(encoding="utf-8"))

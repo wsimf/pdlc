@@ -51,9 +51,11 @@ def scratch_path(work_item: str, name: str, suffix: str = ".md") -> Path:
     return cache_directory(work_item) / f"{_safe_component(ref_label())}-{_safe_component(name)}-{secrets.token_hex(3)}{suffix}"
 
 
-def cache_file(work_item: str, name: str) -> Path:
-    """Return the fixed path of a CLI-owned JSON file that is rewritten in place."""
-    return cache_directory(work_item) / f"{_safe_component(ref_label())}-{_safe_component(name)}.json"
+def cache_file(work_item: str, name: str, suffix: str = ".json") -> Path:
+    """Return the fixed path of a CLI-owned file that is rewritten in place."""
+    if suffix not in (".md", ".json"):
+        raise PdlcError(f"unsupported cache file suffix: {suffix!r}")
+    return cache_directory(work_item) / f"{_safe_component(ref_label())}-{_safe_component(name)}{suffix}"
 
 
 def _cache_parent(path: Path) -> None:

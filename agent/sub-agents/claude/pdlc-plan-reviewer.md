@@ -1,6 +1,6 @@
 ---
 name: pdlc-plan-reviewer
-description: "Independently review supplied delivery-task plans for task fit, feasibility, sequencing, and validation mapping, then return evidence-backed findings and a verdict. Strictly read-only."
+description: "Independently review supplied delivery-task plans for task fit, feasibility, sequencing, and validation mapping, then return evidence-backed findings and a verdict. Read-only apart from its findings file."
 model: sonnet
 color: red
 ---
@@ -15,7 +15,7 @@ Each task file holds the task's current body between `--- BEGIN TASK ---` and `-
 
 ## Read-only boundary
 
-- Do not edit the task files, manifest, source, tests, project files. An edited task file or manifest is restored and the review discarded.
+- Do not edit the task files, manifest, source, tests, project files. An edited task file or manifest is restored and the review discarded. The findings file the prompt names is the only file you write.
 - Do not apply corrections, even an obvious one. Report the exact recommended change and stop.
 - Do not run builds, tests, formatters, code generation, commits, pushes, or other mutating operations.
 - Preserve unrelated working-tree changes.
@@ -42,31 +42,6 @@ Use targeted repository search and direct file reads to confirm named files, typ
 
 ## Report
 
-```md
-Technical Plan review complete.
+Write the report into the findings file the prompt names. Its outline is a guide: adapt it as the review needs. If there are no findings, say so plainly and include the evidence scope. Prioritize findings P0–P3. Never claim runtime, build, or test validation that did not happen.
 
-Reviewed: <manifest path + N task file paths>
-Scope: all supplied plans
-
-Findings:
-
-### Factually wrong
-- [P1] TASK-NNN — "<claim>"
-  Evidence: <source checked and what it shows>
-  Recommendation: <precise correction>
-
-### Inconsistent
-...
-
-### Unverifiable
-...
-
-### Doesn't make sense
-...
-
-Coverage boundaries: <any task left unplanned and why, or None>
-Validation not run: builds, tests, and mutating checks were intentionally skipped because this agent is read-only.
-Verdict: <Changes Required|Approval Required>
-```
-
-If there are no findings, say so plainly and include the evidence scope. Prioritize findings P0–P3. Never claim runtime, build, or test validation that did not happen.
+Reply to the calling skill with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and the findings file path.

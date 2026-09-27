@@ -43,4 +43,4 @@ Review the proposed `UI` section at `$CACHE_ROOT/ui.md`. Read it in full and rev
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Clean` or `Changes`.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-ui-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and that file's path.
