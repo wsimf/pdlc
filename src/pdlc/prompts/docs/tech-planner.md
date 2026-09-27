@@ -44,6 +44,12 @@ The {{CHANGE_SOURCES}} below apply to this pass. They take precedence over every
 - Leave the plans of tasks they don't affect unchanged.
 - If they ask for something the task body doesn't allow, say so in the plan. Don't plan outside the task's scope.
 - If you can't tell which task they mean, stop and report it.
+{{#IF UPSTREAM_CHANGES}}
+
+### Changed since last publish
+
+{{INCLUDE:shared/changed-since-publish.md}}
+{{/IF}}
 {{#IF CHANGE_REQUESTS}}
 
 ### Change requests

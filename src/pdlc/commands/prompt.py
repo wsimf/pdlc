@@ -111,7 +111,7 @@ from pdlc.commands.inspect_capability import _one as capability_line
 from pdlc.commands.inspect_test import readiness as testing_readiness
 from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
-from pdlc.domain.changes import ChangeRequest, open_change_requests
+from pdlc.domain.changes import ChangeRequest, open_change_requests, upstream_changes
 from pdlc.domain.plan_file import (
     manifest_errors,
     parse as parse_plan_file,
@@ -235,6 +235,18 @@ def _requests_text(requests: list[ChangeRequest]) -> str:
     return "\n\n".join(blocks)
 
 
+def _upstream_text(item: dict, comments: list[dict], stage: str) -> str:
+    """Every upstream patch or invalidation since `stage` last published, one
+    block each, or an empty string when there is none."""
+    blocks: list[str] = []
+    for comment in upstream_changes(comments, pipeline_for_item(item), stage):
+        when = timeline_formatted_at(comment["createdAt"]) if comment.get("createdAt") else "undated"
+        url = f" ({comment['url']})" if comment.get("url") else ""
+        kind = "Patch" if comment["marker"] == "PATCHED" else "Invalidation"
+        blocks.append(f"### {kind} — {when}{url}\n\n{evidence_comment_text(comment).strip()}")
+    return "\n\n".join(blocks)
+
+
 def _decisions_text(requests: list[ChangeRequest]) -> str:
     resolutions = [request for request in requests if request.source == "resolution"]
     if not resolutions:
@@ -263,6 +275,7 @@ def _implement_context(
         "JOURNEY_TEXT": covered_text(body, "UI", task_body, UJ_PATTERN),
         "FINDINGS": findings,
         "FINDINGS_TEXT": findings,
+        "UPSTREAM_CHANGES": _upstream_text(item, comments, "Implementation"),
         "BUILD_RUN_SKILL": get_capabilities().skill("build-run") or "",
     }
 
@@ -463,6 +476,7 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PULL_REQUESTS": ", ".join(f"`{number}`" for number in dict.fromkeys(numbers)) or "none registered",
             "FINDINGS": "\n\n".join(blocks),
+            "UPSTREAM_CHANGES": _upstream_text(item, comments, "Testing"),
         },
     )
 
@@ -577,6 +591,7 @@ def ui_planner_brief(
             "PARENT_BODY": (remove_section(parent_body, "UI") if fragment else parent_body).rstrip(),
             "GATE_STATE": item_gate(item) or "unset",
             "STALE_REASON": _stale_reason(item, comments, status),
+            "UPSTREAM_CHANGES": _upstream_text(item, comments, status),
             "TASK_TREE": _task_tree_text(delivery),
             "FRAGMENT_PATH": fragment,
             "CHANGE_REQUESTS": change_requests,
@@ -629,6 +644,7 @@ def task_planner_brief(
             "PARENT_WORK_ITEM": str(item["content"]["number"]),
             "PARENT_BODY": _parent_body(item).rstrip(),
             "STALE_REASON": _stale_reason(item, comments, status),
+            "UPSTREAM_CHANGES": _upstream_text(item, comments, status),
             "MANIFEST_PATH": manifest,
             "EXISTING_TASKS": [
                 {
@@ -754,12 +770,18 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
     entries = _plan_manifest_entries(manifest, work_item)
     clear_stamp(work_item, TECH_PLAN_STAGE)
 
+    upstream = _upstream_text(item, comments, status)
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
     driver_followup = _filled_text(follow_up, "--follow-up", TECH_PLAN_STAGE)
     # The sections a planned task is checked against; only those that render are named.
-    change_sources = " and ".join(
-        name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
-    )
+    sources = [
+        name
+        for name, text in (
+            ("upstream changes", upstream), ("change requests", change_requests), ("driver follow-up", driver_followup),
+        )
+        if text
+    ]
+    change_sources = " and ".join((", ".join(sources[:-1]), sources[-1]) if len(sources) > 1 else sources)
     by_id = {task["taskId"]: task for task in tasks if task.get("taskId")}
     statuses = {entry["id"]: _task_plan_status(entry, by_id.get(entry["id"])) for entry in entries}
 
@@ -789,6 +811,7 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
                 }
                 for entry in entries
             ],
+            "UPSTREAM_CHANGES": upstream,
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": driver_followup,
         },

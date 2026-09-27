@@ -7,7 +7,7 @@ import unittest
 
 from _support import FileBackendTest
 
-from pdlc.domain.changes import open_change_requests
+from pdlc.domain.changes import open_change_requests, upstream_changes
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 
 DECISION_EVIDENCE = (
@@ -115,6 +115,39 @@ class OpenChangeRequestTests(unittest.TestCase):
         changes = open_change_requests(comments, FEATURE_PIPELINE, "Testing")
         self.assertIsNone(changes.published)
         self.assertEqual(len(changes.requests), 1)
+
+
+def _upstream(comments: list[dict], stage: str) -> list[str]:
+    return [comment["url"] for comment in upstream_changes(comments, FEATURE_PIPELINE, stage)]
+
+
+_UI_PATCH = "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\nReturned to: UI / Stale\n\nimpact"
+_UI_REWIND = "PDLC-INVALIDATED\n\nInvalidated stage: UI\n\nReturned by a patch of Product."
+
+
+class UpstreamChangeTests(unittest.TestCase):
+    def test_upstream_patch_and_invalidation_since_the_stage_published(self):
+        comments = _thread("PDLC-TASKS\n\nfirst", _UI_PATCH, _UI_REWIND, "PDLC-UI\n\nreworked")
+        self.assertEqual(_upstream(comments, "Tasks"), ["u2", "u3"])
+        self.assertEqual(_upstream(comments, "Technical Plan"), [])  # never published
+
+    def test_republishing_clears_them(self):
+        comments = _thread("PDLC-TASKS\n\nfirst", _UI_PATCH, _UI_REWIND, "PDLC-TASKS\n\nsecond")
+        self.assertEqual(_upstream(comments, "Tasks"), [])
+
+    def test_own_and_downstream_invalidations_are_not_upstream(self):
+        comments = _thread(
+            "PDLC-UI\n\nui",
+            "PDLC-TASKS\n\ntasks",
+            "PDLC-INVALIDATED\n\nInvalidated stage: Tasks\n\nsplit it",
+            "PDLC-INVALIDATED\n\nInvalidated stage: Technical Plan\n\nre-spike",
+        )
+        self.assertEqual(_upstream(comments, "Tasks"), [])
+        self.assertEqual(_upstream(comments, "UI"), [])
+
+    def test_approval_ignores_them(self):
+        comments = _thread("PDLC-TASKS\n\nfirst", _UI_REWIND)
+        self.assertEqual(_open(comments, "Tasks"), [])
 
 
 class InspectChangesCommandTests(FileBackendTest):

@@ -18,7 +18,9 @@ DESCRIPTION
     resolving any experience decision. It carries the record's `Gate State`,
     any recorded stale reason, every open change request the UI stage has
     received since it last published, and its existing delivery-task tree, if
-    any.
+    any. It also carries every patch or invalidation of an upstream stage
+    since this stage last published, under `Changed since last publish`; with
+    none, or before its first publication, that section is omitted.
 
     When the record already has a `UI` section, the command writes it to the
     work-item cache as an editable fragment and the brief names that file; the

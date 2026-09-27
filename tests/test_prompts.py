@@ -333,6 +333,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "JOURNEY_TEXT": "n/a",
                 "FINDINGS": "",
                 "FINDINGS_TEXT": "",
+                "UPSTREAM_CHANGES": "",
                 "BUILD_RUN_SKILL": "",
             },
         )
@@ -340,6 +341,7 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertIn("leaf worker for this one task.", rendered)
         self.assertIn("WORK-12-TASK-3", rendered)
         self.assertNotIn("## Findings to address", rendered)
+        self.assertNotIn("## Changed since last publish", rendered)
         self.assertNotIn("## Verify", rendered)
         self.assertNotIn("{{", rendered)
 
@@ -355,11 +357,14 @@ class PackagedPromptTests(unittest.TestCase):
                 "JOURNEY_TEXT": "n/a",
                 "FINDINGS": "yes",
                 "FINDINGS_TEXT": "the invalidation text",
+                "UPSTREAM_CHANGES": "the upstream patch",
                 "BUILD_RUN_SKILL": "build-run-ios",
             },
         )
         self.assertIn("## Findings to address", rendered)
         self.assertIn("the invalidation text", rendered)
+        self.assertIn("## Changed since last publish", rendered)
+        self.assertIn("--- BEGIN UPSTREAM CHANGES ---\n\nthe upstream patch\n\n--- END UPSTREAM CHANGES ---", rendered)
         self.assertIn("invoke the `build-run-ios` skill", rendered)
         self.assertNotIn("{{", rendered)
 

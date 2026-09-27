@@ -510,3 +510,58 @@ class PromptCommandTest(PromptHarness):
         result = self._tech_brief()
         self.assertEqual(result.code, 1)
         self.assertIn("nothing to plan", result.stderr)
+
+
+class ChangedSinceLastPublishTest(PromptHarness):
+    """A planning stage re-running over its own published work sees exactly
+    the upstream patches and invalidations newer than its latest publication."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        self.seed_task(
+            60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work",
+            body="## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
+        )
+        self._plan(60, 601)
+
+    def _brief(self, command: str) -> str:
+        result = self.invoke(command, "--inline", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        return result.stdout
+
+    def _first_pass_through_technical_plan(self) -> None:
+        self._log("PDLC-UI\n\nui", "PDLC-TASKS\n\ntasks", "PDLC-PLAN\n\nplans")
+        self._patch_back_to_ui("impact A")
+        self._at("Tasks", "Pending")
+        brief = self._brief("prompt_task_planner")
+        self.assertIn("### Changed since last publish", brief)
+        self.assertIn("Patched stage: Product", brief)
+        self.assertIn("impact A", brief)
+        self._log("PDLC-TASKS\n\ntasks again")
+        self._at("Technical Plan", "Pending")
+        # Technical Plan last published before the rewind, so it sees the same change.
+        plan = self._brief("prompt_tech_planner")
+        self.assertIn("### Changed since last publish", plan)
+        self.assertIn("impact A", plan)
+        self.assertIn("check each against the upstream changes below", plan)
+        self._log("PDLC-PLAN\n\nplans again")
+
+    def test_rewind_to_tasks_shows_only_its_own_invalidation(self):
+        self._first_pass_through_technical_plan()
+        self._log("PDLC-INVALIDATED\n\nInvalidated stage: Tasks\n\nsplit the export task")
+        self._at("Tasks", "Stale")
+        brief = self._brief("prompt_task_planner")
+        self.assertNotIn("### Changed since last publish", brief)
+        self.assertNotIn("impact A", brief)
+        self.assertIn("### Invalidation reason", brief)
+        self.assertIn("split the export task", brief)
+
+    def test_second_patch_back_to_ui_shows_only_the_second_change(self):
+        self._first_pass_through_technical_plan()
+        self._patch_back_to_ui("impact B")
+        self._at("Tasks", "Pending")
+        brief = self._brief("prompt_task_planner")
+        self.assertIn("### Changed since last publish", brief)
+        self.assertIn("impact B", brief)
+        self.assertNotIn("impact A", brief)

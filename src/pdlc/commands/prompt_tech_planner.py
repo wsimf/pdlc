@@ -30,7 +30,10 @@ DESCRIPTION
     not; it does not embed their bodies. The planner edits only the plan blocks,
     so a reconciling pass edits what it would overwrite in place. The brief
     also carries every change request the stage has received since it last
-    published, read off the record; with none, that section is omitted.
+    published, read off the record; with none, that section is omitted. It
+    also carries every patch or invalidation of an upstream stage
+    since this stage last published, under `Changed since last publish`; with
+    none, or before its first publication, that section is omitted.
 
     `--current-plan-manifest-path` names the manifest of an earlier pass to keep
     revising instead of generating fresh files, such as the one a reviewer saw.
