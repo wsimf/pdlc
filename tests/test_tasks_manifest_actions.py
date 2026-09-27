@@ -6,7 +6,8 @@ from pathlib import Path
 from unittest import mock
 
 from _support import BODY_DEFAULT, FileBackendTest
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.hosts.lib import process
 from pdlc.internal.workitem import subissues_for
 
 
@@ -280,6 +281,16 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertIn("TASK-001 retain requires its generated baseline", result.stderr)
         self.assertEqual(self.task_meta(40, 401)["state"], "CLOSED")
         self.assertEqual(self.task_comments_text(40, 401), comments)
+
+    def test_transient_lookup_of_a_removed_task_stays_retryable(self):
+        path, entries = self._generated()
+        entries[1] = {"id": "TASK-009", "number": 409, "action": "remove",
+                      "baseline": entries[1]["baseline"], "reason": "Superseded"}
+        # The harness bypasses cli.main, which resets this per run; another test may have left it set.
+        process.reset_run_state()
+        with mock.patch("pdlc.commands.post_tasks.tasks_by_number", side_effect=TransientError("timeout")):
+            result = self._land(path, entries)
+        self.assertEqual(result.code, 75, result.stderr)
 
     def test_failed_rebase_warns_without_failing_the_publication(self):
         path, entries = self._generated()

@@ -230,8 +230,15 @@ class TaskManifestActionErrorTests(FileBackendTest):
             ([retained, retained], "pdlc: duplicate task id: TASK-001\n"),
             ([{key: value for key, value in retained.items() if key != "action"}],
              "pdlc: manifest entry 1 names id TASK-001; set its action to create, retain, or remove\n"),
-            ([{**retained, "id": "TASK-999"}], "pdlc: manifest entry 1 must name an existing task for retain\n"),
-            ([{**removed, "id": "TASK-999", "number": None}], "pdlc: manifest entry 1 must name an existing task for remove\n"),
+            ([{**retained, "id": "TASK-999"}],
+             "pdlc: manifest entry 1 cannot retain TASK-999: it is not a task of work item #71;"
+             " the manifest is out of date or was edited by hand, so " + REGENERATE),
+            ([{**removed, "id": "TASK-999", "number": None}],
+             "pdlc: manifest entry 1 cannot remove TASK-999: it is not a task of work item #71;"
+             " the manifest is out of date or was edited by hand, so " + REGENERATE),
+            ([{**removed, "id": "TASK-999", "number": 9999}],
+             "pdlc: manifest entry 1 cannot remove TASK-999: it is not a task of work item #71, and task #9999"
+             " is not one it already descoped; the manifest is out of date or was edited by hand, so " + REGENERATE),
             ([{**removed, "baseline": "stale"}], STALE),
             ([missing], MISSING.format(action="retain")),
             ([{key: value for key, value in removed.items() if key != "baseline"}], MISSING.format(action="remove")),

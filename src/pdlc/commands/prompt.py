@@ -107,7 +107,7 @@ from pdlc.commands.inspect_test import testable_scope
 from pdlc.config import get_capabilities, get_config
 from pdlc.domain.changes import ChangeRequest, open_change_requests
 from pdlc.domain.task_artifact import snapshot, stored_fields
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.model import (
     evidence_comment_text,
     find_marked_comments,
@@ -684,7 +684,7 @@ def tech_planner_brief(work_item: str, follow_up: str | None) -> str:
     )
 
 
-def _manifest_artifact_text(manifest_path: Path) -> str:
+def _manifest_artifact_text(manifest_path: Path, work_item: str) -> str:
     """Every active manifest entry rendered with its task body in full."""
     entries = load_json_array("--manifest", manifest_path, allow_empty=False)
     blocks: list[str] = []
@@ -693,11 +693,19 @@ def _manifest_artifact_text(manifest_path: Path) -> str:
             number = entry.get("number")
             if not isinstance(number, int):
                 raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
-            matches = tasks_by_number([str(number)])
+            try:
+                matches = tasks_by_number([str(number)])
+            except TransientError:
+                raise
+            except PdlcError as error:
+                matches, lookup = [], f": {error}"
+            else:
+                lookup = ""
             if len(matches) != 1:
                 raise PdlcError(
-                    f"removed task {entry.get('id') or '?'} (issue {number}): "
-                    f"expected one stored task, found {len(matches)}"
+                    f"manifest removes {entry.get('id') or '?'} as task #{number}, which could not be read{lookup};"
+                    f" the manifest is out of date or was edited by hand, so run `pdlc prompt task-planner {work_item}`"
+                    " for a fresh manifest and re-dispatch the task planner agent with it"
                 )
             stored = matches[0]
             header = f"### {entry.get('id') or '?'} — {stored['title']}"
@@ -732,7 +740,7 @@ def tasks_reviewer_brief(
         raise PdlcError("pass exactly one of --manifest or --fragment")
     item = resolve_item(work_item)
     artifact = (
-        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        _manifest_artifact_text(require_file("--manifest", manifest), work_item) if manifest
         else resolve_text(fragment, label="--fragment").strip()
     )
     return render(
@@ -805,7 +813,7 @@ def patch_reviewer_brief(work_item: str, stage: str, body: str | None, manifest:
             f"no stage lies between {stage} and {plan.source.stage}; the patch needs no impact report"
         )
     draft = (
-        _manifest_artifact_text(require_file("--manifest", manifest)) if manifest
+        _manifest_artifact_text(require_file("--manifest", manifest), work_item) if manifest
         else require_file("--body", body).read_text(encoding="utf-8").strip()
     )
     delivery = [task for task in tasks if task.get("taskId")]

@@ -177,7 +177,7 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan, reopen_tasks
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
-from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.task_artifact import baseline_matches, declared_links, same_task_content, snapshot, stored_fields, task_body_errors
 from pdlc.internal.inputs import assert_unmarked, load_json_array, print_help, require_file, resolve_text, wants_help
 from pdlc.domain.workflow import Event, Pipeline, State, decision_required_message
@@ -331,7 +331,13 @@ def _detached_task(entry: dict, task_id: str, issue: str) -> dict | None:
     number, reason = entry.get("number"), entry.get("reason")
     if not isinstance(number, int) or number <= 0 or not isinstance(reason, str):
         return None
-    found = tasks_by_number([str(number)])
+    try:
+        found = tasks_by_number([str(number)])
+    except TransientError:
+        raise
+    except PdlcError:
+        # A number the host does not know is reported with the manifest entry that named it.
+        return None
     if len(found) != 1:
         return None
     task = found[0]
@@ -344,6 +350,15 @@ def _regenerate(issue: str) -> str:
     """The recovery for a manifest that no longer matches the stored tasks."""
     return (f"run `pdlc prompt task-planner {issue}` for a fresh brief and manifest, re-dispatch"
             " the task planner agent with it, and post the manifest it returns")
+
+
+def _unknown_task(index: int, action: str, task_id: object, number: object, issue: str) -> str:
+    """Why a retain or remove entry names no task this command can act on, and how to recover."""
+    label = task_id if isinstance(task_id, str) else "a task with no id"
+    message = f"manifest entry {index} cannot {action} {label}: it is not a task of work item #{issue}"
+    if action == "remove" and number is not None:
+        message += f", and task #{number} is not one it already descoped"
+    return f"{message}; the manifest is out of date or was edited by hand, so {_regenerate(issue)}"
 
 
 def _stale(task_id: str, issue: str) -> str:
@@ -389,7 +404,7 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
                 if detached is not None:
                     by_id[task_id] = detached
             if not isinstance(task_id, str) or task_id not in by_id:
-                raise PdlcError(f"manifest entry {index} must name an existing task for {action}")
+                raise PdlcError(_unknown_task(index, action, task_id, entry.get("number"), issue))
             baseline = entry.get("baseline")
             if not isinstance(baseline, str):
                 raise PdlcError(f"{task_id} {action} requires its generated baseline; {_regenerate(issue)}")
