@@ -8,6 +8,7 @@ about the setup of would prove nothing.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 from tests._support import FileBackendTest
@@ -171,3 +172,33 @@ class PromptHarness(FileBackendTest):
         patcher = patch("pdlc.commands.inspect_test._files_for_pull_request", side_effect=lambda pr: files[pr["number"]])
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    # --- upstream changes ---
+
+    def _log(self, *bodies: str) -> None:
+        """Append record comments dated in order after every other seeded one,
+        so a scenario reads as the sequence it was written in."""
+        self.logged = getattr(self, "logged", 0)
+        log = self.records_dir() / "60" / "comments.jsonl"
+        with log.open("a") as handle:
+            for body in bodies:
+                self.logged += 1
+                entry = {"body": body, "createdAt": f"2026-06-{self.logged:02d}T00:00:00Z", "url": "", "author": {"login": "t"}}
+                handle.write(json.dumps(entry) + "\n")
+
+    def _at(self, status: str, gate: str) -> None:
+        path = self.records_dir() / "60" / "meta.json"
+        meta = json.loads(path.read_text())
+        meta["fields"].update({"Status": status, "Gate State": gate})
+        path.write_text(json.dumps(meta))
+
+    def _patch_back_to_ui(self, impact: str) -> None:
+        """A Product patch from Technical Plan that returned the record to UI,
+        then the reworked UI landing and approved."""
+        self._log(
+            "PDLC-PRODUCT\n\npatched product",
+            "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\n"
+            f"Returned to: UI / Stale\n\n{impact}",
+            f"PDLC-INVALIDATED\n\nInvalidated stage: UI\n\nReturned by a patch of Product; {impact}",
+        )
+        self._log("PDLC-UI\n\nreworked", "PDLC-APPROVED\n\nUI approved")

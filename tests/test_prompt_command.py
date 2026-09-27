@@ -524,31 +524,6 @@ class ChangedSinceLastPublishTest(PromptHarness):
             body="## Scope\nBuild the seam.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
         )
         self._plan(60, 601)
-        self.day = 0
-
-    def _log(self, *bodies: str) -> None:
-        log = self.records_dir() / "60" / "comments.jsonl"
-        with log.open("a") as handle:
-            for body in bodies:
-                self.day += 1
-                entry = {"body": body, "createdAt": f"2026-04-{self.day:02d}T00:00:00Z", "url": "", "author": {"login": "t"}}
-                handle.write(json.dumps(entry) + "\n")
-
-    def _at(self, status: str, gate: str) -> None:
-        path = self.records_dir() / "60" / "meta.json"
-        meta = json.loads(path.read_text())
-        meta["fields"].update({"Status": status, "Gate State": gate})
-        path.write_text(json.dumps(meta))
-
-    def _patch_back_to_ui(self, impact: str) -> None:
-        self._log(
-            "PDLC-PRODUCT\n\npatched product",
-            f"PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Technical Plan / Pending\nReturned to: UI / Stale\n\n{impact}",
-            f"PDLC-INVALIDATED\n\nInvalidated stage: UI\n\nReturned by a patch of Product; {impact}",
-        )
-        # UI is reworked and approved; Tasks is due again.
-        self._log("PDLC-UI\n\nreworked", "PDLC-APPROVED\n\nUI approved")
-        self._at("Tasks", "Pending")
 
     def _brief(self, command: str) -> str:
         result = self.invoke(command, "--inline", 60)
@@ -558,6 +533,7 @@ class ChangedSinceLastPublishTest(PromptHarness):
     def _first_pass_through_technical_plan(self) -> None:
         self._log("PDLC-UI\n\nui", "PDLC-TASKS\n\ntasks", "PDLC-PLAN\n\nplans")
         self._patch_back_to_ui("impact A")
+        self._at("Tasks", "Pending")
         brief = self._brief("prompt_task_planner")
         self.assertIn("### Changed since last publish", brief)
         self.assertIn("Patched stage: Product", brief)
@@ -584,6 +560,7 @@ class ChangedSinceLastPublishTest(PromptHarness):
     def test_second_patch_back_to_ui_shows_only_the_second_change(self):
         self._first_pass_through_technical_plan()
         self._patch_back_to_ui("impact B")
+        self._at("Tasks", "Pending")
         brief = self._brief("prompt_task_planner")
         self.assertIn("### Changed since last publish", brief)
         self.assertIn("impact B", brief)

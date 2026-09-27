@@ -74,6 +74,13 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         ])
         self.assertGolden("implement-red-checks", self._implementer())
 
+
+    def test_implement_after_upstream_changes(self):
+        self._eligible_task()
+        self._log("PDLC-IMPLEMENTATION\n\nshipped")
+        self._patch_back_to_ui("FR-1 now lands atomically")
+        self.assertGolden("implement-upstream-changes", self._implementer())
+
     # --- pr-fix ---
 
     def test_pr_fix_single_thread(self):
@@ -180,6 +187,13 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             self._acceptance("--findings", "text:unit-tests: assertion failed at test_a.py:12"),
         )
 
+
+    def test_acceptance_after_upstream_changes(self):
+        self._testing_stack()
+        self._log("PDLC-TESTING\n\ncovered")
+        self._patch_back_to_ui("FR-1 now lands atomically")
+        self.assertGolden("acceptance-test-upstream-changes", self._acceptance())
+
     # --- patch reviewer ---
 
     def test_patch_reviewer_product_patch(self):
@@ -230,6 +244,36 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
                 "--follow-up", "text:also split the export task in two",
             ),
         )
+
+
+    # UI -> Tasks -> Technical Plan, then a Product patch returns the record to UI.
+
+    def _tasks_published_then_patched_back_to_ui(self) -> None:
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._log("PDLC-UI\n\nui", "PDLC-TASKS\n\ntasks", "PDLC-PLAN\n\nplans")
+        self._patch_back_to_ui("impact A")
+
+    def test_task_planner_after_a_patch_back_to_ui(self):
+        self._tasks_published_then_patched_back_to_ui()
+        self.assertGolden("task-planner-upstream-changes", self.invoke("prompt_task_planner", "--inline", 60))
+
+    def test_task_planner_after_a_rewind_to_tasks(self):
+        # Tasks and Technical Plan republish past impact A; Tasks is then invalidated itself.
+        self._tasks_published_then_patched_back_to_ui()
+        self._log(
+            "PDLC-TASKS\n\ntasks again",
+            "PDLC-PLAN\n\nplans again",
+            "PDLC-INVALIDATED\n\nInvalidated stage: Tasks\n\nsplit the export task",
+        )
+        self._at("Tasks", "Stale")
+        self.assertGolden("task-planner-rewind-to-tasks", self.invoke("prompt_task_planner", "--inline", 60))
+
+    def test_task_planner_after_a_second_patch_back_to_ui(self):
+        self._tasks_published_then_patched_back_to_ui()
+        self._log("PDLC-TASKS\n\ntasks again", "PDLC-PLAN\n\nplans again")
+        self._patch_back_to_ui("impact B")
+        self.assertGolden("task-planner-second-upstream-patch", self.invoke("prompt_task_planner", "--inline", 60))
 
     # --- tasks reviewer ---
 
@@ -319,6 +363,19 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             ),
         )
 
+
+    def test_ui_planner_stale_after_a_product_patch(self):
+        # The patch's own UI invalidation is the stale reason; the Product patch is upstream.
+        self.seed_record(60, "UI", "Stale", slug="record-60")
+        self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
+        self._log("PDLC-UI\n\nui")
+        self._log(
+            "PDLC-PRODUCT\n\npatched product",
+            "PDLC-PATCHED\n\nPatched stage: Product\nActive stage: Tasks / Pending\nReturned to: UI / Stale\n\nimpact A",
+            "PDLC-INVALIDATED\n\nInvalidated stage: UI\n\nReturned by a patch of Product; impact A",
+        )
+        self.assertGolden("ui-planner-upstream-changes", self._ui_planner())
+
     # --- tech planner ---
 
     def test_tech_planner_first_pass(self):
@@ -332,6 +389,14 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             "tech-planner-stale",
             self.invoke("prompt_tech_planner", "--inline", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
         )
+
+
+    def test_tech_planner_after_a_patch_back_to_ui(self):
+        self._plan_stage()
+        self._log("PDLC-PLAN\n\nplans")
+        self._patch_back_to_ui("impact A")
+        self._log("PDLC-TASKS\n\ntasks again")
+        self.assertGolden("tech-planner-upstream-changes", self.invoke("prompt_tech_planner", "--inline", 60))
 
     def test_tech_planner_revision_with_findings(self):
         self._plan_stage()
