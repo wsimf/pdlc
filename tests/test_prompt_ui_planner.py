@@ -52,7 +52,7 @@ class PromptUiPlannerTest(FileBackendTest):
         current_ui = self.write_file("current-ui.md", "## UI\n\nUJ-1 current draft.\n")
         result = self.invoke(
             "prompt_ui_planner", 60,
-            "--current-journies-path", current_ui,
+            "--current-journeys-path", current_ui,
             "--follow-up", "text:revisit UJ-2's offline flow",
         )
         self.assertIn("revisit UJ-2's offline flow", result.stdout)
@@ -63,10 +63,10 @@ class PromptUiPlannerTest(FileBackendTest):
         self.seed_record(60, "UI", "Pending", slug="record-60")
         current_ui = self.write_file("current-ui.md", "## UI\n")
         follow_up_only = self.invoke("prompt_ui_planner", 60, "--follow-up", "text:revise")
-        fragment_only = self.invoke("prompt_ui_planner", 60, "--current-journies-path", current_ui)
+        fragment_only = self.invoke("prompt_ui_planner", 60, "--current-journeys-path", current_ui)
         missing_fragment = self.invoke(
             "prompt_ui_planner", 60,
-            "--current-journies-path", str(self.work / "missing.md"),
+            "--current-journeys-path", str(self.work / "missing.md"),
             "--follow-up", "text:revise",
         )
         self.assertNotEqual(follow_up_only.code, 0)
@@ -83,7 +83,7 @@ class PromptUiPlannerTest(FileBackendTest):
         current_ui = self.write_file("current-ui.md", "## UI\n\nUJ-1 fixed draft.\n")
         result = self.invoke(
             "prompt_ui_planner", 60,
-            "--current-journies-path", current_ui,
+            "--current-journeys-path", current_ui,
             "--follow-up", "text:also clarify the retry journey",
         )
         self.assertEqual(result.code, 0, result.stderr)

@@ -5,7 +5,7 @@
 USAGE
     pdlc prompt ui-planner WORK_ITEM [--file]
     - when revising a prior UI fragment:
-      pdlc prompt ui-planner WORK_ITEM --current-journies-path FILE --follow-up FILE|text:BODY [--file]
+      pdlc prompt ui-planner WORK_ITEM --current-journeys-path FILE --follow-up FILE|text:BODY [--file]
 
 DESCRIPTION
     Prints the complete brief for the sub-agent that authors a record's `UI`
@@ -21,15 +21,15 @@ DESCRIPTION
     verbatim follow-up. The two inputs must be supplied together.
 
 FLAGS
-    --current-journies-path FILE  existing UI fragment; required with --follow-up
-    --follow-up FILE|text:BODY    the driver's verbatim follow-up; requires --current-journies-path
+    --current-journeys-path FILE  existing UI fragment; required with --follow-up
+    --follow-up FILE|text:BODY    the driver's verbatim follow-up; requires --current-journeys-path
     --file                  write the brief to
                             the work-item cache with a random filename
                             and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt ui-planner 236
-    pdlc prompt ui-planner 236 --current-journies-path /tmp/pdlc-ui.md --follow-up /tmp/findings.md
+    pdlc prompt ui-planner 236 --current-journeys-path /tmp/pdlc-ui.md --follow-up /tmp/findings.md
 """
 
 from __future__ import annotations
@@ -52,14 +52,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Print the UI planner's brief for a record's UI section")
     prompt.add_common_arguments(parser, COMMAND)
     parser.add_argument("--follow-up", help="the driver's verbatim follow-up (FILE or text:BODY)")
-    parser.add_argument("--current-journies-path", metavar="FILE", help="the existing UI fragment for a rework pass")
+    parser.add_argument("--current-journeys-path", metavar="FILE", help="the existing UI fragment for a rework pass")
     args = parser.parse_args(command_args)
 
     return prompt.run(
         COMMAND,
         args,
         lambda: prompt.ui_planner_brief(
-            args.work_item, args.follow_up, args.current_journies_path
+            args.work_item, args.follow_up, args.current_journeys_path
         ),
     )
 

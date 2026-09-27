@@ -340,6 +340,16 @@ def _detached_task(entry: dict, task_id: str, issue: str) -> dict | None:
     return None
 
 
+def _regenerate(issue: str) -> str:
+    """The recovery for a manifest that no longer matches the stored tasks."""
+    return (f"run `pdlc prompt task-planner {issue}` for a fresh brief and manifest, re-dispatch"
+            " the task planner agent with it, and post the manifest it returns")
+
+
+def _stale(task_id: str, issue: str) -> str:
+    return f"{task_id} was changed after this manifest was generated; {_regenerate(issue)}"
+
+
 def _id_list(value: object) -> object:
     """Order-insensitive id lists; any other shape is left for build_plan to reject."""
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
@@ -381,8 +391,10 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             if not isinstance(task_id, str) or task_id not in by_id:
                 raise PdlcError(f"manifest entry {index} must name an existing task for {action}")
             baseline = entry.get("baseline")
-            if action == "remove" and (not isinstance(baseline, str) or baseline != snapshot(stored_fields(by_id[task_id]))):
-                raise PdlcError(f"{task_id} changed since its planner artifact was generated; regenerate it")
+            if not isinstance(baseline, str):
+                raise PdlcError(f"{task_id} {action} requires its generated baseline; {_regenerate(issue)}")
+            if action == "remove" and baseline != snapshot(stored_fields(by_id[task_id])):
+                raise PdlcError(_stale(task_id, issue))
         if action == "remove":
             reason = entry.get("reason")
             if not isinstance(reason, str) or not reason.strip():
@@ -423,7 +435,7 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             before = {key: stored[key] for key in after}
             already_applied = action == "retain" and entry.get("baseline") != snapshot(stored)
             if already_applied and after != before:
-                raise PdlcError(f"{task_id} changed since its planner artifact was generated; regenerate it")
+                raise PdlcError(_stale(task_id, issue))
             if action == "create" and after != before:
                 raise PdlcError(f"{task_id} already exists with different content; use a new id")
             if after == before:

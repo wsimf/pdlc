@@ -168,7 +168,7 @@ class TaskManifestActionsTests(FileBackendTest):
         (self.records_dir() / "40" / "tasks" / "401" / "meta.json").write_text(json.dumps(metadata))
         result = self._land(path, entries)
         self.assertEqual(result.code, 1)
-        self.assertIn("changed since its planner artifact was generated", result.stderr)
+        self.assertIn("was changed after this manifest was generated; run `pdlc prompt task-planner 40`", result.stderr)
 
     def test_registered_pr_blocks_removal(self):
         path, entries = self._generated()
@@ -254,6 +254,21 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["reopened"], [])
         self.assertEqual(self.task_meta(40, 401)["state"], "CLOSED")
+
+    def test_retain_without_baseline_never_reopens_delivered_work(self):
+        path, entries = self._generated()
+        self.seed_plan_comment(40, 401, "Plan the seam.")
+        self.seed_implementation_comment(40, 401, "Seam shipped.")
+        metadata = self.task_meta(40, 401)
+        metadata["state"] = "CLOSED"
+        (self.records_dir() / "40" / "tasks" / "401" / "meta.json").write_text(json.dumps(metadata))
+        comments = self.task_comments_text(40, 401)
+        del entries[0]["baseline"]
+        result = self._land(path, entries)
+        self.assertEqual(result.code, 1)
+        self.assertIn("TASK-001 retain requires its generated baseline", result.stderr)
+        self.assertEqual(self.task_meta(40, 401)["state"], "CLOSED")
+        self.assertEqual(self.task_comments_text(40, 401), comments)
 
     def test_failed_rebase_warns_without_failing_the_publication(self):
         path, entries = self._generated()

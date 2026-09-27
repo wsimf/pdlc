@@ -107,7 +107,7 @@ def _usage() -> str:
         "  prompt task-planner WI [--current-tasks-manifest-path FILE --follow-up FILE|text:BODY]  the delivery-task planner's brief\n"
         "  prompt tech-planner WI      the brief for the sub-agent that spikes the open delivery tasks into plans\n"
         "  prompt product-reviewer DRAFT [--work-item WI]  the brief for the reviewer of a Product draft before it lands\n"
-        "  prompt ui-planner WI [--current-journies-path FILE --follow-up FILE|text:BODY] [--file]  the UI planner's brief\n"
+        "  prompt ui-planner WI [--current-journeys-path FILE --follow-up FILE|text:BODY] [--file]  the UI planner's brief\n"
         "  prompt tasks-reviewer WI (--manifest FILE | --fragment FILE)  the brief for the UI/Tasks reviewer\n"
         "  prompt plan-reviewer WI --manifest FILE  the brief for the reviewer of a pass's delivery-task plans\n"
         "  prompt cumulative-reviewer --shipped ... --unchanged ... --constraints ...  the cumulative-review sub-agent's brief\n"

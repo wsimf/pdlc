@@ -224,7 +224,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self.assertGolden(
             "ui-planner-unpublished-follow-up",
             self._ui_planner(
-                "--current-journies-path", fragment,
+                "--current-journeys-path", fragment,
                 "--follow-up", "text:revisit UJ-2's offline flow",
             ),
         )
@@ -245,7 +245,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self.assertGolden(
             "ui-planner-stale-unpublished-follow-up",
             self._ui_planner(
-                "--current-journies-path", fragment,
+                "--current-journeys-path", fragment,
                 "--follow-up", "text:also clarify the retry journey",
             ),
         )

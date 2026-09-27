@@ -3,11 +3,29 @@
 from __future__ import annotations
 
 import json
+from unittest import mock
 
 from tests._support import FileBackendTest
 
 
 class PromptTasksReviewerTest(FileBackendTest):
+    def test_removed_task_lookup_requires_exactly_one_result(self):
+        self.seed_record(60, "Tasks", "Pending", slug="record-60")
+        manifest = self.write_file(
+            "manifest.json",
+            json.dumps([{"id": "TASK-001", "number": 42, "action": "remove", "reason": "Superseded"}]),
+        )
+        for matches in ([], [{"title": "First"}, {"title": "Second"}]):
+            with self.subTest(count=len(matches)):
+                with mock.patch("pdlc.commands.prompt.tasks_by_number", return_value=matches):
+                    result = self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest)
+                self.assertNotEqual(result.code, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn(
+                    f"removed task TASK-001 (issue 42): expected one stored task, found {len(matches)}",
+                    result.stderr,
+                )
+
     def test_a_manifest_carries_every_task_body_in_full(self):
         self.seed_record(60, "Tasks", "Pending", slug="record-60")
         task_body = self.write_file("task1.md", "## Scope\nBuild the seam.\n\nCovers FR-1.\n")

@@ -509,9 +509,9 @@ def ui_planner_brief(
     so the planner can revise the journeys the reviewer saw.
     """
     if (follow_up is None) != (current_journeys_path is None):
-        raise PdlcError("--follow-up and --current-journies-path must be supplied together")
+        raise PdlcError("--follow-up and --current-journeys-path must be supplied together")
     current_journeys = (
-        str(require_file("--current-journies-path", current_journeys_path).resolve())
+        str(require_file("--current-journeys-path", current_journeys_path).resolve())
         if current_journeys_path is not None
         else ""
     )
@@ -678,7 +678,13 @@ def _manifest_artifact_text(manifest_path: Path) -> str:
             number = entry.get("number")
             if not isinstance(number, int):
                 raise PdlcError(f"removed task {entry.get('id') or '?'} has no task number")
-            [stored] = tasks_by_number([str(number)])
+            matches = tasks_by_number([str(number)])
+            if len(matches) != 1:
+                raise PdlcError(
+                    f"removed task {entry.get('id') or '?'} (issue {number}): "
+                    f"expected one stored task, found {len(matches)}"
+                )
+            stored = matches[0]
             header = f"### {entry.get('id') or '?'} — {stored['title']}"
             meta = f"remove: {entry.get('reason') or 'no reason'}"
             body = (stored.get("body") or "").strip()

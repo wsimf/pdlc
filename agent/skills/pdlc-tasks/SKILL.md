@@ -70,7 +70,7 @@ Add `--no-ui` when the planner reported that UI is not required. The planner's a
 
 Call `pdlc post tasks --help` for more info about that command.
 
-The dry run must be clean before review; it writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. This step is complete when the command prints a clean resolved plan or UI applicability result.
+The dry run must be clean before review; it writes nothing. Send every failure back to the planner verbatim and re-run; never repair a coverage or manifest claim by hand. If the error says to act differently, follow the instructions it gives instead. This step is complete when the command prints a clean resolved plan or UI applicability result.
 
 ## Review
 
@@ -87,7 +87,7 @@ pdlc post tasks --work-item WORK_ITEM --stage Tasks \
   --manifest /tmp/pdlc-tasks.json --evidence /tmp/pdlc-tasks-evidence.md
 ```
 
-For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`, with the same `--no-ui` the dry run used. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
+For UI, use `--stage UI --body /tmp/pdlc-ui.md` instead of `--stage Tasks --manifest ...`, with the same `--no-ui` the dry run used. Pass any supplied local files with `--attachment PATH`; see `pdlc guide attachments`. A successful call leaves the active stage at `Approval Required`; a failed one writes nothing, so keep all local files and report the exact error. If the error says to act differently, follow the instructions it gives instead. After a successful landing, delete the temporary UI/spec/manifest/task-body files because the work-item store is now authoritative. This step is complete when the command succeeds and its output confirms the landed stage and artifact changes.
 
 ## Report
 
