@@ -369,9 +369,18 @@ def main(argv: list[str] | None = None) -> int:
             raise PdlcError(f"cannot land Technical Plan from Gate State: {gate or 'unset'}")
         if is_stage_skipped(record, STAGE):
             raise PdlcError("Technical Plan is declared in Skipped States; nothing to land")
+        # The landing state is resolved before any write so the recovery names
+        # the gate `set_state` lands; a re-authored plan publishes as from Stale.
+        state = state_for_item(record, pipeline)
+        try:
+            if gate in ("Review Required", "Approval Required"):
+                state = pipeline.next_state(state, Event.REAUTHORED)
+            target = pipeline.next_state(state, Event.PUBLISHED)
+        except ValueError as error:
+            raise PdlcError(str(error)) from None
         set_recovery(Recovery(
             check=f"pdlc inspect {args.work_item}",
-            landed="the gate is Review Required and `pdlc inspect task T` shows the new plan on every task in the manifest",
+            landed=f"the gate is {target.gate.value} and `pdlc inspect task T` shows the new plan on every task in the manifest",
             note="A re-run skips plans that already landed, but after the PDLC-PLAN evidence landed it posts a second one; mention it in your report.",
         ))
         tree = task_tree(args.work_item)
@@ -395,12 +404,6 @@ def main(argv: list[str] | None = None) -> int:
 
         if gate in ("Review Required", "Approval Required"):
             reauthor_invalidate_stage(record, STAGE, pipeline)
-
-        state = state_for_item(record, pipeline)
-        try:
-            target = pipeline.next_state(state, Event.PUBLISHED)
-        except ValueError as error:
-            raise PdlcError(str(error)) from None
 
         attachments = save_attachments(args.work_item, attachment_inputs)
         results = []

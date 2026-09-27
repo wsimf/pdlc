@@ -10,6 +10,8 @@ import ast
 import errno
 import importlib
 import io
+import json
+import re
 import subprocess
 import unittest
 import contextlib
@@ -21,10 +23,13 @@ from _support import FileBackendTest
 
 from pdlc import cli
 from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.domain.workflow import Gate
 from pdlc.hosts.lib import process
 from pdlc.hosts.lib.azure.transport import az_call_kind
 from pdlc.hosts.lib.github.transport import gh_call_kind
 from pdlc.internal import failure
+
+DOCS = Path(__file__).resolve().parents[1] / "docs"
 
 COMMANDS = Path(__file__).resolve().parents[1] / "src" / "pdlc" / "commands"
 
@@ -402,6 +407,95 @@ class RecoveryRegistrationTest(unittest.TestCase):
                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 }
                 self.assertIn("set_recovery", calls)
+
+
+class RecoveryLandingGateTest(FileBackendTest):
+    """A publishing command's recovery must name the gate its successful run
+    actually lands at, so an agent checking after a transient failure never
+    reads a landed write as missing. Each case runs the command for real and
+    compares the recovery it registered against the returned `gateState`."""
+
+    def land(self, command: str, *args: object) -> dict:
+        failure.reset()
+        result = self.invoke(command, *args)
+        self.assertEqual(result.code, 0, result.stderr)
+        recovery = failure._recovery
+        self.assertIsNotNone(recovery)
+        assert recovery is not None
+        gate = result.json["gateState"]
+        self.assertIn(f"gate is {gate} and", recovery.landed)
+        for other in Gate:
+            if other.value != gate:
+                self.assertNotIn(other.value, recovery.landed)
+        return result.json
+
+    def test_post_write_names_the_gate_it_lands(self) -> None:
+        evidence = self.evidence_file()
+        body = self.write_file("product.md", "## Product\nx\n\n## Decisions\nd\n\n## Open Questions\nq\n")
+        created = self.land("post_write", "--title", "Shell", "--slug", "shell", "--evidence", evidence, "--body", body)
+        issue = created["work_item_number"]
+        # Re-authored in place from the landed gate, and first-published from Stale.
+        self.land("post_write", "--work-item", issue, "--evidence", evidence, "--body", body)
+        self.seed_record(90, "Product", "Stale")
+        self.land("post_write", "--work-item", 90, "--evidence", evidence, "--body", body)
+
+    def test_post_tasks_ui_names_the_gate_it_lands(self) -> None:
+        self.seed_record(91, "UI", "Pending")
+        fragment = self.write_file("ui.md", "## UI\n\nUJ-1 covers the first run.\n")
+        for _ in range(2):  # first publication, then re-authored in place
+            self.mark_ui_reviewed(91, fragment)
+            self.land("post_tasks", "--work-item", 91, "--stage", "UI", "--body", fragment, "--evidence", self.evidence_file())
+
+    def test_post_tasks_names_the_gate_it_lands(self) -> None:
+        self.seed_record(92, "Tasks", "Pending")
+        body = self.write_file(
+            "task.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n"
+            "**UI Journeys:** UJ-1\n\n**Scope:**\nBuild.\n\n**Acceptance Criteria:**\n- [ ] FR-1 works.\n",
+        )
+        manifest = self.write_file("manifest.json", json.dumps([{
+            "id": "TASK-001", "action": "create", "title": "Build core", "body": body,
+            "type": "ui", "covers": ["FR-1", "FR-2", "C-1", "UJ-1"],
+        }]))
+        for _ in range(2):  # first publication, then re-authored in place
+            self.mark_tasks_reviewed(92, manifest)
+            self.land("post_tasks", "--work-item", 92, "--stage", "Tasks", "--manifest", manifest, "--evidence", self.evidence_file())
+
+    def test_post_plan_names_the_gate_it_lands(self) -> None:
+        self.seed_record(93, "Technical Plan", "Pending")
+        self.seed_task(93, 931, "TASK-001", "OPEN", "WORK-93-TASK-001 One")
+        manifest = self.reviewed_plan_manifest(93, {"TASK-001": "Plan one."})
+        self.land("post_plan", "--work-item", 93, "--manifest", manifest, "--evidence", self.evidence_file())
+        # Re-planned in place from the landed gate.
+        self.write_plan(json.loads(Path(manifest).read_text())[0]["file"], "Plan one, revised.")
+        self.review_plans(93, manifest)
+        self.land("post_plan", "--work-item", 93, "--manifest", manifest, "--evidence", self.evidence_file())
+
+    def test_post_implement_and_post_test_name_the_gate_they_land(self) -> None:
+        self.seed_record(94, "Implementation", "Pending")
+        with mock.patch("pdlc.commands.post_implement.get_code_host"), \
+                mock.patch("pdlc.commands.post_implement.check_out"):
+            self.land("post_implement", 94, self.evidence_file())
+        self.seed_record(95, "Testing", "Pending")
+        host = mock.Mock()
+        host.ensure_pull_request_linked.return_value = {"number": 7, "url": "https://x/7"}
+        with mock.patch("pdlc.commands.post_test.get_code_host", return_value=host), \
+                mock.patch("pdlc.commands.post_test.attach_pr"):
+            self.land("post_test", 95, self.evidence_file(), "--traceability", self.write_file("trace.md", "FR-1: covered.\n"))
+
+
+class RecoveryCatalogGateTest(unittest.TestCase):
+    def test_catalog_publish_gates_match_the_pipeline(self) -> None:
+        """Every `set_state` → STAGE / GATE line in the recovery catalog that
+        names a publication's landing gate matches that stage's result gate."""
+        from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
+
+        text = (DOCS / "mutation-recovery.md").read_text(encoding="utf-8")
+        landings = re.findall(r"`set_state` → ([A-Za-z ]+?) / (Review Required|Approval Required)", text)
+        self.assertTrue(landings)
+        for stage, gate in landings:
+            with self.subTest(stage=stage):
+                result_gate = FEATURE_PIPELINE.stage(stage).result_gate
+                self.assertEqual(gate, result_gate.value if result_gate else None)
 
 
 class LoopTransientTest(FileBackendTest):

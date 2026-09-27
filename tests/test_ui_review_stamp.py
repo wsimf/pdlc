@@ -36,6 +36,27 @@ class UiReviewStampTest(FileBackendTest):
         self.assertEqual(again.code, 1)
         self.assertIn("has not been reviewed since its last planning pass", again.stderr)
 
+    def test_an_unfilled_findings_outline_is_not_prior_findings(self):
+        fragment = self._reviewed(60)
+        brief = self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment)
+        findings = Path(re.search(r"Write your review into `([^`]+)`", brief.stdout).group(1))
+        rerun = self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment, "--findings", str(findings))
+        self.assertEqual(rerun.code, 0, rerun.stderr)
+        self.assertNotIn("### Prior findings", rerun.stdout)
+        # Filled in, the same file is carried over.
+        findings.write_text(findings.read_text(encoding="utf-8").replace("### Inconsistent", "### Inconsistent\n- F1 [P1] UJ-1 — wrong"), encoding="utf-8")
+        filled = self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment, "--findings", str(findings))
+        self.assertIn("### Prior findings", filled.stdout)
+        self.assertIn("F1 [P1] UJ-1 — wrong", filled.stdout)
+
+    def test_an_unfilled_findings_outline_is_no_planner_follow_up(self):
+        fragment = self._reviewed(60)
+        brief = self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment)
+        findings = re.search(r"Write your review into `([^`]+)`", brief.stdout).group(1)
+        planner = self.invoke("prompt_ui_planner", "--inline", 60, "--current-journeys-path", fragment, "--follow-up", findings)
+        self.assertEqual(planner.code, 0, planner.stderr)
+        self.assertNotIn("UI review complete.", planner.stdout)
+
     def test_the_findings_file_is_deleted_only_by_a_successful_landing(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
         fragment = self.write_file("ui.md", FRAGMENT)

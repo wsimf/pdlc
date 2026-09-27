@@ -121,6 +121,25 @@ class PromptPlanReviewerTest(FileBackendTest):
         self.assertIn("Technical Plan review complete.", outline)
         self.assertIn("Verdict: <Needs Revision|Ready to Land>", outline)
 
+    def test_an_unfilled_findings_outline_is_not_prior_findings(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).stdout)
+        # A re-run brief reads its own file after the first run reset it.
+        rerun = self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", str(findings))
+        self.assertEqual(rerun.code, 0, rerun.stderr)
+        self.assertNotIn("### Prior findings", rerun.stdout)
+
+    def test_an_unfilled_findings_outline_is_no_planner_follow_up(self):
+        self._seeded()
+        manifest = self.plan_manifest(60, {"TASK-001": "Plan."})
+        findings = self._findings_path(self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest).stdout)
+        brief = self.invoke(
+            "prompt_tech_planner", "--inline", 60, "--current-plan-manifest-path", manifest, "--follow-up", str(findings),
+        )
+        self.assertEqual(brief.code, 0, brief.stderr)
+        self.assertNotIn("### Driver follow-up", brief.stdout)
+
     def test_a_re_review_reads_the_findings_file_before_it_is_reset(self):
         self._seeded()
         manifest = self.plan_manifest(60, {"TASK-001": "Plan."})

@@ -26,7 +26,8 @@ DESCRIPTION
     copy.
 
     `--follow-up` carries the driver's verbatim request; with nothing given,
-    that section is omitted. `--current-journeys-path` names an unpublished UI
+    or a reviewer's findings file still holding its unfilled outline, that
+    section is omitted. `--current-journeys-path` names an unpublished UI
     fragment to revise instead of the published section.
 
 FLAGS

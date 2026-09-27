@@ -580,7 +580,7 @@ def ui_planner_brief(
             "TASK_TREE": _task_tree_text(delivery),
             "FRAGMENT_PATH": fragment,
             "CHANGE_REQUESTS": change_requests,
-            "DRIVER_FOLLOWUP": resolve_text(follow_up, label="--follow-up").strip() if follow_up is not None else "",
+            "DRIVER_FOLLOWUP": _filled_text(follow_up, "--follow-up", UI_STAGE),
         },
     )
 
@@ -616,7 +616,7 @@ def task_planner_brief(
 
     delivery = [task for task in tasks if task.get("taskId")]
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
-    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    driver_followup = _filled_text(follow_up, "--follow-up", TASKS_STAGE)
     # A supplied draft and a generated copy of the published tree are revised the same way.
     manifest = current_tasks_manifest or _task_planner_manifest(work_item, delivery)
     # A new planning pass begins, so the files last reviewed are no longer the ones to land.
@@ -755,7 +755,7 @@ def tech_planner_brief(work_item: str, follow_up: str | None, current_plan_manif
     clear_stamp(work_item, TECH_PLAN_STAGE)
 
     change_requests = _requests_text(list(open_change_requests(comments, pipeline_for_item(item), status).requests))
-    driver_followup = resolve_text(follow_up, label="--follow-up").strip() if follow_up else ""
+    driver_followup = _filled_text(follow_up, "--follow-up", TECH_PLAN_STAGE)
     # The sections a planned task is checked against; only those that render are named.
     change_sources = " and ".join(
         name for name, text in (("change requests", change_requests), ("driver follow-up", driver_followup)) if text
@@ -895,13 +895,28 @@ def _manifest_body_files(manifest_path: Path) -> list[Path]:
     ]
 
 
+def _findings_outline(review: str) -> str:
+    return render("templates/review-findings", {"REVIEW": review})
+
+
 def _findings_file(work_item: str, review: str) -> str:
     """A fresh findings outline for one review, at a fixed path per review.
 
     Written after the brief has read its own `--findings`, which may be this
     same file from the previous pass.
     """
-    return str(replace_cache_file(findings_path(work_item, review), render("templates/review-findings", {"REVIEW": review})))
+    return str(replace_cache_file(findings_path(work_item, review), _findings_outline(review)))
+
+
+def _filled_text(value: str | None, label: str, review: str) -> str:
+    """The text `value` names, or "" when there is none.
+
+    A findings file still holding the unfilled outline carries no findings,
+    e.g. when a reviewer brief is re-run and has already reset its own file,
+    or a reviewer replied without writing its findings.
+    """
+    text = resolve_text(value, label=label).strip() if value else ""
+    return "" if text == _findings_outline(review).strip() else text
 
 
 def _published_review_files(work_item: str) -> tuple[str | None, str | None]:
@@ -959,8 +974,9 @@ def tasks_reviewer_brief(
             ui_reviewer_command(work_item, fragment_path), ui_planner_command(work_item, fragment_path),
         )
         write_stamp(work_item, UI_STAGE, [Path(fragment_path)])
-    prior_findings = resolve_text(findings, label="--findings").strip() if findings else ""
-    findings_path = _findings_file(work_item, UI_STAGE if fragment_path else TASKS_STAGE)
+    review = UI_STAGE if fragment_path else TASKS_STAGE
+    prior_findings = _filled_text(findings, "--findings", review)
+    outline_path = _findings_file(work_item, review)
     return render(
         "tasks-review",
         {
@@ -974,7 +990,7 @@ def tasks_reviewer_brief(
             "REMOVED_TASKS": removed,
             # Empty on a first review, which drops the section from the brief.
             "PRIOR_FINDINGS": prior_findings,
-            "FINDINGS_PATH": findings_path,
+            "FINDINGS_PATH": outline_path,
         },
     )
 
@@ -1028,7 +1044,7 @@ def plan_reviewer_brief(work_item: str, manifest: str | None, findings: str | No
             replaced.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "RECORDED_PLAN": recorded})
         listed.append({"TASK_ID": entry["id"], "TASK_TITLE": entry["title"], "TASK_CHANGE": change, "TASK_FILE": str(path)})
     write_stamp(work_item, TECH_PLAN_STAGE, [manifest_path, *(Path(entry["TASK_FILE"]) for entry in listed)])
-    prior_findings = resolve_text(findings, label="--findings").strip() if findings else ""
+    prior_findings = _filled_text(findings, "--findings", TECH_PLAN_STAGE)
     return render(
         "plan-review",
         {

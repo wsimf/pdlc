@@ -20,7 +20,8 @@ DESCRIPTION
     received since it last published; with none, that section is omitted.
 
     `--follow-up` carries the driver's verbatim request on a re-authoring pass;
-    with nothing given, that section is omitted. `--current-tasks-manifest-path`
+    with nothing given, or a reviewer's findings file still holding its unfilled
+    outline, that section is omitted. `--current-tasks-manifest-path`
     names an unpublished manifest to revise instead of the generated copy of
     the published tasks; the agent reads and revises its task body files.
 

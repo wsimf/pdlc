@@ -156,29 +156,40 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, 
     if not uninitialized and item_status(record) != "Product":
         raise PdlcError(f"cannot author Product while the record is at {item_status(record) or 'an unset stage'}")
     gate = item_gate(record)
+    reauthor = not uninitialized and gate in ("Review Required", "Approval Required")
     if uninitialized:
         state = State("Product", Gate.PENDING)
         target = pipeline.next_state(state, Event.PUBLISHED)
-        if not item_slug(record):
-            set_slug(record["id"], generated_slug(record))
     else:
-        if gate in ("Review Required", "Approval Required"):
-            # A published spec awaiting review or approval is re-landed in place:
-            # reset Product to Stale ourselves and publish the reviewed spec in
-            # this same call.
-            reauthor_invalidate_stage(record, "Product", pipeline)
-        elif gate == "Decision Required":
+        if gate == "Decision Required":
             raise PdlcError(decision_required_message("Product"))
-        elif gate not in ("Pending", "Changes Required", "Stale"):
+        if not reauthor and gate not in ("Pending", "Changes Required", "Stale"):
             raise PdlcError(
                 f"Product is at {gate or 'an unset Gate State'}; "
                 "return it to Stale with pdlc post invalidate before re-authoring"
             )
+        # Resolved before any write so the recovery names the gate `set_state`
+        # lands; a re-authored spec publishes as from Stale.
         state = state_for_item(record, pipeline)
         try:
+            if reauthor:
+                state = pipeline.next_state(state, Event.REAUTHORED)
             target = pipeline.next_state(state, Event.PUBLISHED)
         except ValueError as error:
             raise PdlcError(str(error)) from None
+    set_recovery(Recovery(
+        check=f"pdlc inspect {issue}",
+        landed=f"the gate is {target.gate.value} and `pdlc inspect timeline {issue}` shows this PDLC-PRODUCT evidence as the newest",
+        note="A re-run after the evidence landed posts a second PDLC-PRODUCT comment; mention it in your report.",
+    ))
+    if uninitialized:
+        if not item_slug(record):
+            set_slug(record["id"], generated_slug(record))
+    elif reauthor:
+        # A published spec awaiting review or approval is re-landed in place:
+        # reset Product to Stale ourselves and publish the reviewed spec in
+        # this same call.
+        reauthor_invalidate_stage(record, "Product", pipeline)
     headings = level_two_headings(record.get("issueBody") or "")
     duplicates = [section for section in OWNED_SECTIONS if headings.count(section) > 1]
     if duplicates:
@@ -303,11 +314,6 @@ def main(argv: list[str] | None = None) -> int:
         assert evidence_body is not None
 
         if not is_new:
-            set_recovery(Recovery(
-                check=f"pdlc inspect {args.work_item}",
-                landed=f"the gate is Review Required and `pdlc inspect timeline {args.work_item}` shows this PDLC-PRODUCT evidence as the newest",
-                note="A re-run after the evidence landed posts a second PDLC-PRODUCT comment; mention it in your report.",
-            ))
             result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs)
             print(json.dumps(result))
             return 0
@@ -326,14 +332,15 @@ def main(argv: list[str] | None = None) -> int:
             "pdlc post write --work-item", work_item_number,
             "--body", shlex.quote(args.body_file), "--evidence", shlex.quote(args.evidence_file),
         ])
+        # Resolved before the first state write so the recovery names the gate it lands.
+        target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
         set_recovery(Recovery(
             check=f"pdlc inspect {work_item_number}",
-            landed=f"its gate is Review Required and `pdlc inspect timeline {work_item_number}` shows the PDLC-PRODUCT evidence",
+            landed=f"its gate is {target.gate.value} and `pdlc inspect timeline {work_item_number}` shows the PDLC-PRODUCT evidence",
             otherwise=f"do not re-run the create form, which opens a second record; finish {work_item_url} with: {finish}",
             note="Pass any --attachment flags again when finishing the record.",
         ))
         attachments = save_attachments(work_item_number, attachment_inputs)
-        target = FEATURE_PIPELINE.next_state(State("Product", Gate.PENDING), Event.PUBLISHED)
         set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
         set_slug(item_id, args.slug)
         post_comment(work_item_number, evidence_body, "PRODUCT")

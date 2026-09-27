@@ -52,14 +52,14 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 Writes:
 1. `gh issue create` (Azure: `az boards work-item create`) with the whole body.
 2. GitHub only: `gh project item-add` for the new Issue.
-3. `set_state` → Product / Review Required.
+3. `set_state` → Product / Approval Required.
 4. `set_slug`.
 5. `PDLC-PRODUCT` comment.
 
 Partial failure:
 - After 1, before 2 finishes (GitHub): an Issue exists but is not on the project, so `pdlc` cannot resolve it by number.
 - After 2: the record exists and resolves, with no state, slug, or evidence.
-- After 3 or 4: the record is at Product / Review Required with no `PDLC-PRODUCT` evidence.
+- After 3 or 4: the record is at Product / Approval Required with no `PDLC-PRODUCT` evidence.
 
 Check: the error prints the new Issue URL once step 1 returns it; otherwise search for an open Issue with the exact title created in the last few minutes.
 
@@ -76,9 +76,9 @@ Writes:
 2. If the record had no stage and no slug: `set_slug`.
 3. `write_body` with the Product, Decisions, and Open Questions sections spliced in (skipped when unchanged).
 4. `PDLC-PRODUCT` comment.
-5. `set_state` → Product / Review Required.
+5. `set_state` → Product / Approval Required.
 
-Check: `pdlc inspect N` — gate is Review Required; `pdlc inspect timeline N` — newest `PDLC-PRODUCT` is this evidence.
+Check: `pdlc inspect N` — gate is Approval Required; `pdlc inspect timeline N` — newest `PDLC-PRODUCT` is this evidence.
 
 Re-run: safe at every step. After 4, a re-run posts a second `PDLC-PRODUCT`.
 
@@ -100,7 +100,7 @@ Writes:
 1. If re-authoring from Review/Approval Required: `set_state` → UI / Stale.
 2. `write_body` with the `## UI` section spliced in.
 3. `PDLC-UI` comment.
-4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Review Required, then the local review stamp is cleared.
+4. `--patch`: `land_patch` as in `post write --patch` step 3–4. Otherwise `set_state` → UI / Approval Required, then the local review stamp is cleared.
 
 Before any write, a non-patch post restores a reviewed `--body` edited since its review and refuses, and a real post refuses a `--body` the reviewer was not handed; neither touches the record.
 
@@ -118,7 +118,7 @@ Writes:
 3. For each rewritten task that was already closed: `reopen` → `PDLC-INVALIDATED` on the task → delete its `## Implementation` and `## Technical Plan` comments.
 4. For each `remove` entry: post a plain (unmarked) descope comment on the task → close it (GitHub: as not planned; Azure: `task_removed_state`, else the task closed state) → detach it from the parent (GitHub sub-issue or Azure parent relation; the file backend retains a removed task record).
 5. `PDLC-TASKS` comment (lists open orphans, reopened tasks, and descoped task IDs and reasons).
-6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Review Required.
+6. `--patch`: `land_patch`. Otherwise `set_state` → Tasks / Approval Required.
 7. Local only: rewrite the supplied manifest onto the published tasks — every entry `retain` with its number and a fresh baseline, removals dropped — so reusing it later carries every task unchanged instead of replaying this publication as an interrupted run — and clear the review stamp.
 
 Partial failure:
@@ -130,12 +130,12 @@ Partial failure:
 - After 5: `PDLC-TASKS` landed, state not moved; a re-run may post a duplicate evidence comment.
 - In 7: the publication is complete and the command succeeds with a warning; the manifest still holds pre-publication baselines, so discard it rather than reuse it.
 
-Check: `pdlc inspect task T` for each rewritten task — it should be open with no stale `## Technical Plan` or `## Implementation` comment; check each removed task is closed and absent from the parent's active task list; `pdlc inspect N` should show Review Required and the timeline should show this `PDLC-TASKS` evidence.
+Check: `pdlc inspect task T` for each rewritten task — it should be open with no stale `## Technical Plan` or `## Implementation` comment; check each removed task is closed and absent from the parent's active task list; `pdlc inspect N` should show Approval Required and the timeline should show this `PDLC-TASKS` evidence.
 
 Recovery:
 - Re-run the same command.
 - If a rewritten task is still closed or still carries stale plan or implementation evidence after retry, stop and report its inspection output for host repair; `post invalidate` does not repair an already-open task and cannot target Technical Plan while the parent is still at Tasks.
-- If a removed task is still linked, inspect its task comment and state, then re-run the same manifest while the parent gate still allows Tasks publication; if the parent already reached Review Required, report the incomplete descope instead of reauthoring blindly.
+- If a removed task is still linked, inspect its task comment and state, then re-run the same manifest while the parent gate still allows Tasks publication; if the parent already reached Approval Required, report the incomplete descope instead of reauthoring blindly.
 
 ### `pdlc post plan`
 
@@ -145,10 +145,10 @@ Writes:
 1. If re-authoring: `set_state` → Technical Plan / Stale.
 2. Per task whose plan file differs from its recorded plan: edit the existing `## Technical Plan` comment on the task, or post one.
 3. `PDLC-PLAN` comment on the record.
-4. `set_state` → Technical Plan / Review Required.
+4. `set_state` → Technical Plan / Approval Required.
 5. Local: rewrite the manifest's baselines onto the recorded plans and clear the review stamp. A failure here only warns.
 
-Check: `pdlc inspect task T` shows the new plan on every task in the manifest; `pdlc inspect N` — gate is Review Required.
+Check: `pdlc inspect task T` shows the new plan on every task in the manifest; `pdlc inspect N` — gate is Approval Required.
 
 Re-run: safe, with the same manifest and no new review. Step 2 writes only plans that still differ from the record, and a task whose recorded plan already matches its file is accepted rather than refused as stale, so plans landed before the failure are skipped. A failure *during* step 2's post (not edit) can leave two plan comments on one task; the newest wins. After 3, a re-run posts a second `PDLC-PLAN`.
 

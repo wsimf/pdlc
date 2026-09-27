@@ -41,8 +41,8 @@ DESCRIPTION
     redone.
 
     `--follow-up` carries the driver's verbatim request, or a reviewer's
-    findings to send back to the planner; with nothing given, that section is
-    omitted.
+    findings to send back to the planner; with nothing given, or a findings
+    file still holding its unfilled outline, that section is omitted.
 
 FLAGS
     --current-plan-manifest-path FILE  an earlier pass's plan manifest to revise instead of fresh files
