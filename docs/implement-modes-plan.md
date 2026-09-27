@@ -330,7 +330,7 @@ There is no `## Remaining` section and no progress counter. One unit per call me
 
 ## `pdlc post implement-task` per mode
 
-The command reads only the task's state; it never reads the record's gate and there is no mode flag. `--close` stays accepted for one release as a no-op with a deprecation note.
+The command reads only the task's state; it never reads the record's gate and there is no mode flag. `--close` has been removed; there is no backwards-compatibility shim for it.
 
 | Task state | Behaviour |
 |---|---|
@@ -375,7 +375,7 @@ last pass — a `rework` fix on a lower task, for instance — does not matter.
 
 1. `src/pdlc/commands/inspect_implement.py`: add mode resolution, `## Mode`, `## Next Fix`, `## Open Requests`, `#### Stack`, `## Checks`, per-mode `## Publish` and `Next:` lines, and the inconsistent-record readiness refusal. Drop `## Remaining` and `## Judgment Required` (its checks live in the skill), drop the always-on `## Open Comments` and the `--task` / `--phase` flags with their scoping code and tests. Reuse `open_change_requests` for the prose requests and `record_open_review_comments` plus a new live check read for task units.
 2. `src/pdlc/hosts/code_host/base.py` and the GitHub / file / none implementations: a `pull_request_checks(numbers)` read returning green / red / pending per PR, if `post ci` does not already expose one reusable here. The `none` host reports every PR as green so the CI gate is a no-op without a code host.
-3. `src/pdlc/commands/post_implement_task.py`: derive mode from task state alone, make close implicit, add `mode`, `relanded`, `openThreads`, `checks` to the JSON. Keep `--close` as a no-op.
+3. `src/pdlc/commands/post_implement_task.py`: derive mode from task state alone, make close implicit, add `mode`, `relanded`, `openThreads`, `checks` to the JSON. Remove `--close`.
 4. Docstrings for both commands and the top-level `_usage()` one-liners; `inspect implement` becomes `pdlc inspect implement WORK_ITEM` with no flags.
 5. Tests in `tests/test_inspectors.py` and the `post implement-task` tests with the file backend: one scenario per mode, plus the ordering.
 6. Skills, `rework.md`, `fix-pr-comments.md` in a follow-up once the output is settled.

@@ -718,17 +718,14 @@ def _manifest_artifact_text(manifest_path: Path, work_item: str) -> str:
             body = (stored.get("body") or "").strip()
         else:
             header = f"### {entry.get('id') or '(new task)'} — {entry.get('title') or 'untitled'}"
-            kind = f"type: {entry['type']}" if "type" in entry else f"ui: {entry.get('ui')}"
+            kind = f"type: {entry.get('type')}"
             meta = f"{kind}, covers: {entry.get('covers')}, depends: {entry.get('depends')}"
-            if entry.get("unchanged"):
-                body = "(unchanged — carried forward from the record)"
-            else:
-                body_path = entry.get("body")
-                if not body_path:
-                    raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
-                body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
-                    encoding="utf-8"
-                ).strip()
+            body_path = entry.get("body")
+            if not body_path:
+                raise PdlcError(f"manifest entry {entry.get('id') or '?'} has no body file")
+            body = require_file(f"manifest entry {entry.get('id') or '?'} body", body_path).read_text(
+                encoding="utf-8"
+            ).strip()
         blocks.append(f"{header}\n{meta}\n\n{body}")
     return "\n\n---\n\n".join(blocks)
 
@@ -753,17 +750,14 @@ def _manifest_review_tasks(manifest_path: Path, work_item: str) -> tuple[list[di
                 "TASK_BODY": (stored.get("body") or "").strip(),
             })
             continue
-        kind = entry.get("type") or ("ui" if entry.get("ui") else "core")
+        kind = entry.get("type")
         coverage = f"{kind}, covers {', '.join(entry.get('covers') or []) or 'nothing'}, depends on {', '.join(entry.get('depends') or []) or 'nothing'}"
-        if entry.get("unchanged"):
-            detail = f"carried forward unchanged from the record, no file; {coverage}"
-        else:
-            body = require_file(f"manifest entry {task_id} body", entry.get("body")).resolve()
-            detail = f"`{body}`; {coverage}"
+        body = require_file(f"manifest entry {task_id} body", entry.get("body")).resolve()
+        detail = f"`{body}`; {coverage}"
         tasks.append({
             "TASK_ID": task_id, "TASK_TITLE": entry.get("title") or "untitled",
             # An existing task keeps its number; without an action it is retained, which may still rewrite it.
-            "TASK_ACTION": entry.get("action") or ("retain" if entry.get("unchanged") or "number" in entry else "create"),
+            "TASK_ACTION": entry.get("action") or ("retain" if "number" in entry else "create"),
             "TASK_DETAIL": detail,
         })
     return tasks, removed
@@ -803,7 +797,8 @@ def tasks_reviewer_brief(
             "MANIFEST_PATH": manifest_path,
             "TASKS": tasks,
             "REMOVED_TASKS": removed,
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+            # Empty on a first review, which drops the section from the brief.
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
         },
     )
 

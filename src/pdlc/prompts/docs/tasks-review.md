@@ -44,19 +44,34 @@ Reason: {{REMOVE_REASON}}
 {{/EACH}}
 {{/IF}}
 {{/IF}}
+{{#IF PRIOR_FINDINGS}}
 
-### Prior findings (re-review only)
+### Prior findings
+
+This is a re-review. The findings below were raised against the previous version of this artifact, and it has been revised since. Check each one against the current files and confirm it is fixed. Report any finding that is not fixed, or only partly fixed, again with fresh evidence. These findings do not limit the review: review the whole artifact as you would on a first pass.
+
+--- BEGIN PRIOR FINDINGS ---
 
 {{PRIOR_FINDINGS}}
 
+--- END PRIOR FINDINGS ---
+{{/IF}}
+
 ## What to check
 
+{{#IF FRAGMENT_PATH}}
+- Applicability is explicit: the section names at least one `UJ-*` journey, or states plainly that no UI is required and why.
+- Requirement coverage: every applicable FR or C maps to at least one `UJ-*`; every journey's coverage names an FR or C the work item declares.
+- Journey quality: each journey describes observable user intent, including its alternate and failure states, not UI implementation detail.
+- Nothing contradicts approved Product intent.
+{{/IF}}
+{{#IF MANIFEST_PATH}}
 - Journey and requirement coverage: every task covers at least one FR or C; every UI task covers a `UJ-*`; every `UJ-*` has a UI task; no task claims a requirement the parent does not declare.
 - Dependency validity: dependencies exist, the graph is acyclic, ordering is sound.
 - Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK classification are concrete and testable.
 - Nothing contradicts approved Product or UI intent.
+{{/IF}}
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Clean` or
-`Changes`.
+Findings with evidence, coverage boundaries, and exactly one of `Clean` or `Changes`.

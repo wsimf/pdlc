@@ -6,6 +6,8 @@ plus the re-author-in-place / return-to-Stale guard — and the gate guards ever
 import json
 
 from _support import FileBackendTest
+from pdlc.domain.task_artifact import snapshot, stored_fields
+from pdlc.internal.workitem import subissues_for
 
 
 class PostTasksValidationTests(FileBackendTest):
@@ -25,22 +27,36 @@ class PostTasksValidationTests(FileBackendTest):
             f"**Blocked by:** {blocked}\n**Type:** AFK\n**Requirements Covered:** {requirements}\n{journey_line}\n**Scope:**\nLand the task.\n\n**Acceptance Criteria:**\n- [ ] The task works.\n",
         )
 
+    def _retain(self, task_id: str, **fields) -> dict:
+        """A retain entry naming the seeded TASK-001, so re-landing it edits
+        that task instead of tripping the id-needs-an-action refusal."""
+        stored = next(task for task in subissues_for("30") if task.get("taskId") == task_id)
+        entry = {"id": task_id, "number": stored["number"], "action": "retain",
+                  "baseline": snapshot(stored_fields(stored))}
+        entry.update(fields)
+        return entry
+
     def _dry_run(self, tasks):
         manifest = self.write_file("m.json", json.dumps(tasks))
         return self.invoke("post_tasks", "--work-item", 30, "--stage", "Tasks",
                            "--manifest", manifest, "--dry-run")
 
     def test_valid_breakdown_assigns_ids_orders_and_flags_orphans(self):
+        # TASK-009 is not carried forward by this breakdown, so it must be
+        # explicitly descoped: the orphan check refuses a silent drop.
+        task_009 = next(task for task in subissues_for("30") if task.get("taskId") == "TASK-009")
         result = self._dry_run([
-            {"id": "TASK-001", "title": "Reworded", "body": self._body("FR-1, C-1"),
-             "ui": False, "covers": ["FR-1", "C-1"]},
-            {"title": "Ship the journey", "body": self._body("FR-2", journeys="UJ-1", blocked="TASK-001"), "ui": True,
+            self._retain("TASK-001", title="Reworded", body=self._body("FR-1, C-1"),
+                         type="core", covers=["FR-1", "C-1"]),
+            {"title": "Ship the journey", "body": self._body("FR-2", journeys="UJ-1", blocked="TASK-001"), "type": "ui",
              "covers": ["FR-2", "UJ-1"], "depends": ["TASK-001"]},
+            {"id": "TASK-009", "number": task_009["number"], "action": "remove",
+             "baseline": snapshot(stored_fields(task_009)), "reason": "Descoped"},
         ])
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["tasks"][1]["id"], "TASK-010")
         self.assertEqual(result.json["order"], ["TASK-001", "TASK-010"])
-        self.assertEqual(result.json["orphans"], ["TASK-009"])
+        self.assertEqual(result.json["removed"], ["TASK-009"])
 
     def test_body_structure_is_checked_before_publication(self):
         base = "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n**UI Journeys:** UJ-1\n\n**Scope:**\nDo work.\n\n**Acceptance Criteria:**\n- [ ] It works.\n"
@@ -57,16 +73,16 @@ class PostTasksValidationTests(FileBackendTest):
         for body, message in cases:
             with self.subTest(message=message):
                 path = self.write_file("invalid-task.md", body)
-                result = self._dry_run([{"id": "TASK-001", "title": "Complete the record", "body": path,
-                                         "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}])
+                result = self._dry_run([self._retain("TASK-001", title="Complete the record", body=path,
+                                         type="ui", covers=["FR-1", "FR-2", "C-1", "UJ-1"])])
                 self.assertEqual(result.code, 1)
                 self.assertIn(f"TASK-001 body: {message}", result.stderr)
                 self.assertEqual(self.fields(30)["Gate State"], "Pending")
 
     def test_invalid_body_does_not_publish_or_rewrite_a_task(self):
         manifest = self.write_file("invalid-body.json", json.dumps([
-            {"id": "TASK-001", "title": "Changed", "body": self.body_file,
-             "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]},
+            self._retain("TASK-001", title="Changed", body=self.body_file,
+                         type="ui", covers=["FR-1", "FR-2", "C-1", "UJ-1"]),
         ]))
         result = self.invoke("post_tasks", "--work-item", 30, "--stage", "Tasks",
                              "--manifest", manifest, "--evidence", self.evidence_file())
@@ -76,8 +92,8 @@ class PostTasksValidationTests(FileBackendTest):
         self.assertEqual(self.task_meta(30, 301)["title"], "WORK-30-TASK-001 Old wording")
 
     def test_every_product_identifier_needs_task_coverage(self):
-        result = self._dry_run([{"id": "TASK-001", "title": "Complete the record", "body": self._body("FR-1", journeys="UJ-1"),
-                                 "ui": True, "covers": ["FR-1", "UJ-1"]}])
+        result = self._dry_run([self._retain("TASK-001", title="Complete the record", body=self._body("FR-1", journeys="UJ-1"),
+                                 type="ui", covers=["FR-1", "UJ-1"])])
         self.assertEqual(result.code, 1)
         self.assertIn("no task covers FR-2; add it to a task's covers and Requirements Covered line", result.stderr)
         self.assertIn("no task covers C-1; add it to a task's covers and Requirements Covered line", result.stderr)
@@ -85,17 +101,17 @@ class PostTasksValidationTests(FileBackendTest):
     def test_rejections(self):
         cases = [
             ("covers FR-99, which the parent does not declare",
-             [{"id": "TASK-001", "title": "Typo", "body": self.body_file, "covers": ["FR-99"]}]),
+             [self._retain("TASK-001", title="Typo", body=self.body_file, type="core", covers=["FR-99"])]),
             ("is a UI task but covers no UJ-*",
-             [{"id": "TASK-001", "title": "U", "body": self.body_file, "ui": True, "covers": ["FR-1"]}]),
+             [self._retain("TASK-001", title="U", body=self.body_file, type="ui", covers=["FR-1"])]),
             ("dependency cycle", [
-                {"id": "TASK-001", "title": "A", "body": self.body_file, "ui": True,
-                 "covers": ["FR-1", "UJ-1"], "depends": ["TASK-002"]},
-                {"id": "TASK-002", "title": "B", "body": self.body_file,
+                self._retain("TASK-001", title="A", body=self.body_file, type="ui",
+                             covers=["FR-1", "UJ-1"], depends=["TASK-002"]),
+                {"id": "TASK-002", "action": "create", "title": "B", "body": self.body_file, "type": "core",
                  "covers": ["FR-2"], "depends": ["TASK-001"]},
             ]),
             ("duplicate task id: TASK-001", [
-                {"id": "TASK-001", "title": "A", "body": self.body_file, "ui": True, "covers": ["FR-1", "UJ-1"]},
+                self._retain("TASK-001", title="A", body=self.body_file, type="ui", covers=["FR-1", "UJ-1"]),
                 {"id": "TASK-001", "title": "B", "body": self.body_file, "covers": ["FR-2"]},
             ]),
         ]
@@ -111,25 +127,25 @@ class PostTasksValidationTests(FileBackendTest):
         self.assertEqual(result.code, 1)
         self.assertIn("id must be a string", result.stderr)
 
-        result = self._dry_run([{"id": "TASK-001", "title": "Bad", "body": self.body_file,
-                                 "ui": False, "covers": "FR-1"}])
+        result = self._dry_run([self._retain("TASK-001", title="Bad", body=self.body_file,
+                                 type="core", covers="FR-1")])
         self.assertEqual(result.code, 1)
         self.assertIn("covers must be an array of strings", result.stderr)
 
-        result = self._dry_run([{"id": "TASK-nope", "title": "Bad", "body": self.body_file,
-                                 "ui": False, "covers": ["FR-1"]}])
+        result = self._dry_run([{"id": "TASK-nope", "action": "create", "title": "Bad", "body": self.body_file,
+                                 "type": "core", "covers": ["FR-1"]}])
         self.assertEqual(result.code, 1)
         self.assertIn("malformed task id", result.stderr)
 
-        result = self._dry_run([{"id": "TASK-001", "title": "Bad", "body": self.body_file,
-                                 "ui": False, "covers": ["FR-1"], "depends": [1]}])
+        result = self._dry_run([self._retain("TASK-001", title="Bad", body=self.body_file,
+                                 type="core", covers=["FR-1"], depends=[1])])
         self.assertEqual(result.code, 1)
         self.assertIn("depends must be an array of strings", result.stderr)
 
     def test_approval_required_record_must_return_to_stale_before_dry_run(self):
         self.seed_record(31, "Tasks", "Approval Required")
         manifest = self.write_file("m2.json", json.dumps([
-            {"id": "TASK-001", "title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
+            {"id": "TASK-001", "action": "create", "title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "type": "ui", "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
         ]))
         dry = self.invoke("post_tasks", "--work-item", 31, "--stage", "Tasks",
                           "--manifest", manifest, "--dry-run")
@@ -145,7 +161,7 @@ class PostTasksValidationTests(FileBackendTest):
             with self.subTest(gate=gate):
                 self.seed_record(number, "Tasks", gate)
                 manifest = self.write_file(f"m{number}.json", json.dumps([
-                    {"title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "ui": True, "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
+                    {"title": "A", "body": self._body("FR-1, FR-2, C-1", journeys="UJ-1"), "type": "ui", "covers": ["FR-1", "FR-2", "C-1", "UJ-1"]}
                 ]))
                 dry = self.invoke("post_tasks", "--work-item", number, "--stage", "Tasks",
                                   "--manifest", manifest, "--dry-run")

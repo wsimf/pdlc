@@ -1,16 +1,29 @@
 """`pdlc post tasks` reopening delivery tasks a re-landed breakdown rewrites,
-and carrying landed tasks forward untouched with `"unchanged": true`."""
+and carrying landed tasks forward untouched via `"action": "retain"`."""
 
-import hashlib
 import json
 from unittest.mock import patch
 
-from _support import BODY_DEFAULT, FileBackendTest
+from _support import BODY_DEFAULT, TASK_BODY_DEFAULT, FileBackendTest
 from pdlc.domain.task_artifact import baseline_matches, same_task_body, snapshot, stored_fields
 from pdlc.internal.workitem import subissues_for
 
 # No journey to cover, so each case can land a single CORE task.
 NO_UI_BODY = BODY_DEFAULT.replace("UJ-1 covers the first run.", "No UI is required.")
+
+
+def _retain_entry(record: int, task_id: str, *, title: str, body: str, task_type: str = "core",
+                   covers: list[str] | None = None, depends: list[str] | None = None) -> dict:
+    """A retain entry naming an already-seeded task by its current stored
+    content's baseline, so a re-land is recognised as an edit to that task
+    rather than a new or unrelated one."""
+    stored = next(task for task in subissues_for(str(record)) if task.get("taskId") == task_id)
+    return {
+        "id": task_id, "number": stored["number"], "action": "retain",
+        "baseline": snapshot(stored_fields(stored)),
+        "title": title, "body": body, "type": task_type,
+        "covers": covers or [], "depends": depends or [],
+    }
 
 
 class TasksReopenTests(FileBackendTest):
@@ -23,8 +36,7 @@ class TasksReopenTests(FileBackendTest):
                          snapshot({"title": "one", "type": "core", "body": "one\ntwo"}))
         fields = {"title": "one", "type": "core", "body": "one\r\ntwo\r\n"}
         self.assertEqual(snapshot(fields), snapshot({**fields, "body": "one\ntwo\n"}))
-        legacy = hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
-        self.assertTrue(baseline_matches(legacy, {**fields, "body": "one\ntwo\n"}))
+        self.assertTrue(baseline_matches(snapshot(fields), {**fields, "body": "one\ntwo\n"}))
 
     def setUp(self):
         super().setUp()
@@ -46,8 +58,7 @@ class TasksReopenTests(FileBackendTest):
         self.register_prs(401, [900])
 
         result = self._land([
-            {"id": "TASK-001", "title": "one", "body": self.body_file,
-             "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
+            _retain_entry(40, "TASK-001", title="one", body=self.body_file, covers=["FR-1", "FR-2", "C-1"]),
         ])
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["reopened"], ["TASK-001"])
@@ -74,8 +85,7 @@ class TasksReopenTests(FileBackendTest):
         self.seed_implementation_comment(40, 402, "Shipped the endpoint.")
 
         result = self._land([
-            {"id": "TASK-002", "title": "two", "body": self.unchanged_body,
-             "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
+            _retain_entry(40, "TASK-002", title="two", body=self.unchanged_body, covers=["FR-1", "FR-2", "C-1"]),
         ])
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["unchanged"], ["TASK-002"])
@@ -116,8 +126,7 @@ class TasksReopenTests(FileBackendTest):
         self.seed_plan_comment(40, 403, "Add the validation helper.")
 
         result = self._land([
-            {"id": "TASK-003", "title": "three reworded", "body": self.body_file,
-             "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
+            _retain_entry(40, "TASK-003", title="three reworded", body=self.body_file, covers=["FR-1", "FR-2", "C-1"]),
         ])
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["retitled"], ["TASK-003"])
@@ -129,10 +138,8 @@ class TasksReopenTests(FileBackendTest):
         self.seed_task(40, 404, "TASK-004", "CLOSED", "WORK-40-TASK-004 [CORE] four")
         self.seed_task(40, 405, "TASK-005", "OPEN", "WORK-40-TASK-005 [CORE] five")
         manifest = self.write_file("m.json", json.dumps([
-            {"id": "TASK-004", "title": "four", "body": self.body_file,
-             "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
-            {"id": "TASK-005", "title": "five", "body": self.fr1_body_file,
-             "ui": False, "covers": ["FR-1"]},
+            _retain_entry(40, "TASK-004", title="four", body=self.body_file, covers=["FR-1", "FR-2", "C-1"]),
+            _retain_entry(40, "TASK-005", title="five", body=self.fr1_body_file, covers=["FR-1"]),
         ]))
         result = self.invoke("post_tasks", "--work-item", 40, "--stage", "Tasks",
                              "--manifest", manifest, "--dry-run")
@@ -146,6 +153,7 @@ class TasksCarryForwardTests(FileBackendTest):
         super().setUp()
         self.seed_record(41, "Tasks", "Pending", body=NO_UI_BODY)
         self.body_file = self.write_file("task-body.md", "**Blocked by:** TASK-001\n**Type:** AFK\n**Requirements Covered:** FR-2\n\n**Scope:**\nRework the task.\n\n**Acceptance Criteria:**\n- [ ] The new behavior works.\n")
+        self.retained_body_file = self.write_file("retained-body.md", TASK_BODY_DEFAULT)
         self.seed_task(41, 411, "TASK-001", "CLOSED", "WORK-41-TASK-001 [CORE] one")
         self.seed_plan_comment(41, 411, "Add the validation helper.")
         self.seed_implementation_comment(41, 411, "Shipped the endpoint.")
@@ -155,10 +163,23 @@ class TasksCarryForwardTests(FileBackendTest):
         return self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
                            "--manifest", manifest, "--evidence", self.evidence_file())
 
+    def _retained_task_001(self, **overrides):
+        """A retain entry that reproduces TASK-001's stored content exactly, so
+        the command carries it forward as unchanged."""
+        stored = subissues_for("41")[0]
+        entry = {
+            "id": "TASK-001", "number": stored["number"], "action": "retain",
+            "baseline": snapshot(stored_fields(stored)),
+            "title": "one", "body": self.retained_body_file, "type": "core",
+            "covers": ["FR-1", "FR-2", "C-1"], "depends": [],
+        }
+        entry.update(overrides)
+        return entry
+
     def test_carried_task_keeps_its_state_title_and_evidence(self):
         result = self._land([
-            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
-            {"title": "two", "body": self.body_file, "ui": False,
+            self._retained_task_001(),
+            {"title": "two", "body": self.body_file, "type": "core",
              "covers": ["FR-2"], "depends": ["TASK-001"]},
         ])
         self.assertEqual(result.code, 0, result.stderr)
@@ -177,20 +198,18 @@ class TasksCarryForwardTests(FileBackendTest):
 
     def test_carried_task_reads_its_title_back_for_duplicate_detection(self):
         result = self._land([
-            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
-            {"title": "one", "body": self.body_file, "ui": False, "covers": ["FR-2"]},
+            self._retained_task_001(),
+            {"title": "one", "body": self.body_file, "type": "core", "covers": ["FR-2"], "depends": ["TASK-001"]},
         ])
         self.assertEqual(result.code, 1)
         self.assertIn("duplicate task title: one", result.stderr)
 
     def test_carried_task_rejections(self):
         cases = [
-            ("the record has no such delivery task",
-             [{"id": "TASK-009", "unchanged": True, "ui": False, "covers": ["FR-1"]}]),
-            ("cannot also set a title",
-             [{"id": "TASK-001", "unchanged": True, "title": "renamed", "ui": False, "covers": ["FR-1"]}]),
-            ("unchanged must be true or false",
-             [{"id": "TASK-001", "unchanged": "yes", "ui": False, "covers": ["FR-1"]}]),
+            ("it is not a task of work item #41",
+             [{"id": "TASK-009", "action": "retain", "number": 999, "baseline": "x", "covers": ["FR-1"]}]),
+            ('uses "unchanged"',
+             [{"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1"]}]),
         ]
         for expected, tasks in cases:
             with self.subTest(expected=expected):
@@ -199,18 +218,8 @@ class TasksCarryForwardTests(FileBackendTest):
                 self.assertIn(expected, result.stderr)
                 self.assertEqual(self.task_meta(41, 411)["state"], "CLOSED")
 
-    def test_carried_task_cannot_also_name_a_body(self):
-        result = self._land([
-            {"id": "TASK-001", "unchanged": True, "body": self.body_file,
-             "ui": False, "covers": ["FR-1"]},
-        ])
-        self.assertEqual(result.code, 1)
-        self.assertIn("cannot also set a body", result.stderr)
-
     def test_dry_run_flags_the_carried_entry_and_omits_it_from_candidates(self):
-        manifest = self.write_file("m.json", json.dumps([
-            {"id": "TASK-001", "unchanged": True, "ui": False, "covers": ["FR-1", "FR-2", "C-1"]},
-        ]))
+        manifest = self.write_file("m.json", json.dumps([self._retained_task_001()]))
         result = self.invoke("post_tasks", "--work-item", 41, "--stage", "Tasks",
                              "--manifest", manifest, "--dry-run")
         self.assertEqual(result.code, 0, result.stderr)

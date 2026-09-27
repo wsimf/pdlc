@@ -87,10 +87,6 @@ class CliTests(unittest.TestCase):
     def test_resolves_guide(self):
         self.assertEqual(_resolve(["guide"])[0], "pdlc.commands.guide")
 
-    def test_supports_exec_alias(self):
-        module, _ = _resolve(["exec", "post", "complete"])
-        self.assertEqual(module, "pdlc.commands.post_complete")
-
     def test_unknown_command_raises_with_usage(self):
         with self.assertRaises(ValueError) as caught:
             _resolve(["frobnicate"])

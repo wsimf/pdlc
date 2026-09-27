@@ -78,9 +78,9 @@ def _usage() -> str:
     return (
         "USAGE\n"
         "  pdlc [--repo OWNER/REPO] [--project-number N] [--project-owner OWNER] "
-        "[--backend NAME] [--home PATH] [exec] COMMAND ...\n"
+        "[--backend NAME] [--home PATH] COMMAND ...\n"
         "\n"
-        "  Global options override .pdlc/config.toml for this run; `exec` is an accepted no-op prefix.\n"
+        "  Global options override .pdlc/config.toml for this run.\n"
         "  Run `pdlc COMMAND --help` for a command's own usage, flags, and behavioral contract.\n"
         "\nREAD-ONLY COMMANDS\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
@@ -146,7 +146,6 @@ def _usage() -> str:
         "\nEXAMPLES\n"
         "  pdlc inspect 236\n"
         "  pdlc post complete 236 completion.md\n"
-        "  pdlc exec post complete 236 completion.md\n"
         "\nLEARN MORE\n"
         "  Use `pdlc COMMAND --help` for details about a command.\n"
         "  Exit 75 or 76 means a transient host failure; `pdlc guide contract` says how to recover."
@@ -197,8 +196,6 @@ def _options(argv: list[str]) -> tuple[list[str], dict[str, str]]:
 
 
 def _resolve(arguments: list[str]) -> tuple[str, list[str]]:
-    if arguments and arguments[0] == "exec":
-        arguments = arguments[1:]
     for length in (3, 2, 1):
         key = tuple(arguments[:length])
         module_name = COMMANDS.get(key)

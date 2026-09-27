@@ -288,7 +288,7 @@ class ImplementTaskStackTests(FileBackendTest):
         before = self.task_comments_text(70, 701)
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 1)
         host.submit_task_stack.assert_not_called()
         self.assertEqual(self.task_comments_text(70, 701), before)
@@ -319,7 +319,7 @@ class ImplementTaskStackTests(FileBackendTest):
         metadata.write_text(json.dumps(value) + "\n")
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(self.task_comments_text(70, 701), before)
         self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
         host.submit_task_stack.assert_not_called()
@@ -348,7 +348,7 @@ class ImplementTaskStackTests(FileBackendTest):
         before = task_dir.joinpath("comments.jsonl").read_text()
         host = Mock()
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 1)
         self.assertIn("has no Technical Plan", result.stderr)
         host.submit_task_stack.assert_not_called()
@@ -407,11 +407,11 @@ class ImplementTaskStackTests(FileBackendTest):
             [{"number": 148, "branch": "pdlc/record-70/task-001"}],
         ]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            failed = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry failed.")), "--close")
+            failed = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry failed.")))
             self.assertEqual(failed.code, 1)
             self.assertEqual(self.task_comments_text(70, 701), prior)
             self.assertEqual(self.task_meta(70, 701)["state"], "OPEN")
-            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry succeeded.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry succeeded.")))
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.task_meta(70, 701)["state"], "CLOSED")
 
@@ -448,8 +448,8 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertEqual(payload["checks"], "pending")
         host.unresolved_review_comments.assert_called_once_with(148)
 
-    def test_an_open_task_closes_without_the_close_flag(self):
-        # Closing is decided by the task's state; `--close` is accepted and ignored.
+    def test_an_open_task_closes_without_a_flag(self):
+        # Closing is decided by the task's state, with no flag to ask for it.
         self._seed()
         host = Mock()
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
@@ -471,7 +471,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Final.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Final.")))
         self.assertEqual(result.code, 0, result.stderr)
         remaining = self._implementation_comments()
         self.assertEqual([c["url"] for c in remaining], ["t#comment-3"])
@@ -553,7 +553,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
         host.set_pull_request_content.side_effect = PdlcError("gh pr edit failed")
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
-            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")), "--close")
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 1)
         self.assertIn("gh pr edit failed", result.stderr)
         self.assertEqual(self.task_comments_text(70, 701), before)

@@ -23,6 +23,7 @@ from pdlc.domain.patch import (
     requirement_statements,
 )
 from pdlc.domain.task_artifact import snapshot, stored_fields
+from pdlc.domain.task_plan import carried_title
 from pdlc.domain.workflow import Event, Gate, InvalidationPolicy, State
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 from pdlc.internal.workitem import subissues_for
@@ -255,11 +256,21 @@ class PostTasksPatchTests(FileBackendTest):
         self.seed_task(number, 1, "TASK-001", "OPEN", f"WORK-{number}-TASK-001 [CORE] Land the record")
         self.seed_task(number, 2, "TASK-002", "OPEN", f"WORK-{number}-TASK-002 [UI] First run")
 
-    def manifest(self, **overrides: object) -> str:
+    def manifest(self, number: int, **overrides: object) -> str:
+        """A manifest that retains both seeded tasks: TASK-002 byte-for-byte
+        so it lands as unchanged, and TASK-001 with a reworded title/body so
+        it lands as a rewrite, plus its fields `overrides` can vary."""
+        stored_001 = next(task for task in subissues_for(str(number)) if task.get("taskId") == "TASK-001")
+        stored_002 = next(task for task in subissues_for(str(number)) if task.get("taskId") == "TASK-002")
+        task_002_body = self.write_file(f"t2-{number}.md", stored_002["body"])
         entries = [
-            {"id": "TASK-001", "title": "Land the record atomically", "body": self.write_file("t1.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n\n**Scope:**\nLand the record.\n\n**Acceptance Criteria:**\n- [ ] The record lands atomically.\n"),
-             "ui": False, "covers": ["FR-1", "FR-2", "C-1"], "depends": []},
-            {"id": "TASK-002", "unchanged": True, "ui": True, "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
+            {"id": "TASK-001", "number": stored_001["number"], "action": "retain",
+             "baseline": snapshot(stored_fields(stored_001)), "title": "Land the record atomically",
+             "body": self.write_file("t1.md", "**Blocked by:** None\n**Type:** AFK\n**Requirements Covered:** FR-1, FR-2, C-1\n\n**Scope:**\nLand the record.\n\n**Acceptance Criteria:**\n- [ ] The record lands atomically.\n"),
+             "type": "core", "covers": ["FR-1", "FR-2", "C-1"], "depends": []},
+            {"id": "TASK-002", "number": stored_002["number"], "action": "retain",
+             "baseline": snapshot(stored_fields(stored_002)), "title": carried_title(stored_002["title"]),
+             "body": task_002_body, "type": "ui", "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
         ]
         for key, value in overrides.items():
             entries[0][key] = value
@@ -273,7 +284,7 @@ class PostTasksPatchTests(FileBackendTest):
 
     def test_tasks_patch_resets_a_published_plan_to_stale(self):
         self.seed_breakdown(80, "Technical Plan", "Review Required")
-        result = self.land(80, self.manifest())
+        result = self.land(80, self.manifest(80))
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(self.state(80), ("Technical Plan", "Stale"))
         self.assertEqual(self.task_meta(80, 1)["title"], "WORK-80-TASK-001 [CORE] Land the record atomically")
@@ -282,15 +293,15 @@ class PostTasksPatchTests(FileBackendTest):
         self.assertEqual(result.json["patched"], "Tasks")
 
     def test_tasks_patch_refuses_shape_changes(self):
-        cases = {
-            "adds TASK-003": self.manifest(id="TASK-003"),
-            "has none": self.manifest(id=None),
-            "changes it": self.manifest(ui=True),
-        }
-        for number, (message, manifest) in enumerate(cases.items(), start=81):
+        cases = [
+            (81, "adds TASK-003", {"id": "TASK-003", "action": "create"}),
+            (82, "has none", {"id": None, "action": "create"}),
+            (83, "changes it", {"type": "ui"}),
+        ]
+        for number, message, overrides in cases:
             with self.subTest(message=message):
                 self.seed_breakdown(number, "Technical Plan", "Pending")
-                result = self.land(number, manifest)
+                result = self.land(number, self.manifest(number, **overrides))
                 self.assertEqual(result.code, 1)
                 self.assertIn(message, result.stderr)
                 self.assertEqual(self.comments_text(number), "")
@@ -298,10 +309,16 @@ class PostTasksPatchTests(FileBackendTest):
 
     def test_tasks_patch_refuses_removal_and_writes_nothing(self):
         self.seed_breakdown(88, "Technical Plan", "Pending")
-        baseline = snapshot(stored_fields(subissues_for("88")[0]))
+        stored = subissues_for("88")
+        task_001 = next(task for task in stored if task.get("taskId") == "TASK-001")
+        task_002 = next(task for task in stored if task.get("taskId") == "TASK-002")
         entries = [
-            {"id": "TASK-001", "number": 1, "action": "remove", "baseline": baseline, "reason": "Descoped"},
-            {"id": "TASK-002", "unchanged": True, "ui": True, "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
+            {"id": "TASK-001", "number": task_001["number"], "action": "remove",
+             "baseline": snapshot(stored_fields(task_001)), "reason": "Descoped"},
+            {"id": "TASK-002", "number": task_002["number"], "action": "retain",
+             "baseline": snapshot(stored_fields(task_002)), "title": carried_title(task_002["title"]),
+             "body": self.write_file("t2-88.md", task_002["body"]), "type": "ui",
+             "ui": True, "covers": ["UJ-1", "FR-1"], "depends": ["TASK-001"]},
         ]
         manifest = self.write_file("remove-patch.json", json.dumps(entries))
         result = self.land(88, manifest)
@@ -352,7 +369,7 @@ class PostTasksPatchTests(FileBackendTest):
     def test_dry_run_reports_the_patch(self):
         self.seed_breakdown(87, "Technical Plan", "Pending")
         result = self.invoke(
-            "post_tasks", "--work-item", 87, "--stage", "Tasks", "--manifest", self.manifest(), "--dry-run", "--patch",
+            "post_tasks", "--work-item", 87, "--stage", "Tasks", "--manifest", self.manifest(87), "--dry-run", "--patch",
         )
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(result.json["impactRequired"], False)

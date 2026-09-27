@@ -91,8 +91,8 @@ A patch keeps the shape later stages were built on, and a change to it is
 refused with a pointer to `pdlc post invalidate`: a UI patch keeps the landed
 applicability (--no-ui or not) and, when --impact is required and its verdict
 is `none`, the landed set of `UJ-*` ids; a Tasks patch names every landed task by `id`, adds and
-removes none, and keeps each task's `ui`. Only titles and bodies change, and
-`"unchanged": true` entries are allowed. A refusal writes nothing.
+removes none, and keeps each task's `ui`. Only titles and bodies change. A
+refusal writes nothing.
 
 An existing task may be carried as `"action": "retain"`, with its generated
 title, body file, type, coverage, dependencies, and baseline hash. The command
@@ -101,7 +101,6 @@ and writes only changed tasks. A `"remove"` entry needs an existing id,
 number, baseline, and reason; it closes and detaches an unimplemented task while
 preserving its Issue history. A task with a registered PR cannot be removed.
 Descoped task ids remain reserved for later breakdowns.
-Legacy `"unchanged": true` entries remain accepted.
 
 UI --body is the `## UI` section's content; a leading `## UI` heading is
 tolerated and stripped. Applicability is explicit, and it is carried by the
@@ -384,11 +383,10 @@ def _prepare_task_manifest(manifest: list[dict], existing: list[dict], issue: st
             if entry["id"] in seen_ids:
                 raise PdlcError(f"duplicate task id: {entry['id']}")
             seen_ids.add(entry["id"])
+        if "unchanged" in entry:
+            raise PdlcError(f'manifest entry {index} uses "unchanged"; use "action": "retain" instead')
         action = entry.get("action")
         if action is None:
-            if "type" not in entry:
-                prepared.append(dict(entry))
-                continue
             if entry.get("id"):
                 raise PdlcError(f"manifest entry {index} names id {entry['id']}; set its action to create, retain, or remove")
             action = "create"
@@ -470,7 +468,7 @@ def _save_manifest(manifest_path: Path, entries: list[dict]) -> None:
     descriptor, temporary = tempfile.mkstemp(prefix=".tasks-", suffix=".json", dir=manifest_path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            # bodyText is the command's in-memory read of a legacy entry's body file.
+            # bodyText is the command's in-memory read of the entry's body file.
             json.dump([{key: value for key, value in entry.items() if key != "bodyText"} for entry in entries], handle, indent=2)
             handle.write("\n")
         os.replace(temporary, manifest_path)
@@ -485,8 +483,7 @@ def _consume_manifest(manifest_path: Path, entries: list[dict], issue: str) -> N
     Every created or retained entry becomes `retain` with its number and a
     fresh baseline, and removals are dropped. Reusing the file later then
     carries each task unchanged instead of replaying this publication, which
-    would read as an interrupted run and reopen tasks delivered since. Legacy
-    entries carry no baseline and are kept as written.
+    would read as an interrupted run and reopen tasks delivered since.
     """
     stored = {task["taskId"]: task for task in subissues_for(issue) if task.get("taskId")}
     consumed: list[dict] = []
@@ -494,7 +491,7 @@ def _consume_manifest(manifest_path: Path, entries: list[dict], issue: str) -> N
         if entry.get("action") == "remove":
             continue
         task = stored.get(entry.get("id") or "")
-        if task is not None and "type" in entry:
+        if task is not None:
             entry = {**entry, "action": "retain", "number": task["number"], "baseline": snapshot(stored_fields(task))}
         consumed.append(entry)
     _save_manifest(manifest_path, consumed)
@@ -511,18 +508,11 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
             raise PdlcError(f"manifest entry {index} body must be a file path string")
         if not isinstance(task.get("title", ""), str):
             raise PdlcError(f"manifest entry {index} title must be a string")
-        if "unchanged" in task and not isinstance(task["unchanged"], bool):
-            raise PdlcError(f"manifest entry {index} unchanged must be true or false")
-        if task.get("unchanged") is True:
-            if task.get("body") is not None:
-                raise PdlcError(f"manifest entry {index} is marked \"unchanged\" and cannot also set a body")
-            continue
-        if task.get("action") is None and "type" not in task:
-            task["bodyText"] = require_file("task body file", task.get("body")).read_text(encoding="utf-8")
+        if "unchanged" in task:
+            raise PdlcError(f'manifest entry {index} uses "unchanged"; use "action": "retain" instead')
 
     existing = subissues_for(issue)
     reserved_ids = _descope_ids(issue)
-    explicit_actions = any("action" in entry or "type" in entry for entry in manifest)
     source_manifest = manifest
     manifest, removals = _prepare_task_manifest(source_manifest, existing, issue, reserved_ids)
     if not manifest:
@@ -539,7 +529,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
     resolved = resolve_task_ids(manifest, existing_ids)
     plan = build_plan(resolved, [task for task in existing if task.get("taskId") not in {r["id"] for r in removals}], requirements, journeys)
     for task in resolved:
-        if task.get("unchanged") or "bodyText" not in task:
+        if task.get("unchanged"):
             continue
         plan["errors"].extend(f"{task['id']} body: {error}" for error in task_body_errors(task["bodyText"], is_ui=task.get("ui") is True))
 
@@ -548,7 +538,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         for error in plan["errors"]:
             print(f"  - {error}", file=sys.stderr)
         raise SystemExit(1)
-    if explicit_actions and plan["orphans"]:
+    if plan["orphans"]:
         names = ", ".join(task["taskId"] for task in plan["orphans"])
         raise PdlcError(f"existing tasks missing from the manifest: {names}; retain or remove each explicitly")
 

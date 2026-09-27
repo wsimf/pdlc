@@ -61,8 +61,8 @@ class WorkflowEndToEndTests(FileBackendTest):
         manifest = self.write_file(
             "manifest.json",
             json.dumps([{
-                "id": "TASK-001", "title": "Build core", "body": task_body,
-                "ui": True, "covers": ["FR-1", "C-1", "UJ-1"],
+                "id": "TASK-001", "action": "create", "title": "Build core", "body": task_body,
+                "type": "ui", "covers": ["FR-1", "C-1", "UJ-1"],
             }]),
         )
         tasks_out = self.invoke("post_tasks", "--work-item", issue, "--stage", "Tasks",
@@ -108,7 +108,7 @@ class WorkflowEndToEndTests(FileBackendTest):
             "mergedAt": None, "checks": "PENDING",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=stack_host):
-            impl_out = self.invoke("post_implement_task", task_number, impl, "--close")
+            impl_out = self.invoke("post_implement_task", task_number, impl)
         self.assertEqual(impl_out.code, 0, impl_out.stderr)
         self.assertTrue(impl_out.json["closed"])
         self.assertEqual(impl_out.json["taskPr"]["number"], 147)

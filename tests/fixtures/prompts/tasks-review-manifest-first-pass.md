@@ -9,7 +9,9 @@ Do not spawn, dispatch, or ask another agent to do this work.
 Do not re-run the calling skill or rediscover the lifecycle stage.
 Review the supplied artifact directly and return one report to the calling skill.
 
-## Parent work item
+## Work item `60`
+
+--- BEGIN WORK ITEM ---
 
 ## Product
 
@@ -30,50 +32,24 @@ UJ-1 covers the first run.
 ## Open Questions
 - none
 
-## Artifact under review
+--- END WORK ITEM ---
 
-### TASK-001 — Core work
-ui: False, covers: ['FR-1'], depends: []
+## Your Task
 
-## Scope
-Build the seam.
+Review the proposed task breakdown at `$CACHE_ROOT/manifest.json`. Read the manifest and every task file it lists; together they replace the work item's current delivery tasks. Do not edit the manifest or any task file.
 
-Covers FR-1.
+Review each task below on its own, then the breakdown as a whole:
 
-## Acceptance criteria
-- it works
-
----
-
-### TASK-002 — Show it
-ui: True, covers: ['FR-2', 'UJ-1'], depends: ['TASK-001']
-
-## Scope
-Show it.
-
-Covers FR-2, UJ-1.
-
-## Acceptance criteria
-- it shows
-
-## Prior findings (re-review only)
-
-none, first review
+- `TASK-001` — Core work (create): `$CACHE_ROOT/task-001.md`; core, covers FR-1, depends on nothing
+- `TASK-002` — Show it (create): `$CACHE_ROOT/task-002.md`; ui, covers FR-2, UJ-1, depends on TASK-001
 
 ## What to check
 
-- Journey and requirement coverage: every task covers at least one FR or C;
-  every UI task covers a `UJ-*`; every `UJ-*` has a UI task; no task claims a
-  requirement the parent does not declare.
-- Dependency validity: dependencies exist, the graph is acyclic, ordering is
-  sound.
-- Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK
-  classification are concrete and testable; no empty detail block.
-- No delivery task carries a `## Technical Plan` or `## Implementation` comment — the
-  Tasks stage precedes both.
+- Journey and requirement coverage: every task covers at least one FR or C; every UI task covers a `UJ-*`; every `UJ-*` has a UI task; no task claims a requirement the parent does not declare.
+- Dependency validity: dependencies exist, the graph is acyclic, ordering is sound.
+- Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK classification are concrete and testable.
 - Nothing contradicts approved Product or UI intent.
 
 ## Report back
 
-Findings with evidence, coverage boundaries, and exactly one of `Clean` or
-`Changes`.
+Findings with evidence, coverage boundaries, and exactly one of `Clean` or `Changes`.
