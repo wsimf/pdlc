@@ -18,4 +18,4 @@ Findings:
 
 Coverage boundaries: <anything left deliberately unaddressed and why, or None>
 Validation not run: <checks intentionally skipped>
-Verdict: <Changes Required|Approval Required>
+Verdict: <Needs Revision|Ready to Land>

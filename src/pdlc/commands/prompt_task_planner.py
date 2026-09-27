@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-planner - print the task planner's brief for a record's delivery-task breakdown; nothing is published to the backend
+    pdlc prompt task-planner - write the task planner's brief for a record's delivery-task breakdown; nothing is published to the backend
 
 USAGE
-    pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+    pdlc prompt task-planner WORK_ITEM [--follow-up FILE|text:BODY]
     - when revising an unpublished task manifest, such as a reviewed draft:
-      pdlc prompt task-planner WORK_ITEM --current-tasks-manifest-path FILE [--follow-up FILE|text:BODY] [--file]
+      pdlc prompt task-planner WORK_ITEM --current-tasks-manifest-path FILE [--follow-up FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that decomposes a record into a
-    dependency-ordered set of delivery tasks. The output is sent to that
-    sub-agent verbatim.
+    Writes the complete brief for the sub-agent that decomposes a record into a
+    dependency-ordered set of delivery tasks. It prints only the brief file's
+    path; that file is sent to that sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
     `Status` is not `Tasks`. When tasks exist, the command writes an editable
@@ -33,9 +33,6 @@ DESCRIPTION
 FLAGS
     --current-tasks-manifest-path FILE  unpublished task manifest to revise instead of the published tasks
     --follow-up FILE|text:BODY    the driver's verbatim follow-up for this pass
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt task-planner 236

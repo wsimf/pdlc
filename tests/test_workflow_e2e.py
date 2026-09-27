@@ -88,7 +88,7 @@ class WorkflowEndToEndTests(FileBackendTest):
             0,
         )
         # Re-planning revises the same files in a new pass, then reviews them again.
-        self.invoke("prompt_tech_planner", issue, "--current-plan-manifest-path", plan_manifest)
+        self.invoke("prompt_tech_planner", "--inline", issue, "--current-plan-manifest-path", plan_manifest)
         self.write_plan(json.loads(Path(plan_manifest).read_text())[0]["file"], "Touch core_service.py and its tests.")
         self.review_plans(issue, plan_manifest)
         reauth_plan = self.invoke("post_plan", "--work-item", issue,

@@ -63,4 +63,4 @@ Use targeted repository search and direct file reads to confirm claims about exi
 
 Write the report into the findings file the prompt names. Its outline is a guide: adapt it as the review needs. If there are no findings, say so plainly and include the evidence scope. Prioritize findings P0–P3. Never claim runtime, build, or test validation that did not happen.
 
-Reply to the calling skill with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and the findings file path.
+Reply to the calling skill with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the files you reviewed, and the findings file path.

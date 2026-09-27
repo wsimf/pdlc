@@ -73,9 +73,9 @@ This step is complete when the file holds exactly the three owned headings, in o
 
 ## Review
 
-Dispatch `pdlc-product-reviewer` with the brief `product-reviewer DRAFT_FILE [--work-item WORK_ITEM] [--findings FILE] --file` writes; pass `--work-item` only when reconciling an existing record, and `--findings` only on a re-review. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only and must review the actual draft file, not a summary.
+Dispatch `pdlc-product-reviewer` with the brief `product-reviewer DRAFT_FILE [--work-item WORK_ITEM] [--findings FILE]` writes; pass `--work-item` only when reconciling an existing record, and `--findings` only on a re-review. The command prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. The reviewer is read-only and must review the actual draft file, not a summary.
 
-On findings, fix them in the same file, going back to Interview when a finding needs the driver, then repeat Review on the same path, re-running `product-reviewer` with `--findings` carrying the prior findings. On a clean verdict, that exact file is what Land ships; do not rewrite, reformat, or regenerate it. After two failed reconciliation passes, stop and put the decision to the driver. This step is complete only when the actual file has a clean reviewer verdict within two reconciliations.
+On findings, fix them in the same file, going back to Interview when a finding needs the driver, then repeat Review on the same path, re-running `product-reviewer` with `--findings` carrying the prior findings. On a clean verdict, that exact file is what Land ships; do not rewrite, reformat, or regenerate it. After three failed reconciliation passes, stop and put the decision to the driver. This step is complete only when the actual file has a clean reviewer verdict within three reconciliations.
 
 ## Land
 

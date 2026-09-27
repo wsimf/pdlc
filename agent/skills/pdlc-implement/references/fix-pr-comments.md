@@ -1,6 +1,6 @@
 # Fix PR comments policy
 
-`pdlc prompt task-implementer WORK_ITEM --file` builds the brief whenever the unit's `#### Unresolved threads` lists review threads, filling in the pull request, the task, its `## Technical Plan`, and the driver's `#### Decisions` from the record. This file covers what the skill decides once that agent returns.
+`pdlc prompt task-implementer WORK_ITEM` builds the brief whenever the unit's `#### Unresolved threads` lists review threads, filling in the pull request, the task, its `## Technical Plan`, and the driver's `#### Decisions` from the record. This file covers what the skill decides once that agent returns.
 
 The agent knows nothing about the PDLC pipeline: it sees one pull request, its open threads, and the working tree. Tell it nothing about stages, gates, or the parent work item. It commits but never pushes — the branch, the re-land, and the stage evidence stay with the skill.
 

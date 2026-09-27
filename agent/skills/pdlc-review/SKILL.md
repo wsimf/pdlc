@@ -67,7 +67,7 @@ Relay the command's JSON output, then hand back by the returned gate:
 - **auto-approved** (`autoApproved: true`) — report that the human step was skipped and the loop continues.
 - **`CI Pending`** — report that the review passed and return control to the queue loop, which monitors the registered pull requests and continues when CI settles. This is not a human stop.
 
-Re-run at the **same scope** after reconciliation — the same depth, for an Implementation review. If a `Changes Required` finding survives two reconciliations, stop and put it to the driver as a decision rather than looping a third time.
+Re-run at the **same scope** after reconciliation — the same depth, for an Implementation review. If a `Changes Required` finding survives three reconciliations, stop and put it to the driver as a decision rather than looping a fourth time.
 
 The report is complete when it contains the command output, the verdict, the final gate, and the requested human action.
 

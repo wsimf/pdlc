@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt ui-journey-reviewer - read-only: print the brief for the user-journey reviewer
+    pdlc prompt ui-journey-reviewer - read-only: write the brief for the user-journey reviewer
 
 USAGE
-    pdlc prompt ui-journey-reviewer WORK_ITEM --description FILE|text:BODY [--file]
+    pdlc prompt ui-journey-reviewer WORK_ITEM --description FILE|text:BODY
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that builds and runs the
-    current worktree, then walks a record's due UI journeys and rendered UX.
-    The output is sent to that sub-agent verbatim.
+    Writes the complete brief for the sub-agent that builds and runs the current
+    worktree, then walks a record's due UI journeys and rendered UX. It prints
+    only the brief file's path; that file is sent to that sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever Verification
     is not due, the record carries no UI task, or every journey and UX are
@@ -25,9 +25,6 @@ DESCRIPTION
 
 FLAGS
     --description FILE|text:BODY  one-sentence account of what shipped; required
-    --file                        write the brief to
-                                  the work-item cache with a random filename
-                                  and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt ui-journey-reviewer 236 --description text:"offline route retry with backoff"

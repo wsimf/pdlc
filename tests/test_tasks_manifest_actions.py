@@ -27,7 +27,7 @@ class TaskManifestActionsTests(FileBackendTest):
         self.seed_task(40, 402, "TASK-002", "OPEN", "WORK-40-TASK-002 [CORE] Drop seam", body=TASK_BODY)
 
     def _generated(self):
-        brief = self.invoke("prompt_task_planner", 40)
+        brief = self.invoke("prompt_task_planner", "--inline", 40)
         self.assertEqual(brief.code, 0, brief.stderr)
         match = re.search(r"Revise the task breakdown at `([^`]+)`", brief.stdout)
         self.assertIsNotNone(match)
@@ -49,12 +49,12 @@ class TaskManifestActionsTests(FileBackendTest):
         result = self._post(path)
         self.assertEqual(result.code, 1)
         self.assertIn("has not been reviewed since its last planning pass", result.stderr)
-        self.assertIn(f"pdlc prompt tasks-reviewer 40 --manifest {path.resolve()} --file", result.stderr)
+        self.assertIn(f"pdlc prompt tasks-reviewer 40 --manifest {path.resolve()}", result.stderr)
         self.assertEqual(self.state(40), ("Tasks", "Pending"))
 
     def test_a_reviewer_edit_is_restored_and_the_review_redone(self):
         path, entries = self._generated()
-        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path)).code, 0)
         body = Path(entries[0]["body"])
         reviewed = body.read_text()
         body.write_text(reviewed + "\nReviewer's own scope.\n")
@@ -63,7 +63,7 @@ class TaskManifestActionsTests(FileBackendTest):
         self.assertIn("changed after its brief was written", result.stderr)
         self.assertEqual(body.read_text(), reviewed)
         self.assertIn("Reviewer's own scope.", body.with_name(f"{body.stem}.rejected.md").read_text())
-        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path)).code, 0)
         landed = self._post(path)
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(landed.json["unchanged"], ["TASK-001", "TASK-002"])
@@ -71,7 +71,7 @@ class TaskManifestActionsTests(FileBackendTest):
     def test_without_a_manifest_the_published_breakdown_is_reviewed_and_lands_unchanged(self):
         self.seed_record(41, "Tasks", "Review Required", body=NO_UI_BODY)
         self.seed_task(41, 411, "TASK-001", "OPEN", "WORK-41-TASK-001 [CORE] Keep seam", body=TASK_BODY)
-        brief = self.invoke("prompt_tasks_reviewer", 41)
+        brief = self.invoke("prompt_tasks_reviewer", "--inline", 41)
         self.assertEqual(brief.code, 0, brief.stderr)
         match = re.search(r"task breakdown at `([^`]+)`", brief.stdout)
         self.assertIsNotNone(match, brief.stdout)
@@ -83,12 +83,12 @@ class TaskManifestActionsTests(FileBackendTest):
 
     def test_a_new_planning_pass_needs_a_new_review(self):
         path, entries = self._generated()
-        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
-        brief = self.invoke("prompt_task_planner", 40, "--current-tasks-manifest-path", str(path))
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path)).code, 0)
+        brief = self.invoke("prompt_task_planner", "--inline", 40, "--current-tasks-manifest-path", str(path))
         self.assertEqual(brief.code, 0, brief.stderr)
         Path(entries[0]["body"]).write_text(TASK_BODY + "\nOne more behavior.\n", encoding="utf-8")
         self.assertIn("has not been reviewed", self._post(path).stderr)
-        self.assertEqual(self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path)).code, 0)
+        self.assertEqual(self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path)).code, 0)
         landed = self._post(path)
         self.assertEqual(landed.code, 0, landed.stderr)
         self.assertEqual(landed.json["updated"], ["TASK-001"])
@@ -208,7 +208,7 @@ class TaskManifestActionsTests(FileBackendTest):
         entries[1] = {"id": entries[1]["id"], "number": entries[1]["number"], "action": "remove",
                       "baseline": entries[1]["baseline"], "reason": "Superseded"}
         path.write_text(json.dumps(entries), encoding="utf-8")
-        review = self.invoke("prompt_tasks_reviewer", 40, "--manifest", str(path))
+        review = self.invoke("prompt_tasks_reviewer", "--inline", 40, "--manifest", str(path))
         self.assertEqual(review.code, 0, review.stderr)
         self.assertIn("(remove): leaves scope: Superseded", review.stdout)
         self.assertIn("#### `TASK-002` — WORK-40-TASK-002 [CORE] Drop seam", review.stdout)

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt plan-reviewer - print the reviewer's brief for a pass's delivery-task plans; nothing is published to the backend
+    pdlc prompt plan-reviewer - write the reviewer's brief for a pass's delivery-task plans; nothing is published to the backend
 
 USAGE
     - when reviewing a planning pass:
-      pdlc prompt plan-reviewer WORK_ITEM --manifest FILE [--findings FILE|text:BODY] [--file]
+      pdlc prompt plan-reviewer WORK_ITEM --manifest FILE [--findings FILE|text:BODY]
     - when reviewing the recorded plans as they stand, such as plans published without review:
-      pdlc prompt plan-reviewer WORK_ITEM [--findings FILE|text:BODY] [--file]
+      pdlc prompt plan-reviewer WORK_ITEM [--findings FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the reviewer checking a pass's delivery-task
-    plans before they are posted to the work item store. The output is sent
-    to that sub-agent verbatim.
+    Writes the complete brief for the reviewer checking a pass's delivery-task
+    plans before they are posted to the work item store. It prints only the
+    brief file's path; that file is sent to that sub-agent verbatim.
 
     `--manifest` is the plan manifest `pdlc prompt tech-planner` generated, the
     same one `pdlc post plan` takes. The brief names each task file for the
@@ -48,9 +48,6 @@ DESCRIPTION
 FLAGS
     --manifest FILE             the plan manifest to review; omit it to review the recorded plans
     --findings FILE|text:BODY   the previous pass's findings, on a re-review
-    --file                      write the brief to
-                                the work-item cache with a random filename
-                                and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt plan-reviewer 236 --manifest /tmp/pdlc-plan.json

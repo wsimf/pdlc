@@ -272,7 +272,7 @@ class PostPlanValidationTests(FileBackendTest):
         manifest = self.reviewed_plan_manifest(40, {"TASK-001": "Touch core."})
         task_file = Path(self._entries(manifest)[0]["file"])
         # The planner, not the reviewer, edits: a new pass clears the review stamp.
-        self.invoke("prompt_tech_planner", 40, "--current-plan-manifest-path", manifest)
+        self.invoke("prompt_tech_planner", "--inline", 40, "--current-plan-manifest-path", manifest)
         task_file.write_text(task_file.read_text().replace("- ok", "- ok, and more"))
         dry = self._dry_run(manifest)
         self.assertEqual(dry.code, 1)
@@ -320,7 +320,7 @@ class PostPlanValidationTests(FileBackendTest):
         result = self._post(manifest)
         self.assertEqual(result.code, 1)
         self.assertIn("has not been reviewed since its last planning pass", result.stderr)
-        self.assertIn(f"pdlc prompt plan-reviewer 40 --manifest {Path(manifest).resolve()} --file", result.stderr)
+        self.assertIn(f"pdlc prompt plan-reviewer 40 --manifest {Path(manifest).resolve()}", result.stderr)
         self.assertEqual(self.fields(40)["Gate State"], "Pending")
         self.assertNotIn("Touch core.", self.task_comments_text(40, 401))
 

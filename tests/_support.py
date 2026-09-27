@@ -355,7 +355,7 @@ class FileBackendTest(unittest.TestCase):
     def plan_manifest(self, record: int, plans: dict[str, str]) -> str:
         """Generate the plan manifest through `pdlc prompt tech-planner` and
         write each given plan into its task's file."""
-        brief = self.invoke("prompt_tech_planner", record)
+        brief = self.invoke("prompt_tech_planner", "--inline", record)
         assert brief.code == 0, brief.stderr
         match = re.search(r"The manifest at `([^`]+)`", brief.stdout)
         assert match is not None, brief.stdout
@@ -366,7 +366,7 @@ class FileBackendTest(unittest.TestCase):
 
     def review_plans(self, record: int, manifest: str) -> None:
         """Hand a plan manifest to the reviewer, which is what lets it land."""
-        review = self.invoke("prompt_plan_reviewer", record, "--manifest", manifest)
+        review = self.invoke("prompt_plan_reviewer", "--inline", record, "--manifest", manifest)
         assert review.code == 0, review.stderr
 
     def reviewed_plan_manifest(self, record: int, plans: dict[str, str]) -> str:

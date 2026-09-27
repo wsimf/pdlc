@@ -394,7 +394,7 @@ class PatchVisibilityTests(FileBackendTest):
     def test_patch_reviewer_brief_names_the_stages_to_judge(self):
         self.seed_record(91, "Technical Plan", "Pending")
         body = self.write_file("product.md", PRODUCT_PATCH)
-        result = self.invoke("prompt_patch_reviewer", 91, "--stage", "Product", "--body", body)
+        result = self.invoke("prompt_patch_reviewer", "--inline", 91, "--stage", "Product", "--body", body)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("Artifacts to judge, in order: UI, Tasks", result.stdout)
         self.assertIn("The record lands atomically.", result.stdout)
@@ -403,7 +403,7 @@ class PatchVisibilityTests(FileBackendTest):
     def test_patch_reviewer_brief_is_refused_with_nothing_in_between(self):
         self.seed_record(92, "UI", "Pending")
         body = self.write_file("product.md", PRODUCT_PATCH)
-        result = self.invoke("prompt_patch_reviewer", 92, "--stage", "Product", "--body", body)
+        result = self.invoke("prompt_patch_reviewer", "--inline", 92, "--stage", "Product", "--body", body)
         self.assertEqual(result.code, 1)
         self.assertIn("needs no impact report", result.stderr)
 

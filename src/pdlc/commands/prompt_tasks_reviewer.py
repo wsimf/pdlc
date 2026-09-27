@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt tasks-reviewer - print the reviewer's brief for a UI fragment or Tasks breakdown; nothing is published to the backend
+    pdlc prompt tasks-reviewer - write the reviewer's brief for a UI fragment or Tasks breakdown; nothing is published to the backend
 
 USAGE
     - if reviewing a local, unpublished breakdown or UI fragment:
-        pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE|text:BODY] [--file]
+        pdlc prompt tasks-reviewer WORK_ITEM (--manifest FILE | --fragment FILE) [--findings FILE|text:BODY]
     - if reviewing the published UI section or breakdown as it stands:
-        pdlc prompt tasks-reviewer WORK_ITEM [--findings FILE|text:BODY] [--file]
+        pdlc prompt tasks-reviewer WORK_ITEM [--findings FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the reviewer checking a UI fragment or
-    Tasks breakdown before it is posted to the work item store. The output is
-    sent to that sub-agent verbatim.
+    Writes the complete brief for the reviewer checking a UI fragment or Tasks
+    breakdown before it is posted to the work item store. It prints only the
+    brief file's path; that file is sent to that sub-agent verbatim.
 
     At most one of `--manifest` or `--fragment` is given: `--manifest`
     names the Tasks-stage manifest `pdlc post tasks --stage Tasks` takes; the
@@ -51,14 +51,11 @@ FLAGS
     --manifest FILE              a Tasks-stage manifest; mutually exclusive with --fragment
     --fragment FILE              the proposed UI section's file; mutually exclusive with --manifest
     --findings FILE|text:BODY    the previous pass's findings, on a re-review
-    --file                       write the brief to
-                                 the work-item cache with a random filename
-                                 and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json
     pdlc prompt tasks-reviewer 236 --fragment /tmp/pdlc-ui.md
-    pdlc prompt tasks-reviewer 236 --file
+    pdlc prompt tasks-reviewer 236
     pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json --findings text:"tighten TASK-2"
 """
 

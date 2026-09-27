@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt - print the ready-to-send brief for a work item's next unit; nothing is published to the backend
+    pdlc prompt - write the ready-to-send brief for a work item's next unit; nothing is published to the backend
 
 USAGE
     pdlc prompt COMMAND WORK_ITEM [flags]
@@ -20,11 +20,11 @@ COMMANDS
     ui-journey-reviewer  brief the sub-agent walking a record's UI journeys against a fresh build
 
 DESCRIPTION
-    Prints one complete sub-agent brief for the unit of work a record has next,
-    with every value already filled in. The output is sent to the sub-agent
-    verbatim: it carries the task, its plan, the covered requirements, and the
-    boundaries the agent works inside, and it names no PDLC command, stage, or
-    gate.
+    Writes one complete sub-agent brief for the unit of work a record has next,
+    with every value already filled in, and prints only the brief file's path.
+    That file is sent to the sub-agent verbatim: it carries the task, its plan,
+    the covered requirements, and the boundaries the agent works inside, and it
+    names no PDLC command, stage, or gate.
 
     The three `task-*` commands describe the same unit, so the implementer,
     the reviewer, and the test writer are held to one task, one plan, and one
@@ -1143,32 +1143,34 @@ def ui_journey_reviewer_brief(work_item: str, description: str) -> str:
 
 
 def add_common_arguments(parser: argparse.ArgumentParser, command: str) -> None:
-    """The work item and `--file`, which every brief command takes alike."""
+    """The work item and `--inline`, which every brief command takes alike."""
     parser.add_argument("work_item")
-    parser.add_argument(
-        "--file", action="store_true",
-        help="write the brief to the configured work-item cache and print its path",
-    )
+    add_inline_argument(parser)
 
 
-def emit(brief: str, work_item: str, command: str, to_file: bool) -> None:
-    """Print the brief, or the path of the scratch file now holding it.
+def add_inline_argument(parser: argparse.ArgumentParser) -> None:
+    """`--inline` prints the brief itself; a convenience for humans, kept out of help."""
+    parser.add_argument("--inline", action="store_true", help=argparse.SUPPRESS)
+
+
+def emit(brief: str, work_item: str, command: str, inline: bool) -> None:
+    """Print the path of the scratch file now holding the brief, or the brief itself.
 
     The command name is part of that path so one pass's three briefs cannot
     overwrite each other: a caller that still held the implementer's path would
     otherwise read the reviewer's brief back out of it.
     """
-    if to_file:
-        print(write_scratch(scratch_path(work_item, f"prompt-{command}-{work_item}"), brief))
-    else:
+    if inline:
         sys.stdout.write(brief)
+    else:
+        print(write_scratch(scratch_path(work_item, f"prompt-{command}-{work_item}"), brief))
 
 
 def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int:
     """Render one brief, reporting a refusal without writing or printing it."""
     try:
         brief = build()
-        emit(brief, args.work_item, command, args.file)
+        emit(brief, args.work_item, command, args.inline)
     except PdlcError as error:
         return report_failure(error)
     return 0

@@ -27,21 +27,21 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
     GOLDENS = Path(__file__).parent / "fixtures" / "prompts"
 
     def _implementer(self):
-        return self.invoke("prompt_task_implementer", 60)
+        return self.invoke("prompt_task_implementer", "--inline", 60)
 
     def _reviewer(self):
-        return self.invoke("prompt_task_reviewer", 60, "--commits", "HEAD~1..HEAD")
+        return self.invoke("prompt_task_reviewer", "--inline", 60, "--commits", "HEAD~1..HEAD")
 
     def _test_writer(self, *extra: str):
         return self.invoke(
-            "prompt_task_test_writer", 60, "--commits", "HEAD~1..HEAD",
+            "prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD",
             "--report", "text:Built the seam; criteria verified.",
             "--traceability", "text:FR-1 -> loads -> src/a.py",
             *extra,
         )
 
     def _ui_planner(self, *extra: str):
-        return self.invoke("prompt_ui_planner", 60, *extra)
+        return self.invoke("prompt_ui_planner", "--inline", 60, *extra)
 
     # --- implement ---
 
@@ -164,7 +164,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
 
     def _acceptance(self, *extra: str):
         return self.invoke(
-            "prompt_acceptance_test_writer", 60, "--traceability", "text:FR-1 -> loads -> src/a.py", *extra,
+            "prompt_acceptance_test_writer", "--inline", 60, "--traceability", "text:FR-1 -> loads -> src/a.py", *extra,
         )
 
     def test_acceptance_first_pass(self):
@@ -184,7 +184,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
 
     def test_task_planner_first_pass(self):
         self._tasks_stage_pending()
-        self.assertGolden("task-planner-first-pass", self.invoke("prompt_task_planner", 60))
+        self.assertGolden("task-planner-first-pass", self.invoke("prompt_task_planner", "--inline", 60))
 
     def test_task_planner_unpublished_revision_with_follow_up(self):
         self._tasks_stage_pending()
@@ -193,7 +193,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self.assertGolden(
             "task-planner-unpublished-follow-up",
             self.invoke(
-                "prompt_task_planner", 60,
+                "prompt_task_planner", "--inline", 60,
                 "--current-tasks-manifest-path", manifest,
                 "--follow-up", "text:split the export task in two",
             ),
@@ -201,7 +201,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
 
     def test_task_planner_stale_with_existing_tree(self):
         self._tasks_stage_stale_with_existing_tree()
-        self.assertGolden("task-planner-stale", self.invoke("prompt_task_planner", 60))
+        self.assertGolden("task-planner-stale", self.invoke("prompt_task_planner", "--inline", 60))
 
     def test_task_planner_stale_with_unpublished_revision_and_follow_up(self):
         self._tasks_stage_stale_with_existing_tree()
@@ -211,7 +211,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self.assertGolden(
             "task-planner-stale-unpublished-follow-up",
             self.invoke(
-                "prompt_task_planner", 60,
+                "prompt_task_planner", "--inline", 60,
                 "--current-tasks-manifest-path", manifest,
                 "--follow-up", "text:also split the export task in two",
             ),
@@ -222,7 +222,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
     def test_tasks_reviewer_fragment_first_pass(self):
         self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
         fragment = self.write_file("ui.md", "**UI Phase:** Required.\n\n### UJ-1 — Land the record\n\nDraft journey.\n")
-        self.assertGolden("tasks-review-fragment-first-pass", self.invoke("prompt_tasks_reviewer", 60, "--fragment", fragment))
+        self.assertGolden("tasks-review-fragment-first-pass", self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment))
 
     def test_tasks_reviewer_fragment_revision(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")
@@ -230,7 +230,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         fragment = self.write_file("ui.md", "**UI Phase:** Required.\n\n### UJ-1 — Land the record\n\nRevised journey.\n")
         self.assertGolden(
             "tasks-review-fragment-revision",
-            self.invoke("prompt_tasks_reviewer", 60, "--fragment", fragment, "--findings", "text:UJ-1 lacks an offline failure state"),
+            self.invoke("prompt_tasks_reviewer", "--inline", 60, "--fragment", fragment, "--findings", "text:UJ-1 lacks an offline failure state"),
         )
 
     def test_tasks_reviewer_manifest_first_pass(self):
@@ -241,7 +241,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             {"id": "TASK-001", "title": "Core work", "body": core, "type": "core", "covers": ["FR-1"], "depends": []},
             {"id": "TASK-002", "title": "Show it", "body": ui, "type": "ui", "covers": ["FR-2", "UJ-1"], "depends": ["TASK-001"]},
         ]))
-        self.assertGolden("tasks-review-manifest-first-pass", self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest))
+        self.assertGolden("tasks-review-manifest-first-pass", self.invoke("prompt_tasks_reviewer", "--inline", 60, "--manifest", manifest))
 
     def test_tasks_reviewer_manifest_reconcile_with_findings(self):
         self.seed_record(60, "Tasks", "Stale", slug="record-60")
@@ -259,7 +259,7 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         ]))
         self.assertGolden(
             "tasks-review-manifest-reconcile",
-            self.invoke("prompt_tasks_reviewer", 60, "--manifest", manifest, "--findings", "text:TASK-002 lacks offline criteria"),
+            self.invoke("prompt_tasks_reviewer", "--inline", 60, "--manifest", manifest, "--findings", "text:TASK-002 lacks offline criteria"),
         )
 
     # --- UI planner ---
@@ -309,14 +309,14 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
 
     def test_tech_planner_first_pass(self):
         self._plan_stage()
-        self.assertGolden("tech-planner-first-pass", self.invoke("prompt_tech_planner", 60))
+        self.assertGolden("tech-planner-first-pass", self.invoke("prompt_tech_planner", "--inline", 60))
 
     def test_tech_planner_stale_with_follow_up(self):
         self._plan_stage(gate="Stale")
         self.add_invalidation(60, stage="Technical Plan")
         self.assertGolden(
             "tech-planner-stale",
-            self.invoke("prompt_tech_planner", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
+            self.invoke("prompt_tech_planner", "--inline", 60, "--follow-up", "text:re-spike TASK-001 against the cache"),
         )
 
     # --- plan reviewer ---
@@ -324,12 +324,12 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
     def test_plan_reviewer_first_pass(self):
         self._plan_stage()
         manifest = self.plan_manifest(60, {"TASK-002": "Own src/b.py; render the list."})
-        self.assertGolden("plan-review-first-pass", self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest))
+        self.assertGolden("plan-review-first-pass", self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest))
 
     def test_plan_reviewer_replacing_a_plan_with_findings(self):
         self._plan_stage(gate="Stale")
         manifest = self.plan_manifest(60, {"TASK-001": "Touch two modules.", "TASK-002": "Own src/b.py."})
         self.assertGolden(
             "plan-review-replace-with-findings",
-            self.invoke("prompt_plan_reviewer", 60, "--manifest", manifest, "--findings", "text:TASK-001 skips the cache"),
+            self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", "text:TASK-001 skips the cache"),
         )

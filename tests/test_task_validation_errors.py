@@ -211,7 +211,7 @@ class TaskManifestActionErrorTests(FileBackendTest):
                        body=VALID_BODY.replace("**UI Journeys:** UJ-1\n", ""))
 
     def _generated(self):
-        brief = self.invoke("prompt_task_planner", 71)
+        brief = self.invoke("prompt_task_planner", "--inline", 71)
         self.assertEqual(brief.code, 0, brief.stderr)
         match = re.search(r"Revise the task breakdown at `([^`]+)`", brief.stdout)
         self.assertIsNotNone(match)

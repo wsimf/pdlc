@@ -19,7 +19,7 @@ class PromptUiPlannerTest(FileBackendTest):
 
     def test_a_first_pass_carries_no_stale_reason_or_tasks(self):
         self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("Author the `UI` section for this PDLC record", result.stdout)
         self.assertIn("No UI section exists yet. Author it from the parent work item above.", result.stdout)
@@ -31,7 +31,7 @@ class PromptUiPlannerTest(FileBackendTest):
 
     def test_a_published_section_is_revised_from_a_generated_copy(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertEqual(result.code, 0, result.stderr)
         fragment = self._fragment_path(result.stdout)
         self.assertEqual(fragment.read_text(encoding="utf-8").strip(), "UJ-1 covers the first run.")
@@ -45,7 +45,7 @@ class PromptUiPlannerTest(FileBackendTest):
         for number, gate in enumerate(("Stale", "Changes Required", "Approval Required"), 61):
             with self.subTest(gate=gate):
                 self.seed_record(number, "UI", gate, slug=f"record-{number}")
-                result = self.invoke("prompt_ui_planner", number)
+                result = self.invoke("prompt_ui_planner", "--inline", number)
                 self.assertEqual(result.code, 0, result.stderr)
                 self._fragment_path(result.stdout)
                 self.assertNotIn("No UI section exists yet", result.stdout)
@@ -53,7 +53,7 @@ class PromptUiPlannerTest(FileBackendTest):
     def test_a_stale_record_carries_its_invalidation_reason(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")
         self.add_invalidation(60, "UI")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("`Gate State`: `Stale`.", result.stdout)
         self.assertIn("### Invalidation reason", result.stdout)
@@ -61,19 +61,19 @@ class PromptUiPlannerTest(FileBackendTest):
 
     def test_a_stale_record_with_no_recorded_reason_omits_the_section(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertNotIn("### Invalidation reason", result.stdout)
 
     def test_an_invalidation_for_another_stage_is_not_mistaken_for_this_ones(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")
         self.add_invalidation(60, "Implementation")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertNotIn("### Invalidation reason", result.stdout)
 
     def test_change_requests_against_the_ui_stage_are_carried(self):
         self.seed_record(60, "UI", "Changes Required", slug="record-60")
         self.add_rework_review(60, stage="UI")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("### Change requests", result.stdout)
         self.assertIn("--- BEGIN CHANGE REQUESTS ---\n\n### Change request", result.stdout)
@@ -83,7 +83,7 @@ class PromptUiPlannerTest(FileBackendTest):
     def test_existing_delivery_tasks_render_as_the_task_tree(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")
         self.seed_task(60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [CORE] Core work")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertIn("`WORK-60-TASK-001` [CORE] Core work (OPEN)", result.stdout)
 
     def test_a_supplied_draft_replaces_the_published_section(self):
@@ -91,7 +91,7 @@ class PromptUiPlannerTest(FileBackendTest):
         self.add_invalidation(60, stage="UI")
         current_ui = self.write_file("current-ui.md", "## UI\n\nUJ-1 fixed draft.\n")
         result = self.invoke(
-            "prompt_ui_planner", 60,
+            "prompt_ui_planner", "--inline", 60,
             "--current-journeys-path", current_ui,
             "--follow-up", "text:revisit UJ-2's offline flow",
         )
@@ -104,13 +104,13 @@ class PromptUiPlannerTest(FileBackendTest):
 
     def test_follow_up_alone_revises_the_published_section_or_a_first_draft(self):
         self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
-        first = self.invoke("prompt_ui_planner", 60, "--follow-up", "text:drop the offline journey")
+        first = self.invoke("prompt_ui_planner", "--inline", 60, "--follow-up", "text:drop the offline journey")
         self.assertEqual(first.code, 0, first.stderr)
         self.assertIn("No UI section exists yet.", first.stdout)
         self.assertIn("drop the offline journey", first.stdout)
 
         self.seed_record(61, "UI", "Approval Required", slug="record-61")
-        published = self.invoke("prompt_ui_planner", 61, "--follow-up", "text:drop the offline journey")
+        published = self.invoke("prompt_ui_planner", "--inline", 61, "--follow-up", "text:drop the offline journey")
         self.assertEqual(published.code, 0, published.stderr)
         match = re.search(r"Revise the UI section at `([^`]+)`", published.stdout)
         self.assertIsNotNone(match)
@@ -121,12 +121,12 @@ class PromptUiPlannerTest(FileBackendTest):
     def test_supplied_fragment_is_revised_with_or_without_follow_up(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
         current_ui = self.write_file("current-ui.md", "UJ-2 draft.\n")
-        fragment_only = self.invoke("prompt_ui_planner", 60, "--current-journeys-path", current_ui)
+        fragment_only = self.invoke("prompt_ui_planner", "--inline", 60, "--current-journeys-path", current_ui)
         self.assertEqual(fragment_only.code, 0, fragment_only.stderr)
         self.assertIn(f"Revise the UI section at `{Path(current_ui).resolve()}`", fragment_only.stdout)
         self.assertNotIn("### Driver follow-up", fragment_only.stdout)
         missing_fragment = self.invoke(
-            "prompt_ui_planner", 60,
+            "prompt_ui_planner", "--inline", 60,
             "--current-journeys-path", str(self.work / "missing.md"),
             "--follow-up", "text:revise",
         )
@@ -135,12 +135,12 @@ class PromptUiPlannerTest(FileBackendTest):
 
     def test_refuses_when_status_is_not_ui(self):
         self.seed_record(60, "Tasks", "Pending", slug="record-60")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         self.assertNotEqual(result.code, 0)
         self.assertIn("not UI", result.stderr)
 
     def test_the_brief_names_no_pdlc_command_or_stage_marker(self):
         self.seed_record(60, "UI", "Pending", slug="record-60")
-        result = self.invoke("prompt_ui_planner", 60)
+        result = self.invoke("prompt_ui_planner", "--inline", 60)
         for leak in ("pdlc inspect", "pdlc post", "Gate State\n"):
             self.assertNotIn(leak, result.stdout)

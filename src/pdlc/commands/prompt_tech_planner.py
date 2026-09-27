@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt tech-planner - print the technical planner's brief for a record's open delivery tasks; nothing is published to the backend
+    pdlc prompt tech-planner - write the technical planner's brief for a record's open delivery tasks; nothing is published to the backend
 
 USAGE
     - when starting the stage's planning:
-      pdlc prompt tech-planner WORK_ITEM [--follow-up FILE|text:BODY] [--file]
+      pdlc prompt tech-planner WORK_ITEM [--follow-up FILE|text:BODY]
     - when revising the task files of an earlier pass, such as a reviewed one:
-      pdlc prompt tech-planner WORK_ITEM --current-plan-manifest-path FILE [--follow-up FILE|text:BODY] [--file]
+      pdlc prompt tech-planner WORK_ITEM --current-plan-manifest-path FILE [--follow-up FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that spikes a record's open
+    Writes the complete brief for the sub-agent that spikes a record's open
     delivery tasks against current source and writes an implementation-ready
-    plan for each. The output is sent to that sub-agent verbatim.
+    plan for each. It prints only the brief file's path; that file is sent to
+    that sub-agent verbatim.
 
     It refuses, printing the reason and writing nothing, whenever the record's
     `Status` is not `Technical Plan`, and when no delivery task is open and
@@ -43,9 +44,6 @@ DESCRIPTION
 FLAGS
     --current-plan-manifest-path FILE  an earlier pass's plan manifest to revise instead of fresh files
     --follow-up FILE|text:BODY  the driver's verbatim follow-up for this pass
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt tech-planner 236

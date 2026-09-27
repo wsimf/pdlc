@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-implementer - read-only: print the implementer's brief for a work item's next unit
+    pdlc prompt task-implementer - read-only: write the implementer's brief for a work item's next unit
 
 USAGE
-    pdlc prompt task-implementer WORK_ITEM [--file]
+    pdlc prompt task-implementer WORK_ITEM
 
 DESCRIPTION
-    Prints the complete brief for the sub-agent that writes the code of the unit
-    a record has next, with every value already filled in. The output is sent to
-    that sub-agent verbatim.
+    Writes the complete brief for the sub-agent that writes the code of the unit
+    a record has next, with every value already filled in. It prints only the
+    brief file's path; that file is sent to that sub-agent verbatim.
 
     The sub-agent to send it to is the one `pdlc inspect task` names under
     `## Agent`. Everything the brief interpolates is already on the record, so
@@ -27,14 +27,8 @@ DESCRIPTION
     - open change requests against the stage get the triage brief, carrying every
       request and the whole task stack with each branch and plan.
 
-FLAGS
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
-
 EXAMPLES
     pdlc prompt task-implementer 236
-    pdlc prompt task-implementer 236 --file
 """
 
 from __future__ import annotations

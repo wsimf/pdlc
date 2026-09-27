@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt patch-reviewer - read-only: print PDLC's patch reviewer brief for a correction to a landed artifact
+    pdlc prompt patch-reviewer - read-only: write PDLC's patch reviewer brief for a correction to a landed artifact
 
 USAGE
     - if the corrected artifact is Product or UI:
-        pdlc prompt patch-reviewer WORK_ITEM --stage Product|UI --body FILE [--file]
+        pdlc prompt patch-reviewer WORK_ITEM --stage Product|UI --body FILE
     - if the corrected artifact is Tasks:
-        pdlc prompt patch-reviewer WORK_ITEM --stage Tasks --manifest FILE [--file]
+        pdlc prompt patch-reviewer WORK_ITEM --stage Tasks --manifest FILE
 
 DESCRIPTION
-    Prints the complete brief for the reviewer judging whether a reviewed
-    correction to one landed planning artifact affects any artifact built on
-    top of it. The output is sent to the built-in general-purpose agent
-    verbatim; the brief is the whole reviewer, so no sub-agent declaration or
-    capability slot stands behind it.
+    Writes the complete brief for the reviewer judging whether a reviewed
+    correction to one landed planning artifact affects any artifact built on top
+    of it. It prints only the brief file's path; that file is sent to the
+    built-in general-purpose agent verbatim; the brief is the whole reviewer, so
+    no sub-agent declaration or capability slot stands behind it.
 
     The draft is the same input the corrected stage's landing command takes.
     The brief inlines it, the record's landed body, and every delivery task's
@@ -31,13 +31,10 @@ FLAGS
     --stage Product|UI|Tasks    required; the stage whose landed artifact is corrected
     --body FILE                 the corrected Product body or UI fragment; with --stage Product or UI
     --manifest FILE             the corrected Tasks manifest; with --stage Tasks
-    --file                      write the brief to
-                                {TEMPDIR}/{repo}-prompt-patch-reviewer-{work item}.md
-                                and print that path, instead of stdout
 
 EXAMPLES
-    pdlc prompt patch-reviewer 236 --stage Product --body /tmp/pdlc-product.md --file
-    pdlc prompt patch-reviewer 236 --stage Tasks --manifest /tmp/pdlc-tasks.json --file
+    pdlc prompt patch-reviewer 236 --stage Product --body /tmp/pdlc-product.md
+    pdlc prompt patch-reviewer 236 --stage Tasks --manifest /tmp/pdlc-tasks.json
 """
 
 from __future__ import annotations

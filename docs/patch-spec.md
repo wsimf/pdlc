@@ -120,7 +120,7 @@ The patch reviewer judges the PDLC process itself, not the work item's product o
 
 - **Not shipped as a sub-agent declaration.** There is no `pdlc-patch-reviewer` file under `agent/sub-agents/`, so nothing is installed into a consuming repo's agent directory and nothing there can shadow or replace it.
 - **Not routable.** There is no `[agents]` / `[skills]` slot for it and `pdlc inspect capability` does not know it. Repo and machine config cannot override it.
-- **Brief owned by the package.** The prompt lives in `src/pdlc/prompts/docs/patch-review.md` and is rendered by a hidden `pdlc prompt patch-reviewer WORK_ITEM --stage STAGE (--body FILE | --manifest FILE) [--file]` leaf, taking the same draft input as the patched stage's landing command. The leaf is absent from `pdlc --help` and the `pdlc prompt --help` index (like `prepare` / `cleanup`); only `pdlc guide patch` names it.
+- **Brief owned by the package.** The prompt lives in `src/pdlc/prompts/docs/patch-review.md` and is rendered by a hidden `pdlc prompt patch-reviewer WORK_ITEM --stage STAGE (--body FILE | --manifest FILE)` leaf, taking the same draft input as the patched stage's landing command. The leaf is absent from `pdlc --help` and the `pdlc prompt --help` index (like `prepare` / `cleanup`); only `pdlc guide patch` names it.
 - **Dispatched to the built-in `general-purpose` agent** with that brief, handed over by path exactly as `pdlc-implement` hands over its briefs. The brief is the whole reviewer: role, read-only rule, inputs, and output format.
 - **Read-only by instruction.** The brief's read-only rule is the only guard, as for every other PDLC reviewer.
 

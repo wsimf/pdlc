@@ -52,4 +52,4 @@ Review each task below on its own, then the breakdown as a whole:
 
 ## Report back
 
-Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-tasks-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Changes Required` or `Approval Required`, the files you reviewed, and that file's path.
+Write your review into `$CACHE_ROOT/.pdlc/cache/60/pdlc-tasks-findings.md`. It holds an outline of the report; adapt it as the review needs. It is the only file you may write. Then reply with the verdict, exactly one of `Needs Revision` or `Ready to Land`, the files you reviewed, and that file's path.

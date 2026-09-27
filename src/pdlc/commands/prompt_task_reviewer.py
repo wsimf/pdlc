@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt task-reviewer - read-only: print the reviewer's brief for one dispatch's commits
+    pdlc prompt task-reviewer - read-only: write the reviewer's brief for one dispatch's commits
 
 USAGE
-    pdlc prompt task-reviewer WORK_ITEM --commits REVISIONS [--file]
+    pdlc prompt task-reviewer WORK_ITEM --commits REVISIONS
 
 DESCRIPTION
-    Prints the complete brief for the reviewer reading one dispatch's commits
+    Writes the complete brief for the reviewer reading one dispatch's commits
     against the unit a record has next, with the task, its plan, and the diff
-    already inlined. The output is sent to that sub-agent verbatim.
+    already inlined. It prints only the brief file's path; that file is sent to
+    that sub-agent verbatim.
 
     The reviewer reads a change that exists only in the working tree, so it takes
     the revisions to read. They are the caller's to pass because the range is one
@@ -23,13 +24,10 @@ DESCRIPTION
 FLAGS
     --commits REVISIONS     the revision or range the brief reads, as `git show`
                             accepts it; required
-    --file                  write the brief to
-                            the work-item cache with a random filename
-                            and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt task-reviewer 236 --commits HEAD~2..HEAD
-    pdlc prompt task-reviewer 236 --commits abc1234 --file
+    pdlc prompt task-reviewer 236 --commits abc1234
 """
 
 from __future__ import annotations

@@ -52,7 +52,7 @@ Include every in-scope `FR-*` and task acceptance criterion. Include a `C-*` con
 
 ## Dispatch
 
-Spawn `pdlc-test-writer` once with the brief `pdlc prompt acceptance-test-writer WORK_ITEM --traceability MAP_FILE --file` writes. It arrives complete: the map, the in-scope source, the task, parent, and PR numbers, the stage's open change requests verbatim, and the project's test-authoring routing. `--file` prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
+Spawn `pdlc-test-writer` once with the brief `pdlc prompt acceptance-test-writer WORK_ITEM --traceability MAP_FILE` writes. It arrives complete: the map, the in-scope source, the task, parent, and PR numbers, the stage's open change requests verbatim, and the project's test-authoring routing. The command prints only the brief's path; hand the agent that path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, summarise, or paste the brief into the dispatch. A non-zero exit writes no brief and prints what the record is waiting on: report that and dispatch nothing.
 
 The writer commits its coverage on the current branch and never pushes; neither do you. `pdlc post test` publishes the stack, so the top task PR carries the tests; there is no separate test PR.
 

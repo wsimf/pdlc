@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """NAME
-    pdlc prompt cumulative-reviewer - read-only: print the brief for the cumulative-review sub-agent
+    pdlc prompt cumulative-reviewer - read-only: write the brief for the cumulative-review sub-agent
 
 USAGE
-    pdlc prompt cumulative-reviewer --shipped FILE|text:BODY --unchanged FILE|text:BODY --constraints FILE|text:BODY [--scope FILE|text:BODY] [--file]
+    pdlc prompt cumulative-reviewer --shipped FILE|text:BODY --unchanged FILE|text:BODY --constraints FILE|text:BODY [--scope FILE|text:BODY]
 
 DESCRIPTION
-    Prints the complete brief for the general-purpose sub-agent that runs the
+    Writes the complete brief for the general-purpose sub-agent that runs the
     project's configured cumulative-review capability over a record's whole
-    change scope. The output is sent to that sub-agent verbatim.
+    change scope. It prints only the brief file's path; that file is sent to
+    that sub-agent verbatim.
 
     Unlike every other `prompt` brief, this one takes no work item: the
     sub-agent knows nothing about PDLC, so nothing in the brief is resolved
@@ -28,9 +29,6 @@ FLAGS
     --unchanged FILE|text:BODY    adjacent behaviour that must not change; required
     --constraints FILE|text:BODY  the record's binding constraints, in plain terms; required
     --scope FILE|text:BODY        the change scope to review; defaults to the branch diff
-    --file                        write the brief to
-                                  the cache's review directory with a random filename
-                                  and print that path, instead of stdout
 
 EXAMPLES
     pdlc prompt cumulative-reviewer \\
@@ -62,10 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--unchanged", required=True, help="adjacent behaviour that must not change")
     parser.add_argument("--constraints", required=True, help="the record's binding constraints, in plain terms")
     parser.add_argument("--scope", help="the change scope to review; defaults to the branch diff")
-    parser.add_argument(
-        "--file", action="store_true",
-        help="write to the configured cache and print that path",
-    )
+    prompt.add_inline_argument(parser)
     args = parser.parse_args(command_args)
     args.work_item = "review"  # no record backs this brief; only the scratch filename needs a name
 

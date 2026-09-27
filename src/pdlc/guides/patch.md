@@ -16,13 +16,13 @@ Write the corrected artifact yourself, in exactly the input form its landing com
 
 ## Step 2: Review the draft
 
-Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM> --file` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE> --file` or `--manifest <FILE> --file` for UI or Tasks. Revise the draft on findings and re-review; after two failed passes, stop and put the defect to the driver. The clean review is the `--evidence` body.
+Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Revise the draft on findings and re-review; after three failed passes, stop and put the defect to the driver. The clean review is the `--evidence` body.
 
 ## Step 3: Judge the impact
 
 Skip this step when the dry run reported `impactRequired: false`.
 
-Dispatch the built-in `general-purpose` agent with the brief `pdlc prompt patch-reviewer <WORK_ITEM> --stage <STAGE> --body <FILE> --file` (or `--manifest <FILE>` for Tasks) writes, handing it the printed path and telling it plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, or summarise the brief. Save its report unchanged; that file is `--impact`.
+Dispatch the built-in `general-purpose` agent with the brief `pdlc prompt patch-reviewer <WORK_ITEM> --stage <STAGE> --body <FILE>` (or `--manifest <FILE>` for Tasks) writes, handing it the printed path and telling it plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open, edit, or summarise the brief. Save its report unchanged; that file is `--impact`.
 
 The report opens with `Earliest affected stage: <stage|none>`. Land it in Step 4 whatever it names; the verdict decides where the record goes, and you do not edit or second-guess it.
 

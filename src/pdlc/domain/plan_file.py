@@ -29,12 +29,12 @@ _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 def planner_command(work_item: str, manifest: object) -> str:
     """The brief that starts a planning pass on an existing plan manifest."""
-    return f"pdlc prompt tech-planner {work_item} --current-plan-manifest-path {manifest} --file"
+    return f"pdlc prompt tech-planner {work_item} --current-plan-manifest-path {manifest}"
 
 
 def reviewer_command(work_item: str, manifest: object) -> str:
     """The brief that hands a plan manifest to its reviewer."""
-    return f"pdlc prompt plan-reviewer {work_item} --manifest {manifest} --file"
+    return f"pdlc prompt plan-reviewer {work_item} --manifest {manifest}"
 
 
 def regenerate(work_item: str) -> str:
