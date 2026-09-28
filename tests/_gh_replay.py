@@ -75,7 +75,7 @@ class FakeGh:
 
     # --- execution ---
 
-    def __call__(self, args, *, input: str | None = None) -> str:
+    def __call__(self, args, *, input: str | None = None, timeout: float = 120) -> str:
         args = list(args)
         self.calls.append((args, input))
         for route in self._routes:

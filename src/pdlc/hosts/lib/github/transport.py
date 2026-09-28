@@ -67,10 +67,10 @@ def gh_call_kind(args: Sequence[str]) -> CallKind:
     return "read" if pair in _GH_READS else "set" if pair in _GH_SETS else "add"
 
 
-def run_gh(args: Sequence[str], *, input: str | None = None) -> str:
+def run_gh(args: Sequence[str], *, input: str | None = None, timeout: float = 120) -> str:
     kind = gh_call_kind(args)
     return run_process(
-        ["gh", *args], input=input, idempotent=kind != "add", writes=kind != "read",
+        ["gh", *args], input=input, timeout=timeout, idempotent=kind != "add", writes=kind != "read",
         # A stack write pushes and edits several branches and PRs in one call.
         single_request=not (args and args[0] == "stack"),
     )

@@ -303,7 +303,7 @@ class GitHubCodeHost(CodeHost):
                     run_gh(["stack", "rebase", "--abort"])
                 raise
         console_debug("submitting stack branches and pull requests")
-        run_gh(["stack", "submit", "--auto"])
+        run_gh(["stack", "submit", "--auto"], timeout=300)
         console_debug("reading submitted pull requests")
         return self.pull_requests_by_number(self.stack_pr_numbers())
 
