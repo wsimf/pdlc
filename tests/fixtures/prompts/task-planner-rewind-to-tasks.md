@@ -41,7 +41,11 @@ Revise the task breakdown at `$CACHE_ROOT/.pdlc/cache/60/pdlc-task-planner-manif
 
 The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
+--- BEGIN INVALIDATION REASON ---
+
 split the export task
+
+--- END INVALIDATION REASON ---
 
 ### Change requests
 

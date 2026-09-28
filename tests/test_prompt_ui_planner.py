@@ -57,7 +57,7 @@ class PromptUiPlannerTest(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("`Gate State`: `Stale`.", result.stdout)
         self.assertIn("### Invalidation reason", result.stdout)
-        self.assertIn("Reconcile the section against it.\n\ndetail", result.stdout)
+        self.assertIn("Reconcile the section against it.\n\n--- BEGIN INVALIDATION REASON ---\n\ndetail\n\n--- END INVALIDATION REASON ---", result.stdout)
 
     def test_a_stale_record_with_no_recorded_reason_omits_the_section(self):
         self.seed_record(60, "UI", "Stale", slug="record-60")

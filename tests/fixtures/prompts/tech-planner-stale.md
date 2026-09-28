@@ -72,7 +72,11 @@ detail
 
 A change the driver asked for, or findings from a review of your plans, verbatim.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 re-spike TASK-001 against the cache
+
+--- END DRIVER FOLLOW-UP ---
 
 ## Designing the plan
 

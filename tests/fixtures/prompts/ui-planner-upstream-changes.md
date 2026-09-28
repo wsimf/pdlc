@@ -47,7 +47,11 @@ Revise the UI section at `$CACHE_ROOT/.pdlc/cache/60/pdlc-ui-planner-fragment.md
 
 The published UI stage was invalidated for this reason. Reconcile the section against it.
 
+--- BEGIN INVALIDATION REASON ---
+
 Returned by a patch of Product; impact A
+
+--- END INVALIDATION REASON ---
 
 ### Changed since last publish
 

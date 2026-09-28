@@ -16,11 +16,11 @@ DESCRIPTION
     a work item, and the reviewer reads that file itself instead of receiving
     its contents inlined.
 
-    `--work-item` carries the record being reconciled, when there is one; a
-    fresh draft with no record yet renders "none, new record" in its place.
-    `--findings` carries the previous pass's findings on a re-review, so each
-    can be confirmed addressed; with nothing given, that section renders
-    "none, first review".
+    `--work-item` carries the record being reconciled, when there is one,
+    under `Current record`; a fresh draft with no record yet omits that
+    section. `--findings` carries the previous pass's findings on a re-review,
+    under `Prior findings`, so each can be confirmed addressed; with nothing
+    given, that section is omitted.
 
 FLAGS
     --work-item WORK_ITEM       the record being reconciled, when reconciling

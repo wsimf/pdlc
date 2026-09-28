@@ -41,13 +41,21 @@ Revise the task breakdown at `$CACHE_ROOT/current-tasks.json`. Read its manifest
 
 The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
+--- BEGIN INVALIDATION REASON ---
+
 detail
+
+--- END INVALIDATION REASON ---
 
 ### Driver follow-up
 
 A change the driver asked for, or findings from a review of the breakdown, verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 also split the export task in two
+
+--- END DRIVER FOLLOW-UP ---
 
 ## Existing tasks
 

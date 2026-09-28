@@ -46,7 +46,11 @@ Revise the UI section at `$CACHE_ROOT/current-ui.md`. Read it, then edit it in p
 
 A change the driver asked for, or findings from a review of the section, verbatim. Apply it to the journeys it affects; if it conflicts with the work item, stop and report it.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 revisit UJ-2's offline flow
+
+--- END DRIVER FOLLOW-UP ---
 
 ## What to return
 

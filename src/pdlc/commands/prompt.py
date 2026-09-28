@@ -492,19 +492,17 @@ def product_reviewer_brief(draft: str, work_item: str | None, findings: str | No
     the draft's path directly rather than resolving one from a work item, and
     the reviewer reads that file itself instead of receiving it inlined.
     `work_item` is the record being reconciled, when there is one; a fresh
-    draft with no record yet carries "none, new record" in its place.
+    draft with no record yet drops that section, as a first review drops
+    the prior findings.
     """
-    if work_item:
-        current_record = (resolve_item(work_item).get("issueBody") or "").strip() or "none recorded"
-    else:
-        current_record = "none, new record"
+    current_record = (resolve_item(work_item).get("issueBody") or "").strip() if work_item else ""
     return render(
         "product-review",
         {
             "EXECUTION_SCOPE": "this one product draft review",
             "DRAFT_PATH": draft,
             "CURRENT_RECORD": current_record,
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "none, first review",
+            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
         },
     )
 

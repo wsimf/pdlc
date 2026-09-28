@@ -59,7 +59,11 @@ The driver follow-up below apply to this pass. They take precedence over everyth
 
 A change the driver asked for, or findings from a review of your plans, verbatim.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 Needs Revision: TASK-002 names no test for the empty list.
+
+--- END DRIVER FOLLOW-UP ---
 
 ## Designing the plan
 

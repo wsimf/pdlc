@@ -41,7 +41,11 @@ Revise the task breakdown at `$CACHE_ROOT/current-tasks.json`. Read its manifest
 
 A change the driver asked for, or findings from a review of the breakdown, verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 split the export task in two
+
+--- END DRIVER FOLLOW-UP ---
 
 ## Sequencing the tasks
 
