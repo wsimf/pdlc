@@ -50,6 +50,9 @@ class FakeAz:
         # only as a file on disk, and the caller deletes it once the call
         # returns, so it has to be read here rather than after the fact.
         self.bodies: list[Any] = []
+        # The argv exactly as passed, before `name=@file` expansion; `calls`
+        # holds the expanded form `az` itself would act on.
+        self.raw_calls: list[list[str]] = []
         # The Azure backend reads task comments concurrently, so recording has
         # to be atomic. Call *order* is still nondeterministic under
         # concurrency — assert on call contents, not on `calls[0]`.
@@ -84,6 +87,8 @@ class FakeAz:
     def __call__(self, args) -> str:
         args = list(args)
         with self._lock:
+            self.raw_calls.append(args)
+            args = self._expand_field_files(args)
             self.calls.append(args)
             self.bodies.append(self._read_body(args))
             # Last registered wins, so a test-specific route can override a
@@ -96,6 +101,24 @@ class FakeAz:
             else:
                 raise AssertionError(f"no FakeAz route for: az {' '.join(args)}")
         return self._render(response, args)
+
+    @staticmethod
+    def _expand_field_files(args: list[str]) -> list[str]:
+        """Load each ``-f name=@file`` value as ``az`` does, while the caller's
+        file still exists, stripping trailing newlines the same way."""
+        if "-f" not in args:
+            return args
+        start = args.index("-f") + 1
+        expanded = args[:start]
+        for index, value in enumerate(args[start:], start):
+            if value.startswith("-"):
+                return expanded + args[index:]
+            name, _, text = value.partition("=")
+            if text.startswith("@"):
+                with open(text[1:], encoding="utf-8") as handle:
+                    text = handle.read().rstrip(os.linesep)
+            expanded.append(f"{name}={text}")
+        return expanded
 
     @staticmethod
     def _read_body(args: list[str]) -> Any:

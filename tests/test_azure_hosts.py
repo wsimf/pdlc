@@ -208,7 +208,19 @@ class StateWriteTest(AzureHostTest):
         written = self.az.fields_written("boards", "work-item", "update")
         # Attached pull requests live in their own field, so a body write
         # cannot drop them the way a body-embedded registry could.
-        self.assertEqual(written, {DESCRIPTION_FIELD: "## Product\n\nRewritten.\n"})
+        # `az` strips trailing newlines from a file-loaded value.
+        self.assertEqual(written, {DESCRIPTION_FIELD: "## Product\n\nRewritten."})
+
+    def test_field_values_travel_as_files_so_a_long_body_fits_windows_cmd(self):
+        # On Windows `az` is a batch file and `cmd.exe` refuses a command line
+        # over 8191 characters, so no value may be passed inline.
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        body = "## Product\n\n" + "x" * 20_000
+        AzureWorkItemBackend().write_body("7", body)
+        raw = next(args for args in self.az.raw_calls if args[:3] == ["boards", "work-item", "update"])
+        self.assertLess(len(" ".join(raw)), 8191)
+        self.assertTrue(raw[raw.index("-f") + 1].startswith(f"{DESCRIPTION_FIELD}=@"))
+        self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {DESCRIPTION_FIELD: body})
 
     def test_a_rejected_picklist_value_surfaces_azure_own_message(self):
         self.az._routes.clear()
