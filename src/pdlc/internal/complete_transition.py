@@ -17,6 +17,7 @@ from pdlc.internal.workitem import (
     set_state,
     workflow_for_item,
 )
+from pdlc.internal.trace import console_debug
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class Publication:
 
 def prepare_transition(issue: str, stage: str) -> Publication:
     """Validate publication before callers perform PR or evidence writes."""
+    console_debug(f"checking {stage} publication for work item {issue!r}")
     record = item_for_issue(issue)
     current_stage = item_status(record)
     current_gate = item_gate(record)
@@ -47,6 +49,7 @@ def prepare_transition(issue: str, stage: str) -> Publication:
             raise PdlcError(f"{stage} is at {current_gate}; it must be invalidated before it can be completed") from None
         raise PdlcError(str(error)) from None
 
+    console_debug(f"{stage} publication will set {target.stage} / {target.gate.value}")
     return Publication(issue, record, pipeline, target)
 
 
@@ -54,6 +57,7 @@ def complete_transition(publication: Publication, evidence: str, attachment_inpu
     issue, record = publication.issue, publication.record
     pipeline, target = publication.pipeline, publication.target
     stage = item_status(record)
+    console_debug(f"checking attachments for {stage} publication on work item {issue!r}")
     attachments = save_attachments(work_item_number(record), attachment_inputs or [])
     post_comment(issue, evidence, pipeline.marker_for_stage(stage))
     set_state(record["id"], target.stage, target.gate.value, target.lifecycle.value)

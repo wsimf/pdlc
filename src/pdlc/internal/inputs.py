@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.trace import console_debug
 
 
 def wants_help(argv: list[str]) -> bool:
@@ -58,12 +59,14 @@ def resolve_text(value: str, *, label: str) -> str:
     empty body.
     """
     if value.startswith("text:"):
+        console_debug(f"reading inline {label}")
         text = value[len("text:"):]
         if not text.strip():
             raise PdlcError(f"{label} is empty")
         return text
 
     from_stdin = is_stdin(value)
+    console_debug(f"reading {label} from {'stdin' if from_stdin else 'file'}")
     try:
         text = sys.stdin.read() if from_stdin else require_file(label, value).read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
@@ -81,6 +84,7 @@ def assert_unmarked(text: str, label: str) -> None:
 
 
 def load_json_array(label: str, path: Path, *, allow_empty: bool = True) -> list[dict[str, Any]]:
+    console_debug(f"loading {label} JSON array")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:

@@ -14,6 +14,7 @@ from pdlc.hosts.workitem_host import get_backend
 from pdlc.hosts.code_host import get_code_host
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.workitem import resolve_item
+from pdlc.internal.trace import console_debug
 
 
 def registered_pr_numbers(ref: str, *, record: dict | None = None, tasks: list[dict] | None = None) -> list[int]:
@@ -33,6 +34,7 @@ def record_pull_requests(ref: str, *, record: dict | None = None, tasks: list[di
     """The registered pull requests for `ref` as full dicts (see
     `code_host.pull_requests_by_number`). Empty when none are registered."""
     numbers = registered_pr_numbers(ref, record=record, tasks=tasks)
+    console_debug(f"loading {len(numbers)} registered PR(s) for work item {ref!r}")
     resolved = get_code_host().pull_requests_by_number(numbers) if numbers else []
     if {pr.get("number") for pr in resolved} != set(numbers):
         raise PdlcError("code host returned fewer pull requests than the registry; refusing to continue")
@@ -45,6 +47,7 @@ def record_open_review_comments(ref: str, *, record: dict | None = None, tasks: 
     each stamped with its `pr` number, ascending by PR then host order.
     Empty when no PR is registered or every thread is resolved."""
     numbers = registered_pr_numbers(ref, record=record, tasks=tasks)
+    console_debug(f"loading review threads from {len(numbers)} PR(s) for work item {ref!r}")
     host = get_code_host()
     comments = []
     for number in numbers:
