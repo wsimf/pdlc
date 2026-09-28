@@ -28,10 +28,29 @@ Write and run the coverage directly and return one report.
 
 {{WHAT_CHANGED}}
 
+{{#IF TEST_FINDINGS}}
+## Review findings to address
+
+A reviewer read this task's code and tests and asked for the test changes
+below. Address each with new commits on top; do not rewrite what is already
+there.
+
+{{TEST_FINDINGS}}
+
+{{/IF}}
+{{#IF IMPLEMENTATION_FINDINGS}}
+## Production code changed for review
+
+The production code was changed on this pass to address the review findings
+below. Cover each fix with a test that fails on the behaviour it replaced,
+wherever a unit test of this task can reach it.
+
+{{IMPLEMENTATION_FINDINGS}}
+
+{{/IF}}
 ## Context for the commit
 
 - Task number and parent work item number: `{{TASK_NUMBER}}` in `{{PARENT_WORK_ITEM}}`.
-- Reviewer findings accepted as non-blocking, verbatim: {{NONBLOCKING_FINDINGS}}
 
 ## Rules
 

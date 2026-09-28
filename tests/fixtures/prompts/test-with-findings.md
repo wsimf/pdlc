@@ -41,10 +41,25 @@ FR-1 -> loads -> src/a.py
 
 Built the seam; criteria verified.
 
+## Review findings to address
+
+A reviewer read this task's code and tests and asked for the test changes
+below. Address each with new commits on top; do not rewrite what is already
+there.
+
+- F2 [P2] [blocking] tests/test_a.py — asserts a mock
+
+## Production code changed for review
+
+The production code was changed on this pass to address the review findings
+below. Cover each fix with a test that fails on the behaviour it replaced,
+wherever a unit test of this task can reach it.
+
+- F1 [P1] [blocking] src/a.py:4 — drops retry
+
 ## Context for the commit
 
 - Task number and parent work item number: `601` in `60`.
-- Reviewer findings accepted as non-blocking, verbatim: Naming nit on the loader.
 
 ## Rules
 

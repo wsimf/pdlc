@@ -72,8 +72,13 @@ DESCRIPTION
     `ui-planner` may write editable copies to the work-item cache.
     `tasks-reviewer` and `plan-reviewer` record the files they hand
     the reviewer, so the stage lands only what was reviewed; they and the
-    matching planner briefs restore a reviewed file that changed since. Both
-    reviewer briefs also write a fresh findings file for the reviewer to fill.
+    matching planner briefs restore a reviewed file that changed since. They
+    and `task-reviewer` also write a fresh findings file for the reviewer to
+    fill.
+
+    Exit 3 means the brief would hand its agent nothing to do, so none is
+    written: the caller skips that dispatch and carries on. Any other non-zero
+    exit is a refusal.
 
     A value the record does not carry is reported in place rather than omitted —
     a cited requirement missing from the record's `## Product` renders as "not
@@ -127,6 +132,8 @@ from pdlc.domain.task_artifact import planner_command as tasks_planner_command
 from pdlc.domain.task_artifact import reviewer_command as tasks_reviewer_command
 from pdlc.domain.task_artifact import ui_planner_command, ui_reviewer_command
 from pdlc.domain.task_artifact import snapshot, stored_fields
+from pdlc.domain.implement_findings import ImplementFindings
+from pdlc.domain.implement_findings import parse as parse_implement_findings
 from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.domain.model import (
     evidence_comment_text,
@@ -184,6 +191,16 @@ from pdlc.internal.failure import report_failure
 TECH_PLAN_STAGE = "Technical Plan"
 TASKS_STAGE = "Tasks"
 UI_STAGE = "UI"
+IMPLEMENTATION_STAGE = "Implementation"
+
+# A brief with nothing for its agent to do: the caller skips that dispatch and
+# carries on, unlike a refusal (exit 1), which stops it.
+EXIT_NOTHING_TO_BRIEF = 3
+
+
+class NothingToBrief(PdlcError):
+    """The findings hand this agent nothing to do, so no brief is written."""
+
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
@@ -366,22 +383,23 @@ def _resolve(issue: str) -> _Unit:
     )
 
 
-def _implementer_brief(unit: _Unit) -> str:
+def _implementer_brief(unit: _Unit, review: str = "") -> str:
+    """The brief for the unit's form; `review` is the reviewer's implementation
+    findings, carried by whichever form is due."""
     if unit.kind == "triage":
-        return render("triage", _triage_context(unit.item, unit.delivery, list(unit.requests)))
+        context = _triage_context(unit.item, unit.delivery, list(unit.requests))
+        return render("triage", {**context, "REVIEW_FINDINGS": review})
     if unit.kind == "pr-fix":
-        return render(
-            "pr-fix",
-            _pr_fix_context(unit.task, unit.pr or 0, list(unit.red), list(unit.requests)),
-        )
-    findings = _checks_text(list(unit.red)) if unit.red else ""
+        context = _pr_fix_context(unit.task, unit.pr or 0, list(unit.red), list(unit.requests))
+        return render("pr-fix", {**context, "REVIEW_FINDINGS": review})
+    findings = "\n\n".join(part for part in (_checks_text(list(unit.red)) if unit.red else "", review) if part)
     return render(
         "implement",
         _implement_context(unit.item, unit.delivery, unit.task, unit.comments, findings),
     )
 
 
-def _review_brief(unit: _Unit, commits: str) -> str:
+def _review_brief(unit: _Unit, commits: str, findings_file: str) -> str:
     return render(
         "review",
         {
@@ -390,11 +408,14 @@ def _review_brief(unit: _Unit, commits: str) -> str:
             "DIFF_STAT": diff_stat(commits),
             "DIFF": diff_text(commits),
             "DEPENDENCY_SUMMARIES": dependency_summaries(_upstream(unit.delivery, unit.task)),
+            "FINDINGS_PATH": findings_file,
         },
     )
 
 
-def _test_brief(unit: _Unit, commits: str, changed: str, traceability: str, findings: str) -> str:
+def _test_brief(
+    unit: _Unit, commits: str, changed: str, traceability: str, findings: ImplementFindings | None,
+) -> str:
     files = touched_files(commits)
     return render(
         "test",
@@ -407,31 +428,58 @@ def _test_brief(unit: _Unit, commits: str, changed: str, traceability: str, find
             "WHAT_CHANGED": changed,
             "TASK_NUMBER": str(unit.task["number"]),
             "PARENT_WORK_ITEM": str(unit.item["content"]["number"]),
-            "NONBLOCKING_FINDINGS": findings or "none",
+            "TEST_FINDINGS": findings.test if findings else "",
+            "IMPLEMENTATION_FINDINGS": findings.implementation if findings else "",
         },
     )
 
 
-def implementer_brief(work_item: str) -> str:
-    """The brief for the sub-agent writing this pass's code."""
-    return _implementer_brief(_resolve(work_item))
+def _implement_findings(value: str) -> ImplementFindings:
+    """The task reviewer's findings file `value` names, parsed by owner."""
+    return parse_implement_findings(resolve_text(value, label="--findings"), f"--findings {value}")
+
+
+def implementer_brief(work_item: str, findings: str | None = None) -> str:
+    """The brief for the sub-agent writing this pass's code; with `findings`, the
+    brief for fixing the reviewer's implementation findings, or `NothingToBrief`
+    when the review has no blocking one."""
+    review = ""
+    if findings:
+        parsed = _implement_findings(findings)
+        if not parsed.implementation_blocking:
+            raise NothingToBrief(
+                f"No implementation findings in {findings}: the implementation agent is not needed and no "
+                "brief was written. Continue with the skill's next step."
+            )
+        review = parsed.implementation
+    return _implementer_brief(_resolve(work_item), review)
 
 
 def reviewer_brief(work_item: str, commits: str) -> str:
-    """The brief for the reviewer reading `commits` against this pass's task."""
-    return _review_brief(_resolve(work_item), commits)
+    """The brief for the reviewer reading `commits` against this pass's task,
+    with a fresh findings file for it to fill."""
+    unit = _resolve(work_item)
+    outline = render("templates/implement-review-findings", {"TASK_TAG": task_tag(unit.task)})
+    path = replace_cache_file(findings_path(work_item, IMPLEMENTATION_STAGE), outline)
+    return _review_brief(unit, commits, str(path))
+
+
+_NO_CODE_CHANGE = "No production code changed on this pass."
 
 
 def test_writer_brief(
-    work_item: str, commits: str, report: str, traceability: str, findings: str | None,
+    work_item: str, commits: str, report: str | None, traceability: str, findings: str | None,
 ) -> str:
-    """The brief for the test writer covering what `commits` changed."""
+    """The brief for the test writer covering what `commits` changed, and the
+    reviewer's findings when a review sent the unit back."""
+    if not report and not findings:
+        raise PdlcError("--report is required unless --findings is given")
     return _test_brief(
         _resolve(work_item),
         commits,
-        resolve_text(report, label="--report"),
+        resolve_text(report, label="--report") if report else _NO_CODE_CHANGE,
         resolve_text(traceability, label="--traceability"),
-        resolve_text(findings, label="--findings") if findings else "",
+        _implement_findings(findings) if findings else None,
     )
 
 
@@ -1251,6 +1299,9 @@ def run(command: str, args: argparse.Namespace, build: Callable[[], str]) -> int
     try:
         brief = build()
         emit(brief, args.work_item, command, args.inline)
+    except NothingToBrief as nothing:
+        print(nothing)
+        return EXIT_NOTHING_TO_BRIEF
     except PdlcError as error:
         return report_failure(error)
     return 0

@@ -1,5 +1,5 @@
-You are reviewing one delivery task's implementation, read-only. Report findings
-and a verdict; change nothing.
+You are reviewing one delivery task's implementation and its unit tests,
+read-only. Report findings and a verdict; change nothing but your findings file.
 
 {{INCLUDE:shared/execution-boundary.md}}
 Review the change below directly and return one report.
@@ -35,9 +35,14 @@ Upstream tasks it builds on: {{DEPENDENCY_SUMMARIES}}
    - the hard constraints and architecture rules stated in `AGENTS.md` /
      `CLAUDE.md`
    - an existing test broken by inspection
-4. **Not in scope:** performance profiling, rendered UX, runtime journeys,
-   test authoring, CI state, files outside this diff, other tasks. Note drift
-   you happen to see and recommend a wider review — do not chase it here.
+4. **Unit tests in the diff.** The tests cover the changed behaviour and the
+   acceptance criteria, assert the correct behaviour rather than what the code
+   happens to return, and do not only exercise mocks of the code under test.
+   Missing or weak coverage is a test finding.
+5. **Not in scope:** performance profiling, rendered UX, runtime journeys,
+   feature-level or cross-task tests, CI state, files outside this diff, other
+   tasks. Note drift you happen to see and recommend a wider review — do not
+   chase it here.
 
 ## Evidence
 
@@ -46,25 +51,16 @@ ambiguous. Use `AGENTS.md` / `CLAUDE.md` for the constraint list and official
 documentation for platform-API claims. Report what you cannot verify rather
 than guessing.
 
-## Report
+## Report back
 
-```md
-Task review complete: {{TASK_TAG}}
+Write your review into `{{FINDINGS_PATH}}`. It holds an outline of the report;
+keep its `### ` headings as they are. It is the only file you may write.
 
-Criteria: <n of n traced to code>
+File each finding under the agent that fixes it: production code under
+`Implementation findings`, test code under `Test findings`. A test that fails
+because the production code is wrong is an implementation finding; never ask
+for a correct test to change to match the code.
 
-Findings:
-
-### Blocking
-- [P1] <criterion, or file:line> — <what is wrong>
-  Evidence: <what you checked and what it showed>
-  Recommendation: <precise change>
-
-### Non-blocking
-...
-
-Verdict: <Changes Required | Approval Required>
-```
-
-No findings → say so plainly with the evidence scope. Never claim build, test,
-or runtime validation you did not run.
+Then reply with the verdict, exactly one of `Changes Required` or
+`Approval Required`, and the findings file path. Never claim build, test, or
+runtime validation you did not run.

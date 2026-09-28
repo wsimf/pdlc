@@ -19,7 +19,15 @@ DESCRIPTION
 
     The reviewer is the project's configured reviewer agent, and the brief holds
     it to the same task, plan, and acceptance criteria the implementer was given
-    on this pass.
+    on this pass. It reviews the production code and the unit tests in the
+    commits alike.
+
+    Each run also writes a fresh findings file into the work-item cache and
+    names it in the brief. The reviewer fills it with one section per agent
+    that fixes a finding — `### Implementation findings` and `### Test
+    findings`, each finding tagged `[blocking]` or `[non-blocking]` — and a
+    `### Verdict` of `Changes Required` or `Approval Required`. The same file
+    is what the implementer and test-writer briefs take as `--findings`.
 
 FLAGS
     --commits REVISIONS     the revision or range the brief reads, as `git show`

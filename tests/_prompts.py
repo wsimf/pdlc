@@ -85,6 +85,16 @@ class PromptHarness(FileBackendTest):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    @staticmethod
+    def _review(implementation: str = "None", test: str = "None", verdict: str = "Changes Required") -> str:
+        """A filled task review findings file, as `text:` input."""
+        return (
+            "text:Task review complete: WORK-60-TASK-001\n\n"
+            f"### Implementation findings\n\n{implementation}\n\n"
+            f"### Test findings\n\n{test}\n\n"
+            f"### Verdict\n\n{verdict}\n"
+        )
+
     # --- seeding ---
 
     def _plan(self, record: int, task: int, body: str = "## Technical Plan\n\nTouch one module.\n") -> None:

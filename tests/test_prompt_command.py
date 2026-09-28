@@ -153,13 +153,85 @@ class PromptCommandTest(PromptHarness):
         self._git()
         result = self.invoke("prompt_task_reviewer", "--inline", 60, "--commits", "HEAD~1..HEAD")
         self.assertEqual(result.code, 0, result.stderr)
-        self.assertIn("You are reviewing one delivery task's implementation, read-only.", result.stdout)
+        self.assertIn("You are reviewing one delivery task's implementation and its unit tests,", result.stdout)
         self.assertIn("leaf worker for this one review.", result.stdout)
         self.assertIn("`WORK-60-TASK-001` (tag included) — `[CORE] Core work`", result.stdout)
         self.assertIn("1 file changed", result.stdout)
         self.assertIn("diff --git a/x b/x", result.stdout)
-        self.assertIn("Task review complete: WORK-60-TASK-001", result.stdout)
         self.assertNotIn("{{", result.stdout)
+
+    def test_reviewer_writes_a_fresh_findings_file_and_names_it(self):
+        self._eligible_task()
+        self._git()
+        result = self.invoke("prompt_task_reviewer", "--inline", 60, "--commits", "HEAD~1..HEAD")
+        self.assertEqual(result.code, 0, result.stderr)
+        match = re.search(r"Write your review into `([^`]+)`", result.stdout)
+        assert match is not None
+        path = Path(match.group(1))
+        self.assertEqual(path.parent, self.work / ".pdlc" / "cache" / "60")
+        outline = path.read_text()
+        self.assertIn("Task review complete: WORK-60-TASK-001", outline)
+        for heading in ("### Implementation findings", "### Test findings", "### Verdict"):
+            self.assertIn(heading, outline)
+
+        path.write_text("stale review")
+        self.invoke("prompt_task_reviewer", "--inline", 60, "--commits", "HEAD~1..HEAD")
+        self.assertEqual(path.read_text(), outline)
+
+    # --- implementer with review findings ---
+
+    def test_implementer_carries_blocking_implementation_findings(self):
+        self._eligible_task()
+        review = self._review(
+            implementation="- F1 [P1] [blocking] src/a.py:4 — drops retry",
+            test="- F2 [P2] [blocking] tests/test_a.py — asserts a mock",
+        )
+        result = self.invoke("prompt_task_implementer", "--inline", 60, "--findings", review)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Findings to address", result.stdout)
+        self.assertIn("F1 [P1] [blocking] src/a.py:4 — drops retry", result.stdout)
+        self.assertNotIn("asserts a mock", result.stdout)
+
+    def test_implementer_findings_reach_the_pr_fix_and_triage_forms(self):
+        self._implemented_stack()
+        self._threads([{"pr": 40, "author": "r", "path": "a", "line": 1, "body": "b", "url": "u"}])
+        review = self._review(implementation="- F1 [P1] [blocking] a:1 — still wrong")
+        pr_fix = self.invoke("prompt_task_implementer", "--inline", 60, "--findings", review)
+        self.assertEqual(pr_fix.code, 0, pr_fix.stderr)
+        self.assertIn("unresolved review comments on pull request `40`", pr_fix.stdout)
+        self.assertIn("## Review findings", pr_fix.stdout)
+        self.assertIn("F1 [P1] [blocking] a:1 — still wrong", pr_fix.stdout)
+
+        self._threads([])
+        self.add_rework_review(60)
+        triage = self.invoke("prompt_task_implementer", "--inline", 60, "--findings", review)
+        self.assertEqual(triage.code, 0, triage.stderr)
+        self.assertIn("The branches below are a stack of pull requests", triage.stdout)
+        self.assertIn("## Review findings", triage.stdout)
+        self.assertIn("F1 [P1] [blocking] a:1 — still wrong", triage.stdout)
+
+    def test_implementer_without_blocking_findings_exits_3_and_writes_no_brief(self):
+        self._eligible_task()
+        review = self._review(
+            implementation="- F1 [P3] [non-blocking] src/a.py:9 — naming",
+            test="- F2 [P1] [blocking] tests/test_a.py — misses the retry path",
+        )
+        result = self.invoke("prompt_task_implementer", 60, "--findings", review)
+        self.assertEqual(result.code, 3, result.stderr)
+        self.assertIn("the implementation agent is not needed and no brief was written", result.stdout)
+        self.assertIn("Continue with the skill's next step.", result.stdout)
+        self.assertFalse(list((self.work / ".pdlc" / "cache" / "60").glob("*prompt-task-implementer*")))
+
+    def test_implementer_refuses_a_malformed_or_unfilled_findings_file(self):
+        self._eligible_task()
+        for findings, reason in (
+            ("text:F1 [blocking] something", "missing `### Implementation findings`"),
+            (self._review(verdict="<Changes Required|Approval Required>"), "has no verdict"),
+        ):
+            with self.subTest(reason=reason):
+                result = self.invoke("prompt_task_implementer", "--inline", 60, "--findings", findings)
+                self.assertEqual(result.code, 1)
+                self.assertIn(reason, result.stderr)
 
     def test_reviewer_requires_the_commits_to_read(self):
         self._eligible_task()
@@ -187,21 +259,48 @@ class PromptCommandTest(PromptHarness):
         self.assertIn("Built the seam; criteria verified.", result.stdout)
         self.assertIn("- src/a.py", result.stdout)
         self.assertIn("`601` in `60`", result.stdout)
-        self.assertIn("non-blocking, verbatim: none", result.stdout)
+        self.assertNotIn("## Review findings to address", result.stdout)
+        self.assertNotIn("## Production code changed for review", result.stdout)
         self.assertNotIn("{{", result.stdout)
 
-    def test_test_writer_carries_accepted_findings_when_given(self):
+    def test_test_writer_carries_both_sections_of_the_review(self):
         self._eligible_task()
         self._git()
-        result = self._test_brief("--findings", "text:Naming nit on the loader.")
-        self.assertIn("Naming nit on the loader.", result.stdout)
+        result = self._test_brief("--findings", self._review(
+            implementation="- F1 [P1] [blocking] src/a.py:4 — drops retry",
+            test="- F2 [P2] [blocking] tests/test_a.py — asserts a mock",
+        ))
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Review findings to address\n", result.stdout)
+        self.assertIn("F2 [P2] [blocking] tests/test_a.py — asserts a mock", result.stdout)
+        self.assertIn("## Production code changed for review\n", result.stdout)
+        self.assertIn("F1 [P1] [blocking] src/a.py:4 — drops retry", result.stdout)
 
-    def test_test_writer_requires_its_report_and_map(self):
+    def test_test_writer_takes_findings_without_a_report(self):
         self._eligible_task()
         self._git()
-        result = self.invoke("prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD")
+        result = self.invoke(
+            "prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD",
+            "--traceability", "text:FR-1 -> loads -> src/a.py",
+            "--findings", self._review(test="- F1 [P2] [blocking] tests/test_a.py — thin"),
+        )
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("No production code changed on this pass.", result.stdout)
+        self.assertNotIn("## Production code changed for review", result.stdout)
+
+    def test_test_writer_requires_a_report_or_findings_and_its_map(self):
+        self._eligible_task()
+        self._git()
+        result = self.invoke(
+            "prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD", "--traceability", "text:m",
+        )
+        self.assertEqual(result.code, 1)
+        self.assertIn("--report is required unless --findings is given", result.stderr)
+        result = self.invoke(
+            "prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD", "--report", "text:r",
+        )
         self.assertNotEqual(result.code, 0)
-        self.assertIn("--report", result.stderr)
+        self.assertIn("--traceability", result.stderr)
 
     def test_every_agent_briefs_the_same_task(self):
         self._eligible_task()

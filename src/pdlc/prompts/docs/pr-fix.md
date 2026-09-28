@@ -134,3 +134,7 @@ gh api graphql -f query='
 
 {{FAILING_CHECKS_TEXT}}
 {{/IF}}
+{{#IF REVIEW_FINDINGS}}
+
+{{INCLUDE:shared/review-findings.md}}
+{{/IF}}

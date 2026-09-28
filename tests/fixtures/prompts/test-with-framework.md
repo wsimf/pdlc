@@ -45,7 +45,6 @@ Built the seam; criteria verified.
 ## Context for the commit
 
 - Task number and parent work item number: `601` in `60`.
-- Reviewer findings accepted as non-blocking, verbatim: none
 
 ## Rules
 

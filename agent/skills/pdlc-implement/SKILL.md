@@ -6,7 +6,7 @@ argument-hint: "Parent work item number to implement"
 
 # Run the Implementation loop
 
-`pdlc inspect implement` names one unit of work per call: a task to implement, a task to fix, or the change requests to triage. Do that unit, land it with the command the output's `## Publish` section names, and run it again; the loop ends when it names the stage publish or says what it is waiting on. The task's implementer sub-agent writes the code, `pdlc-implementation-reviewer` checks it at `task` depth, `pdlc-test-writer` adds unit coverage for what each unit changed, and `pdlc post implement-task` lands each unit. This skill owns orchestration; it never decides the code's content.
+`pdlc inspect implement` names one unit of work per call: a task to implement, a task to fix, or the change requests to triage. Do that unit, land it with the command the output's `## Publish` section names, and run it again; the loop ends when it names the stage publish or says what it is waiting on. The task's implementer sub-agent writes the code, `pdlc-test-writer` adds unit coverage for what each unit changed, `pdlc-implementation-reviewer` checks the code and its tests together at `task` depth, and `pdlc post implement-task` lands each unit. This skill owns orchestration; it never decides the code's content.
 
 The sub-agents know nothing about the PDLC pipeline, so every brief must stand on its own. `pdlc prompt` builds them; this skill passes each one through untouched and never writes a brief of its own. Run the `pdlc prompt` command afresh for every dispatch, including each follow-up to an agent already dispatched, and never reuse an earlier brief. Keep each dispatch addressable so a follow-up can go back to the same agent, always with its fresh brief.
 
@@ -41,8 +41,8 @@ Stop and report instead of dispatching when one of those checks fails, the plan 
 The unit is the task under `## Next Task`; the branch is new or, for a Stale task, already holds its landed code.
 
 1. **Dispatch** with the brief `pdlc prompt task-implementer WORK_ITEM` writes. It resolves the same unit this pass is on and arrives complete — task, plan, covered requirements, upstream summaries, any findings to address, and the build-run verification step when the project routes that capability. A value it could not resolve says so in place, and that is the signal to stop and report rather than to fill the gap yourself.
-2. **Review.**
-3. **Test.**
+2. **Test.**
+3. **Review.**
 4. **Land.**
 
 ### `rework`
@@ -50,8 +50,8 @@ The unit is the task under `## Next Task`; the branch is new or, for a Stale tas
 The unit is the task under `## Next Fix`; the branch already holds its landed code, and the fix lands as new commits on top.
 
 1. **Dispatch** with the brief `pdlc prompt task-implementer WORK_ITEM` writes; it selects the form this fix needs and carries the unit's threads, decisions, and red checks. Classify `#### Failing checks` with [`references/fix-ci.md`](references/fix-ci.md) before dispatching: the brief carries every red check, so a check that turns out to be infrastructure or a flake is resolved there and not handed to the agent as a code fix.
-2. **Review.**
-3. **Test**, scoped to the threads, checks, and findings the fix addressed.
+2. **Test**, scoped to the threads, checks, and findings the fix addressed.
+3. **Review.**
 4. **Land.**
 5. **Escalate**, when the agent skipped any thread; [`references/fix-pr-comments.md`](references/fix-pr-comments.md) says what the skill owns once the agent returns and what stays the driver's call.
 
@@ -60,8 +60,8 @@ The unit is the task under `## Next Fix`; the branch already holds its landed co
 `## Open Requests` prints every open change request in full and the task stack under `#### Stack`. The requests are the whole record's; the implementer decides which task each finding belongs to with the code in front of it, and one publish pushes every branch.
 
 1. **Dispatch** once, to the top task's agent, with the brief `pdlc prompt task-implementer WORK_ITEM` writes. This unit overrides the step's Task and Branch: run `pdlc inspect task` for the top task's `## Agent`, then `pdlc checkout TOP_TASK`, which puts you on the top branch with every task branch of the stack local. The brief already carries every request and the whole stack with each branch and plan, and states how the agent places, fixes, and reports each finding. A finding it stopped on is a decision, not a retry: relay it with the request's link, and follow Requirement corrections where it changes approved intent. Checking the result spans every branch the agent names: each is clean, its commits are on the branches its report says, and the report gives each finding a disposition.
-2. **Review**, over every commit the agent made, with the requests as the criteria to trace.
-3. **Test**, on the top branch, with each fixed finding under `## What changed`.
+2. **Test**, on the top branch, with each fixed finding under `## What changed`.
+3. **Review**, over every commit the agent and the test writer made, with the requests as the criteria to trace.
 4. **Publish.** The evidence carries the agent's report: every finding with its request, disposition, branch, and commit.
 
 The pass is complete when every finding is fixed and committed on its branch, noted as already met, or has stopped the run, and Publish has pushed the stack.
@@ -84,15 +84,21 @@ Each step below runs only where a mode's list names it, on whatever that list ha
 
 This step is complete when its work is committed on the task branch with a clean tree and its report is in.
 
-### Review
-
-Dispatch `pdlc-implementation-reviewer` at `task` depth with the brief `pdlc prompt task-reviewer WORK_ITEM --commits REVISIONS` writes, handed over as Dispatch describes; `REVISIONS` is the range covering the dispatch's commits. For a fix, the criteria to trace are the findings it addressed. It is read-only and returns findings plus a verdict; this is a shallow task pass, not the stage review `pdlc-review` owns.
-
-On `Changes Required`, hand the findings verbatim to the same implementing agent. The fix is new commits on top, never an amend or rebase, so the history of what the reviewer asked for stays legible; review it again. On `Approval Required`, carry every non-blocking finding you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
-
 ### Test
 
-Dispatch `pdlc-test-writer` once with the brief `pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS --report FILE --traceability FILE` writes, handed over as Dispatch describes. `--report` carries the implementing agent's report-back and the threads, checks, or findings it addressed; `--traceability` carries the map you build from the task body, its `## Technical Plan`, and the dispatch's diff; add `--findings` for any reviewer finding accepted as non-blocking. The brief scopes the agent to this task's unit coverage and to what this dispatch changed, since whole-feature acceptance coverage belongs to `pdlc-test`. It commits onto the same task branch and does not push. This step is complete when its report is in and the commit(s) it added are on the task branch.
+Dispatch `pdlc-test-writer` once with the brief `pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS --report FILE --traceability FILE` writes, handed over as Dispatch describes. `--report` carries the implementing agent's report-back and the threads, checks, or findings it addressed; `--traceability` carries the map you build from the task body, its `## Technical Plan`, and the dispatch's diff. The brief scopes the agent to this task's unit coverage and to what this dispatch changed, since whole-feature acceptance coverage belongs to `pdlc-test`. It commits onto the same task branch and does not push. This step is complete when its report is in and the commit(s) it added are on the task branch.
+
+### Review
+
+Dispatch `pdlc-implementation-reviewer` at `task` depth with the brief `pdlc prompt task-reviewer WORK_ITEM --commits REVISIONS` writes, handed over as Dispatch describes; `REVISIONS` is the range covering the commits the implementing agent and the test writer made since the last review. For a fix, the criteria to trace are the findings it addressed. It writes only the findings file the brief names and returns a verdict; this is a shallow task pass over the code and its unit tests, not the stage review `pdlc-review` owns.
+
+On `Changes Required`, route that findings file by path; never open, retell, or edit it:
+
+1. Run `pdlc prompt task-implementer WORK_ITEM --findings FILE`. Exit 3 means the review holds nothing for the implementing agent: skip to 2. Otherwise dispatch the same implementing agent with that brief, as Dispatch describes; its fix is new commits on top, never an amend or rebase, so the history of what the reviewer asked for stays legible.
+2. Run Test with `--findings FILE` added, `--commits` covering the implementing agent's fix commits or, when 1 was skipped, the commits under review, and `--report` only when the implementing agent reported back in 1.
+3. Review again.
+
+On `Approval Required`, carry every non-blocking finding you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
 
 ### Land
 
