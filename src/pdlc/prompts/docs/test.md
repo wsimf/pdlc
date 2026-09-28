@@ -10,23 +10,43 @@ branch, then run the suite and commit it here.
 Invoke only the test-authoring skill named above, if any; no other skill.
 Write and run the coverage directly and return one report.
 
+--- BEGIN TASK ---
+
 {{INCLUDE:shared/task.md}}
+
+--- END TASK ---
 
 ## Technical Plan
 
+--- BEGIN TECHNICAL PLAN ---
+
 {{TECHNICAL_PLAN}}
+
+--- END TECHNICAL PLAN ---
 
 ## Traceability map
 
+--- BEGIN TRACEABILITY MAP ---
+
 {{TRACEABILITY_MAP}}
+
+--- END TRACEABILITY MAP ---
 
 ## In-scope source
 
+--- BEGIN IN-SCOPE SOURCE ---
+
 {{IN_SCOPE_SOURCE}}
+
+--- END IN-SCOPE SOURCE ---
 
 ## What changed
 
+--- BEGIN WHAT CHANGED ---
+
 {{WHAT_CHANGED}}
+
+--- END WHAT CHANGED ---
 
 {{#IF TEST_FINDINGS}}
 ## Review findings to address

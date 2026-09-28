@@ -13,6 +13,8 @@ Do not spawn, dispatch, or ask another agent to do this work.
 Invoke only the test-authoring skill named above, if any; no other skill.
 Write and run the coverage directly and return one report.
 
+--- BEGIN TASK ---
+
 ## Task
 
 `WORK-60-TASK-001` (tag included) — `[CORE] Core work`
@@ -25,22 +27,40 @@ Covers FR-1.
 ## Acceptance criteria
 - it works
 
+--- END TASK ---
+
 ## Technical Plan
+
+--- BEGIN TECHNICAL PLAN ---
 
 Touch one module.
 
+--- END TECHNICAL PLAN ---
+
 ## Traceability map
+
+--- BEGIN TRACEABILITY MAP ---
 
 FR-1 -> loads -> src/a.py
 
+--- END TRACEABILITY MAP ---
+
 ## In-scope source
+
+--- BEGIN IN-SCOPE SOURCE ---
 
 - src/a.py
 - src/b.py
 
+--- END IN-SCOPE SOURCE ---
+
 ## What changed
 
+--- BEGIN WHAT CHANGED ---
+
 Built the seam; criteria verified.
+
+--- END WHAT CHANGED ---
 
 ## Context for the commit
 
