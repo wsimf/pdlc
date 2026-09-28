@@ -53,7 +53,10 @@ there.
 
 The production code was changed on this pass to address the review findings
 below. Cover each fix with a test that fails on the behaviour it replaced,
-wherever a unit test of this task can reach it.
+wherever a unit test of this task can reach it. Every finding tagged
+`[blocking]` was fixed. A finding tagged `[non-blocking]` was optional, and the
+implementing agent may not have applied it: check `## What changed` and the
+commits, and skip any it did not apply.
 
 - F1 [P1] [blocking] src/a.py:4 — drops retry
 

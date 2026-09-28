@@ -39,9 +39,11 @@ DESCRIPTION
     work item with none, omits that section.
 
     With `--findings`, the brief for whichever form is due also carries the
-    review's `### Implementation findings`, to be fixed with new commits on
-    top. When that section holds no finding tagged `[blocking]`, no brief is
-    written and the command exits 3 with:
+    review's `### Implementation findings`, fixed with new commits on top:
+    every `[blocking]` one, and each `[non-blocking]` one the agent judges
+    worth applying, naming in its report which it applied. When that section
+    holds no finding tagged `[blocking]`, no brief is written and the command
+    exits 3 with:
 
         No implementation findings in FILE: the implementation agent is not
         needed and no brief was written. Continue with the skill's next step.

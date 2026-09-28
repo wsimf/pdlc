@@ -32,10 +32,12 @@ DESCRIPTION
 
     With `--findings`, the task reviewer's findings file, the brief carries its
     `### Test findings` to address and its `### Implementation findings` as the
-    production changes to cover with regression tests; a section with no
-    finding is left out. The file is refused as the implementer brief refuses
-    it. Without `--report`, `## What changed` states that no production code
-    changed on this pass.
+    production changes to cover with regression tests: every `[blocking]` one
+    as fixed, every `[non-blocking]` one as possibly not applied, to be skipped
+    if it was not. A section with no finding is left out. The file is refused
+    as the implementer brief refuses it. Without `--report` the implementing
+    agent did not run on this pass: `## What changed` states that no production
+    code changed, and the implementation findings are left out.
 
     The test writer is the project's configured test-writer agent, and the brief
     holds it to the same task, plan, and acceptance criteria the implementer was

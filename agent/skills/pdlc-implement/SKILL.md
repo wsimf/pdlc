@@ -92,13 +92,13 @@ Dispatch `pdlc-test-writer` once with the brief `pdlc prompt task-test-writer WO
 
 Dispatch `pdlc-implementation-reviewer` at `task` depth with the brief `pdlc prompt task-reviewer WORK_ITEM --commits REVISIONS` writes, handed over as Dispatch describes; `REVISIONS` is the range covering the commits the implementing agent and the test writer made since the last review. For a fix, the criteria to trace are the findings it addressed. It writes only the findings file the brief names and returns a verdict; this is a shallow task pass over the code and its unit tests, not the stage review `pdlc-review` owns.
 
-On `Changes Required`, route that findings file by path; never open, retell, or edit it:
+On `Changes Required`, hand that findings file to the fixing agents by path:
 
 1. Run `pdlc prompt task-implementer WORK_ITEM --findings FILE`. Exit 3 means the review holds nothing for the implementing agent: skip to 2. Otherwise dispatch the same implementing agent with that brief, as Dispatch describes; its fix is new commits on top, never an amend or rebase, so the history of what the reviewer asked for stays legible.
 2. Run Test with `--findings FILE` added, `--commits` covering the implementing agent's fix commits or, when 1 was skipped, the commits under review, and `--report` only when the implementing agent reported back in 1.
 3. Review again.
 
-On `Approval Required`, carry every non-blocking finding you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
+On `Approval Required`, carry every non-blocking finding in the findings file you accept into the summary. After a third `Changes Required`, stop and report the open findings. This step is complete when the task-depth review returns `Approval Required` within three passes.
 
 ### Land
 

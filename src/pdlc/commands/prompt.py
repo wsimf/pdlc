@@ -415,7 +415,10 @@ def _review_brief(unit: _Unit, commits: str, findings_file: str) -> str:
 
 def _test_brief(
     unit: _Unit, commits: str, changed: str, traceability: str, findings: ImplementFindings | None,
+    changed_code: bool = True,
 ) -> str:
+    """`changed_code` is False when the implementing agent did not run on this
+    pass, so no implementation finding was fixed and none is carried."""
     files = touched_files(commits)
     return render(
         "test",
@@ -429,7 +432,7 @@ def _test_brief(
             "TASK_NUMBER": str(unit.task["number"]),
             "PARENT_WORK_ITEM": str(unit.item["content"]["number"]),
             "TEST_FINDINGS": findings.test if findings else "",
-            "IMPLEMENTATION_FINDINGS": findings.implementation if findings else "",
+            "IMPLEMENTATION_FINDINGS": findings.implementation if findings and changed_code else "",
         },
     )
 
@@ -480,6 +483,7 @@ def test_writer_brief(
         resolve_text(report, label="--report") if report else _NO_CODE_CHANGE,
         resolve_text(traceability, label="--traceability"),
         _implement_findings(findings) if findings else None,
+        changed_code=bool(report),
     )
 
 

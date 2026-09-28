@@ -275,6 +275,7 @@ class PromptCommandTest(PromptHarness):
         self.assertIn("F2 [P2] [blocking] tests/test_a.py — asserts a mock", result.stdout)
         self.assertIn("## Production code changed for review\n", result.stdout)
         self.assertIn("F1 [P1] [blocking] src/a.py:4 — drops retry", result.stdout)
+        self.assertIn("may not have applied it", result.stdout)
 
     def test_test_writer_takes_findings_without_a_report(self):
         self._eligible_task()
@@ -282,11 +283,16 @@ class PromptCommandTest(PromptHarness):
         result = self.invoke(
             "prompt_task_test_writer", "--inline", 60, "--commits", "HEAD~1..HEAD",
             "--traceability", "text:FR-1 -> loads -> src/a.py",
-            "--findings", self._review(test="- F1 [P2] [blocking] tests/test_a.py — thin"),
+            "--findings", self._review(
+                implementation="- F1 [P3] [non-blocking] src/a.py:4 — rename",
+                test="- F2 [P2] [blocking] tests/test_a.py — thin",
+            ),
         )
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("No production code changed on this pass.", result.stdout)
+        self.assertIn("F2 [P2] [blocking] tests/test_a.py — thin", result.stdout)
         self.assertNotIn("## Production code changed for review", result.stdout)
+        self.assertNotIn("src/a.py:4 — rename", result.stdout)
 
     def test_test_writer_requires_a_report_or_findings_and_its_map(self):
         self._eligible_task()
