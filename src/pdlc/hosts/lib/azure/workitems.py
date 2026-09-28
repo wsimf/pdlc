@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import html
 import re
+from contextlib import ExitStack
 
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.hosts.lib.azure.transport import (
@@ -27,6 +28,7 @@ from pdlc.hosts.lib.azure.transport import (
     WIT_API_VERSION,
     az_invoke,
     azure_config,
+    field_file,
     org_args,
     project_args,
     run_az_json,
@@ -165,13 +167,23 @@ def tasks_with_identity(parent_id: int, task_id: str) -> list[dict]:
 
 def update(item_id: int | str, fields: dict[str, str] | None = None, *, state: str | None = None) -> dict:
     """Set any number of fields, and optionally the work-item state, in one
-    PATCH — Azure applies them atomically."""
+    PATCH — Azure applies them atomically.
+
+    Each value goes to `az` as `name=@file`, never inline: on Windows `az` is a
+    batch file, so `cmd.exe` caps the whole command line at 8191 characters and
+    a record's description alone can exceed that. It also stops a value that
+    happens to start with `@` from being read as a path. `az` strips trailing
+    newlines from a file-loaded value."""
     args = ["boards", "work-item", "update", *org_args(), "--id", str(item_id)]
     if state is not None:
         args += ["--state", state]
-    if fields:
-        args += ["-f", *(f"{name}={value}" for name, value in fields.items())]
-    return run_az_json(args) or {}
+    with ExitStack() as stack:
+        if fields:
+            args += ["-f", *(
+                f"{name}=@{stack.enter_context(field_file(value))}"
+                for name, value in fields.items()
+            )]
+        return run_az_json(args) or {}
 
 
 def create(work_item_type: str, title: str, fields: dict[str, str] | None = None) -> dict:

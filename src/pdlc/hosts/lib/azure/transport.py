@@ -10,7 +10,7 @@ so the CLI's own auth path is the only one that works unattended.
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any, Iterator, Literal, Sequence
 
 from pdlc.hosts.lib.process import parse_json, run_process
@@ -85,16 +85,26 @@ def project_args() -> list[str]:
 
 
 @contextmanager
-def _request_file(body: Any) -> Iterator[str]:
-    """`az devops invoke` takes a request body only as a file on disk."""
+def _scratch_file(name: str, text: str, suffix: str) -> Iterator[str]:
+    """Write `text` to a scratch file for one `az` call and remove it after."""
     # This transport is also used to create records, before an ID is known.
     from pdlc.internal.scratch import scratch_path, write_scratch
 
-    path = write_scratch(scratch_path("unscoped", "azure-request", ".json"), json.dumps(body))
+    path = write_scratch(scratch_path("unscoped", name, suffix), text)
     try:
         yield str(path)
     finally:
         path.unlink(missing_ok=True)
+
+
+def _request_file(body: Any) -> AbstractContextManager[str]:
+    """`az devops invoke` takes a request body only as a file on disk."""
+    return _scratch_file("azure-request", json.dumps(body), ".json")
+
+
+def field_file(value: str) -> AbstractContextManager[str]:
+    """A file holding one field value, passed to `az` as `name=@<path>`."""
+    return _scratch_file("azure-field", value, ".md")
 
 
 def az_invoke(
