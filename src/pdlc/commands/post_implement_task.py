@@ -104,6 +104,7 @@ from pdlc.internal.workitem import (
     tasks_by_number,
 )
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
+from pdlc.internal.trace import console_debug
 
 
 def _submit_task_stack(task: dict) -> dict:
@@ -125,7 +126,9 @@ def _submit_task_stack(task: dict) -> dict:
     branch = task_branch_name(slug, task["taskId"])
     predecessor = after_predecessor(task_tree(parent), task)
     if predecessor and not predecessor.complete and predecessor.pr is not None:
+        console_debug(f"linking {task['taskId']} onto predecessor PR #{predecessor.pr}")
         return get_code_host().link_task_stack(predecessor.pr, branch)
+    console_debug(f"submitting the stack for {task['taskId']}")
     prs = get_code_host().submit_task_stack()
     match = next((pr for pr in prs if pr["branch"] == branch), None)
     if match is None:
@@ -197,6 +200,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     if not delivery_task.isdigit():
         raise PdlcError(f"delivery task number must be numeric: {delivery_task}")
 
+    console_debug(f"loading delivery task #{delivery_task}")
     try:
         task = tasks_by_number([delivery_task])[0]
     except (IndexError, KeyError) as error:
@@ -222,6 +226,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     if not summary:
         raise PdlcError("the implementation summary is empty")
     require_template("implementation-summary", summary, "implementation summary")
+    console_debug(f"validated implementation summary for {task['taskId']}")
 
     first = next((line.strip() for line in summary.splitlines() if line.strip()), "")
     if first != IMPLEMENTATION_COMMENT_HEADING:
@@ -247,6 +252,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
+    console_debug(f"updating title and description of PR #{task_pr['number']}")
     # Give the freshly submitted PR its title (see `_pr_title`) and this evidence
     # as its description, replacing `gh stack`'s auto-generated summary. Runs before the
     # comment and closure so a failure here leaves the task re-runnable, exactly
@@ -257,8 +263,10 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
         _pr_body(summary, parent_number_for_task(task)),
     )
     result["taskPr"] = task_pr
+    console_debug(f"registering PR #{task_pr['number']} on task #{delivery_task}")
     result["prs"] = attach_pr(task["number"], task_pr["number"])
 
+    console_debug(f"recording implementation comment on task #{delivery_task}")
     _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
     if relanding:
@@ -267,6 +275,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
         result["openThreads"] = len(get_code_host().unresolved_review_comments(task_pr["number"]))
         result["checks"] = check_state(task_pr.get("checks"))
     else:
+        console_debug(f"closing task #{delivery_task}")
         close_task(delivery_task)
 
     return result

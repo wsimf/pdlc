@@ -99,8 +99,6 @@ class CliTests(unittest.TestCase):
         self.assertFalse(debug)
 
     def test_debug_is_invocation_only_and_hidden_from_help(self):
-        from pdlc.internal import trace
-
         remaining, overrides, debug = _options(["template", "implementation-summary", "--debug"])
         self.assertEqual(remaining, ["template", "implementation-summary"])
         self.assertEqual(overrides, {})
@@ -110,7 +108,6 @@ class CliTests(unittest.TestCase):
         with redirect_stdout(output), redirect_stderr(diagnostics):
             self.assertEqual(main(["--debug", "template", "implementation-summary"]), 0)
         self.assertIn("DEBUG pdlc: command exited with status 0", diagnostics.getvalue())
-        self.assertFalse(trace.console_debug_enabled())
         diagnostics = io.StringIO()
         with redirect_stdout(io.StringIO()), redirect_stderr(diagnostics):
             self.assertEqual(main(["template", "implementation-summary"]), 0)

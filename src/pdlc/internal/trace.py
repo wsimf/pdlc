@@ -31,10 +31,6 @@ def set_console_debug(enabled: bool) -> None:
     _console_debug = enabled
 
 
-def console_debug_enabled() -> bool:
-    return _console_debug
-
-
 def console_debug(message: str) -> None:
     if not _console_debug:
         return
