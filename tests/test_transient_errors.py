@@ -337,11 +337,12 @@ class CallKindTest(unittest.TestCase):
         with mock.patch.object(transport, "run_process", return_value="") as run:
             transport.run_gh(["issue", "edit", "4"])
             transport.run_gh(["issue", "view", "4"])
-            transport.run_gh(["stack", "submit"])
+            transport.run_gh(["stack", "submit"], timeout=300)
         edit, view, stack = (call.kwargs for call in run.call_args_list)
         self.assertEqual((edit["idempotent"], edit["writes"], edit["single_request"]), (True, True, True))
         self.assertEqual((view["idempotent"], view["writes"]), (True, False))
         self.assertEqual((stack["idempotent"], stack["single_request"]), (False, False))
+        self.assertEqual((edit["timeout"], view["timeout"], stack["timeout"]), (120, 120, 300))
 
 
 class DeleteCommentTest(unittest.TestCase):

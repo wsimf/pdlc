@@ -101,7 +101,8 @@ class GitHubStackSubmitTests(GitHubHostTest):
     def test_submit_restacks_without_trunk_submits_then_returns_the_stack_bottom_to_top(self):
         self._stub_stack(1, 2)
 
-        prs = self.host.submit_task_stack()
+        with patch("pdlc.hosts.lib.github.code_host.run_gh", wraps=self.gh) as run_gh:
+            prs = self.host.submit_task_stack()
 
         self.assertEqual([pr["number"] for pr in prs], [1, 2])
         self.assertEqual(
@@ -113,6 +114,8 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertEqual(self._calls("stack", "rebase"), [["stack", "rebase", "--no-trunk"]])
         self.assertEqual(self._calls("stack", "sync"), [])
         self.assertEqual(self._call("stack", "submit"), ["stack", "submit", "--auto"])
+        submit_call = next(call for call in run_gh.call_args_list if call.args[0][:2] == ["stack", "submit"])
+        self.assertEqual(submit_call.kwargs, {"timeout": 300})
         self.assertFalse(any("branches" in " ".join(args) for args, _ in self.gh.calls if args[0] == "api"))
         # The merge check and the read-back are one query each, check rollup included.
         pr_reads = [args for args, _ in self.gh.calls if "pullRequest(number:" in " ".join(args)]
