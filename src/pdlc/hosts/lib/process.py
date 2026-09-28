@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError, TransientError
-from pdlc.internal.trace import record_external_call
+from pdlc.internal.trace import command_label, console_debug, console_debug_enabled, record_external_call
 
 # A child CLI whose stdout is a pipe encodes text with the ambient locale, so a
 # non-UTF-8 locale makes `az` write an em dash as the lone byte 0x97. `LC_ALL`
@@ -159,24 +159,74 @@ def _classify(message: str) -> str | None:
     return None
 
 
+def _run_with_console_debug(
+    executable: str, args: Sequence[str], input: str | None, timeout: float,
+) -> subprocess.CompletedProcess[bytes]:
+    """Keep stdout captured while showing child diagnostics as they arrive."""
+    read_fd, write_fd = os.pipe()
+    stderr = bytearray()
+    label = command_label(args)
+
+    def drain() -> None:
+        pending = bytearray()
+        with os.fdopen(read_fd, "rb", buffering=0) as stream:
+            while chunk := stream.read(4096):
+                stderr.extend(chunk)
+                pending.extend(chunk)
+                while True:
+                    breaks = [position for delimiter in (b"\n", b"\r") if (position := pending.find(delimiter)) >= 0]
+                    if not breaks:
+                        break
+                    position = min(breaks)
+                    line = bytes(pending[:position])
+                    del pending[:position + 1]
+                    if line:
+                        console_debug(f"{label}: {_decode(line)}")
+            if pending:
+                console_debug(f"{label}: {_decode(bytes(pending))}")
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    try:
+        result = subprocess.run(
+            [executable, *args[1:]],
+            input=input.encode("utf-8") if input is not None else None,
+            stdout=subprocess.PIPE, stderr=write_fd, timeout=timeout, check=False,
+            env={**os.environ, **_UTF8_ENV},
+        )
+    finally:
+        os.close(write_fd)
+        # A child of the timed-out CLI may still hold stderr open.
+        reader.join(timeout=1)
+    return subprocess.CompletedProcess(result.args, result.returncode, result.stdout, bytes(stderr))
+
+
 def _attempt(executable: str, args: Sequence[str], input: str | None, timeout: float) -> tuple[str | None, str, str | None]:
     """Run the child once: (stdout, error message, transient kind). stdout is
     None on failure; kind is None when the failure is not transient."""
+    started = time.monotonic()
+    label = command_label(args)
     try:
         # Capture bytes, not text: `subprocess`'s text mode decodes on a reader
         # thread whose UnicodeDecodeError escapes as an unhandled thread crash
         # (and a None stdout) on Windows. Decoding here keeps it on this thread.
-        result = subprocess.run(
-            [executable, *args[1:]],
-            input=input.encode("utf-8") if input is not None else None,
-            capture_output=True, timeout=timeout, check=False,
-            env={**os.environ, **_UTF8_ENV},
-        )
+        if console_debug_enabled():
+            result = _run_with_console_debug(executable, args, input, timeout)
+        else:
+            result = subprocess.run(
+                [executable, *args[1:]],
+                input=input.encode("utf-8") if input is not None else None,
+                capture_output=True, timeout=timeout, check=False,
+                env={**os.environ, **_UTF8_ENV},
+            )
     except subprocess.TimeoutExpired:
+        console_debug(f"{label} timed out after {time.monotonic() - started:.1f}s")
         return None, f"{args[0]} timed out after {timeout:g}s", "maybe-sent"
     except OSError as error:
+        console_debug(f"{label} could not start after {time.monotonic() - started:.1f}s: {error}")
         kind = "not-sent" if error.errno in _TRANSIENT_OS_ERRORS else None
         return None, f"could not run {args[0]}: {error}", kind
+    console_debug(f"{label} exited {result.returncode} after {time.monotonic() - started:.1f}s")
     if result.returncode:
         message = _decode(result.stderr).strip() or f"{args[0]} failed (exit {result.returncode})"
         return None, message, _classify(message)
@@ -222,6 +272,8 @@ def run_process(
     if writes:
         _mark_write(True)
     for attempt in range(1, ATTEMPTS + 1):
+        if attempt > 1:
+            console_debug(f"retrying {command_label(args)} (attempt {attempt}/{ATTEMPTS})")
         output, message, kind = _attempt(executable, args, input, timeout)
         if output is not None:
             if writes:

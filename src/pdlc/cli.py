@@ -10,6 +10,7 @@ from pdlc.config import ConfigurationError, load_config
 from pdlc.domain.lifecycle import TransientError
 from pdlc.hosts.lib import process
 from pdlc.internal import failure
+from pdlc.internal import trace
 from pdlc.internal.failure import report_failure
 from pdlc.internal.inputs import wants_help
 
@@ -176,14 +177,18 @@ def _configure_windows_stdio() -> None:
             reconfigure(encoding="utf-8", errors="backslashreplace")
 
 
-def _options(argv: list[str]) -> tuple[list[str], dict[str, str]]:
-    """Split global config flags off the front-matter and return them as
-    ``load_config`` overrides keyed by Config field name."""
+def _options(argv: list[str]) -> tuple[list[str], dict[str, str], bool]:
+    """Extract config overrides and the invocation-only console debug flag."""
     remaining: list[str] = []
     overrides: dict[str, str] = {}
+    debug = False
     index = 0
     while index < len(argv):
         argument = argv[index]
+        if argument == "--debug":
+            debug = True
+            index += 1
+            continue
         if argument in _FLAG_FIELDS:
             if index + 1 >= len(argv):
                 raise ValueError(f"{argument} requires a value")
@@ -192,7 +197,7 @@ def _options(argv: list[str]) -> tuple[list[str], dict[str, str]]:
             continue
         remaining.append(argument)
         index += 1
-    return remaining, overrides
+    return remaining, overrides, debug
 
 
 def _resolve(arguments: list[str]) -> tuple[str, list[str]]:
@@ -209,8 +214,13 @@ def _dispatch(raw_arguments: list[str]) -> int:
         print(_usage())
         return 0
     try:
-        arguments, overrides = _options(raw_arguments)
+        arguments, overrides, debug = _options(raw_arguments)
+        trace.set_console_debug(debug)
+        if arguments in (["--help"], ["-h"]):
+            print(_usage())
+            return 0
         module_name, command_arguments = _resolve(arguments)
+        trace.console_debug(f"running {module_name.rsplit('.', 1)[-1].replace('_', ' ')}")
         if module_name == "pdlc.commands.doctor":
             module = importlib.import_module(module_name)
             return int(module.main(argv=command_arguments, overrides=overrides))
@@ -254,6 +264,7 @@ def _reset_runtime() -> None:
     reset_config()
     process.reset_run_state()
     failure.reset()
+    trace.set_console_debug(False)
     reset_backend()
     reset_code_host()
     reset_host()
@@ -271,10 +282,14 @@ def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     failure.set_invocation(arguments)
     try:
-        return _dispatch(arguments)
+        result = _dispatch(arguments)
+        trace.console_debug(f"command exited with status {result}")
+        return result
     except TransientError as error:
         # Safety net for a command with no catch of its own.
-        return report_failure(error)
+        result = report_failure(error)
+        trace.console_debug(f"command exited with status {result}")
+        return result
     finally:
         for key in list(os.environ):
             if key.startswith("PDLC_") and key not in original:

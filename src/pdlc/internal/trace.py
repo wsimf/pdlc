@@ -1,4 +1,4 @@
-"""Append external CLI invocations to a debug log when tracing is on.
+"""File tracing and invocation-only console diagnostics for external calls.
 
 Enabled by ``[debug] enabled = true`` in ``.pdlc/config.toml`` (or
 ``~/.pdlc/config.toml``); a ``PDLC_DEBUG`` environment variable is honoured too,
@@ -14,11 +14,38 @@ from __future__ import annotations
 
 import os
 import shlex
+import sys
+import threading
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
 _LOG_PATH = Path.home() / ".pdlc" / "debug.log"
+_console_debug = False
+_console_lock = threading.Lock()
+
+
+def set_console_debug(enabled: bool) -> None:
+    """Enable console diagnostics for this invocation only."""
+    global _console_debug
+    _console_debug = enabled
+
+
+def console_debug_enabled() -> bool:
+    return _console_debug
+
+
+def console_debug(message: str) -> None:
+    if not _console_debug:
+        return
+    with _console_lock:
+        print(f"[{datetime.now().astimezone().isoformat(timespec='seconds')}] DEBUG pdlc: {message}", file=sys.stderr, flush=True)
+
+
+def command_label(args: Sequence[str]) -> str:
+    """Show command identity without echoing payloads or credentials."""
+    count = 3 if len(args) > 2 and args[0] == "gh" and args[1] == "stack" else 2
+    return " ".join(args[:count])
 
 
 def _enabled() -> bool:
@@ -33,6 +60,8 @@ def _enabled() -> bool:
 
 def record_external_call(tool: str, args: Sequence[str]) -> None:
     """Append one ``[time] - (tool) : full command`` line when tracing is on."""
+    if args and args[0] != "retry":
+        console_debug(f"starting {command_label(args)}")
     if not _enabled():
         return
     line = f"[{datetime.now().isoformat(timespec='seconds')}] - ({tool}) : {shlex.join(args)}\n"

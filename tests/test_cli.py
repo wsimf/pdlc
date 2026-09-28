@@ -6,7 +6,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 
 import pdlc.config
-from pdlc.cli import _options, _resolve, main
+from pdlc.cli import _options, _resolve, _usage, main
 from pdlc.config import Config, ConfigurationError, install_config
 
 
@@ -93,9 +93,28 @@ class CliTests(unittest.TestCase):
         self.assertIn("unknown command", str(caught.exception))
 
     def test_options_become_config_overrides(self):
-        remaining, overrides = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
+        remaining, overrides, debug = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
         self.assertEqual(remaining, ["inspect", "9"])
         self.assertEqual(overrides, {"repository": "o/r", "backend": "file"})
+        self.assertFalse(debug)
+
+    def test_debug_is_invocation_only_and_hidden_from_help(self):
+        from pdlc.internal import trace
+
+        remaining, overrides, debug = _options(["template", "implementation-summary", "--debug"])
+        self.assertEqual(remaining, ["template", "implementation-summary"])
+        self.assertEqual(overrides, {})
+        self.assertTrue(debug)
+        self.assertNotIn("--debug", _usage())
+        output, diagnostics = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(diagnostics):
+            self.assertEqual(main(["--debug", "template", "implementation-summary"]), 0)
+        self.assertIn("DEBUG pdlc: command exited with status 0", diagnostics.getvalue())
+        self.assertFalse(trace.console_debug_enabled())
+        diagnostics = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(diagnostics):
+            self.assertEqual(main(["template", "implementation-summary"]), 0)
+        self.assertEqual(diagnostics.getvalue(), "")
 
     def test_option_without_a_value_is_rejected(self):
         with self.assertRaises(ValueError):
