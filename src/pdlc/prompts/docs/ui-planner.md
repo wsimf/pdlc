@@ -15,6 +15,10 @@ Work Item Id: `{{PARENT_WORK_ITEM}}`
 
 --- END PARENT WORK ITEM BODY ---
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 ## State
 
 - `Status`: UI — `Gate State`: `{{GATE_STATE}}`.

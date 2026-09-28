@@ -20,6 +20,10 @@ Implement the task below directly and return one report.
   Project design-system and platform constraints are already covered by
   `AGENTS.md` / `CLAUDE.md`.
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 {{#IF UPSTREAM_CHANGES}}
 ## Changed since last publish
 

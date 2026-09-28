@@ -335,6 +335,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "FINDINGS_TEXT": "",
                 "UPSTREAM_CHANGES": "",
                 "BUILD_RUN_SKILL": "",
+                "ATTACHMENTS": "",
             },
         )
         self.assertIn("## Execution boundary", rendered)
@@ -343,6 +344,7 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertNotIn("## Findings to address", rendered)
         self.assertNotIn("## Changed since last publish", rendered)
         self.assertNotIn("## Verify", rendered)
+        self.assertNotIn("## Attachments", rendered)
         self.assertNotIn("{{", rendered)
 
     def test_implement_renders_optional_sections_when_supplied(self) -> None:
@@ -359,6 +361,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "FINDINGS_TEXT": "the invalidation text",
                 "UPSTREAM_CHANGES": "the upstream patch",
                 "BUILD_RUN_SKILL": "build-run-ios",
+                "ATTACHMENTS": "1. Nav mockup\n  - Path: /tmp/nav.png",
             },
         )
         self.assertIn("## Findings to address", rendered)
@@ -366,6 +369,8 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertIn("## Changed since last publish", rendered)
         self.assertIn("--- BEGIN UPSTREAM CHANGES ---\n\nthe upstream patch\n\n--- END UPSTREAM CHANGES ---", rendered)
         self.assertIn("invoke the `build-run-ios` skill", rendered)
+        self.assertIn("## Attachments", rendered)
+        self.assertIn("1. Nav mockup\n  - Path: /tmp/nav.png", rendered)
         self.assertNotIn("{{", rendered)
 
     def test_pr_fix_renders(self) -> None:

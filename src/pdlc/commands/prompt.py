@@ -178,6 +178,7 @@ from pdlc.commands.inspect_implement import (
     _readiness,
     _stack_order,
 )
+from pdlc.internal.attachments import attachments_for_item, attachments_list
 from pdlc.internal.failure import report_failure
 
 TECH_PLAN_STAGE = "Technical Plan"
@@ -277,6 +278,8 @@ def _implement_context(
         "FINDINGS_TEXT": findings,
         "UPSTREAM_CHANGES": _upstream_text(item, comments, "Implementation"),
         "BUILD_RUN_SKILL": get_capabilities().skill("build-run") or "",
+        # Mockups and screenshots inform the UI; a CORE task goes without them.
+        "ATTACHMENTS": attachments_list(attachments_for_item(item)) if chosen.get("isUI") else "",
     }
 
 
@@ -596,6 +599,7 @@ def ui_planner_brief(
             "FRAGMENT_PATH": fragment,
             "CHANGE_REQUESTS": change_requests,
             "DRIVER_FOLLOWUP": _filled_text(follow_up, "--follow-up", UI_STAGE),
+            "ATTACHMENTS": attachments_list(attachments_for_item(item)),
         },
     )
 
