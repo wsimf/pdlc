@@ -111,7 +111,7 @@ Every existing task appears in the manifest as `retain` or `remove`.
 | `id` | string `TASK-NNN` | The task's stable identity; generated for existing tasks. |
 | `number` | integer | The task's work-item number; generated, copy unchanged. |
 | `baseline` | string | Generated fingerprint of the stored task; copy unchanged. |
-| `title` | string | The human-readable half only, understandable without the work item's title; the `WORK-N-TASK-NNN` identity and `[CORE]`/`[UI]` tag are added for you. |
+| `title` | string | The human-readable half only, written as the brief directs; the `WORK-N-TASK-NNN` identity and `[CORE]`/`[UI]` tag are added for you. |
 | `body` | string file path | The Markdown task body file. |
 | `type` | `"core"` or `"ui"` | Sets the `[CORE]`/`[UI]` tag and the implementation capability. |
 | `covers` | array of `FR-*`, `C-*`, `UJ-*` strings | The parent identifiers the task delivers: exactly the ids on the body's `Requirements Covered` and `UI Journeys` lines, in any order. |

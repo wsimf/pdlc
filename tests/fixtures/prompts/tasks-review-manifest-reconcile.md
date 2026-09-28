@@ -78,6 +78,7 @@ TASK-002 lacks offline criteria
 - Journey and requirement coverage: every task covers at least one FR or C; every UI task covers a `UJ-*`; every `UJ-*` has a UI task; no task claims a requirement the parent does not declare.
 - Dependency validity: dependencies exist, the graph is acyclic, ordering is sound.
 - Artifact quality: scope, non-goals, acceptance criteria, risk, and HITL/AFK classification are concrete and testable.
+- Title clarity: each title reads on its own as a pull request title, saying what changes without the work item.
 - Nothing contradicts approved Product or UI intent.
 
 ## Report back
