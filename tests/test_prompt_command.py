@@ -337,7 +337,7 @@ class PromptCommandTest(PromptHarness):
         self.assertNotIn("## Changes needed", result.stdout)
         self.assertIn("Findings recorded against this stage since it last published. Reconcile them against the work item", result.stdout)
         self.assertLess(result.stdout.index("### Change requests"), result.stdout.index("## Existing tasks"))
-        self.assertIn("The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.\n\ndetail", result.stdout)
+        self.assertIn("The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.\n\n--- BEGIN INVALIDATION REASON ---\n\ndetail\n\n--- END INVALIDATION REASON ---", result.stdout)
         self.assertIn("- `TASK-001` — [CORE] Core work (open, unplanned, unimplemented)", result.stdout)
         self.assertNotIn("--- BEGIN TASK BODY ---", result.stdout)
         self.assertIn("task-planner-manifest", result.stdout)
@@ -363,10 +363,9 @@ class PromptCommandTest(PromptHarness):
         self.assertIn(
             "### Driver follow-up\n\nA change the driver asked for, or findings from a review of the breakdown, "
             "verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it."
-            "\n\nsplit the export task in two",
+            "\n\n--- BEGIN DRIVER FOLLOW-UP ---\n\nsplit the export task in two\n\n--- END DRIVER FOLLOW-UP ---",
             result.stdout,
         )
-        self.assertNotIn("DRIVER FOLLOW-UP ---", result.stdout)
 
     def test_follow_up_alone_revises_the_published_tasks_or_a_first_breakdown(self):
         self._tasks_stage_pending()
@@ -495,7 +494,7 @@ class PromptCommandTest(PromptHarness):
         self.assertIn("--- BEGIN CHANGE REQUESTS ---", result.stdout)
         self.assertIn("- Already planned (TASK-001): check each against the change requests and driver follow-up below.", result.stdout)
         self.assertIn("The change requests and driver follow-up below apply to this pass.", result.stdout)
-        self.assertIn("### Driver follow-up\n\nA change the driver asked for, or findings from a review of your plans, verbatim.\n\nre-spike TASK-001\n", result.stdout)
+        self.assertIn("### Driver follow-up\n\nA change the driver asked for, or findings from a review of your plans, verbatim.\n\n--- BEGIN DRIVER FOLLOW-UP ---\n\nre-spike TASK-001\n\n--- END DRIVER FOLLOW-UP ---\n", result.stdout)
 
     def test_tech_planner_refuses_a_record_not_at_technical_plan(self):
         self._tasks_stage_pending()

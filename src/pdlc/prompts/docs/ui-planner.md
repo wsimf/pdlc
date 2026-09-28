@@ -15,6 +15,10 @@ Work Item Id: `{{PARENT_WORK_ITEM}}`
 
 --- END PARENT WORK ITEM BODY ---
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 ## State
 
 - `Status`: UI — `Gate State`: `{{GATE_STATE}}`.
@@ -36,7 +40,11 @@ No UI section exists yet. Author it from the parent work item above.
 
 The published UI stage was invalidated for this reason. Reconcile the section against it.
 
+--- BEGIN INVALIDATION REASON ---
+
 {{STALE_REASON}}
+
+--- END INVALIDATION REASON ---
 {{/IF}}
 {{#IF UPSTREAM_CHANGES}}
 
@@ -62,7 +70,11 @@ Findings recorded against this stage since it last published. Reconcile them aga
 
 A change the driver asked for, or findings from a review of the section, verbatim. Apply it to the journeys it affects; if it conflicts with the work item, stop and report it.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 {{DRIVER_FOLLOWUP}}
+
+--- END DRIVER FOLLOW-UP ---
 {{/IF}}
 
 ## What to return

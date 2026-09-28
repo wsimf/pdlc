@@ -68,7 +68,11 @@ Findings recorded against this stage since it last published.
 
 A change the driver asked for, or findings from a review of your plans, verbatim.
 
+--- BEGIN DRIVER FOLLOW-UP ---
+
 {{DRIVER_FOLLOWUP}}
+
+--- END DRIVER FOLLOW-UP ---
 {{/IF}}
 {{/IF}}
 

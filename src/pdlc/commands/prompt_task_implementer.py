@@ -31,6 +31,9 @@ DESCRIPTION
     upstream stage since this stage last published, under `Changed since last
     publish`; with none, or before its first publication, that section is
     omitted.
+    For a UI task it also lists every file attached to the work item under
+    `Attachments`, each with its description and local path; a CORE task, or a
+    work item with none, omits that section.
 
 EXAMPLES
     pdlc prompt task-implementer 236

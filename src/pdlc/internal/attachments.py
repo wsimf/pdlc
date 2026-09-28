@@ -73,10 +73,14 @@ def parent_number_for_task(task: dict) -> str:
 
 
 def attachments_markdown(attachments: list[dict]) -> str:
-    if not attachments:
-        return "## Attachments\n\nNone"
-    lines = ["## Attachments"]
+    """The inspectors' `## Attachments` section, `None` when there are none."""
+    return "## Attachments\n\n" + (attachments_list(attachments) or "None")
+
+
+def attachments_list(attachments: list[dict]) -> str:
+    """A numbered list of each attachment's description (or filename) and path; empty when there are none."""
+    lines: list[str] = []
     for index, attachment in enumerate(attachments, start=1):
         description = (attachment.get("description") or "").strip() or Path(attachment["path"]).name
-        lines.extend(["", f"{index}. {description}", attachment["path"]])
+        lines.extend([f"{index}. {description}", f"  - Path: {attachment['path']}"])
     return "\n".join(lines)

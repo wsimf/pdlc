@@ -41,7 +41,11 @@ Revise the task breakdown at `$CACHE_ROOT/.pdlc/cache/60/pdlc-task-planner-manif
 
 The published Tasks stage was invalidated for this reason. Reconcile the breakdown against it.
 
+--- BEGIN INVALIDATION REASON ---
+
 detail
+
+--- END INVALIDATION REASON ---
 
 ### Change requests
 
@@ -110,7 +114,7 @@ Return the revised manifest and its task files. For a first breakdown, create bo
 - `create` adds a task; omit `action` and `id` for the next free number, or supply a new `TASK-NNN` id with `"action": "create"`.
 - `retain` keeps an existing task. Keep its generated fields and body path; the command compares its content with the stored task and updates it only when it changed. A changed closed task reopens for planning and implementation.
 - `remove` descopes an existing, unimplemented task. Keep its generated `id`, `number`, and `baseline`, add a nonempty `reason`, and remove title, body, type, covers, and depends. A task with a registered pull request cannot be removed.
-- `title` is the human-readable half only. The command composes the stable identity and stamps `[UI]` or `[CORE]` from `type`.
+- `title` is the human-readable half only. The command composes the stable identity and stamps `[UI]` or `[CORE]` from `type`. It also becomes the task's pull request title, so write it for someone who has not read the work item: one short imperative sentence naming the capability or change and where it lands, with no task or requirement IDs and no unexplained feature jargon — "Persist route profile geometry", not "Implement FR-2" or "Backend changes".
 - `covers` and `depends` must agree with each task body and the parent work item. The command validates coverage and the dependency graph.
 
 Each task body carries dependency links, FR/C/UJ coverage, HITL/AFK classification, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful. Every task covers at least one FR or C; every UI task covers a `UJ-*` and every `UJ-*` has a UI task.

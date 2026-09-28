@@ -40,6 +40,14 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             *extra,
         )
 
+    def _attach(self) -> None:
+        """Attach a described mockup and an undescribed screenshot to record 60."""
+        from pdlc.hosts.lib.file.attachment_host import FileAttachmentHost
+
+        host = FileAttachmentHost()
+        host.save_for("60", self.write_file("nav.png", "nav mockup\n"), "Primary navigation mockup")
+        host.save_for("60", self.write_file("empty.png", "empty state\n"))
+
     def _ui_planner(self, *extra: str):
         return self.invoke("prompt_ui_planner", "--inline", 60, *extra)
 
@@ -80,6 +88,23 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         self._log("PDLC-IMPLEMENTATION\n\nshipped")
         self._patch_back_to_ui("FR-1 now lands atomically")
         self.assertGolden("implement-upstream-changes", self._implementer())
+
+    def test_implement_ui_task_lists_attachments(self):
+        self.seed_record(60, "Implementation", "Pending", slug="record-60")
+        self.seed_task(
+            60, 601, "TASK-001", "OPEN", "WORK-60-TASK-001 [UI] Screen",
+            body="## Scope\nBuild the screen.\n\nCovers FR-1.\n\n## Acceptance criteria\n- it works\n",
+        )
+        self._plan(60, 601)
+        self._attach()
+        self.assertGolden("implement-ui-attachments", self._implementer())
+
+    def test_implement_core_task_omits_attachments(self):
+        self._eligible_task()
+        self._attach()
+        result = self._implementer()
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertNotIn("## Attachments", result.stdout)
 
     # --- pr-fix ---
 
@@ -325,6 +350,11 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
     def test_ui_planner_first_pass(self):
         self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
         self.assertGolden("ui-planner-first-pass", self._ui_planner())
+
+    def test_ui_planner_lists_attachments(self):
+        self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
+        self._attach()
+        self.assertGolden("ui-planner-attachments", self._ui_planner())
 
     def test_ui_planner_unpublished_revision_with_follow_up(self):
         self.seed_record(60, "UI", "Pending", slug="record-60", body=NO_UI_BODY)
