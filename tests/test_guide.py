@@ -21,6 +21,14 @@ class GuideTests(unittest.TestCase):
         self.assertTrue(output.getvalue().startswith("# Resolve a PDLC decision\n"))
         self.assertIn("pdlc post decision <WORK_ITEM>", output.getvalue())
 
+    def test_prints_the_uncommitted_changes_guide_the_checkout_refusal_names(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(main(["guide", "uncommitted-changes"]), 0)
+        self.assertTrue(output.getvalue().startswith("# Uncommitted changes\n"))
+        self.assertIn("pdlc checkout DELIVERY_TASK --carry-changes", output.getvalue())
+        self.assertIn("git stash push --include-untracked -m", output.getvalue())
+
     def test_no_subcommand_prints_the_default_guide(self):
         output = io.StringIO()
         with redirect_stdout(output):

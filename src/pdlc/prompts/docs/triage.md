@@ -23,6 +23,10 @@ The last entry above is the top branch, and it is the one currently checked out.
 {{INCLUDE:shared/review-findings.md}}
 
 {{/IF}}
+{{#IF UNCOMMITTED_CHANGES}}
+{{INCLUDE:shared/uncommitted-work.md}}
+
+{{/IF}}
 {{INCLUDE:shared/execution-boundary.md}}
 Switch only between the branches listed under `## Stack`, with `git checkout`;
 do not create, rename, rebase, or merge a branch, and do not push.

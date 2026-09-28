@@ -119,6 +119,24 @@ def working_tree_dirty() -> bool:
         return False
 
 
+def current_branch() -> str:
+    """The checked-out branch; "" when HEAD is detached or outside a checkout."""
+    try:
+        return _git(["branch", "--show-current"])
+    except (PdlcError, OSError):
+        return ""
+
+
+def stash_changes(message: str) -> None:
+    """Set every uncommitted change aside, untracked files included."""
+    _git(["stash", "push", "--include-untracked", "--message", message])
+
+
+def restore_stash() -> None:
+    """Re-apply and drop the newest stash; on a conflict Git keeps the stash."""
+    _git(["stash", "pop"])
+
+
 def branch_exists(branch: str) -> bool:
     args = ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]
     record_external_call("git", args)

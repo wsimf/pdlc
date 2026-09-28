@@ -89,6 +89,11 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             "--findings", self._review(implementation="- F1 [P1] [blocking] src/a.py:4 — drops retry"),
         ))
 
+    def test_implement_with_uncommitted_work(self):
+        self._eligible_task()
+        self._uncommitted(" M src/a.py\n?? src/b.py")
+        self.assertGolden("implement-uncommitted-work", self._implementer())
+
     def test_implement_after_upstream_changes(self):
         self._eligible_task()
         self._log("PDLC-IMPLEMENTATION\n\nshipped")

@@ -115,7 +115,7 @@ def _usage() -> str:
         "  next [--work-item N]        route one item (or scan the queue); prints its action and # Due Next\n"
         "  next loop [--work-item N]   same, retrying with backoff until something is actionable\n"
         "\nPUBLISHING COMMANDS (only when the transition is authorized)\n"
-        "  checkout TASK                          put the working tree on one delivery task's branch (local only)\n"
+        "  checkout TASK [--carry-changes]        put the working tree on one delivery task's branch (local only)\n"
         "  continue WI                            self-heal a stray Approved/CI Pending gate; errors otherwise\n"
         "  post write                             publish the Product artifact; --patch corrects it from a later stage\n"
         "  post tasks                             land a UI or Tasks stage; --patch corrects it from a later stage\n"

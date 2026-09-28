@@ -336,6 +336,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "UPSTREAM_CHANGES": "",
                 "BUILD_RUN_SKILL": "",
                 "ATTACHMENTS": "",
+                "UNCOMMITTED_CHANGES": "",
             },
         )
         self.assertIn("## Execution boundary", rendered)
@@ -345,6 +346,7 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertNotIn("## Changed since last publish", rendered)
         self.assertNotIn("## Verify", rendered)
         self.assertNotIn("## Attachments", rendered)
+        self.assertNotIn("## Uncommitted work on this branch", rendered)
         self.assertNotIn("{{", rendered)
 
     def test_implement_renders_optional_sections_when_supplied(self) -> None:
@@ -362,6 +364,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "UPSTREAM_CHANGES": "the upstream patch",
                 "BUILD_RUN_SKILL": "build-run-ios",
                 "ATTACHMENTS": "1. Nav mockup\n  - Path: /tmp/nav.png",
+                "UNCOMMITTED_CHANGES": " M src/a.py\n?? src/b.py",
             },
         )
         self.assertIn("## Findings to address", rendered)
@@ -371,6 +374,8 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertIn("invoke the `build-run-ios` skill", rendered)
         self.assertIn("## Attachments", rendered)
         self.assertIn("1. Nav mockup\n  - Path: /tmp/nav.png", rendered)
+        self.assertIn("## Uncommitted work on this branch", rendered)
+        self.assertIn(" M src/a.py\n?? src/b.py", rendered)
         self.assertNotIn("{{", rendered)
 
     def test_pr_fix_renders(self) -> None:
@@ -386,6 +391,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "FAILING_CHECKS": "",
                 "FAILING_CHECKS_TEXT": "",
                 "REVIEW_FINDINGS": "",
+                "UNCOMMITTED_CHANGES": "",
             },
         )
         self.assertIn("pull request `42` in `acme/widgets`", rendered)
@@ -401,6 +407,7 @@ class PackagedPromptTests(unittest.TestCase):
                 "EXECUTION_SCOPE": "this one set of requests",
                 "OPEN_REQUESTS_TEXT": "Please rename the seam.",
                 "REVIEW_FINDINGS": "",
+                "UNCOMMITTED_CHANGES": "",
                 "STACK": [
                     {
                         "BRANCH": "work-12-task-1",

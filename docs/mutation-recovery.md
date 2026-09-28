@@ -39,7 +39,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post complete` | `COMPLETE` → state → Open Questions → close Issue → prune branches | **Refuses after state lands** | Record Complete but still open |
 | `post attach-pr` | attach PR | Safe | None |
 | `next`, `continue` (heal) | heal comment → state | Safe; the next poll re-heals | Duplicate heal comment |
-| `checkout` | `gh stack checkout`/`add`/`init` | Safe | Dirty tree, stack lock |
+| `checkout` | stash? → `gh stack checkout`/`add`/`init` → stash pop? | Safe | Dirty tree, stack lock, carried changes conflicting |
 
 "May duplicate" means a re-run after the evidence comment landed but before the state change posts the same marker comment a second time. Readers take the newest marker, so the record reads correctly; the timeline just shows it twice. The comment-hash follow-up in the plan removes this.
 
@@ -318,7 +318,9 @@ Re-run: safe. If the comment landed but the state did not, the record is still h
 
 Writes (local Git plus fetches, no record writes): one of `gh stack checkout <pr>`, `gh stack checkout <branch>`, `gh stack checkout <entry-pr>` + `gh stack add <branch>`, `gh stack top` + `gh stack add <branch>`, or `gh stack init <branch>`.
 
-Re-run: safe. After `add` created the branch, a re-run takes the "existing local branch" path. Exit 8 (stack locked): wait about 5 seconds and re-run.
+Re-run: safe. After `add` created the branch, a re-run takes the "existing local branch" path, and a re-run already on the task's branch changes nothing. Exit 8 (stack locked): wait about 5 seconds and re-run.
+
+With `--carry-changes`, the uncommitted changes are first stashed as `pdlc: carried from <source> to <branch>`, then re-applied after the checkout. A failed checkout re-applies them on the source branch, so the tree is as it was and a re-run is safe. A failed re-apply (a conflict) leaves the tree on the task's branch with the conflicts in it and the stash kept; the error names the stash, and the agent resolves the conflicts and drops it rather than re-running.
 
 ### Human-only local commands
 
