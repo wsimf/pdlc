@@ -302,8 +302,12 @@ class GitHubCodeHost(CodeHost):
                 with contextlib.suppress(PdlcError):
                     run_gh(["stack", "rebase", "--abort"])
                 raise
+        stack = run_gh_json(["stack", "view", "--json"])
+        branches = stack.get("branches") or []
+        if not branches:
+            raise PdlcError("gh stack view returned no branches to submit")
         console_debug("submitting stack branches and pull requests")
-        run_gh(["stack", "submit", "--auto"], timeout=300)
+        run_gh(["stack", "submit", "--auto"], timeout=180 * len(branches))
         console_debug("reading submitted pull requests")
         return self.pull_requests_by_number(self.stack_pr_numbers())
 
