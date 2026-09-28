@@ -145,7 +145,7 @@ from pdlc.domain.model import (
     timeline_formatted_at,
 )
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
-from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files
+from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files, uncommitted_changes
 from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
@@ -385,18 +385,17 @@ def _resolve(issue: str) -> _Unit:
 
 def _implementer_brief(unit: _Unit, review: str = "") -> str:
     """The brief for the unit's form; `review` is the reviewer's implementation
-    findings, carried by whichever form is due."""
+    findings, carried by whichever form is due. Every form also lists the
+    working tree's uncommitted changes, earlier work an interrupted run left."""
+    extra = {"REVIEW_FINDINGS": review, "UNCOMMITTED_CHANGES": uncommitted_changes()}
     if unit.kind == "triage":
-        context = _triage_context(unit.item, unit.delivery, list(unit.requests))
-        return render("triage", {**context, "REVIEW_FINDINGS": review})
+        return render("triage", {**_triage_context(unit.item, unit.delivery, list(unit.requests)), **extra})
     if unit.kind == "pr-fix":
         context = _pr_fix_context(unit.task, unit.pr or 0, list(unit.red), list(unit.requests))
-        return render("pr-fix", {**context, "REVIEW_FINDINGS": review})
+        return render("pr-fix", {**context, **extra})
     findings = "\n\n".join(part for part in (_checks_text(list(unit.red)) if unit.red else "", review) if part)
-    return render(
-        "implement",
-        _implement_context(unit.item, unit.delivery, unit.task, unit.comments, findings),
-    )
+    context = _implement_context(unit.item, unit.delivery, unit.task, unit.comments, findings)
+    return render("implement", {**context, "UNCOMMITTED_CHANGES": extra["UNCOMMITTED_CHANGES"]})
 
 
 def _review_brief(unit: _Unit, commits: str, findings_file: str) -> str:

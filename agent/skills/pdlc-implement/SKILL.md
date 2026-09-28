@@ -77,10 +77,10 @@ Each step below runs only where a mode's list names it, on whatever that list ha
 ### Dispatch
 
 1. **Task.** `pdlc inspect task DELIVERY_TASK` renders the task's front matter, full body with acceptance criteria, `## Technical Plan`, and `## Agent`, the implementer sub-agent this project routes the task to.
-2. **Branch.** Check `git status --short`; the tree must be clean, with all unrelated staged, unstaged, and untracked work preserved. Then `pdlc checkout DELIVERY_TASK`, which puts you on that task's branch whether it exists yet or not; never hand-roll a branch or a base.
+2. **Branch.** `pdlc checkout DELIVERY_TASK`, which puts you on that task's branch whether it exists yet or not; never hand-roll a branch or a base.
 3. **Dispatch** the agent `## Agent` names, and only that one, with the mode's brief. `pdlc prompt` writes the brief to a file and prints only that path; hand the agent the path, told plainly that the file holds its instructions and that it is to read the file and carry it out in full. Do not open it, edit it, summarise it, or paste any of it into the dispatch — a brief the skill has retold is no longer the brief the command built. A non-zero exit writes no brief and prints what the record is waiting on instead: report that and dispatch nothing, since the path would otherwise still hold an earlier pass's brief. Every brief has the agent commit on the current branch and never push; the branch and PR stay with this skill and the CLI.
 4. **Wait** for it to return before touching its files.
-5. **Check the result**, mechanically only: the tree is clean, the new commits sit on the task branch and touch only this task's owned files, and the report names the validation it ran. Judging the code is Review's job, not this skill's; for a red-check fix, the reproducing command passing is part of the report, since the check is the unit's done signal.
+5. **Check the result**, mechanically only: the tree is clean, following `pdlc guide uncommitted-changes` for any change the agent left uncommitted; the new commits sit on the task branch and touch only this task's owned files, and the report names the validation it ran. Judging the code is Review's job, not this skill's; for a red-check fix, the reproducing command passing is part of the report, since the check is the unit's done signal.
 
 This step is complete when its work is committed on the task branch with a clean tree and its report is in.
 
@@ -136,7 +136,7 @@ Write the stage evidence to a local file, or pass a short one as `text:<body>`: 
 pdlc post implement WORK_ITEM /tmp/pdlc-implement-evidence.md
 ```
 
-The command pushes the whole stack first, so any commit still local on a task branch reaches its PR here; a push failure changes no state. It refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns them as `readyPullRequests`; a failure leaves the stage unpublished, so a re-run is clean. Whichever task branch the last pass left you on is fine; the command needs a clean tree and leaves it on the top task's branch. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
+The command pushes the whole stack first, so any commit still local on a task branch reaches its PR here; a push failure changes no state. It refuses while any delivery task is open. On success every open PR in the stack is ready for review and the JSON returns them as `readyPullRequests`; a failure leaves the stage unpublished, so a re-run is clean. Whichever task branch the last pass left you on is fine; the command leaves the tree on the top task's branch. Leave the stack unmerged; merging is a driver decision. This step is complete when the JSON shows `gateState: Review Required`.
 
 ## Report
 
@@ -163,4 +163,3 @@ Surface a requirement, constraint, plan, or acceptance criterion that is factual
 - Claim only implementation, build, test, PR, or check evidence that exists.
 - Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
 - Do not run `pdlc post review`; verdicts belong to `pdlc-review`. The only gate this skill sets besides its own publish is `Decision Required`, through `pdlc post escalate` from Escalate, for a thread the agent skipped.
-- Preserve unrelated staged, unstaged, and untracked work.

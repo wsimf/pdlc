@@ -41,6 +41,10 @@ with new commits on top; do not rewrite what is already there.
 {{INCLUDE:shared/root-cause.md}}
 
 {{/IF}}
+{{#IF UNCOMMITTED_CHANGES}}
+{{INCLUDE:shared/uncommitted-work.md}}
+
+{{/IF}}
 ## Ownership and rules
 
 - Leave unrelated code, staged work, and untracked files alone.

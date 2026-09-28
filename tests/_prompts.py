@@ -36,6 +36,7 @@ class PromptHarness(FileBackendTest):
         # states the host state it needs, and reads clean otherwise.
         self._prs([])
         self._threads([])
+        self._uncommitted("")
 
     # --- host state ---
 
@@ -56,6 +57,12 @@ class PromptHarness(FileBackendTest):
             patcher = patch(f"pdlc.commands.{module}.record_open_review_comments", return_value=threads)
             patcher.start()
             self.addCleanup(patcher.stop)
+
+    def _uncommitted(self, status: str) -> None:
+        """The working tree's `git status --short`; clean unless a test says so."""
+        patcher = patch("pdlc.commands.prompt.uncommitted_changes", return_value=status)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _capabilities(self, **skills: str) -> None:
         """Route skill slots the briefs read, which otherwise read unconfigured.

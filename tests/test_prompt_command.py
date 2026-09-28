@@ -71,6 +71,20 @@ class PromptCommandTest(PromptHarness):
         self.assertNotIn("## Findings to address", result.stdout)
         self.assertIn("Upstream tasks it depends on, and what each shipped: none", result.stdout)
 
+    def test_uncommitted_changes_reach_every_implementer_form(self):
+        self._eligible_task()
+        self._uncommitted(" M src/a.py\n?? src/b.py")
+        result = self.invoke("prompt_task_implementer", "--inline", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn("## Uncommitted work on this branch", result.stdout)
+        self.assertIn(" M src/a.py\n?? src/b.py", result.stdout)
+        self.assertIn("Leave any other\nchanged file exactly as it is", result.stdout)
+
+    def test_a_clean_tree_adds_no_uncommitted_section(self):
+        self._eligible_task()
+        result = self.invoke("prompt_task_implementer", "--inline", 60)
+        self.assertNotIn("## Uncommitted work on this branch", result.stdout)
+
     def test_an_invalidated_task_carries_the_invalidation_as_findings(self):
         self._invalidated_task()
         result = self.invoke("prompt_task_implementer", "--inline", 60)

@@ -41,6 +41,16 @@ def has_tracked_changes() -> bool:
     return bool(result.stdout.strip())
 
 
+def uncommitted_changes() -> str:
+    """`git status --short` for the working tree, untracked files included and
+    paperwork excluded; "" when it is clean or not a Git checkout."""
+    result = _run_git(["status", "--short", "--untracked-files=all"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return ""
+    lines = [line for line in result.stdout.splitlines() if line.strip() and not line[3:].startswith(_PAPERWORK_PREFIX)]
+    return "\n".join(lines)
+
+
 def changed_files(since: str) -> set[str] | None:
     """Files whose content differs between `since` and HEAD, paperwork
     excluded; None when `since` is not a readable commit here."""

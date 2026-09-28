@@ -138,3 +138,7 @@ gh api graphql -f query='
 
 {{INCLUDE:shared/review-findings.md}}
 {{/IF}}
+{{#IF UNCOMMITTED_CHANGES}}
+
+{{INCLUDE:shared/uncommitted-work.md}}
+{{/IF}}
