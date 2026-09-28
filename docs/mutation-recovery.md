@@ -8,7 +8,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 
 ## How to read this
 
-- **Automatic retries come first.** Per `docs/transient-errors-plan.md`, `pdlc` retries each idempotent call, and any call that failed before its request was sent, at least once. The partial failures below are what is left when a retry is not safe or did not help. They surface as exit 76 with this entry's check and re-run steps, or as exit 75 when nothing had been written yet.
+- **Automatic retries come first.** Per `docs/transient-errors-plan.md`, `pdlc` retries each idempotent call, and any call that failed before its request was sent, at least once. The partial failures below are what is left when a retry is not safe or did not help. They surface as exit 76 with this entry's check and re-run steps, or as exit 75 when nothing had been written yet. A persistent `az` missing-credentials failure is retried the same way but ends at exit 1 with a login hint.
 - **Writes** are listed in execution order. A failure at step *n* means steps 1..*n*−1 landed, step *n* may or may not have landed (a timed-out write can still succeed on the server), and nothing after it ran.
 - **Check** is the read-only command that shows whether the command landed. `pdlc inspect N` shows the record's stage and gate, `pdlc inspect timeline N` lists `PDLC-*` marker comments newest-last, `pdlc inspect task T` shows a delivery task's state, plan, implementation comment, and PRs.
 - **Re-run** says what happens if the exact same command is run again after a partial failure.

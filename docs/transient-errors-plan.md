@@ -51,6 +51,8 @@ The patterns live in two module-level tuples, `_NOT_SENT` and `_MAYBE_SENT` (sec
 | Azure CLI | `Connection aborted`, `Max retries exceeded`, `HTTPSConnectionPool`, `RemoteDisconnected`, `ReadTimeout` |
 | WSL | `Wsl/Service`, `UtilBindVsockAnyPort`, `Catastrophic failure`, `E_UNEXPECTED`, `The I/O operation has been aborted` |
 
+One Azure pattern sits in its own tuple, `_CREDENTIAL`: `Before you can run Azure DevOps commands` is what `az` prints when concurrent `az` processes race on its shared credential cache, and a re-run succeeds. It is retried (section 3) but ends as an authentication failure, not a transient one. To keep the race rare, `run_az` in `hosts/lib/azure/transport.py` runs the first `az` call of a process on its own before letting later calls run concurrently.
+
 Authentication (`HTTP 401`, `gh auth login`), permission (`HTTP 403` without "rate limit"), `HTTP 404`, `HTTP 422`, and GraphQL validation errors are never transient.
 
 ### 2. Decide whether a retry is safe
@@ -85,6 +87,8 @@ Not idempotent: `gh issue create`, `gh issue comment`, `gh project item-add`, a 
 ### 3. Retry automatically when it is safe
 
 When a call fails with a transient error and the table above says it is safe, `run_process` retries it: 3 attempts in total, waiting 1s then 2s plus up to 50% jitter, each retry recorded in the debug trace. A rate-limit response (`rate limit`, `submitted too quickly`) waits 5s then 15s instead; `gh` does not pass GitHub's `Retry-After` through its error output, so the wait is fixed.
+
+A missing-credentials failure from `az` (`_CREDENTIAL`) was never sent, so it is retried for any call, idempotent or not, waiting 2s then 4s plus jitter. If it persists, `run_process` raises a plain `PdlcError` with a login hint (exit 1, a hard stop), and a write that failed this way on every attempt leaves the run's write flag unset. A multi-request call (`single_request=False`) is not retried and keeps its write flag.
 
 If the call succeeds on a retry, the command carries on as if nothing happened. If every attempt fails, `run_process` raises `TransientError` with the attempt count.
 
