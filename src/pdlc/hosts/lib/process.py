@@ -94,6 +94,13 @@ _MAYBE_SENT = (
     "the i/o operation has been aborted",
 )
 
+# `az` reports missing credentials when concurrent `az` processes race on its
+# shared token cache, and a re-run then succeeds. The lookup is local, so no
+# request was sent: retry it even for a write, then stop as a login failure
+# rather than a transient one, since it may really be a missing login.
+_CREDENTIAL = ("before you can run azure devops commands",)
+_CREDENTIAL_HINT = "run `az login` or `az devops login`, or set AZURE_DEVOPS_EXT_PAT"
+
 # OS errors WSL raises transiently when it cannot start a Windows or Linux
 # child. The child never ran, so nothing was sent.
 _TRANSIENT_OS_ERRORS = {errno.EIO, errno.ENOEXEC, errno.EAGAIN}
@@ -101,6 +108,7 @@ _TRANSIENT_OS_ERRORS = {errno.EIO, errno.ENOEXEC, errno.EAGAIN}
 ATTEMPTS = 3
 _BACKOFF_SECONDS = (1.0, 2.0)
 _RATE_LIMIT_BACKOFF_SECONDS = (5.0, 15.0)
+_CREDENTIAL_BACKOFF_SECONDS = (2.0, 4.0)
 
 # Set once this run starts a write, idempotent or not, because a timed-out
 # write may still have landed and a command's later writes may not. The CLI boundary reads it to decide whether a
@@ -137,10 +145,13 @@ _HARD = ("conflict", "could not apply")
 
 
 def _classify(message: str) -> str | None:
-    """'not-sent', 'maybe-sent', or None for a failure that is not transient."""
+    """'not-sent', 'maybe-sent', 'credential', or None for a failure that is
+    not transient."""
     lowered = message.lower()
     if any(pattern in lowered for pattern in _HARD):
         return None
+    if any(pattern in lowered for pattern in _CREDENTIAL):
+        return "credential"
     if any(pattern in lowered for pattern in _NOT_SENT):
         return "not-sent"
     if any(pattern in lowered for pattern in _MAYBE_SENT):
@@ -195,6 +206,10 @@ def run_process(
     `TransientError`, since a retry could duplicate a write. A call that makes
     several requests (`single_request=False`, e.g. a stack submit) cannot prove
     none of them landed, so its failures always count as maybe-sent.
+
+    A missing-credentials failure from `az` is retried the same way as one that
+    never reached the host, but if it persists it is raised as a plain
+    `PdlcError` with a login hint, not as `TransientError`.
     """
     record_external_call(args[0], args)
     # Resolve PATHEXT launchers such as az.cmd instead of passing a bare name.
@@ -214,6 +229,13 @@ def run_process(
             return output
         if kind is None:
             raise PdlcError(message)
+        if kind == "credential" and (attempt == ATTEMPTS or not single_request):
+            # A hard stop, not a transient one. A multi-request call may have
+            # sent earlier requests, so it is not retried and keeps its write
+            # mark; otherwise no attempt reached the host after `wrote_before`.
+            if writes and not wrote_before and single_request:
+                _mark_write(False)
+            raise PdlcError(f"{message}\n{_CREDENTIAL_HINT}")
         if kind == "not-sent" and not single_request:
             kind = "maybe-sent"
         if kind == "maybe-sent" and not idempotent:
@@ -229,7 +251,12 @@ def run_process(
                 _mark_write(False)
             raise TransientError(message, attempts=attempt)
         lowered = message.lower()
-        delays = _RATE_LIMIT_BACKOFF_SECONDS if "rate limit" in lowered or "too quickly" in lowered else _BACKOFF_SECONDS
+        if kind == "credential":
+            delays = _CREDENTIAL_BACKOFF_SECONDS
+        elif "rate limit" in lowered or "too quickly" in lowered:
+            delays = _RATE_LIMIT_BACKOFF_SECONDS
+        else:
+            delays = _BACKOFF_SECONDS
         delay = delays[min(attempt - 1, len(delays) - 1)]
         record_external_call(args[0], ["retry", str(attempt), message.splitlines()[0] if message else ""])
         _sleep(delay + random.uniform(0, delay / 2))

@@ -13,6 +13,8 @@ import io
 import json
 import re
 import subprocess
+import threading
+import time
 import unittest
 import contextlib
 from contextlib import redirect_stderr
@@ -71,6 +73,7 @@ class ClassificationTest(unittest.TestCase):
             "Post \"https://api.github.com/graphql\": unexpected EOF": "maybe-sent",
             "('Connection aborted.', RemoteDisconnected('Remote end closed connection'))": "maybe-sent",
             "Wsl/Service/CreateInstance/E_UNEXPECTED": "maybe-sent",
+            "ERROR: Before you can run Azure DevOps commands, you need to run the login commands": "credential",
         }
         for message, kind in cases.items():
             with self.subTest(message=message):
@@ -171,6 +174,104 @@ class RetryTest(_ProcessTest):
     def test_rate_limit_waits_longer(self) -> None:
         self.run_with(_completed(1, stderr=b"secondary rate limit"), _completed(0, stdout=b"ok"), idempotent=True)
         self.assertGreaterEqual(self.sleeps.call_args.args[0], 5.0)
+
+
+class CredentialRaceTest(_ProcessTest):
+    LOGIN = _completed(1, stderr=(
+        b"ERROR: Before you can run Azure DevOps commands, you need to run the login commands"
+        b"(az login if using AAD/MSA identity else az devops login if using PAT token) to setup credentials"
+    ))
+
+    def delays(self) -> list[float]:
+        return [call.args[0] for call in self.sleeps.call_args_list]
+
+    def test_a_login_race_is_retried_then_succeeds(self) -> None:
+        run, result = self.run_with(self.LOGIN, _completed(0, stdout=b"ok"), idempotent=True)
+        self.assertEqual(result, "ok")
+        self.assertEqual(run.call_count, 2)
+        [delay] = self.delays()
+        self.assertTrue(2.0 <= delay <= 3.0)
+
+    def test_a_write_is_retried_after_a_login_race(self) -> None:
+        run, result = self.run_with(self.LOGIN, _completed(0, stdout=b"done"), idempotent=False)
+        self.assertEqual(result, "done")
+        self.assertEqual(run.call_count, 2)
+        self.assertTrue(process.write_started())
+
+    def test_a_persistent_login_failure_is_a_hard_stop_that_wrote_nothing(self) -> None:
+        run, result = self.run_with(self.LOGIN, self.LOGIN, self.LOGIN, idempotent=False)
+        self.assertIs(type(result), PdlcError)
+        self.assertIn("az devops login", str(result))
+        self.assertIn("AZURE_DEVOPS_EXT_PAT", str(result))
+        self.assertEqual(run.call_count, process.ATTEMPTS)
+        first, second = self.delays()
+        self.assertTrue(2.0 <= first <= 3.0)
+        self.assertTrue(4.0 <= second <= 6.0)
+        self.assertFalse(process.write_started())
+
+    def test_a_multi_request_call_is_not_retried(self) -> None:
+        run, result = self.run_with(self.LOGIN, idempotent=False, single_request=False)
+        self.assertIs(type(result), PdlcError)
+        self.assertEqual(run.call_count, 1)
+        self.assertTrue(process.write_started())
+
+
+class AzWarmUpTest(unittest.TestCase):
+    def setUp(self) -> None:
+        from pdlc.hosts.lib.azure import transport
+
+        self.transport = transport
+        transport.reset_warm_up()
+        self.addCleanup(transport.reset_warm_up)
+
+    def start(self, count: int) -> list[threading.Thread]:
+        threads = [threading.Thread(target=self.call) for _ in range(count)]
+        for thread in threads:
+            thread.start()
+        return threads
+
+    def call(self) -> None:
+        with contextlib.suppress(PdlcError):
+            self.transport.run_az(["boards", "work-item", "show", "--id", "4"])
+
+    def test_the_first_call_runs_alone(self) -> None:
+        started, release = threading.Event(), threading.Event()
+        calls: list[str] = []
+
+        def fake(args: object, **kwargs: object) -> str:
+            calls.append("call")
+            if len(calls) == 1:
+                started.set()
+                release.wait(5)
+            return ""
+
+        with mock.patch.object(self.transport, "run_process", side_effect=fake):
+            threads = self.start(4)
+            self.assertTrue(started.wait(5))
+            time.sleep(0.1)
+            # The first call is still running, so no other call has started.
+            self.assertEqual(len(calls), 1)
+            release.set()
+            for thread in threads:
+                thread.join(5)
+        self.assertEqual(len(calls), 4)
+
+    def test_a_failing_first_call_releases_the_others(self) -> None:
+        calls: list[str] = []
+
+        def fake(args: object, **kwargs: object) -> str:
+            calls.append("call")
+            if len(calls) == 1:
+                raise PdlcError("before you can run azure devops commands")
+            return ""
+
+        with mock.patch.object(self.transport, "run_process", side_effect=fake):
+            threads = self.start(3)
+            for thread in threads:
+                thread.join(5)
+            self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(self.transport._warmed.is_set())
 
 
 class CallKindTest(unittest.TestCase):

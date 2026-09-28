@@ -10,6 +10,7 @@ so the CLI's own auth path is the only one that works unattended.
 from __future__ import annotations
 
 import json
+import threading
 from contextlib import AbstractContextManager, contextmanager
 from typing import Any, Iterator, Literal, Sequence
 
@@ -48,7 +49,31 @@ def az_call_kind(args: Sequence[str]) -> Literal["read", "set", "add"]:
     return "set" if tuple(args[:3]) in _AZ_SETS else "add"
 
 
+# Concurrent `az` processes race on the shared credential/token cache, and a
+# loser reports that no login exists. So the first `az` call of this process
+# runs alone; once it finishes, pass or fail, the cache is settled and calls run
+# concurrently again.
+_warm_lock = threading.Lock()
+_warmed = threading.Event()
+
+
+def reset_warm_up() -> None:
+    """Make the next `run_az` call run alone again; for tests."""
+    _warmed.clear()
+
+
 def run_az(args: Sequence[str], *, input: str | None = None) -> str:
+    if not _warmed.is_set():
+        with _warm_lock:
+            if not _warmed.is_set():
+                try:
+                    return _run_az(args, input)
+                finally:
+                    _warmed.set()
+    return _run_az(args, input)
+
+
+def _run_az(args: Sequence[str], input: str | None) -> str:
     kind = az_call_kind(args)
     return run_process(["az", *args], input=input, idempotent=kind != "add", writes=kind != "read")
 
