@@ -32,6 +32,7 @@ from pdlc.hosts.lib.github.transport import (
 )
 from pdlc.hosts.lib.process import run_process
 from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.internal.trace import console_debug
 
 # Every review thread on the pull request, oldest first, with only its root
 # comment — later replies aren't fetched, since the thread's own `isResolved`
@@ -286,9 +287,12 @@ class GitHubCodeHost(CodeHost):
         """
 
         self._require_stack_extension()
+        console_debug("checking whether the stack has merged branches to prune")
         if self._has_unpruned_merge():
+            console_debug("syncing and pruning merged stack branches")
             run_gh(["stack", "sync", "--prune"])
         else:
+            console_debug("rebasing stack branches without moving trunk")
             try:
                 run_gh(["stack", "rebase", "--no-trunk"])
             except PdlcError:
@@ -298,7 +302,9 @@ class GitHubCodeHost(CodeHost):
                 with contextlib.suppress(PdlcError):
                     run_gh(["stack", "rebase", "--abort"])
                 raise
+        console_debug("submitting stack branches and pull requests")
         run_gh(["stack", "submit", "--auto"])
+        console_debug("reading submitted pull requests")
         return self.pull_requests_by_number(self.stack_pr_numbers())
 
     def _has_unpruned_merge(self) -> bool:
