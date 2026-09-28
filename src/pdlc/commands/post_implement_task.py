@@ -263,10 +263,8 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
         _pr_body(summary, parent_number_for_task(task)),
     )
     result["taskPr"] = task_pr
-    console_debug(f"registering PR #{task_pr['number']} on task #{delivery_task}")
     result["prs"] = attach_pr(task["number"], task_pr["number"])
 
-    console_debug(f"recording implementation comment on task #{delivery_task}")
     _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
     if relanding:
@@ -275,7 +273,6 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
         result["openThreads"] = len(get_code_host().unresolved_review_comments(task_pr["number"]))
         result["checks"] = check_state(task_pr.get("checks"))
     else:
-        console_debug(f"closing task #{delivery_task}")
         close_task(delivery_task)
 
     return result

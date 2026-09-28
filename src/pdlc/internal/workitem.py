@@ -47,6 +47,7 @@ from pdlc.domain.model import verification_evidence_comments as _model_verificat
 from pdlc.domain.records import Comment, CreatedRecord, Task, TaskPublication, WorkItem, validate_work_item, validate_task, validate_task_inputs
 from pdlc.hosts.workitem_host import get_backend
 from pdlc.hosts.workitem_host.base import QueueItemSummary
+from pdlc.internal.trace import console_debug
 
 UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verification"}
 
@@ -54,6 +55,7 @@ UPDATABLE_SECTIONS = {"Product", "UI", "Decisions", "Open Questions", "Verificat
 # --- resolution / state ---
 
 def resolve_item(ref: str) -> WorkItem:
+    console_debug(f"loading work item {ref!r}")
     return validate_work_item(get_backend().resolve(str(ref)))
 
 
@@ -89,10 +91,12 @@ def workflow_for_item(item: dict) -> tuple[Pipeline, State]:
 
 
 def queue_items() -> list[QueueItemSummary]:
+    console_debug("loading work-item queue")
     return get_backend().queue_items()
 
 
 def set_state(item_id: str, status: str, gate: str, lifecycle: str) -> None:
+    console_debug(f"setting work-item state to {status} / {gate} / {lifecycle}")
     get_backend().set_state(item_id, status, gate, lifecycle)
 
 
@@ -126,14 +130,17 @@ def heal_item(item: dict, issue: str, pipeline: Pipeline, source: State) -> Stat
 
 
 def set_gate(item_id: str, gate: str) -> None:
+    console_debug(f"setting work-item gate to {gate}")
     get_backend().set_gate(item_id, gate)
 
 
 def set_slug(item_id: str, value: str) -> None:
+    console_debug("setting work-item slug")
     get_backend().set_slug(item_id, value)
 
 
 def set_skipped_states(item_id: str, value: str) -> None:
+    console_debug("updating skipped states")
     get_backend().set_skipped_states(item_id, value)
 
 
@@ -152,6 +159,7 @@ def _write_sections(ref: str, fragments: dict[str, str]) -> None:
     if invalid:
         raise PdlcError(f"unsupported work-item section: {', '.join(sorted(invalid))}")
     backend = get_backend()
+    console_debug(f"updating sections {', '.join(fragments)} on work item {ref!r}")
     original = backend.resolve(str(ref)).get("issueBody") or ""
     updated = original
     for section, fragment in fragments.items():
@@ -174,6 +182,7 @@ def append_to_section(ref: str, section: str, lines: list[str]) -> None:
         return
     if section not in UPDATABLE_SECTIONS:
         raise PdlcError(f"unsupported work-item section: {section}")
+    console_debug(f"appending to {section} on work item {ref!r}")
     backend = get_backend()
     body = backend.resolve(str(ref)).get("issueBody") or ""
     existing = read_section(body, section).rstrip("\n")
@@ -183,21 +192,25 @@ def append_to_section(ref: str, section: str, lines: list[str]) -> None:
 
 
 def write_body(ref: str, body: str) -> None:
+    console_debug(f"writing body of work item {ref!r}")
     get_backend().write_body(str(ref), body)
 
 
 # --- comments ---
 
 def comments_for_issue(ref: str) -> list[Comment]:
+    console_debug(f"loading comments for work item {ref!r}")
     return get_backend().comments(str(ref))
 
 def comments_page(ref: str, page: int = 1):
+    console_debug(f"loading comments page {page} for work item {ref!r}")
     return get_backend().comments_page(str(ref), page, 100)
 
 
 def post_comment(ref: str, body: str, marker: str | None = None) -> str:
     """Post `body` as-is under an optional `PDLC-<marker>` line. Callers resolve
     a file/stdin argument to text with `inputs.resolve_text` before calling."""
+    console_debug(f"posting {marker or 'unmarked'} comment on work item {ref!r}")
     return get_backend().post_comment(str(ref), compose_comment(marker, body))
 
 
@@ -205,12 +218,14 @@ def edit_comment(ref: str, comment_ref: str, body: str, marker: str | None = Non
     """Replace an existing comment's body in place, addressed by the
     reference `post_comment` returned for it. Same marker composition as
     `post_comment`."""
+    console_debug(f"editing {marker or 'unmarked'} comment on work item {ref!r}")
     return get_backend().edit_comment(str(ref), comment_ref, compose_comment(marker, body))
 
 
 def delete_comment(ref: str, comment_ref: str) -> None:
     """Permanently remove an existing comment, addressed by the reference
     `post_comment` returned for it."""
+    console_debug(f"deleting comment on work item {ref!r}")
     get_backend().delete_comment(str(ref), comment_ref)
 
 
@@ -218,6 +233,7 @@ def post_blocker(ref: str, body: str, marker: str | None = None) -> str:
     """Post a blocking review decision through the backend's blocker channel.
     Same body/marker composition as post_comment; the backend decides how
     prominently to surface it."""
+    console_debug(f"posting {marker or 'unmarked'} blocker on work item {ref!r}")
     return get_backend().post_blocker(str(ref), compose_comment(marker, body))
 
 
@@ -281,6 +297,7 @@ def task_timeline_compact(ref: str, file_path: str, *, comments: list[dict] | No
 # --- delivery tasks ---
 
 def subissues_for(ref: str) -> list[Task]:
+    console_debug(f"loading delivery tasks for work item {ref!r}")
     return [classify_task(validate_task(task)) for task in get_backend().tasks(str(ref))]
 
 
@@ -288,6 +305,7 @@ task_tree = subissues_for
 
 
 def tasks_by_number(numbers: list[str]) -> list[Task]:
+    console_debug(f"loading {len(numbers)} delivery task(s)")
     return [classify_task(validate_task(task)) for task in get_backend().tasks_by_number([str(n) for n in numbers])]
 
 
@@ -301,46 +319,58 @@ def tasks_by_number(numbers: list[str]) -> list[Task]:
 def record_snapshot(ref: str) -> tuple[WorkItem, list[Task], list[Comment]]:
     """The record, its delivery tasks, and its comments, read concurrently.
     A failure to resolve the record wins over the other reads' failures."""
+    console_debug(f"loading work item {ref!r}, tasks, and comments")
     get_backend()
     with ThreadPoolExecutor(max_workers=3) as pool:
         item = pool.submit(resolve_item, ref)
         tasks = pool.submit(task_tree, ref)
         comments = pool.submit(comments_for_issue, ref)
-        return item.result(), tasks.result(), comments.result()
+        snapshot = item.result(), tasks.result(), comments.result()
+    console_debug(f"loaded {len(snapshot[1])} task(s) and {len(snapshot[2])} comment(s) for work item {ref!r}")
+    return snapshot
 
 
 def comments_and_tasks(ref: str) -> tuple[list[Comment], list[Task]]:
     """An already-resolved record's comments and delivery tasks, read concurrently."""
+    console_debug(f"loading comments and tasks for work item {ref!r}")
     get_backend()
     with ThreadPoolExecutor(max_workers=2) as pool:
         comments = pool.submit(comments_for_issue, ref)
         tasks = pool.submit(task_tree, ref)
-        return comments.result(), tasks.result()
+        snapshot = comments.result(), tasks.result()
+    console_debug(f"loaded {len(snapshot[0])} comment(s) and {len(snapshot[1])} task(s) for work item {ref!r}")
+    return snapshot
 
 
 def require_all_subissues_closed(ref: str) -> None:
+    console_debug(f"checking that all delivery tasks are closed for work item {ref!r}")
     open_numbers = [str(task["number"]) for task in get_backend().tasks(str(ref)) if task["state"] != "CLOSED"]
     if open_numbers:
         raise PdlcError(f"open delivery tasks prevent this transition: {','.join(open_numbers)}")
 
 
 def upsert_tasks(parent: str, tasks: list[dict], existing: list[Task]) -> list[TaskPublication]:
+    console_debug(f"publishing {len(tasks)} delivery task(s) for work item {parent!r}")
     return get_backend().upsert_tasks(str(parent), validate_task_inputs(tasks), existing)
 
 
 def close_record(ref: str) -> None:
+    console_debug(f"closing work item {ref!r}")
     get_backend().close_record(str(ref))
 
 
 def close_task(task_ref: str) -> None:
+    console_debug(f"closing delivery task {task_ref!r}")
     get_backend().close_task(str(task_ref))
 
 
 def remove_task(parent: str, task_ref: str) -> None:
+    console_debug(f"removing delivery task {task_ref!r} from work item {parent!r}")
     get_backend().remove_task(str(parent), str(task_ref))
 
 
 def reopen_task(task_ref: str) -> None:
+    console_debug(f"reopening delivery task {task_ref!r}")
     get_backend().reopen_task(str(task_ref))
 
 
@@ -351,15 +381,18 @@ def attach_pr(ref: str, pr_number: int) -> list[int]:
 
     Where the backend keeps the link is its own concern — see
     `WorkItemBackend.attach_pr`."""
+    console_debug(f"registering PR #{pr_number} on work item {ref!r}")
     return get_backend().attach_pr(str(ref), int(pr_number))
 
 
 def attached_prs(ref: str) -> list[int]:
     """Every pull request attached to `ref`, ascending."""
+    console_debug(f"loading registered PRs for work item {ref!r}")
     return get_backend().attached_prs(str(ref))
 
 
 # --- creation ---
 
 def create_work_item(title: str, body: str, slug: str, work_type: WorkType = WorkType.FEATURE) -> CreatedRecord:
+    console_debug("creating work item")
     return get_backend().create(title, body, slug, work_type)
