@@ -3,9 +3,13 @@
     pdlc prompt task-test-writer - read-only: write the test writer's brief for one dispatch's change
 
 USAGE
-    pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS
-        --report FILE|text:BODY --traceability FILE|text:BODY
-        [--findings FILE|text:BODY]
+    - if the implementing agent has just committed its change:
+        pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS
+            --report FILE|text:BODY --traceability FILE|text:BODY
+            [--findings FILE|text:BODY]
+    - if a task review returned only test findings, with no production change:
+        pdlc prompt task-test-writer WORK_ITEM --commits REVISIONS
+            --traceability FILE|text:BODY --findings FILE|text:BODY
 
 DESCRIPTION
     Writes the complete brief for the test writer covering what one dispatch
@@ -26,6 +30,15 @@ DESCRIPTION
     summary reaches the task's `## Implementation` comment only once the task
     lands.
 
+    With `--findings`, the task reviewer's findings file, the brief carries its
+    `### Test findings` to address and its `### Implementation findings` as the
+    production changes to cover with regression tests: every `[blocking]` one
+    as fixed, every `[non-blocking]` one as possibly not applied, to be skipped
+    if it was not. A section with no finding is left out. The file is refused
+    as the implementer brief refuses it. Without `--report` the implementing
+    agent did not run on this pass: `## What changed` states that no production
+    code changed, and the implementation findings are left out.
+
     The test writer is the project's configured test-writer agent, and the brief
     holds it to the same task, plan, and acceptance criteria the implementer was
     given on this pass.
@@ -34,15 +47,18 @@ FLAGS
     --commits REVISIONS     the revision or range the brief reads, as `git show`
                             accepts it; required
     --report FILE|text:BODY the implementing agent's report-back, carried into
-                            the brief's `## What changed`; required
+                            the brief's `## What changed`; required unless
+                            `--findings` is given
     --traceability FILE|text:BODY  the traceability map the coverage is written
                             against; required
-    --findings FILE|text:BODY  reviewer findings accepted as non-blocking;
-                            "none" when omitted
+    --findings FILE|text:BODY  the findings file the task-reviewer brief named,
+                            as the reviewer filled it
 
 EXAMPLES
     pdlc prompt task-test-writer 236 --commits HEAD~2..HEAD \\
         --report /tmp/impl-report.md --traceability /tmp/trace.md
+    pdlc prompt task-test-writer 236 --commits HEAD~1..HEAD \\
+        --traceability /tmp/trace.md --findings /tmp/task-review-findings.md
 """
 
 from __future__ import annotations
@@ -65,9 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Print the test writer's brief for one dispatch's change")
     prompt.add_common_arguments(parser, COMMAND)
     parser.add_argument("--commits", required=True, help="revision or range the brief reads")
-    parser.add_argument("--report", required=True, help="the implementing agent's report-back (FILE or text:BODY)")
+    parser.add_argument("--report", help="the implementing agent's report-back (FILE or text:BODY)")
     parser.add_argument("--traceability", required=True, help="the traceability map (FILE or text:BODY)")
-    parser.add_argument("--findings", help="accepted non-blocking review findings (FILE or text:BODY)")
+    parser.add_argument("--findings", help="the task reviewer's findings file (FILE or text:BODY)")
     args = parser.parse_args(command_args)
 
     return prompt.run(

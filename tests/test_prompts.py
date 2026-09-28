@@ -385,11 +385,13 @@ class PackagedPromptTests(unittest.TestCase):
                 "DECISIONS_TEXT": "No previously recorded decisions.",
                 "FAILING_CHECKS": "",
                 "FAILING_CHECKS_TEXT": "",
+                "REVIEW_FINDINGS": "",
             },
         )
         self.assertIn("pull request `42` in `acme/widgets`", rendered)
         self.assertIn("-F pr=42", rendered)
         self.assertNotIn("## Failing checks", rendered)
+        self.assertNotIn("## Review findings", rendered)
         self.assertNotIn("{{", rendered)
 
     def test_triage_renders_one_entry_per_stack_task(self) -> None:
@@ -398,6 +400,7 @@ class PackagedPromptTests(unittest.TestCase):
             {
                 "EXECUTION_SCOPE": "this one set of requests",
                 "OPEN_REQUESTS_TEXT": "Please rename the seam.",
+                "REVIEW_FINDINGS": "",
                 "STACK": [
                     {
                         "BRANCH": "work-12-task-1",

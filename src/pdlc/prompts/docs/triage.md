@@ -19,6 +19,10 @@ place each finding on the branch of the task it belongs to and fix it there.
 {{/EACH}}
 The last entry above is the top branch, and it is the one currently checked out.
 
+{{#IF REVIEW_FINDINGS}}
+{{INCLUDE:shared/review-findings.md}}
+
+{{/IF}}
 {{INCLUDE:shared/execution-boundary.md}}
 Switch only between the branches listed under `## Stack`, with `git checkout`;
 do not create, rename, rebase, or merge a branch, and do not push.

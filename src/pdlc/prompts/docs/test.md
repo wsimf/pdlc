@@ -10,28 +10,70 @@ branch, then run the suite and commit it here.
 Invoke only the test-authoring skill named above, if any; no other skill.
 Write and run the coverage directly and return one report.
 
+--- BEGIN TASK ---
+
 {{INCLUDE:shared/task.md}}
+
+--- END TASK ---
 
 ## Technical Plan
 
+--- BEGIN TECHNICAL PLAN ---
+
 {{TECHNICAL_PLAN}}
+
+--- END TECHNICAL PLAN ---
 
 ## Traceability map
 
+--- BEGIN TRACEABILITY MAP ---
+
 {{TRACEABILITY_MAP}}
+
+--- END TRACEABILITY MAP ---
 
 ## In-scope source
 
+--- BEGIN IN-SCOPE SOURCE ---
+
 {{IN_SCOPE_SOURCE}}
+
+--- END IN-SCOPE SOURCE ---
 
 ## What changed
 
+--- BEGIN WHAT CHANGED ---
+
 {{WHAT_CHANGED}}
 
+--- END WHAT CHANGED ---
+
+{{#IF TEST_FINDINGS}}
+## Review findings to address
+
+A reviewer read this task's code and tests and asked for the test changes
+below. Address each with new commits on top; do not rewrite what is already
+there.
+
+{{TEST_FINDINGS}}
+
+{{/IF}}
+{{#IF IMPLEMENTATION_FINDINGS}}
+## Production code changed for review
+
+The production code was changed on this pass to address the review findings
+below. Cover each fix with a test that fails on the behaviour it replaced,
+wherever a unit test of this task can reach it. Every finding tagged
+`[blocking]` was fixed. A finding tagged `[non-blocking]` was optional, and the
+implementing agent may not have applied it: check `## What changed` and the
+commits, and skip any it did not apply.
+
+{{IMPLEMENTATION_FINDINGS}}
+
+{{/IF}}
 ## Context for the commit
 
 - Task number and parent work item number: `{{TASK_NUMBER}}` in `{{PARENT_WORK_ITEM}}`.
-- Reviewer findings accepted as non-blocking, verbatim: {{NONBLOCKING_FINDINGS}}
 
 ## Rules
 

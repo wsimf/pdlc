@@ -12,6 +12,8 @@ Do not spawn, dispatch, or ask another agent to do this work.
 Invoke only the test-authoring skill named above, if any; no other skill.
 Write and run the coverage directly and return one report.
 
+--- BEGIN TASK ---
+
 ## Task
 
 `WORK-60-TASK-001` (tag included) — `[CORE] Core work`
@@ -24,27 +26,63 @@ Covers FR-1.
 ## Acceptance criteria
 - it works
 
+--- END TASK ---
+
 ## Technical Plan
+
+--- BEGIN TECHNICAL PLAN ---
 
 Touch one module.
 
+--- END TECHNICAL PLAN ---
+
 ## Traceability map
+
+--- BEGIN TRACEABILITY MAP ---
 
 FR-1 -> loads -> src/a.py
 
+--- END TRACEABILITY MAP ---
+
 ## In-scope source
+
+--- BEGIN IN-SCOPE SOURCE ---
 
 - src/a.py
 - src/b.py
 
+--- END IN-SCOPE SOURCE ---
+
 ## What changed
 
+--- BEGIN WHAT CHANGED ---
+
 Built the seam; criteria verified.
+
+--- END WHAT CHANGED ---
+
+## Review findings to address
+
+A reviewer read this task's code and tests and asked for the test changes
+below. Address each with new commits on top; do not rewrite what is already
+there.
+
+- F2 [P2] [blocking] tests/test_a.py — asserts a mock
+
+## Production code changed for review
+
+The production code was changed on this pass to address the review findings
+below. Cover each fix with a test that fails on the behaviour it replaced,
+wherever a unit test of this task can reach it. Every finding tagged
+`[blocking]` was fixed. A finding tagged `[non-blocking]` was optional, and the
+implementing agent may not have applied it: check `## What changed` and the
+commits, and skip any it did not apply.
+
+- F1 [P1] [blocking] src/a.py:4 — drops retry
 
 ## Context for the commit
 
 - Task number and parent work item number: `601` in `60`.
-- Reviewer findings accepted as non-blocking, verbatim: Naming nit on the loader.
 
 ## Rules
 

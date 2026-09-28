@@ -26,8 +26,8 @@ NO_UI_BODY = remove_section(BODY_DEFAULT, "UI")
 class PromptGoldenTest(GoldenMixin, PromptHarness):
     GOLDENS = Path(__file__).parent / "fixtures" / "prompts"
 
-    def _implementer(self):
-        return self.invoke("prompt_task_implementer", "--inline", 60)
+    def _implementer(self, *extra: str):
+        return self.invoke("prompt_task_implementer", "--inline", 60, *extra)
 
     def _reviewer(self):
         return self.invoke("prompt_task_reviewer", "--inline", 60, "--commits", "HEAD~1..HEAD")
@@ -82,6 +82,12 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
         ])
         self.assertGolden("implement-red-checks", self._implementer())
 
+
+    def test_implement_with_review_findings(self):
+        self._eligible_task()
+        self.assertGolden("implement-review-findings", self._implementer(
+            "--findings", self._review(implementation="- F1 [P1] [blocking] src/a.py:4 — drops retry"),
+        ))
 
     def test_implement_after_upstream_changes(self):
         self._eligible_task()
@@ -178,7 +184,10 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
     def test_test_writer_with_accepted_findings(self):
         self._eligible_task()
         self._git()
-        self.assertGolden("test-with-findings", self._test_writer("--findings", "text:Naming nit on the loader."))
+        self.assertGolden("test-with-findings", self._test_writer("--findings", self._review(
+            implementation="- F1 [P1] [blocking] src/a.py:4 — drops retry",
+            test="- F2 [P2] [blocking] tests/test_a.py — asserts a mock",
+        )))
 
     def test_test_writer_with_a_configured_authoring_skill(self):
         self._eligible_task()

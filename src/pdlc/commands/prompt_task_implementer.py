@@ -3,7 +3,10 @@
     pdlc prompt task-implementer - read-only: write the implementer's brief for a work item's next unit
 
 USAGE
-    pdlc prompt task-implementer WORK_ITEM
+    - if the unit is being dispatched for the first time on this pass:
+        pdlc prompt task-implementer WORK_ITEM
+    - if a task review returned findings for the unit:
+        pdlc prompt task-implementer WORK_ITEM --findings FILE
 
 DESCRIPTION
     Writes the complete brief for the sub-agent that writes the code of the unit
@@ -11,8 +14,8 @@ DESCRIPTION
     brief file's path; that file is sent to that sub-agent verbatim.
 
     The sub-agent to send it to is the one `pdlc inspect task` names under
-    `## Agent`. Everything the brief interpolates is already on the record, so
-    this command takes no artifacts of its own.
+    `## Agent`. Everything else the brief interpolates is already on the
+    record; the one artifact it takes is the task reviewer's findings file.
 
     The brief is chosen from the same unit the Implementation loop is on, so it
     always matches the work that is actually due:
@@ -35,8 +38,26 @@ DESCRIPTION
     `Attachments`, each with its description and local path; a CORE task, or a
     work item with none, omits that section.
 
+    With `--findings`, the brief for whichever form is due also carries the
+    review's `### Implementation findings`, fixed with new commits on top:
+    every `[blocking]` one, and each `[non-blocking]` one the agent judges
+    worth applying, naming in its report which it applied. When that section
+    holds no finding tagged `[blocking]`, no brief is written and the command
+    exits 3 with:
+
+        No implementation findings in FILE: the implementation agent is not
+        needed and no brief was written. Continue with the skill's next step.
+
+    A file missing its `### Implementation findings`, `### Test findings`, or
+    `### Verdict` section, or whose verdict is not filled in, is refused.
+
+FLAGS
+    --findings FILE|text:BODY  the findings file the task-reviewer brief named,
+                            as the reviewer filled it
+
 EXAMPLES
     pdlc prompt task-implementer 236
+    pdlc prompt task-implementer 236 --findings /tmp/task-review-findings.md
 """
 
 from __future__ import annotations
@@ -58,9 +79,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Print the implementer's brief for a work item's next unit")
     prompt.add_common_arguments(parser, COMMAND)
+    parser.add_argument("--findings", help="the task reviewer's findings file (FILE or text:BODY)")
     args = parser.parse_args(command_args)
 
-    return prompt.run(COMMAND, args, lambda: prompt.implementer_brief(args.work_item))
+    return prompt.run(COMMAND, args, lambda: prompt.implementer_brief(args.work_item, args.findings))
 
 
 if __name__ == "__main__":
