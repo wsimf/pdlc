@@ -13,7 +13,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 - **Check** is the read-only command that shows whether the command landed. `pdlc inspect N` shows the record's stage and gate, `pdlc inspect timeline N` lists `PDLC-*` marker comments newest-last, `pdlc inspect task T` shows a delivery task's state, plan, implementation comment, and PRs.
 - **Re-run** says what happens if the exact same command is run again after a partial failure.
 - Attachments (`--attachment`) are saved to the local attachment host before any remote write in every command. They are local file copies, so they are not listed per command; a re-run saves them again under new IDs, which is harmless.
-- Backend differences are called out only where they change recovery. On GitHub, `set_state` is one GraphQL mutation that updates three Project fields; it already re-reads and retries once to reconcile. On Azure every field write is one `az boards work-item update`.
+- Backend differences are called out only where they change recovery. On GitHub, `set_state` is one GraphQL mutation that updates three Project fields; it already re-reads and retries once to reconcile. On Azure each field write is one request; description edits use one `az devops invoke` batch subrequest so the body and Markdown format land together. If its embedded response fails, inspect the body before retrying the post.
 
 ## Summary
 
@@ -50,7 +50,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 `pdlc post write --title T --slug S --body FILE --evidence FILE`
 
 Writes:
-1. `gh issue create` (Azure: `az boards work-item create`) with the whole body.
+1. Create the Issue with the whole body (Azure: `az devops invoke` with Markdown format).
 2. GitHub only: `gh project item-add` for the new Issue.
 3. `set_state` → Product / Approval Required.
 4. `set_slug`.

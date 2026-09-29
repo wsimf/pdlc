@@ -202,25 +202,44 @@ class StateWriteTest(AzureHostTest):
         self.assertEqual(call[call.index("--id") + 1], "7")
         self.assertEqual(call[call.index("--state") + 1], "Closed")
 
-    def test_write_body_replaces_the_description_and_nothing_else(self):
+    def test_write_body_replaces_the_description_as_markdown_and_nothing_else(self):
         self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.invoke("wit", "batch", response={"value": [{"code": 200, "body": "{}"}]})
         AzureWorkItemBackend().write_body("7", "## Product\n\nRewritten.\n")
-        written = self.az.fields_written("boards", "work-item", "update")
         # Attached pull requests live in their own field, so a body write
         # cannot drop them the way a body-embedded registry could.
-        # `az` strips trailing newlines from a file-loaded value.
-        self.assertEqual(written, {DESCRIPTION_FIELD: "## Product\n\nRewritten."})
+        self.assertEqual(self.az.body_of("devops", "invoke"), [{
+            "method": "PATCH",
+            "uri": "/_apis/wit/workitems/7?api-version=7.1",
+            "headers": {"Content-Type": "application/json-patch+json"},
+            "body": [
+                {"op": "add", "path": f"/fields/{DESCRIPTION_FIELD}", "value": "## Product\n\nRewritten.\n"},
+                {"op": "add", "path": f"/multilineFieldsFormat/{DESCRIPTION_FIELD}", "value": "Markdown"},
+            ],
+        }])
+        call = self.az.calls_matching("devops", "invoke")[0]
+        self.assertEqual(call[call.index("--resource") + 1], "batch")
+        self.assertEqual(call[call.index("--http-method") + 1], "PATCH")
 
     def test_field_values_travel_as_files_so_a_long_body_fits_windows_cmd(self):
         # On Windows `az` is a batch file and `cmd.exe` refuses a command line
         # over 8191 characters, so no value may be passed inline.
         self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.invoke("wit", "batch", response={"value": [{"code": 200, "body": "{}"}]})
         body = "## Product\n\n" + "x" * 20_000
         AzureWorkItemBackend().write_body("7", body)
-        raw = next(args for args in self.az.raw_calls if args[:3] == ["boards", "work-item", "update"])
+        raw = next(args for args in self.az.raw_calls if args[:2] == ["devops", "invoke"])
         self.assertLess(len(" ".join(raw)), 8191)
-        self.assertTrue(raw[raw.index("-f") + 1].startswith(f"{DESCRIPTION_FIELD}=@"))
-        self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {DESCRIPTION_FIELD: body})
+        self.assertIn("--in-file", raw)
+        self.assertEqual(self.az.body_of("devops", "invoke")[0]["body"][0]["value"], body)
+
+    def test_a_failed_batch_update_is_reported(self):
+        self.az.az("boards", "work-item", "show", response=RECORD)
+        self.az.invoke("wit", "batch", response={
+            "value": [{"code": 400, "body": "Description format rejected"}],
+        })
+        with self.assertRaisesRegex(PdlcError, "Description format rejected"):
+            AzureWorkItemBackend().write_body("7", "## Product\n\nRewritten.")
 
     def test_a_rejected_picklist_value_surfaces_azure_own_message(self):
         self.az._routes.clear()
@@ -415,18 +434,19 @@ class UpsertTaskTest(AzureHostTest):
         self.assertNotIn(["boards", "work-item", "update"], [args[:3] for args in self.az.calls])
 
     def test_a_reworded_task_keeps_its_number(self):
-        self.az.az("boards", "work-item", "update", response={})
+        self.az.invoke("wit", "batch", response={"value": [{"code": 200, "body": "{}"}]})
         [result] = AzureWorkItemBackend().upsert_tasks(
             "7", [{**self.TASK_INPUT, "title": "[CORE] retry pipeline"}], [self.EXISTING]
         )
         self.assertEqual((result["action"], result["number"]), ("retitled", 8))
-        self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {
-            TITLE_FIELD: "WORK-7-TASK-001 [CORE] retry pipeline",
-            DESCRIPTION_FIELD: "do the thing",
-        })
+        self.assertEqual(self.az.body_of("devops", "invoke")[0]["body"], [
+            {"op": "add", "path": f"/fields/{TITLE_FIELD}", "value": "WORK-7-TASK-001 [CORE] retry pipeline"},
+            {"op": "add", "path": f"/fields/{DESCRIPTION_FIELD}", "value": "do the thing"},
+            {"op": "add", "path": f"/multilineFieldsFormat/{DESCRIPTION_FIELD}", "value": "Markdown"},
+        ])
 
     def test_a_changed_body_updates_without_retitling(self):
-        self.az.az("boards", "work-item", "update", response={})
+        self.az.invoke("wit", "batch", response={"value": [{"code": 200, "body": "{}"}]})
         [result] = AzureWorkItemBackend().upsert_tasks(
             "7", [{**self.TASK_INPUT, "bodyText": "do the other thing"}], [self.EXISTING]
         )

@@ -298,7 +298,7 @@ Add one field to **`Task`**, the work-item type PDLC uses for a delivery task:
 |---|---|---|
 | `PdlcPrs` | Text (single line) | Space-separated pull-request numbers attached to that task. Written by `pdlc post implement-task` / `post attach-pr`. |
 
-Descriptions and evidence comments are written as Markdown, so they render properly in the Azure UI. PDLC sets that format on the work items it creates; nothing needs configuring.
+Descriptions and evidence comments are written as Markdown, so they render properly in the Azure UI. PDLC sets that format when it creates a work item and whenever it edits its description; nothing needs configuring.
 
 A delivery task carries no stage state of its own: its identity is the `WORK-<n>-TASK-NNN` prefix on its title, and its parent link is a normal `System.LinkTypes.Hierarchy-Forward` relation.
 

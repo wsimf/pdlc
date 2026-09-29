@@ -3,11 +3,9 @@ reads and field writes, WIQL queries, parent/child links, and discussion
 comments. Everything here is reached only through `workitem_host/azure.py`.
 
 Large text fields default to HTML when written through the API, which renders
-Markdown literally in the Azure UI. Creation therefore goes through
-`az devops invoke` so it can carry the `multilineFieldsFormat` operation that
-`az boards` has no flag for; the choice is per work item, one-way, and sticky,
-so every later `az boards work-item update` keeps rendering Markdown. Comments
-carry their own per-comment format and so are posted the same way.
+Markdown literally in the Azure UI. Creation and description edits therefore
+carry a `multilineFieldsFormat` operation through `az devops invoke`; `az boards`
+has no flag for it. Comments carry their own per-comment format.
 
 PDLC state lives in custom fields on the work-item type, added once by an org
 admin through an inherited process (see "Azure Boards fields" in README.md).
@@ -169,11 +167,41 @@ def update(item_id: int | str, fields: dict[str, str] | None = None, *, state: s
     """Set any number of fields, and optionally the work-item state, in one
     PATCH — Azure applies them atomically.
 
-    Each value goes to `az` as `name=@file`, never inline: on Windows `az` is a
+    Each value goes to `az` through a file, never inline: on Windows `az` is a
     batch file, so `cmd.exe` caps the whole command line at 8191 characters and
-    a record's description alone can exceed that. It also stops a value that
-    happens to start with `@` from being read as a path. `az` strips trailing
-    newlines from a file-loaded value."""
+    a record's description alone can exceed that. Ordinary field updates use
+    `name=@file`; description updates use a JSON request file so the format can
+    be set in the same PATCH."""
+    if fields and DESCRIPTION_FIELD in fields:
+        operations = [
+            {"op": "add", "path": f"/fields/{name}", "value": value}
+            for name, value in fields.items()
+        ]
+        if state is not None:
+            operations.append({"op": "add", "path": f"/fields/{STATE_FIELD}", "value": state})
+        operations.append({
+            "op": "add", "path": f"/multilineFieldsFormat/{DESCRIPTION_FIELD}", "value": "Markdown",
+        })
+        # `az devops invoke` resolves the create route for `workItems`, even
+        # with an id. The batch route accepts an update-by-id as one subrequest.
+        request = [{
+            "method": "PATCH",
+            "uri": f"/_apis/wit/workitems/{numeric(item_id)}?api-version={WIT_API_VERSION}",
+            "headers": {"Content-Type": PATCH_MEDIA_TYPE},
+            "body": operations,
+        }]
+        response = az_invoke(
+            "wit", "batch", api_version=WIT_API_VERSION,
+            http_method="PATCH", body=request,
+        )
+        replies = response.get("value") if isinstance(response, dict) else None
+        if not isinstance(replies, list) or len(replies) != 1 or not isinstance(replies[0], dict):
+            raise PdlcError(f"Azure did not return an update result for work item #{item_id}")
+        reply = replies[0]
+        if reply.get("code") != 200:
+            raise PdlcError(f"Azure rejected work item #{item_id} update: {reply.get('body') or reply}")
+        return reply
+
     args = ["boards", "work-item", "update", *org_args(), "--id", str(item_id)]
     if state is not None:
         args += ["--state", state]
@@ -190,9 +218,8 @@ def create(work_item_type: str, title: str, fields: dict[str, str] | None = None
     """Create a work item with its description rendered as Markdown.
 
     Not `az boards work-item create`: that command cannot set
-    `multilineFieldsFormat`, so its work items render `##` and `-` literally
-    forever — the format is one-way and cannot be repaired by a later update
-    through any `az` path.
+    `multilineFieldsFormat`, so its work items initially render `##` and `-`
+    literally in the Azure UI.
     """
     _, project = azure_config()
     operations: list[dict] = [{"op": "add", "path": f"/fields/{TITLE_FIELD}", "value": title}]
