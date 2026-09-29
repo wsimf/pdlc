@@ -391,10 +391,31 @@ class InspectImplementTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Attachments", "Next Task", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Implementation Notes", "Next Task", "Publish"],
         )
         self.assertNotIn("## Remaining", result.stdout)
         self.assertNotIn("## Open Comments", result.stdout)
+
+    def test_implementation_notes_are_created_once_and_preserved(self):
+        self._first_task()
+        first = self.invoke("inspect_implement", 60)
+        self.assertEqual(first.code, 0, first.stderr)
+        path = self.work / ".pdlc" / "cache" / "60" / "pdlc-implementation-notes.md"
+        self.assertIn(str(path), first.stdout)
+        self.assertIn("## Review at stack end", path.read_text())
+        path.write_text("Driver: inspect TASK-001 on PR #40.\n")
+
+        second = self.invoke("inspect_implement", 60)
+        self.assertEqual(second.code, 0, second.stderr)
+        self.assertIn(str(path), second.stdout)
+        self.assertEqual(path.read_text(), "Driver: inspect TASK-001 on PR #40.\n")
+
+    def test_implementation_notes_are_not_created_when_stage_is_not_ready(self):
+        self.seed_record(63, "Testing", "Pending", slug="record-63")
+        result = self.invoke("inspect_implement", 63)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertNotIn("## Implementation Notes", result.stdout)
+        self.assertFalse((self.work / ".pdlc" / "cache" / "63" / "pdlc-implementation-notes.md").exists())
 
     def test_the_scoping_flags_are_gone(self):
         self._first_task()
@@ -509,7 +530,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: none", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Attachments", "Checks", "Next Task", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Implementation Notes", "Checks", "Next Task", "Publish"],
         )
         self.assertIn("- PR #40: green\n- PR #41: green", result.stdout)
         self.assertIn("None. Every delivery task is closed. Continue the workflow with the command under `## Publish`.", result.stdout)
@@ -545,7 +566,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: rework", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Attachments", "Next Fix", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Implementation Notes", "Next Fix", "Publish"],
         )
         self.assertIn("### WORK-60-TASK-001 [CORE] First\nnumber: 601\ntaskId: TASK-001\npr: 40\nbranch: pdlc/record-60/task-001\nstate: CLOSED", result.stdout)
         self.assertIn("published in PR #40. Run `pdlc checkout 601`", result.stdout)
@@ -637,7 +658,7 @@ class InspectImplementTests(FileBackendTest):
         self.assertIn("mode: triage", result.stdout)
         self.assertEqual(
             self._sections(result.stdout),
-            ["Readiness", "Mode", "Attachments", "Open Requests", "Publish"],
+            ["Readiness", "Mode", "Attachments", "Implementation Notes", "Open Requests", "Publish"],
         )
         self.assertIn("Every delivery task is already implemented and published in the PR stack below", result.stdout)
         self.assertIn("### Verification bounce — ", result.stdout)

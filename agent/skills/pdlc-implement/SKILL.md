@@ -28,13 +28,15 @@ Carry the driver's follow-up verbatim. This step is complete when the record is 
 
 ## Loop
 
-Each pass starts from the latest `pdlc inspect implement` output. Read `## Mode` — `implement`, `rework`, `triage`, or `none` — and run the step list under that mode below; a step never runs unless its mode names it. When the list finishes, `implement` and `rework` re-run `pdlc inspect implement WORK_ITEM` and take the next pass. `triage` and `none` end at Publish: their list's last step is Publish, and there is no next pass. Never predict the next unit from the last one, and never skip the unit you were offered because you would have picked another; the output is the queue.
+Each pass starts from the latest `pdlc inspect implement` output. Read the file under `## Implementation Notes`, then read `## Mode` — `implement`, `rework`, `triage`, or `none` — and run the step list under that mode below; a step never runs unless its mode names it. When the list finishes, `implement` and `rework` re-run `pdlc inspect implement WORK_ITEM` and take the next pass. `triage` and `none` end at Publish: their list's last step is Publish, and there is no next pass. Never predict the next unit from the last one, and never skip the unit you were offered because you would have picked another; the output is the queue.
 
 A mode's list names its steps; the steps themselves are defined under `## Steps` below.
 
-Before dispatching a task, confirm from its body and the record's comments that every task it depends on is closed, proven by its Result and current source rather than its state alone, and that a `HITL` task has the driver's recorded approval, never an inferred one.
+Before dispatching a task, confirm from its body and the record's comments that every task it depends on is closed, proven by its Result and current source rather than its state alone.
 
-Stop and report instead of dispatching when one of those checks fails, the plan contradicts current source, acceptance criteria are ambiguous, or the work needs a new product, architecture, safety, or UX decision.
+Stop and report when a dependency check fails or the plan contradicts current source. Ask the driver when acceptance criteria are ambiguous or the work needs a new product, architecture, safety, or UX decision; record the answer, then re-inspect before dispatching.
+
+After each task, update the notes with the current position and any specific point the driver should inspect when the stack is ready. Keep an item for later review only when work can continue safely; ask immediately for an answer needed to continue. Record the answer and its source in the notes, and use the owning PDLC command when it changes approved intent. The notes are local working memory, not approval or decision evidence.
 
 ### `implement`
 
@@ -150,6 +152,7 @@ Relay the command JSON, plus, for each pass:
 - any material exception or accepted non-blocking finding.
 
 Then the final `Status`/`Gate State` and what ended the loop. Leave per-task files and routine green validation on the task comment. The report is complete when it contains every pass, the final gate, and every unresolved failure or risk.
+Include every remaining `Review at stack end` item from the notes, with its task or PR link, in the final report.
 
 ## Requirement corrections
 

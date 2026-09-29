@@ -4,7 +4,7 @@
 |---|---|---|
 | Product | `pdlc-write` | Parent Product section: problem, requirements, constraints, decisions, open questions. |
 | UI | `pdlc-tasks` | Parent UI section: applicability, accessibility, states, `UJ-*` journeys. |
-| Tasks | `pdlc-tasks` | Stable delivery tasks with dependencies, acceptance criteria, risk, HITL/AFK. |
+| Tasks | `pdlc-tasks` | Stable delivery tasks with dependencies, acceptance criteria, and risk. |
 | Technical Plan | `pdlc-plan` | Task-level source ownership, interfaces, sequencing, risks, validation plan. |
 | Implementation | `pdlc-implement` | Production/task PRs and per-task implementation notes, one task per dispatch with a `task`-depth review before push, carried through the requested scope. |
 | Testing | `pdlc-test` | Requirement-to-source traceability, acceptance coverage, CI evidence. |

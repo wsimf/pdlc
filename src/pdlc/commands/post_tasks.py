@@ -143,12 +143,11 @@ descoped tasks. --dry-run lists them before any write.
 
 Every FR-* and C-* declared in Product must be covered by the resulting task tree.
 New or changed task bodies need `**Blocked by:**`, `**Requirements Covered:**`,
-`**Type:** AFK` or `HITL`, a nonempty `**Scope:**` section, and a nonempty
+a nonempty `**Scope:**` section, and a nonempty
 `- [ ]` item under `**Acceptance Criteria:**`. UI task bodies also need
 `**UI Journeys:**`. Risk, expected evidence, and non-goals are
 optional. Retained tasks detected as unchanged are carried without body revalidation.
-The command checks this structure; the reviewer judges whether the scope,
-classification, and criteria are meaningful.
+The command checks this structure; the reviewer judges whether the scope and criteria are meaningful.
 """
 
 from __future__ import annotations

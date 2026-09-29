@@ -29,8 +29,6 @@ class TaskBodyErrorTests(unittest.TestCase):
             (VALID_BODY.replace("**Blocked by:** None", "**Blocked by:** later"), "**Blocked by:** must say None or name at least one TASK-NNN dependency"),
             (VALID_BODY.replace("**Requirements Covered:** FR-1, FR-2, C-1\n", ""), "add **Requirements Covered:** with the FR-*/C-* IDs this task delivers"),
             (VALID_BODY.replace("**UI Journeys:** UJ-1\n", ""), "add **UI Journeys:** with the UJ-* IDs this UI task delivers"),
-            (VALID_BODY.replace("**Type:** AFK\n", ""), "add **Type:** AFK or HITL to classify whether implementation needs a human"),
-            (VALID_BODY.replace("**Type:** AFK", "**Type:** maybe"), "add **Type:** AFK or HITL to classify whether implementation needs a human"),
             (VALID_BODY.replace("Deliver the task.", ""), "add a nonempty **Scope:** section describing what this task changes"),
             (VALID_BODY.replace("- [ ] The task works.", "- [ ] "), "add at least one nonempty `- [ ]` item under **Acceptance Criteria:** stating a verifiable outcome"),
             (VALID_BODY.replace("**Acceptance Criteria:**\n- [ ] The task works.\n", ""), "add at least one nonempty `- [ ]` item under **Acceptance Criteria:** stating a verifiable outcome"),
@@ -39,9 +37,10 @@ class TaskBodyErrorTests(unittest.TestCase):
             with self.subTest(expected=expected, body=body):
                 self.assertEqual(task_body_errors(body, is_ui=True), [expected])
 
-    def test_optional_fields_and_both_task_types_are_accepted(self):
+    def test_legacy_type_field_is_optional(self):
         self.assertEqual(task_body_errors(VALID_BODY, is_ui=True), [])
         self.assertEqual(task_body_errors(VALID_BODY.replace("AFK", "HITL"), is_ui=True), [])
+        self.assertEqual(task_body_errors(VALID_BODY.replace("**Type:** AFK\n", ""), is_ui=True), [])
         core = VALID_BODY.replace("**UI Journeys:** UJ-1\n", "")
         self.assertEqual(task_body_errors(core, is_ui=False), [])
 
@@ -190,7 +189,6 @@ class TaskValidationCliTests(FileBackendTest):
             "pdlc: the task breakdown is invalid:\n"
             "  - TASK-001 body: add **Blocked by:** None or the TASK-NNN IDs this task depends on\n"
             "  - TASK-001 body: add **Requirements Covered:** with the FR-*/C-* IDs this task delivers\n"
-            "  - TASK-001 body: add **Type:** AFK or HITL to classify whether implementation needs a human\n"
             "  - TASK-001 body: add a nonempty **Scope:** section describing what this task changes\n"
             "  - TASK-001 body: add at least one nonempty `- [ ]` item under **Acceptance Criteria:** stating a verifiable outcome\n"
         ))

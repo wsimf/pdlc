@@ -68,8 +68,6 @@ class PostTasksValidationTests(FileBackendTest):
             (base.replace("**Blocked by:** None", "**Blocked by:** later"), "**Blocked by:** must say None"),
             (base.replace("**Requirements Covered:** FR-1, FR-2, C-1\n", ""), "add **Requirements Covered:**"),
             (base.replace("**UI Journeys:** UJ-1\n", "").replace("FR-1, FR-2, C-1", "FR-1, FR-2, C-1, UJ-1"), "add **UI Journeys:**"),
-            (base.replace("**Type:** AFK\n", ""), "add **Type:** AFK or HITL"),
-            (base.replace("**Type:** AFK", "**Type:** maybe"), "add **Type:** AFK or HITL"),
             (base.replace("Do work.\n", ""), "add a nonempty **Scope:** section"),
             (base.replace("- [ ] It works.", "- [ ] "), "add at least one nonempty `- [ ]` item"),
         ]
