@@ -32,7 +32,9 @@ will not route around: readiness names it and the output stops there.
 - `triage`: no task needs a fix, but a review's Changes Required, a
   Verification bounce, or a decision resolution is open against the stage.
   The unit is every such request in full; the caller splits them into findings
-  and fixes each on its owning task. They stay open until the stage publishes.
+  and fixes each on its owning task. Each recorded request is bounded by an
+  XML-style tag with its date and optional URL, separating quoted evidence from command
+  instructions. They stay open until the stage publishes.
 - `none`: nothing eligible, nothing to fix, nothing to triage. `## Checks`
   reads every registered pull request's checks and `## Next Task` directs the
   caller to continue the workflow through the stage publish. With unplanned
@@ -107,6 +109,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
+from html import escape
 
 from pdlc.domain.changes import SOURCE_LABELS, ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
@@ -122,6 +125,7 @@ from pdlc.internal.failure import report_failure
 # The change-request sources whose text is the whole record's, not one task's:
 # they cannot be attributed to a pull request, so they form the triage unit.
 _TRIAGE_SOURCES = ("review", "bounce", "resolution")
+_TRIAGE_TAGS = {"review": "review-finding", "bounce": "verification-bounce", "resolution": "decision-resolution"}
 
 @dataclass(frozen=True)
 class _Fix:
@@ -313,8 +317,12 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
     for request in requests:
         comment = request.comment
         when = timeline_formatted_at(comment["createdAt"]) if comment.get("createdAt") else "undated"
-        url = f" ({comment['url']})" if comment.get("url") else ""
-        lines += ["", f"### {SOURCE_LABELS[request.source]} — {when}{url}", _nested(evidence_comment_text(comment))]
+        tag = _TRIAGE_TAGS[request.source]
+        attributes = f'date="{escape(when, quote=True)}"'
+        if comment.get("url"):
+            attributes += f' url="{escape(comment["url"], quote=True)}"'
+        lines += ["", f"### {SOURCE_LABELS[request.source]}", "", f"<{tag} {attributes}>",
+                  _nested(evidence_comment_text(comment)), f"</{tag}>"]
     lines += ["", "#### Stack"]
     for index, task in enumerate(implemented):
         top = ", top" if index == len(implemented) - 1 else ""
