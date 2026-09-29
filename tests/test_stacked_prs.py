@@ -72,7 +72,11 @@ class GitHubStackSubmitTests(GitHubHostTest):
         super().setUp()
         self.host = GitHubCodeHost()
 
-    def _stub_stack(self, *numbers, merged=(), rebase=""):
+    def _stub_stack(self, *numbers, merged=(), rebase="", without_pr=()):
+        branches = [{"name": f"pdlc/record-9/task-{n:03d}"} for n in numbers]
+        for branch, number in zip(branches, numbers):
+            if number not in without_pr:
+                branch["pr"] = {"number": number, "state": "OPEN"}
         self.gh.gh("extension", "list", response="gh\tgithub/gh-stack\tv0.1.0\n")
         self.gh.gh("stack", "sync", response="")
         self.gh.gh("stack", "rebase", "--abort", response="")
@@ -80,10 +84,7 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.gh.gh("stack", "submit", response="")
         self.gh.gh("stack", "view", response={
             "trunk": "main",
-            "branches": [
-                {"name": f"pdlc/record-9/task-{n:03d}", "pr": {"number": n, "state": "OPEN"}}
-                for n in numbers
-            ],
+            "branches": branches,
         })
 
         self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(
@@ -115,13 +116,39 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertEqual(self._calls("stack", "sync"), [])
         self.assertEqual(self._call("stack", "submit"), ["stack", "submit", "--auto"])
         submit_call = next(call for call in run_gh.call_args_list if call.args[0][:2] == ["stack", "submit"])
-        self.assertEqual(submit_call.kwargs, {"timeout": 300})
+        self.assertEqual(submit_call.kwargs, {"timeout": 360})
         self.assertFalse(any("branches" in " ".join(args) for args, _ in self.gh.calls if args[0] == "api"))
         # The merge check and the read-back are one query each, check rollup included.
         pr_reads = [args for args, _ in self.gh.calls if "pullRequest(number:" in " ".join(args)]
         self.assertEqual(len(pr_reads), 2)
         self.assertIn("statusCheckRollup", " ".join(pr_reads[-1]))
         self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "SUCCESS"])
+
+    def test_submit_counts_branches_without_pull_requests(self):
+        self._stub_stack(1, 2, 3, without_pr={3})
+
+        with patch("pdlc.hosts.lib.github.code_host.run_gh", wraps=self.gh) as run_gh:
+            self.host.submit_task_stack()
+
+        submit_call = next(call for call in run_gh.call_args_list if call.args[0][:2] == ["stack", "submit"])
+        self.assertEqual(submit_call.kwargs, {"timeout": 540})
+
+    def test_single_branch_submit_gets_three_minutes(self):
+        self._stub_stack(1)
+
+        with patch("pdlc.hosts.lib.github.code_host.run_gh", wraps=self.gh) as run_gh:
+            self.host.submit_task_stack()
+
+        submit_call = next(call for call in run_gh.call_args_list if call.args[0][:2] == ["stack", "submit"])
+        self.assertEqual(submit_call.kwargs, {"timeout": 180})
+
+    def test_empty_stack_does_not_submit_with_zero_timeout(self):
+        self._stub_stack()
+
+        with self.assertRaisesRegex(PdlcError, "no branches to submit"):
+            self.host.submit_task_stack()
+
+        self.assertEqual(self._calls("stack", "submit"), [])
 
     def test_a_landed_branch_still_local_syncs_and_prunes_instead(self):
         self._stub_stack(1, 2, merged={1})
