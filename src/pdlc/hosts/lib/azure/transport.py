@@ -148,7 +148,7 @@ def az_invoke(
     Note the resource-name collision this cannot work around: `wit`/`workItems`
     resolves to the *create* route (`{project}/_apis/wit/workitems/${type}`)
     because both routes share a name and a max version, so an update by id is
-    not reachable here — use `az boards work-item update` for that.
+    not reachable through that resource. Description edits use `wit`/`batch`.
     """
     args = ["devops", "invoke", *org_args(), "--area", area, "--resource", resource,
             "--api-version", api_version]
