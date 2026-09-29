@@ -102,7 +102,7 @@ On `Approval Required`, carry every non-blocking finding in the findings file yo
 
 ### Land
 
-Write the summary to a local file from the agents' reports and the validation you saw, following the template `pdlc template implementation-summary` prints, then run the command `## Publish` printed for this unit:
+Write the implementation summary as the task PR's complete current description, using the task and plan, the agents' reports, and the validation you saw. Follow the template `pdlc template implementation-summary` prints and save the text to a local file. For a re-land, including a reopened task after invalidation, read the live body of the task's registered PR and its current `## Implementation` first; retain still-true context and useful human edits, then revise every affected section against the current code and validation. Exclude any configured PR-only attachment line from the summary because the CLI adds it to the PR body. Do not replace the description with a report of only the latest fix. Run the command `## Publish` printed for this unit:
 
 ```bash
 pdlc post implement-task DELIVERY_TASK /tmp/pdlc-task-summary.md
