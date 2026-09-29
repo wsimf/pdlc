@@ -15,7 +15,7 @@ class TemplateValidationTests(unittest.TestCase):
         sections = template_sections(load_template("implementation-summary"))
         self.assertEqual(sections, [
             Section("What", False), Section("Why", False), Section("How", False),
-            Section("Testing", False), Section("Screenshots", True), Section("Anything else", True),
+            Section("Testing", False), Section("Anything else", True),
         ])
 
     def test_a_conforming_body_has_no_problems(self):

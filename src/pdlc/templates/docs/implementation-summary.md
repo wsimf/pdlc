@@ -19,10 +19,6 @@ Write this as the description of the delivery task's pull request for a reviewer
 
 - <The checks actually run, their results, any manual verification, and relevant gaps or risks. Do not claim a check that was not run.>
 
-### Screenshots <!-- optional -->
-
-- <For visible changes, link or embed useful before-and-after images or other reviewable output.>
-
 ### Anything else <!-- optional -->
 
 - <Review focus, tradeoffs, accepted findings, limitations, or follow-up work that matters to this PR.>
