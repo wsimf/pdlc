@@ -91,7 +91,7 @@ from pdlc.internal.workitem import (
     delete_comment,
     edit_comment,
     heading_comment_objects,
-    item_slug,
+    item_branch_slug,
     post_comment,
     attach_pr,
     resolve_item,
@@ -122,7 +122,7 @@ def _submit_task_stack(task: dict) -> dict:
     its deterministic name and links it onto the predecessor's stack instead.
     """
     parent = parent_number_for_task(task)
-    slug = item_slug(resolve_item(parent))
+    slug = item_branch_slug(resolve_item(parent))
     branch = task_branch_name(slug, task["taskId"])
     predecessor = after_predecessor(task_tree(parent), task)
     if predecessor and not predecessor.complete and predecessor.pr is not None:
