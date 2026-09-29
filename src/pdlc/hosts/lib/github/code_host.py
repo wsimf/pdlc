@@ -62,15 +62,19 @@ _STACK_MISSING = (
 
 _PR_FIELDS = "number,title,url,state,isDraft,headRefName,headRefOid,mergedAt,statusCheckRollup"
 
-# The GraphQL selection behind `_PR_FIELDS`: the head commit's check rollup
-# carries the same CheckRun (`status`/`conclusion`) and StatusContext (`state`)
-# entries `gh pr view --json statusCheckRollup` lists, so `_checks_state` reads
-# either source unchanged.
+# The head commit's rollup includes earlier runs of a check on that same SHA.
+# Read their identity and time so `_checks_state` can ignore superseded runs.
 _PR_SELECTION = """
 number title url state isDraft headRefName headRefOid mergedAt
 commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) {
   pageInfo { hasNextPage }
-  nodes { ... on CheckRun { status conclusion } ... on StatusContext { state } }
+  nodes {
+    ... on CheckRun {
+      name status conclusion startedAt completedAt
+      checkSuite { app { slug } workflowRun { workflow { databaseId name } } }
+    }
+    ... on StatusContext { context state createdAt }
+  }
 } } } } }
 """
 
@@ -115,6 +119,45 @@ def _graphql_rollup(pull_request: dict) -> list[dict] | None:
     return list(contexts.get("nodes") or [])
 
 
+def _check_identity(entry: dict) -> tuple[str, ...] | None:
+    if "status" in entry:
+        suite = entry.get("checkSuite") or {}
+        workflow = (suite.get("workflowRun") or {}).get("workflow") or {}
+        workflow_name = workflow.get("databaseId") or workflow.get("name") or entry.get("workflowName") or ""
+        app = (suite.get("app") or {}).get("slug") or ""
+        name = entry.get("name")
+        if name and (app or workflow_name):
+            return ("run", str(app), str(workflow_name), str(name))
+    elif "state" in entry and entry.get("context"):
+        return ("status", entry["context"])
+    return None
+
+
+def _current_checks(rollup: list[dict]) -> list[dict]:
+    """Keep the newest result per identifiable check; retain uncertain entries."""
+    current: dict[tuple[str, ...], dict] = {}
+    uncertain: list[dict] = []
+    for entry in rollup:
+        if not isinstance(entry, dict):
+            uncertain.append(entry)
+            continue
+        identity = _check_identity(entry)
+        if identity is None:
+            uncertain.append(entry)
+            continue
+        previous = current.get(identity)
+        if previous is None:
+            current[identity] = entry
+            continue
+        timestamp = entry.get("startedAt") or entry.get("createdAt") or entry.get("completedAt")
+        previous_timestamp = previous.get("startedAt") or previous.get("createdAt") or previous.get("completedAt")
+        if not timestamp or not previous_timestamp or (timestamp == previous_timestamp and entry != previous):
+            current[identity] = {"status": "PENDING"}
+        elif timestamp > previous_timestamp:
+            current[identity] = entry
+    return [*current.values(), *uncertain]
+
+
 def _checks_state(pull_request: dict) -> str:
     # `gh pr view --json statusCheckRollup` exposes a union list directly on
     # the pull request: CheckRun entries use `conclusion`, StatusContext
@@ -129,7 +172,7 @@ def _checks_state(pull_request: dict) -> str:
             return "NONE"
         states = []
         malformed = False
-        for entry in rollup:
+        for entry in _current_checks(rollup):
             if not isinstance(entry, dict):
                 malformed = True
                 continue
