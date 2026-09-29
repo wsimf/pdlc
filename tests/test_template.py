@@ -7,15 +7,15 @@ from pdlc.cli import main
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.templates.template import Section, load_template, require_template, template_names, template_problems, template_sections
 
-VALID = "### Why\n\n- Because.\n\n### What changed\n\n- It works.\n\n### Verified\n\n- Tests pass.\n"
+VALID = "### What\n\nIt works.\n\n### Why\n\nBecause.\n\n### How\n\nBy design.\n\n### Testing\n\nTests pass.\n"
 
 
 class TemplateValidationTests(unittest.TestCase):
     def test_sections_come_from_the_template_headings(self):
         sections = template_sections(load_template("implementation-summary"))
         self.assertEqual(sections, [
-            Section("Why", False), Section("What changed", False),
-            Section("Decisions", True), Section("Verified", False),
+            Section("What", False), Section("Why", False), Section("How", False),
+            Section("Testing", False), Section("Anything else", True),
         ])
 
     def test_a_conforming_body_has_no_problems(self):
@@ -35,11 +35,12 @@ class TemplateValidationTests(unittest.TestCase):
 
     def test_every_problem_is_reported_in_template_order(self):
         template = load_template("implementation-summary")
-        body = "### Verified\n\n- <what was run>\n\n### Decisions\n\n### Why\n\nBecause.\n"
+        body = "### Testing\n\n- <what was run>\n\n### Anything else\n\n### Why\n\nBecause.\n"
         self.assertEqual(template_problems(template, body), [
-            "missing section: ### What changed",
-            "no content under: ### Decisions (fill it in or drop the heading)",
-            "no content under: ### Verified",
+            "missing section: ### What",
+            "missing section: ### How",
+            "no content under: ### Testing",
+            "no content under: ### Anything else (fill it in or drop the heading)",
         ])
 
     def test_a_placeholder_beside_real_content_is_flagged(self):
@@ -50,7 +51,7 @@ class TemplateValidationTests(unittest.TestCase):
             require_template("implementation-summary", "Shipped it.", "implementation summary")
         message = str(caught.exception)
         self.assertIn("the implementation summary does not follow the implementation-summary template:", message)
-        self.assertIn("- missing section: ### Why", message)
+        self.assertIn("- missing section: ### What", message)
         self.assertIn(load_template("implementation-summary").rstrip(), message)
         require_template("implementation-summary", VALID, "implementation summary")
 

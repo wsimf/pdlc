@@ -380,7 +380,7 @@ class FileBackendTest(unittest.TestCase):
     @staticmethod
     def implementation_summary(line: str = "Shipped it.") -> str:
         """A body that satisfies the implementation-summary template, carrying `line`."""
-        return f"### Why\n\n- {line}\n\n### What changed\n\n- {line}\n\n### Verified\n\n- Tests pass.\n"
+        return f"### What\n\n{line}\n\n### Why\n\n{line}\n\n### How\n\n{line}\n\n### Testing\n\nTests pass.\n"
 
     def head_sha(self) -> str:
         """The real repository HEAD — verification/completion freshness checks
