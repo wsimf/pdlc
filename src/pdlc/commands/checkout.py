@@ -75,10 +75,10 @@ from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
 def _action(target: TaskCheckout) -> str:
-    # A `prepare --after` worktree's first task is already on its branch, and
-    # that branch may be checked out in the predecessor's own still-active
-    # worktree. Nothing to check out, so nothing is run.
-    if target.predecessor is not None and not target.predecessor.complete:
+    # Before its own PR exists, a `prepare --after` worktree's first task stays
+    # on the prepared branch; the predecessor may be checked out elsewhere.
+    # A registered PR instead restores that task's stack.
+    if target.pr is None and target.predecessor is not None and not target.predecessor.complete:
         return "already on this worktree's branch — nothing to check out"
     return get_code_host().checkout_task_branch(target.branch, target.pr, target.entry_pr)
 
