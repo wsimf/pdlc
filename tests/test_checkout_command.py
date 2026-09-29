@@ -64,6 +64,18 @@ class CheckoutTests(FileBackendTest):
         self._seed()
         self.assertEqual(resolve_task_checkout("702").branch, "pdlc/record-70/task-002")
 
+    def test_missing_slug_uses_parent_work_item_number(self):
+        self._seed()
+        metadata = self.records_dir() / "70" / "meta.json"
+        record = json.loads(metadata.read_text())
+        del record["fields"]["Slug"]
+        metadata.write_text(json.dumps(record))
+
+        self.assertEqual(resolve_task_checkout("702").branch, "pdlc/70/task-002")
+        host = self._host()
+        self.invoke("checkout", "702")
+        host.checkout_task_branch.assert_called_once_with("pdlc/70/task-002", None, 40)
+
     def test_a_bare_task_id_is_refused(self):
         self._seed()
         with self.assertRaisesRegex(PdlcError, "WORK-N-TASK-NNN"):

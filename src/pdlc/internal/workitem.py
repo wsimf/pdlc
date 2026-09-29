@@ -26,6 +26,7 @@ from pdlc.domain.model import (  # noqa: F401  (re-exported for the scripts)
     heading_comment_objects,
     is_uninitialized,
     is_stage_skipped,
+    item_branch_slug,
     item_gate,
     item_issue,
     item_skipped_states,

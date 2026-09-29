@@ -16,7 +16,7 @@ from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_TITLE_PATTERN
 from pdlc.domain.workflow import Lifecycle
 from pdlc.internal.workitem import (
-    item_slug,
+    item_branch_slug,
     resolve_item,
     task_tree,
     tasks_by_number,
@@ -99,7 +99,7 @@ def resolve_predecessor(ref: str) -> Predecessor:
     latest = latest_implemented_task(task_tree(ref))
     if latest is None:
         return Predecessor(ref, False, None, None)
-    return Predecessor(ref, False, task_branch_name(item_slug(item), latest["taskId"]), max(latest["prs"]))
+    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), max(latest["prs"]))
 
 
 @dataclass(frozen=True)
@@ -155,7 +155,7 @@ def resolve_task_checkout(ref: str) -> TaskCheckout:
     prs = chosen.get("prs") or []
     return TaskCheckout(
         task=chosen,
-        branch=task_branch_name(item_slug(item), task_id),
+        branch=task_branch_name(item_branch_slug(item), task_id),
         pr=max(prs) if prs else None,
         entry_pr=stack_entry_pr(delivery, chosen),
         predecessor=after_predecessor(delivery, chosen),
