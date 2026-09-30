@@ -8,8 +8,9 @@ from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-from pdlc.cli import _usage
+from pdlc.cli import _dispatch, _usage
 from pdlc.commands import prepare
+from pdlc.config import load_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.stack import Predecessor
 from pdlc.internal.worktree import sanitize_workitem, target_path, worktree_root
@@ -147,6 +148,79 @@ class PrepareCommandTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertTrue(marker.exists())
+
+    def test_home_sections_run_only_the_matching_script_in_new_worktrees(self):
+        home_path = self.root / "home.toml"
+        home_path.write_text(
+            f'[worktree]\nroot = "{self.wt_root}"\n'
+            '[repository."acme/A".worktree]\ninit_script = "echo A > marker"\n'
+            '[repository."acme/B".worktree]\ninit_script = "echo B > marker"\n'
+        )
+        self._git("remote", "add", "origin", "git@github.com:acme/A.git")
+        self.addCleanup(reset_config)
+        with patch("pdlc.config.home_config_path", return_value=home_path):
+            for identity, token in (("A", "draft-a"), ("B", "draft-b"), ("C", "draft-c")):
+                with self.subTest(identity=identity):
+                    self._git("remote", "set-url", "origin", f"git@github.com:acme/{identity}.git")
+                    load_config()
+                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                        self.assertEqual(prepare.main([token, "--from", "HEAD", "--yes"]), 0)
+                    marker = self.wt_root / "myrepo" / token / "marker"
+                    if identity == "C":
+                        self.assertFalse(marker.exists())
+                    else:
+                        self.assertEqual(marker.read_text().strip(), identity)
+                        marker.write_text("preserved")
+                        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                            self.assertEqual(prepare.main([token, "--from", "HEAD", "--yes"]), 0)
+                        self.assertEqual(marker.read_text(), "preserved")
+
+    def test_scoped_script_failure_leaves_worktree_and_rerun_skips_script(self):
+        home_path = self.root / "home.toml"
+        home_path.write_text(
+            f'[worktree]\nroot = "{self.wt_root}"\n'
+            '[repository."acme/A".worktree]\ninit_script = "exit 7"\n'
+        )
+        self._git("remote", "add", "origin", "git@github.com:acme/A.git")
+        self.addCleanup(reset_config)
+        with patch("pdlc.config.home_config_path", return_value=home_path):
+            load_config()
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                self.assertEqual(prepare.main(["draft", "--from", "HEAD", "--yes"]), 1)
+            path = self.wt_root / "myrepo" / "draft"
+            self.assertTrue((path / ".git").exists())
+            self.assertIn(f"init script failed (exit 7); worktree left at {path}", err.getvalue())
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(prepare.main(["draft", "--from", "HEAD", "--yes"]), 0)
+
+    def test_invalid_home_section_refuses_prepare_before_worktree_creation(self):
+        home_path = self.root / "home.toml"
+        home_path.write_text(
+            f'[worktree]\nroot = "{self.wt_root}"\n'
+            '[repository."acme/A".worktree]\nbogus = "A"\n'
+        )
+        self.addCleanup(reset_config)
+        with patch("pdlc.config.home_config_path", return_value=home_path), \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(_dispatch(["prepare", "draft", "--from", "HEAD", "--yes"]), 1)
+        self.assertFalse((self.wt_root / "myrepo" / "draft").exists())
+
+    def test_scoped_script_keeps_non_tty_confirmation_requirement(self):
+        home_path = self.root / "home.toml"
+        home_path.write_text(
+            f'[worktree]\nroot = "{self.wt_root}"\n'
+            '[repository."acme/A".worktree]\ninit_script = "touch marker"\n'
+        )
+        self._git("remote", "add", "origin", "git@github.com:acme/A.git")
+        self.addCleanup(reset_config)
+        err = io.StringIO()
+        with patch("pdlc.config.home_config_path", return_value=home_path), \
+             patch.object(prepare.sys.stdin, "isatty", return_value=False), \
+             redirect_stdout(io.StringIO()), redirect_stderr(err):
+            self.assertEqual(_dispatch(["prepare", "draft", "--from", "HEAD"]), 0)
+        self.assertIn("skipping init script (not a TTY)", err.getvalue())
+        self.assertFalse((self.wt_root / "myrepo" / "draft" / "marker").exists())
 
     def test_directory_in_the_way_is_reported(self):
         (self.wt_root / "myrepo" / "142").mkdir(parents=True)

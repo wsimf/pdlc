@@ -339,49 +339,104 @@ def home_config_path() -> Path:
     return Path.home() / ".pdlc" / "config.toml"
 
 
-def _read_file(path: Path) -> tuple[dict[str, object], Capabilities]:
+def _read_file(
+    path: Path, *, repository: str | None = None, allow_repositories: bool = False,
+    errors: list[str] | None = None, sources: dict[str, str] | None = None,
+) -> tuple[dict[str, object], Capabilities]:
+    """Read one layer; diagnostics collect errors while normal loading refuses them.
+
+    Repository sections are home-only and reuse the ordinary settings schema.
+    Validate every section, but merge only the checkout's matching section.
+    """
+    def fail(message: str) -> None:
+        if errors is None:
+            raise ConfigurationError(message)
+        errors.append(message)
+
     if not path.exists():
         return {}, Capabilities.empty()
     try:
         values = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
-        raise ConfigurationError(f"Could not read {path}: {error}") from error
-    flattened: dict[str, object] = {}
-    capabilities: dict[str, dict[str, str]] = {"agents": {}, "skills": {}}
+        fail(f"Could not read {path}: {error}")
+        return {}, Capabilities.empty()
 
-    def visit(section: tuple[str, ...], section_values: dict) -> None:
-        for name, value in section_values.items():
-            if isinstance(value, dict):
-                visit((*section, name), value)
-                continue
+    def parse(document: dict, label: str) -> tuple[dict[str, object], Capabilities]:
+        flattened: dict[str, object] = {}
+        capabilities: dict[str, dict[str, str]] = {"agents": {}, "skills": {}}
+
+        def visit(section: tuple[str, ...], section_values: dict) -> None:
             section_name = ".".join(section)
-            field = CONFIG_FIELDS.get((section_name, name))
-            if field is None:
-                raise ConfigurationError(
-                    f"Unknown setting in {path}: [{section_name}] {name}"
-                )
-            if not isinstance(value, (str, int, float, bool)):
-                raise ConfigurationError(
-                    f"Setting [{section_name}] {name} in {path} must be a TOML scalar"
-                )
-            flattened[field] = value
+            if not any(table == section_name or table.startswith(section_name + ".") for table, _ in CONFIG_FIELDS):
+                fail(f"Unknown table in {label}: [{section_name}]")
+                return
+            for name, value in section_values.items():
+                if isinstance(value, dict):
+                    visit((*section, name), value)
+                    continue
+                field = CONFIG_FIELDS.get((section_name, name))
+                if field is None:
+                    fail(f"Unknown setting in {label}: [{section_name}] {name}")
+                elif not isinstance(value, (str, int, float, bool)):
+                    fail(f"Setting [{section_name}] {name} in {label} must be a TOML scalar")
+                else:
+                    flattened[field] = value
 
-    for section, section_values in values.items():
-        if not isinstance(section_values, dict):
-            raise ConfigurationError(f"[{section}] in {path} must be a TOML table")
-        if section in CAPABILITY_SLOTS:
-            capabilities[section] = _read_capabilities(section, section_values, path)
-            continue
-        visit((section,), section_values)
-    return flattened, Capabilities(
-        agents=capabilities["agents"], skills=capabilities["skills"]
-    )
+        for section, table in document.items():
+            if not isinstance(table, dict):
+                fail(f"[{section}] in {label} must be a TOML table")
+            elif section in CAPABILITY_SLOTS:
+                try:
+                    capabilities[section] = _read_capabilities(section, table, path)
+                except ConfigurationError as error:
+                    fail(f"{label}: {error}")
+            else:
+                visit((section,), table)
+        return flattened, Capabilities(agents=capabilities["agents"], skills=capabilities["skills"])
+
+    defaults = {key: value for key, value in values.items() if not (allow_repositories and key == "repository")}
+    flattened, caps = parse(defaults, str(path))
+    if sources is not None:
+        sources.update({field: str(path) for field in flattened})
+    if allow_repositories and "repository" in values:
+        repositories = values["repository"]
+        if not isinstance(repositories, dict):
+            fail(f"[repository] in {path} must be a TOML table")
+        else:
+            seen: set[str] = set()
+            for name, document in repositories.items():
+                label = f'{path} [repository."{name}"]'
+                if not re.fullmatch(r"[^/\s]+/[^/\s]+", name):
+                    fail(f"Repository key in {path} must be owner/name: {name!r}")
+                    continue
+                if name.casefold() in seen:
+                    fail(f"Duplicate repository key in {path}: {name!r}")
+                    continue
+                seen.add(name.casefold())
+                if not isinstance(document, dict):
+                    fail(f"{label} must be a TOML table")
+                    continue
+                scoped, scoped_caps = parse(document, label)
+                try:
+                    Config.from_values(scoped)
+                except ConfigurationError as error:
+                    fail(f"{label}: {error}")
+                if repository is not None and name.casefold() == repository.casefold():
+                    flattened.update(scoped)
+                    caps = Capabilities(
+                        agents={**caps.agents, **scoped_caps.agents},
+                        skills={**caps.skills, **scoped_caps.skills},
+                    )
+                    if sources is not None:
+                        sources.update({field: label for field in scoped})
+    return flattened, caps
 
 
 def load_config(start: Path | None = None, *, overrides: dict[str, object] | None = None) -> Config:
     """Merge configuration, cache it, and return it. Ascending priority:
     the ``PDLC_HOME`` / ``PDLC_REPOSITORY`` environment variables, then
-    ``~/.pdlc/config.toml``, then the repository's ``.pdlc/config.toml``, then
+    ``~/.pdlc/config.toml`` defaults and matching repository section, then the
+    repository's ``.pdlc/config.toml``, then
     ``overrides`` (CLI flags). Capability slots merge the same way, per slot.
 
     The repository file is optional when a home file exists, so ``pdlc`` runs
@@ -393,7 +448,6 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
     """
     global _config, _capabilities
     home_path = home_config_path()
-    home_flat, home_caps = _read_file(home_path)
     try:
         repo_path: Path | None = config_path(start)
     except ConfigurationError:
@@ -402,6 +456,11 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
         repo_path = None
     repo_flat, repo_caps = (
         _read_file(repo_path) if repo_path is not None else ({}, Capabilities.empty())
+    )
+    derived = git_remote_repository(repo_path.parent.parent) if repo_path else None
+    identity = derived or repo_flat.get("repository")
+    home_flat, home_caps = _read_file(
+        home_path, repository=str(identity) if identity else None, allow_repositories=True,
     )
     merged: dict[str, object] = {}
     for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):
@@ -415,7 +474,6 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
     # the checkout's `origin` remote so a shared repo works without every
     # developer keeping a local `PDLC_REPOSITORY`.
     if not merged.get("repository") and repo_path is not None:
-        derived = git_remote_repository(repo_path.parent.parent)
         if derived:
             merged["repository"] = derived
     _capabilities = Capabilities(

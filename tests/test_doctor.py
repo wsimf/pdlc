@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 import unittest
@@ -5,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pdlc.commands.doctor import run
-from pdlc.config import repository_root
+from pdlc.config import load_config, repository_root, reset_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.access import AccessReport
 from pdlc.hosts.lib.azure import access as azure_access
@@ -23,6 +24,62 @@ class DoctorTests(unittest.TestCase):
         access = patch("pdlc.commands.doctor._backend_access", return_value=None)
         self.backend_access = access.start()
         self.addCleanup(access.stop)
+
+    def test_repository_section_sources_and_loading_precedence_agree(self) -> None:
+        self.home_path.parent.mkdir(parents=True)
+        self.home_path.write_text(
+            '[backend]\nname = "file"\n'
+            '[backend.github]\nrepository = "global/repo"\n'
+            '[repository."acme/A".backend.github]\nrepository = "scoped/repo"\n'
+            '[repository."acme/A".worktree]\ninit_script = "A"\n'
+            '[repository."acme/B".worktree]\ninit_script = "B"\n'
+        )
+        self.repo_config.write_text('[backend.github]\nrepository = "local/repo"\n')
+        (self.repo_root / ".git").mkdir()
+        self.addCleanup(reset_config)
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.config.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
+             patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/A"), \
+             patch("pdlc.config.git_remote_repository", return_value="acme/A"), \
+             patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repo"}):
+            for overrides, expected in ((None, "local/repo"), ({"repository": "cli/repo"}, "cli/repo")):
+                with self.subTest(overrides=overrides):
+                    output, code = run(overrides=overrides)
+                    config = load_config(self.repo_root, overrides=overrides)
+                    self.assertEqual(code, 0)
+                    self.assertEqual(config.repository, expected)
+                    self.assertIn(f"repository = '{expected}'", output)
+                    self.assertEqual(config.worktree_init_script, "A")
+                    self.assertIn(f'worktree_init_script = \'A\' [{self.home_path} [repository."acme/A"]]', output)
+
+    def test_invalid_unmatched_sections_report_errors_without_losing_valid_values(self) -> None:
+        self.home_path.parent.mkdir(parents=True)
+        self.home_path.write_text(
+            '[backend]\nname = "file"\n'
+            '[repository."acme/A".worktree]\ninit_script = "A"\n'
+            '[repository."acme/B".worktree]\nbogus = "B"\n'
+            '[repository."acme/B".workflow]\nmax_attempts = 0\n'
+        )
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
+             patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/A"):
+            output, code = run()
+        self.assertEqual(code, 1)
+        self.assertIn("worktree_init_script = 'A'", output)
+        self.assertIn("bogus", output)
+        self.assertIn("max_attempts", output)
+        self.assertIn('[repository."acme/B"]', output)
+
+    def test_scoped_repository_value_does_not_trigger_global_warning(self) -> None:
+        self.home_path.parent.mkdir(parents=True)
+        self.home_path.write_text('[backend]\nname = "file"\n[repository."acme/A".backend.github]\nrepository = "acme/A"\n')
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
+             patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/A"):
+            output, code = run()
+        self.assertEqual(code, 0)
+        self.assertNotIn("likely misconfigured", output)
 
     def test_reports_all_missing_github_values(self) -> None:
         self.repo_config.write_text('[backend]\nname = "github"\n')

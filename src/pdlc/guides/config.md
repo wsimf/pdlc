@@ -8,10 +8,36 @@ Later sources win, per key:
 
 1. The `PDLC_HOME` and `PDLC_REPOSITORY` environment variables.
 2. `~/.pdlc/config.toml` — machine-wide defaults.
-3. The repository's `.pdlc/config.toml`.
-4. Global CLI flags for one run: `--repo`, `--project-number`, `--project-owner`, `--backend`, `--home`.
+3. The matching `[repository."owner/name"]` section in the home file.
+4. The repository's `.pdlc/config.toml`.
+5. Global CLI flags for one run: `--repo`, `--project-number`, `--project-owner`, `--backend`, `--home`.
 
 The repository file is optional when `~/.pdlc/config.toml` exists. An unknown table or key, or a non-scalar value, is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
+
+## Repository-specific home settings
+
+Home-only repository sections reuse the same tables and keys as ordinary configuration, including `[agents]` and `[skills]`:
+
+```toml
+# ~/.pdlc/config.toml
+[worktree]
+root = "~/worktrees"
+
+[repository."sudara/A".worktree]
+init_script = "uv sync"
+
+[repository."sudara/B".worktree]
+init_script = "./scripts/bootstrap.sh"
+
+[repository."sudara/A".skills]
+build-run = "my-build-skill"
+```
+
+Keys must be quoted `owner/name` identities, matched case-insensitively against the checkout's GitHub `origin`; linked worktrees and renamed checkout directories therefore select the same section. Without a recognizable GitHub origin, an explicit `backend.github.repository` in the repository file supplies the identity. Global settings, environment values, and `--repo` do not select a section. Outside a Git repository, or without either identity source, only home defaults apply.
+
+Only the matching section contributes values. All sections are validated, including unmatched ones; duplicate identities differing only in case are rejected. Repository sections are not allowed in the repository file.
+
+Values override per key; scripts replace rather than concatenate, and capability slots merge per slot. To suppress an inherited init script, set `init_script = ""` in the repository file. `prepare` runs the effective script only after creating a new worktree, subject to its normal confirmation or `--yes`; an existing worktree skips it. `pdlc doctor` reports which home section supplied each effective setting.
 
 ## Minimal configurations
 

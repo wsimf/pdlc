@@ -9,6 +9,10 @@ DESCRIPTION
     every validation result. Exit 1 when any validation fails; warnings do not
     fail the command.
 
+    Home defaults, the matching home repository section, repository settings,
+    and CLI overrides merge in ascending priority, above environment values.
+    Sources identify the repository section that supplies each effective value.
+
     In a Git repository, best-effort add /.pdlc/ to the repository's .gitignore
     when Git does not already ignore the directory. Failure to do so does not
     affect the result.
@@ -33,17 +37,16 @@ from __future__ import annotations
 
 import os
 import sys
-import tomllib
 from dataclasses import fields
 from pathlib import Path
 
 from pdlc.config import (
-    CONFIG_FIELDS,
     Config,
     ConfigurationError,
     FIELD_LOCATIONS,
     _BOOL_FIELDS,
     _INT_FIELDS,
+    _read_file,
     default_code_host,
     git_remote_repository,
     home_config_path,
@@ -56,42 +59,17 @@ from pdlc.hosts.lib.gitignore import ensure_pdlc_ignored
 from pdlc.internal.inputs import print_help
 
 
-def _read(path: Path, values: dict[str, object], sources: dict[str, str], errors: list[str]) -> bool:
+def _read(
+    path: Path, values: dict[str, object], sources: dict[str, str], errors: list[str],
+    *, repository: str | None = None, allow_repositories: bool = False,
+) -> bool:
     if not path.exists():
         return False
-    try:
-        document = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
-        errors.append(f"{path}: could not read config: {error}")
-        return True
-
-    def visit(section: tuple[str, ...], section_values: object) -> None:
-        if not isinstance(section_values, dict):
-            errors.append(f"{path}: [{'.'.join(section)}] must be a TOML table")
-            return
-        for name, value in section_values.items():
-            if isinstance(value, dict):
-                visit((*section, name), value)
-                continue
-            location = (".".join(section), name)
-            field = CONFIG_FIELDS.get(location)
-            label = f"[{location[0]}] {name}"
-            if field is None:
-                errors.append(f"{path}: unknown setting {label}")
-                continue
-            if not isinstance(value, (str, int, float, bool)):
-                errors.append(f"{path}: setting {label} must be a TOML scalar")
-                continue
-            values[field] = value
-            sources[field] = str(path)
-
-    if not isinstance(document, dict):
-        errors.append(f"{path}: document must be a TOML table")
-    else:
-        for section, section_values in document.items():
-            if section in ("agents", "skills"):
-                continue
-            visit((section,), section_values)
+    parsed, _ = _read_file(
+        path, repository=repository, allow_repositories=allow_repositories,
+        errors=errors, sources=sources,
+    )
+    values.update(parsed)
     return True
 
 
@@ -190,9 +168,6 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     warnings: list[str] = []
     home_path = home_config_path()
     home_sources: dict[str, str] = {}
-    home_present = _read(home_path, home_values, home_sources, errors)
-    values.update(home_values)
-    sources.update(home_sources)
     try:
         root = repository_root()
         repo_path = root / ".pdlc" / "config.toml"
@@ -201,12 +176,23 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
         repo_path = None
     if root is not None:
         ensure_pdlc_ignored(root)
-    repo_present = _read(repo_path, values, sources, errors) if repo_path else False
-
+    repo_values: dict[str, object] = {}
+    repo_sources: dict[str, str] = {}
+    repo_present = _read(repo_path, repo_values, repo_sources, errors) if repo_path else False
+    derived = git_remote_repository(root) if root is not None else None
+    identity = derived or repo_values.get("repository")
+    home_present = _read(
+        home_path, home_values, home_sources, errors,
+        repository=str(identity) if identity else None, allow_repositories=True,
+    )
     for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):
         if os.environ.get(environment_name):
             values[field] = os.environ[environment_name]
             sources[field] = environment_name
+    values.update(home_values)
+    sources.update(home_sources)
+    values.update(repo_values)
+    sources.update(repo_sources)
     if overrides:
         for field, value in overrides.items():
             if value is not None:
@@ -214,12 +200,11 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
                 sources[field] = "CLI override"
 
     if not values.get("repository") and root is not None:
-        derived = git_remote_repository(root)
         if derived:
             values["repository"] = derived
             sources["repository"] = "derived from git origin"
             warnings.append("repository is auto-derived from git origin; set backend.github.repository in ~/.pdlc/config.toml or the repo's .pdlc/config.toml")
-    if "repository" in home_values:
+    if home_sources.get("repository") == str(home_path):
         warnings.append("repository is set in ~/.pdlc/config.toml; this is likely misconfigured — set repository in the repo's .pdlc/config.toml instead")
 
     typed = _typed_values(values, errors)

@@ -38,12 +38,17 @@ config (`pdlc.after`, enabling `extensions.worktreeConfig` the first time), and
 predecessor's latest pull request. The record is local only; re-running with
 `--after` on an existing worktree updates it without moving the branch.
 
-Config (`[worktree]` table, merged from ~/.pdlc/config.toml then .pdlc/config.toml):
+Config (`[worktree]` table, merged from home defaults, the matching home
+`[repository."owner/name".worktree]` section, then .pdlc/config.toml):
 
     root         parent directory for every prepared worktree
                  (default: ~/.pdlc/worktrees)
     base_ref     ref new branches start from (default: detected default branch)
     init_script  optional shell snippet run in the new worktree after creation
+
+Repository sections match the checkout's GitHub origin, case-insensitively;
+without a recognizable origin, the repository file's backend.github.repository
+supplies the identity. Existing worktrees do not run the init script again.
 """
 
 from __future__ import annotations

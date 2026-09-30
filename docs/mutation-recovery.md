@@ -337,6 +337,8 @@ With `--carry-changes`, the uncommitted changes are first stashed as `pdlc: carr
 
 `pdlc prepare`, `pdlc cleanup`, and `pdlc setup` write only local Git worktrees, branches, and config. They are outside the agent loop; `pdlc cleanup` refuses unless the record is Complete, and removes branches only after checking them. For a numeric work item, `prepare` reads registered task PRs before creating its worktree, then uses the `checkout` path above to restore the highest open task stack. If checkout fails, the created worktree remains at the reported path; inspect its branch and status there, then re-run `prepare` after resolving the failure. An existing worktree is never replaced.
 
+Home repository sections only change the effective configuration selected before `prepare` writes anything; invalid sections refuse the command without creating a worktree. Init scripts are not retried automatically. A script failure exits 1 with `init script failed (exit N); worktree left at PATH`; inspect that worktree's branch, status, and script output, then finish or rerun the script there deliberately. Re-running `prepare` for an existing worktree skips the script, including after a partial script failure.
+
 ## Gaps this catalog exposes
 
 These are real recovery hazards independent of transient errors. Each is a candidate follow-up, not part of the transient-error change:
