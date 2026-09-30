@@ -58,6 +58,7 @@ COMMANDS = {
     ("continue",): "pdlc.commands.continue_",
     ("post", "approve"): "pdlc.commands.post_approve",
     ("post", "attach-pr"): "pdlc.commands.post_attach_pr",
+    ("post", "attach-user-comment"): "pdlc.commands.post_attach_user_comment",
     ("post", "ci"): "pdlc.commands.post_ci",
     ("post", "complete"): "pdlc.commands.post_complete",
     ("post", "decision"): "pdlc.commands.post_decision",
@@ -134,6 +135,7 @@ def _usage() -> str:
         "  post skip WI STAGE                     mark stages skipped ahead of time (driver-only)\n"
         "  post invalidate WI STAGE EVIDENCE [--task N ...]  return a stage to Stale after upstream change\n"
         "  post attach-pr TASK PR#                manually link a PR to a task\n"
+        "  post attach-user-comment WI --body FILE|-|text:BODY  add a discussion comment\n"
         "\nFLAGS\n"
         "  --repo OWNER/REPO           override [repo] name for this run\n"
         "  --project-number N          override the configured project number\n"
