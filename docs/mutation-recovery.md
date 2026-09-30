@@ -38,12 +38,23 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post invalidate` | `INVALIDATED` → state → skipped states? → reopen tasks | **Check first**: re-run may refuse | Tasks left closed |
 | `post complete` | `COMPLETE` → state → Open Questions → close Issue → prune branches | **Refuses after state lands** | Record Complete but still open |
 | `post attach-pr` | attach PR | Safe | None |
+| `post attach-user-comment` | unmarked comment | Check first; repeats create separate comments | Duplicate discussion |
 | `next`, `continue` (heal) | heal comment → state | Safe; the next poll re-heals | Duplicate heal comment |
 | `checkout` | stash? → `gh stack checkout`/`add`/`init` → stash pop? | Safe | Dirty tree, stack lock, carried changes conflicting |
 
 "May duplicate" means a re-run after the evidence comment landed but before the state change posts the same marker comment a second time. Readers take the newest marker, so the record reads correctly; the timeline just shows it twice. The comment-hash follow-up in the plan removes this.
 
 ## Per-command detail
+
+### `pdlc post attach-user-comment`
+
+Writes one unmarked comment under the authenticated account on a record or delivery task; no state, gate, body, or evidence writes follow it.
+A transient failure before sending is automatically retried and exits 75 if it persists; a transient failure after sending exits 76 without retry because the comment may already exist.
+Other failures exit 1 with `pdlc: <error>`.
+Check: run `pdlc inspect comments N --page 1` and follow next-page commands until all comments from the attempt's time have been checked.
+Match the submitted body, account, and time; if it exists, the command landed, and if it is absent, re-run the same command with the same input.
+If the result is ambiguous, stop and report it; retrying a landed comment creates a duplicate.
+Keep the input file until success and stop after three repeats of the same transient failure.
 
 ### `pdlc post write` — new record
 
