@@ -53,12 +53,64 @@ class PrepareCommandTests(unittest.TestCase):
     def _git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.repo, text=True).strip()
 
-    def _run(self, argv, config):
+    def _run(self, argv, config, *, resume_task=None):
         cfg = SimpleConfig(**config)
         out, err = io.StringIO(), io.StringIO()
-        with patch.object(prepare, "get_config", lambda: cfg), redirect_stdout(out), redirect_stderr(err):
+        with patch.object(prepare, "get_config", lambda: cfg), \
+                patch.object(prepare, "_resume_task", return_value=resume_task), \
+                redirect_stdout(out), redirect_stderr(err):
             code = prepare.main(argv)
         return code, out.getvalue().strip(), err.getvalue()
+
+    def test_resumes_highest_task_with_an_open_registered_pr(self):
+        tasks = [
+            {"number": 1, "title": "WORK-142-TASK-001", "taskId": "TASK-001", "prs": [10]},
+            {"number": 2, "title": "WORK-142-TASK-002", "taskId": "TASK-002", "prs": [20]},
+            {"number": 3, "title": "WORK-142-TASK-003", "taskId": "TASK-003", "prs": [30]},
+        ]
+        with patch.object(prepare, "task_tree", return_value=tasks), \
+                patch.object(prepare, "get_code_host") as code_host:
+            code_host.return_value.pull_requests_by_number.return_value = [
+                {"number": 10, "state": "MERGED"},
+                {"number": 20, "state": "OPEN"},
+                {"number": 30, "state": "CLOSED"},
+            ]
+            self.assertEqual(prepare._resume_task("142"), "WORK-142-TASK-002")
+            code_host.return_value.pull_requests_by_number.assert_called_once_with([10, 20, 30])
+
+    def test_resumes_in_new_worktree_and_keeps_path_only_on_stdout(self):
+        current = os.getcwd()
+        seen = []
+        def checkout_task(task):
+            seen.append((task, os.getcwd()))
+            return "restored task branch\n"
+        with patch.object(prepare, "checkout", side_effect=checkout_task):
+            code, out, err = self._run(["142"], {"worktree_root": str(self.wt_root)}, resume_task="WORK-142-TASK-002")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(seen, [("WORK-142-TASK-002", str((self.wt_root / "myrepo" / "142").resolve()))])
+        self.assertEqual(os.getcwd(), current)
+        self.assertEqual(out, str(self.wt_root / "myrepo" / "142"))
+        self.assertIn("restored task branch", err)
+
+    def test_resumes_existing_worktree_without_recreating_it(self):
+        config = {"worktree_root": str(self.wt_root)}
+        self._run(["142", "--from", "HEAD"], config)
+        with patch.object(prepare, "checkout", return_value="restored task branch\n") as checkout_task:
+            code, out, err = self._run(["142"], config, resume_task="WORK-142-TASK-002")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out, str(self.wt_root / "myrepo" / "142"))
+        self.assertIn("restored task branch", err)
+        checkout_task.assert_called_once_with("WORK-142-TASK-002")
+
+    def test_checkout_failure_keeps_the_worktree_and_names_it(self):
+        config = {"worktree_root": str(self.wt_root)}
+        with patch.object(prepare, "checkout", side_effect=PdlcError("working tree has changes")):
+            code, out, err = self._run(["142"], config, resume_task="WORK-142-TASK-002")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn(str(self.wt_root / "myrepo" / "142"), err)
+        self.assertIn("working tree has changes", err)
+        self.assertTrue((self.wt_root / "myrepo" / "142" / ".git").exists())
 
     def test_creates_worktree_and_prints_path(self):
         code, out, _ = self._run(

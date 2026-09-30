@@ -324,7 +324,7 @@ With `--carry-changes`, the uncommitted changes are first stashed as `pdlc: carr
 
 ### Human-only local commands
 
-`pdlc prepare`, `pdlc cleanup`, and `pdlc setup` write only local Git worktrees, branches, and config. They are outside the agent loop and are not covered here; `pdlc cleanup` refuses unless the record is Complete, and removes branches only after checking them.
+`pdlc prepare`, `pdlc cleanup`, and `pdlc setup` write only local Git worktrees, branches, and config. They are outside the agent loop; `pdlc cleanup` refuses unless the record is Complete, and removes branches only after checking them. For a numeric work item, `prepare` reads registered task PRs before creating its worktree, then uses the `checkout` path above to restore the highest open task stack. If checkout fails, the created worktree remains at the reported path; inspect its branch and status there, then re-run `prepare` after resolving the failure. An existing worktree is never replaced.
 
 ## Gaps this catalog exposes
 
