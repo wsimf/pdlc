@@ -215,6 +215,89 @@ class ConfigTests(unittest.TestCase):
         nested = self.make_repo('[backend.github]\nrepository = "repo/repository"\n')
         self.assertEqual(load_config(nested).repository, "repo/repository")
 
+    def test_home_repository_sections_are_isolated_and_case_insensitive(self):
+        self.write_home_config(
+            '[worktree]\nbase_ref = "global"\n'
+            '[repository."Acme/A".worktree]\ninit_script = "echo A"\n'
+            '[repository."acme/B".worktree]\ninit_script = "echo B"\n'
+        )
+        for identity, script in (("acme/a", "echo A"), ("acme/B", "echo B"), ("acme/C", None)):
+            with self.subTest(identity=identity):
+                config = load_config(self.make_git_repo(f"git@github.com:{identity}.git"))
+                self.assertEqual(config.worktree_init_script, script)
+                self.assertEqual(config.worktree_base_ref, "global")
+
+    def test_repository_layer_precedence_and_capabilities(self):
+        self.write_home_config(
+            '[worktree]\ninit_script = "global"\n'
+            '[agents]\ncore-implementer = "global-core"\nui-implementer = "global-ui"\n'
+            '[repository."acme/A".worktree]\ninit_script = "scoped"\nbase_ref = "scoped-base"\n'
+            '[repository."acme/A".agents]\ncore-implementer = "scoped-core"\n'
+            '[repository."acme/A".skills]\nbuild-run = "scoped-build"\n'
+        )
+        nested = self.make_git_repo("git@github.com:acme/A.git")
+        config = load_config(nested)
+        self.assertEqual(config.worktree_init_script, "scoped")
+        self.assertEqual(get_capabilities().agent("core-implementer"), "scoped-core")
+        self.assertEqual(get_capabilities().agent("ui-implementer"), "global-ui")
+        self.assertEqual(get_capabilities().skill("build-run"), "scoped-build")
+        path = nested.parent / ".pdlc" / "config.toml"
+        path.parent.mkdir()
+        path.write_text('[worktree]\ninit_script = ""\n[agents]\ncore-implementer = "repo-core"\n')
+        config = load_config(nested)
+        self.assertEqual(config.worktree_init_script, "")
+        self.assertEqual(config.worktree_base_ref, "scoped-base")
+        self.assertEqual(get_capabilities().agent("core-implementer"), "repo-core")
+        self.assertEqual(load_config(nested, overrides={"worktree_init_script": "cli"}).worktree_init_script, "cli")
+
+    def test_global_and_cli_repository_values_do_not_select_hooks(self):
+        self.write_home_config(
+            '[backend.github]\nrepository = "acme/B"\n'
+            '[repository."acme/A".worktree]\ninit_script = "A"\n'
+            '[repository."acme/B".worktree]\ninit_script = "B"\n'
+        )
+        nested = self.make_git_repo("git@github.com:acme/A.git")
+        with patch.dict(os.environ, {"PDLC_REPOSITORY": "acme/B"}):
+            self.assertEqual(load_config(nested, overrides={"repository": "acme/B"}).worktree_init_script, "A")
+            self.assertIsNone(load_config(self.make_repo()).worktree_init_script)
+            self.assertIsNone(load_config(self.non_repo_dir()).worktree_init_script)
+
+    def test_local_repository_identity_is_fallback_only(self):
+        self.write_home_config('[repository."acme/A".worktree]\ninit_script = "A"\n')
+        config = '[backend.github]\nrepository = "acme/A"\n'
+        for origin, script in (("https://gitlab.com/acme/A.git", "A"), ("git@github.com:acme/B.git", None)):
+            with self.subTest(origin=origin):
+                self.assertEqual(load_config(self.make_git_repo(origin, config)).worktree_init_script, script)
+
+    def test_repository_identity_survives_linked_worktrees(self):
+        self.write_home_config('[repository."acme/A".worktree]\ninit_script = "A"\n')
+        repo = self.make_git_repo("git@github.com:acme/A.git").parent
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed", "--allow-empty"], check=True)
+        linked = repo.parent / (repo.name + "-linked")
+        subprocess.run(["git", "-C", str(repo), "worktree", "add", "-qb", "linked", str(linked)], check=True)
+        self.assertEqual(load_config(linked).worktree_init_script, "A")
+
+    def test_invalid_repository_sections_are_rejected_even_when_unmatched(self):
+        for body, message in (
+            ('[repository.A.worktree]\ninit_script = "A"\n', "owner/name"),
+            ('[repository."acme/B".worktree]\nbogus = "B"\n', "Unknown setting"),
+            ('[repository."acme/B".workflow]\nmax_attempts = 0\n', "max_attempts"),
+            ('[repository."acme/B".skills]\nbuild-run = 1\n', "non-empty string"),
+            ('[repository."acme/B".unknown]\n', "Unknown table"),
+            ('[repository]\n"acme/B" = "B"\n', "TOML table"),
+            ('[repository."acme/B".worktree]\ninit_script = []\n', "TOML scalar"),
+            ('[repository."acme/B".worktree]\n[repository."Acme/b".worktree]\n', "Duplicate"),
+        ):
+            with self.subTest(body=body):
+                self.write_home_config(body)
+                with self.assertRaisesRegex(ConfigurationError, message):
+                    load_config(self.make_git_repo("git@github.com:acme/A.git"))
+
+    def test_repository_sections_are_home_only(self):
+        nested = self.make_repo('[repository."acme/A".worktree]\ninit_script = "A"\n')
+        with self.assertRaisesRegex(ConfigurationError, "Unknown table"):
+            load_config(nested)
+
     def test_repository_is_derived_from_git_origin_when_unset(self):
         for origin_url in (
             "https://github.com/acme/widgets.git",
