@@ -13,7 +13,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 - **Check** is the read-only command that shows whether the command landed. `pdlc inspect N` shows the record's stage and gate, `pdlc inspect timeline N` lists `PDLC-*` marker comments newest-last, `pdlc inspect task T` shows a delivery task's state, plan, implementation comment, and PRs.
 - **Re-run** says what happens if the exact same command is run again after a partial failure.
 - Attachments (`--attachment`) are saved to the local attachment host before any remote write in every command. They are local file copies, so they are not listed per command; a re-run saves them again under new IDs, which is harmless.
-- Backend differences are called out only where they change recovery. On GitHub, `set_state` is one GraphQL mutation that updates three Project fields; it already re-reads and retries once to reconcile. On Azure every field write is one `az boards work-item update`.
+- Backend differences are called out only where they change recovery. On GitHub, `set_state` is one GraphQL mutation that updates three Project fields; it already re-reads and retries once to reconcile. On Azure each field write is one request; description edits use one `az devops invoke` batch subrequest so the body and Markdown format land together. If its embedded response fails, inspect the body before retrying the post.
 
 ## Summary
 
@@ -38,6 +38,7 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 | `post invalidate` | `INVALIDATED` → state → skipped states? → reopen tasks | **Check first**: re-run may refuse | Tasks left closed |
 | `post complete` | `COMPLETE` → state → Open Questions → close Issue → prune branches | **Refuses after state lands** | Record Complete but still open |
 | `post attach-pr` | attach PR | Safe | None |
+| `post attach-user-comment` | unmarked comment | Check first; repeats create separate comments | Duplicate discussion |
 | `next`, `continue` (heal) | heal comment → state | Safe; the next poll re-heals | Duplicate heal comment |
 | `checkout` | stash? → `gh stack checkout`/`add`/`init` → stash pop? | Safe | Dirty tree, stack lock, carried changes conflicting |
 
@@ -45,12 +46,22 @@ Every write `pdlc` makes to a work-item host, code host, or local Git, in the or
 
 ## Per-command detail
 
+### `pdlc post attach-user-comment`
+
+Writes one unmarked comment under the authenticated account on a record or delivery task; no state, gate, body, or evidence writes follow it.
+A transient failure before sending is automatically retried and exits 75 if it persists; a transient failure after sending exits 76 without retry because the comment may already exist.
+Other failures exit 1 with `pdlc: <error>`.
+Check: run `pdlc inspect comments N --page 1` and follow next-page commands until all comments from the attempt's time have been checked.
+Match the submitted body, account, and time; if it exists, the command landed, and if it is absent, re-run the same command with the same input.
+If the result is ambiguous, stop and report it; retrying a landed comment creates a duplicate.
+Keep the input file until success and stop after three repeats of the same transient failure.
+
 ### `pdlc post write` — new record
 
 `pdlc post write --title T --slug S --body FILE --evidence FILE`
 
 Writes:
-1. `gh issue create` (Azure: `az boards work-item create`) with the whole body.
+1. Create the Issue with the whole body (Azure: `az devops invoke` with Markdown format).
 2. GitHub only: `gh project item-add` for the new Issue.
 3. `set_state` → Product / Approval Required.
 4. `set_slug`.
@@ -324,7 +335,9 @@ With `--carry-changes`, the uncommitted changes are first stashed as `pdlc: carr
 
 ### Human-only local commands
 
-`pdlc prepare`, `pdlc cleanup`, and `pdlc setup` write only local Git worktrees, branches, and config. They are outside the agent loop and are not covered here; `pdlc cleanup` refuses unless the record is Complete, and removes branches only after checking them.
+`pdlc prepare`, `pdlc cleanup`, and `pdlc setup` write only local Git worktrees, branches, and config. They are outside the agent loop; `pdlc cleanup` refuses unless the record is Complete, and removes branches only after checking them. For a numeric work item, `prepare` reads registered task PRs before creating its worktree, then uses the `checkout` path above to restore the highest open task stack. If checkout fails, the created worktree remains at the reported path; inspect its branch and status there, then re-run `prepare` after resolving the failure. An existing worktree is never replaced.
+
+Home repository sections only change the effective configuration selected before `prepare` writes anything; invalid sections refuse the command without creating a worktree. Init scripts are not retried automatically. A script failure exits 1 with `init script failed (exit N); worktree left at PATH`; inspect that worktree's branch, status, and script output, then finish or rerun the script there deliberately. Re-running `prepare` for an existing worktree skips the script, including after a partial script failure.
 
 ## Gaps this catalog exposes
 

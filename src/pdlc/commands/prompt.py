@@ -153,7 +153,7 @@ from pdlc.internal.review_stamp import clear_stamp, findings_path, restore_revie
 from pdlc.internal.scratch import replace_cache_file, scratch_path, write_scratch
 from pdlc.internal.workitem import (
     comments_for_issue,
-    item_slug,
+    item_branch_slug,
     pipeline_for_item,
     record_snapshot,
     resolve_item,
@@ -316,7 +316,7 @@ def _pr_fix_context(task: dict, pr: int, red: list[dict], requests: list[ChangeR
 
 
 def _triage_context(item: dict, delivery: list[dict], requests: list[ChangeRequest]) -> dict[str, object]:
-    slug = item_slug(item)
+    slug = item_branch_slug(item)
     implemented = sorted((task for task in delivery if task.get("prs")), key=_stack_order)
     return {
         "EXECUTION_SCOPE": "this one set of requests",

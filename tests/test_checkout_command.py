@@ -64,6 +64,18 @@ class CheckoutTests(FileBackendTest):
         self._seed()
         self.assertEqual(resolve_task_checkout("702").branch, "pdlc/record-70/task-002")
 
+    def test_missing_slug_uses_parent_work_item_number(self):
+        self._seed()
+        metadata = self.records_dir() / "70" / "meta.json"
+        record = json.loads(metadata.read_text())
+        del record["fields"]["Slug"]
+        metadata.write_text(json.dumps(record))
+
+        self.assertEqual(resolve_task_checkout("702").branch, "pdlc/70/task-002")
+        host = self._host()
+        self.invoke("checkout", "702")
+        host.checkout_task_branch.assert_called_once_with("pdlc/70/task-002", None, 40)
+
     def test_a_bare_task_id_is_refused(self):
         self._seed()
         with self.assertRaisesRegex(PdlcError, "WORK-N-TASK-NNN"):
@@ -175,6 +187,22 @@ class CheckoutTests(FileBackendTest):
         self.assertEqual(result.code, 0, result.stderr)
         self.assertIn("already on this worktree's branch", result.stdout)
         host.checkout_task_branch.assert_not_called()
+
+    def test_an_after_worktrees_registered_first_task_restores_its_pr(self):
+        self.seed_record(71, "Implementation", "Pending", slug="record-71")
+        self.seed_task(71, 711, "TASK-001", "CLOSED", "WORK-71-TASK-001 [CORE] First")
+        self.register_prs(711, [41])
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] First")
+        self._plan(70, 701, "## Implementation\n\nShipped.\n")
+        self.register_prs(701, [40])
+        host = self._host()
+
+        with mock.patch("pdlc.internal.stack.worktree_after", return_value="70"):
+            result = self.invoke("checkout", "WORK-71-TASK-001")
+
+        self.assertEqual(result.code, 0, result.stderr)
+        host.checkout_task_branch.assert_called_once_with("pdlc/record-71/task-001", 41, None)
 
     def test_no_argument_prints_help(self):
         result = self.invoke("checkout")

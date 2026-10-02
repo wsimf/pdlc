@@ -767,6 +767,23 @@ class CodeHostTest(GitHubHostTest):
         self.assertEqual(len(self.gh.calls), 1)
         self.assertEqual(self.gh.graphql_variables("pullRequest(number:"), {"owner": "wsimf", "repo": "pdlc"})
 
+    def test_pull_requests_by_number_uses_the_newest_run_of_a_check(self) -> None:
+        def run(conclusion: str, started: str) -> dict:
+            return {
+                "name": "check-pbi", "status": "COMPLETED", "conclusion": conclusion,
+                "startedAt": started, "completedAt": started,
+                "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"workflow": {
+                    "databaseId": 42, "name": "PBI link"}}},
+            }
+
+        runs = [run("SUCCESS", "2026-09-29T08:39:00Z"), run("FAILURE", "2026-09-29T07:40:00Z")]
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(number, contexts=runs)))
+
+        self.assertEqual(self.host.pull_requests_by_number([5])[0]["checks"], "SUCCESS")
+        query = next(arg for args, _ in self.gh.calls for arg in args if arg.startswith("query="))
+        self.assertIn("name status conclusion startedAt completedAt", query)
+        self.assertIn("checkSuite { app { slug } workflowRun { workflow { databaseId name } } }", query)
+
     def test_pull_requests_by_number_skips_the_host_when_none_are_registered(self) -> None:
         self.assertEqual(self.host.pull_requests_by_number([]), [])
         self.assertEqual(self.gh.calls, [])
@@ -787,6 +804,23 @@ class CodeHostTest(GitHubHostTest):
 
         self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "FAILURE"])
         self.assertEqual([args[2] for args, _ in self.gh.calls if args[:2] == ["pr", "view"]], ["9"])
+
+    def test_paginated_pr_view_also_ignores_superseded_runs(self) -> None:
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(
+            lambda number: pull_request_node(number, contexts=[], has_next_page=True)
+        ))
+        self.gh.gh("pr", "view", response={
+            "number": 5, "title": "PR 5", "url": "u5", "state": "OPEN", "isDraft": False,
+            "headRefName": "branch-5", "mergedAt": None,
+            "statusCheckRollup": [
+                {"name": "check-pbi", "workflowName": "PBI link", "status": "COMPLETED",
+                 "conclusion": "FAILURE", "startedAt": "2026-09-29T07:40:00Z"},
+                {"name": "check-pbi", "workflowName": "PBI link", "status": "COMPLETED",
+                 "conclusion": "SUCCESS", "startedAt": "2026-09-29T08:39:00Z"},
+            ],
+        })
+
+        self.assertEqual(self.host.pull_requests_by_number([5])[0]["checks"], "SUCCESS")
 
     def test_pull_requests_by_number_fails_closed_on_unknown(self) -> None:
         self.gh.graphql(
@@ -823,6 +857,64 @@ class CodeHostTest(GitHubHostTest):
         failure = {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED"}
         self.assertEqual(_checks_state({"statusCheckRollup": [success, failure]}), "FAILURE")
         self.assertEqual(_checks_state({"statusCheckRollup": [failure, success]}), "FAILURE")
+
+    def test_checks_state_keeps_distinct_workflows_with_the_same_check_name(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        failed = {"name": "build", "workflowName": "iOS", "status": "COMPLETED",
+                  "conclusion": "FAILURE", "startedAt": "2026-09-29T07:00:00Z"}
+        passed = {"name": "build", "workflowName": "macOS", "status": "COMPLETED",
+                  "conclusion": "SUCCESS", "startedAt": "2026-09-29T08:00:00Z"}
+        self.assertEqual(_checks_state({"statusCheckRollup": [failed, passed]}), "FAILURE")
+
+    def test_checks_state_keeps_distinct_workflow_ids_with_the_same_name(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+
+        def run(workflow_id: int, conclusion: str) -> dict:
+            return {"name": "build", "status": "COMPLETED", "conclusion": conclusion,
+                    "startedAt": "2026-09-29T08:00:00Z",
+                    "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"workflow": {
+                        "databaseId": workflow_id, "name": "CI"}}}}
+        self.assertEqual(_checks_state({"statusCheckRollup": [run(1, "FAILURE"), run(2, "SUCCESS")]}), "FAILURE")
+
+    def test_checks_state_reports_a_new_failure_over_an_old_success(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        passed = {"name": "build", "workflowName": "CI", "status": "COMPLETED",
+                  "conclusion": "SUCCESS", "startedAt": "2026-09-29T07:00:00Z"}
+        failed = {"name": "build", "workflowName": "CI", "status": "COMPLETED",
+                  "conclusion": "FAILURE", "startedAt": "2026-09-29T08:00:00Z"}
+        self.assertEqual(_checks_state({"statusCheckRollup": [failed, passed]}), "FAILURE")
+
+    def test_checks_state_keeps_different_apps_with_the_same_check_name(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        def run(app: str, conclusion: str) -> dict:
+            return {"name": "scan", "status": "COMPLETED", "conclusion": conclusion,
+                    "startedAt": "2026-09-29T08:00:00Z", "checkSuite": {"app": {"slug": app}}}
+        self.assertEqual(_checks_state({"statusCheckRollup": [run("security", "FAILURE"),
+                                                       run("quality", "SUCCESS")]}), "FAILURE")
+
+    def test_checks_state_uses_newer_pending_run_over_old_failure(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        failed = {"name": "build", "workflowName": "CI", "status": "COMPLETED",
+                  "conclusion": "FAILURE", "startedAt": "2026-09-29T07:00:00Z"}
+        pending = {"name": "build", "workflowName": "CI", "status": "IN_PROGRESS",
+                   "conclusion": None, "startedAt": "2026-09-29T08:00:00Z"}
+        self.assertEqual(_checks_state({"statusCheckRollup": [pending, failed]}), "PENDING")
+        self.assertEqual(_checks_state({"statusCheckRollup": [failed, pending]}), "PENDING")
+
+    def test_checks_state_keeps_ambiguous_undated_reruns_pending(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        failed = {"name": "build", "workflowName": "CI", "status": "COMPLETED",
+                  "conclusion": "FAILURE", "startedAt": "2026-09-29T07:00:00Z"}
+        queued = {"name": "build", "workflowName": "CI", "status": "QUEUED", "conclusion": None}
+        self.assertEqual(_checks_state({"statusCheckRollup": [failed, queued]}), "PENDING")
+
+    def test_checks_state_uses_newest_legacy_status_context(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        statuses = [
+            {"context": "deploy", "state": "FAILURE", "createdAt": "2026-09-29T07:00:00Z"},
+            {"context": "deploy", "state": "SUCCESS", "createdAt": "2026-09-29T08:00:00Z"},
+        ]
+        self.assertEqual(_checks_state({"statusCheckRollup": statuses}), "SUCCESS")
 
     def test_checks_state_reports_mixed_success_and_running_as_pending(self) -> None:
         from pdlc.hosts.lib.github.code_host import _checks_state

@@ -122,10 +122,13 @@ $CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
 
 Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the top task's number to put the working tree on the top branch with every task branch of the stack local. Each fix lands as a new commit on the branch of the task it belongs to, lowest first; a fix with no clear owner, or one that needs a lower fix to build on, goes on the top branch. These requests stay listed until the stage publishes, so this unit is offered again until then.
 
-### Review findings — 2026-03-01 00:00 UTC (file://x#c)
+### Review findings
+
+<review-finding date="2026-03-01 00:00 UTC" url="file://x#c">
 #### Findings
 
 - Tighten section 2.
+</review-finding>
 
 #### Stack
 - WORK-60-TASK-001 [CORE] First (number 601, PR #40)

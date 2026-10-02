@@ -48,13 +48,13 @@ class CleanupCommandTests(unittest.TestCase):
     def _branches(self):
         return set(self._git("branch", "--format=%(refname:short)").splitlines())
 
-    def _run(self, argv, *, state=None):
+    def _run(self, argv, *, state=None, record=None):
         cfg = SimpleNamespace(worktree_root=str(self.wt_root))
         err = io.StringIO()
+        record = {"number": 142, "Slug": "my-feature"} if record is None else record
         with patch.object(cleanup, "get_config", lambda: cfg), \
-             patch.object(cleanup, "resolve_item", lambda ref: {"Status": "Complete", "Gate State": "Approved"}), \
+             patch.object(cleanup, "resolve_item", lambda ref: record), \
              patch.object(cleanup, "workflow_for_item", lambda rec: (SimpleNamespace(terminal_stage="Complete"), state or _state())), \
-             patch.object(cleanup, "item_slug", lambda rec: "my-feature"), \
              redirect_stderr(err):
             code = cleanup.main(argv)
         return code, err.getvalue()
@@ -75,6 +75,12 @@ class CleanupCommandTests(unittest.TestCase):
         self.assertNotIn("pdlc/my-feature/task-002", remaining)
         self.assertIn("unrelated", remaining)
 
+    def test_missing_slug_finds_numbered_task_branches(self):
+        self._git("branch", "pdlc/142/task-001")
+        code, _ = self._run(["142", "--yes"], record={"number": 142})
+        self.assertEqual(code, 0)
+        self.assertNotIn("pdlc/142/task-001", self._branches())
+
     def test_refuses_when_not_complete(self):
         code, err = self._run(["142", "--yes"], state=_state(stage="Verification", lifecycle=Lifecycle.PLANNING))
         self.assertEqual(code, 1)
@@ -89,7 +95,7 @@ class CleanupCommandTests(unittest.TestCase):
              patch.object(cleanup, "worktree_root", lambda configured: str(self.wt_root)), \
              patch.object(cleanup, "resolve_item", lambda ref: {}), \
              patch.object(cleanup, "workflow_for_item", lambda rec: (SimpleNamespace(terminal_stage="Complete"), _state())), \
-             patch.object(cleanup, "item_slug", lambda rec: "my-feature"), \
+             patch.object(cleanup, "item_branch_slug", lambda rec: "my-feature"), \
              redirect_stderr(err):
             code = cleanup.main(["142", "--yes"])
         self.assertEqual(code, 0)

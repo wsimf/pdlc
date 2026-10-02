@@ -9,7 +9,7 @@ DESCRIPTION
     Resolves WORKITEM against the backend and refuses unless it is locked at
     Complete. Then removes the worktree at `<worktree.root>/<repo-name>/<WORKITEM>`
     and force-deletes its local branches — the `pdlc/record-<WORKITEM>` base branch
-    and every `pdlc/<slug>/<task-id>` branch `gh stack` created. Remote branches and
+    and every `pdlc/<slug-or-number>/<task-id>` branch `gh stack` created. Remote branches and
     merged pull requests are left to GitHub.
 
     This is the counterpart of `pdlc prepare`: local-only teardown, off the agent
@@ -23,7 +23,7 @@ import sys
 
 from pdlc.config import get_config, repository_root
 from pdlc.domain.lifecycle import PdlcError
-from pdlc.domain.model import item_slug, item_status, item_gate
+from pdlc.domain.model import item_branch_slug, item_status, item_gate
 from pdlc.domain.workflow import Lifecycle
 from pdlc.internal.inputs import print_help
 from pdlc.internal.workitem import resolve_item, workflow_for_item
@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         record = _require_complete(workitem)
 
         path = target_path(worktree_root(config.worktree_root), repo.name, workitem)
-        branches = [branch_name(workitem), *stack_branches(item_slug(record))]
+        branches = [branch_name(workitem), *stack_branches(item_branch_slug(record))]
 
         if not _confirm(path, branches, assume_yes):
             print("pdlc: aborted", file=sys.stderr)

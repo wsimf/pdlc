@@ -661,14 +661,34 @@ class InspectImplementTests(FileBackendTest):
             ["Readiness", "Mode", "Attachments", "Implementation Notes", "Open Requests", "Publish"],
         )
         self.assertIn("Every delivery task is already implemented and published in the PR stack below", result.stdout)
-        self.assertIn("### Verification bounce — ", result.stdout)
-        self.assertIn("#### Findings\n\n- detail", result.stdout)
+        self.assertIn('### Verification bounce\n\n<verification-bounce date="', result.stdout)
+        self.assertRegex(result.stdout, r'<verification-bounce date="[^"]+">')
+        self.assertIn("#### Findings\n\n- detail\n</verification-bounce>", result.stdout)
         self.assertNotIn("\n## Findings", result.stdout)
         self.assertIn("#### Stack\n- WORK-60-TASK-001 [CORE] First (number 601, PR #40)\n- WORK-60-TASK-002 [UI] Second (number 602, PR #41, top)", result.stdout)
         self.assertIn("These requests stay listed until the stage publishes", result.stdout)
         self.assertIn("dispatch that sub-agent once with every request above and the stack", result.stdout)
         self.assertIn("run `pdlc post implement 60 EVIDENCE` from the top branch to push the whole stack", result.stdout)
         self.assertNotIn("post implement-task", result.stdout)
+
+    def test_triage_bounds_review_and_resolution_text_with_source_metadata(self):
+        self._implemented_stack()
+        log = self.records_dir() / "60" / "comments.jsonl"
+        with log.open("a") as handle:
+            for body, url in (
+                ("PDLC-REVIEW\n\n---\nstage: Implementation\nverdict: Changes Required\nbounce: null\nloop: null\n---\n\n## Findings\n\n- fix it\n\n### CI\n\n- pending at review\n", "https://example.test/review?a=1&b=2"),
+                ("PDLC-RESOLUTION\n\nResolved stage: Implementation\n\nDecision: keep it\n", ""),
+            ):
+                handle.write(json.dumps({"body": body, "createdAt": "2026-04-02T00:00:00Z",
+                                         "url": url, "author": {"login": "driver"}}) + "\n")
+
+        result = self.invoke("inspect_implement", 60)
+        self.assertEqual(result.code, 0, result.stderr)
+        self.assertIn('### Review findings\n\n<review-finding date="', result.stdout)
+        self.assertIn('" url="https://example.test/review?a=1&amp;b=2">', result.stdout)
+        self.assertIn("#### Findings\n\n- fix it\n\n##### CI\n\n- pending at review\n</review-finding>", result.stdout)
+        self.assertIn('### Decision resolution\n\n<decision-resolution date="', result.stdout)
+        self.assertIn("Decision: keep it\n</decision-resolution>", result.stdout)
 
     def test_a_published_request_is_not_triaged_again(self):
         self._implemented_stack(gate="Pending")

@@ -73,6 +73,11 @@ def item_slug(item: dict) -> str:
     return item.get(SLUG_FIELD_NAME) or ""
 
 
+def item_branch_slug(item: dict) -> str:
+    """Use the work item number when its optional slug is missing."""
+    return item_slug(item) or item_issue(item)
+
+
 def item_skipped_states(item: dict) -> str:
     return item.get(SKIP_FIELD_NAME) or ""
 
