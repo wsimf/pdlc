@@ -60,8 +60,6 @@ def task_body_errors(body: str, *, is_ui: bool) -> list[str]:
         errors.append("add **Requirements Covered:** with the FR-*/C-* IDs this task delivers")
     if is_ui and not (_field(body, "UI Journeys") or "").strip():
         errors.append("add **UI Journeys:** with the UJ-* IDs this UI task delivers")
-    if (_field(body, "Type") or "").strip() not in ("AFK", "HITL"):
-        errors.append("add **Type:** AFK or HITL to classify whether implementation needs a human")
 
     def section(label: str) -> str:
         match = re.search(rf"^\*\*{re.escape(label)}:\*\*\s*\n(.*?)(?=^\*\*[^\n]+:\*\*|\Z)", body, re.MULTILINE | re.DOTALL)

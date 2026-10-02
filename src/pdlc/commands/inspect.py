@@ -40,8 +40,8 @@ since invalidation only deletes evidence comments, not the PR itself.
 last implemented. A single GraphQL call computes every flag, so this costs
 nothing extra; it omits the body text itself, which is usually only needed for
 a handful of tasks. Fetch those with
-`pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]`. Dependency closure and
-HITL approval still require reading a candidate's body and the record's own
+`pdlc inspect task DELIVERY_TASK [DELIVERY_TASK ...]`. Dependency closure
+still requires reading a candidate's body and the record's own
 comments; this stops short of that judgment. Evidence comments are
 deliberately not included — they are read through their own script.
 

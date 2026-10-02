@@ -64,6 +64,10 @@ no implemented task pull request yet. A Stale task also carries a
 
 Not ready, or nothing to do, is reported plainly rather than raised.
 
+When ready, `## Implementation Notes` names a local work-item scratch pad. The
+command creates it from the bundled template on the first call and preserves
+its contents on later calls. It is local working memory, not record evidence.
+
     ## Readiness
 
     Ready — Gate State: Changes Required.
@@ -75,6 +79,10 @@ Not ready, or nothing to do, is reported plainly rather than raised.
     ## Attachments
 
     None
+
+    ## Implementation Notes
+
+    /repo/.pdlc/cache/142/pdlc-implementation-notes.md
 
     ## Next Fix
 
@@ -118,9 +126,11 @@ from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.internal.ci_gate import check_state
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
+from pdlc.internal.scratch import cache_file, write_scratch
 from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.internal.workitem import due_next, item_branch_slug, pipeline_for_item, record_snapshot
 from pdlc.internal.failure import report_failure
+from pdlc.templates.template import load_template
 
 # The change-request sources whose text is the whole record's, not one task's:
 # they cannot be attributed to a pull request, so they form the triage unit.
@@ -354,6 +364,18 @@ def _checks_section(pull_requests: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _implementation_notes(issue: str) -> str:
+    path = cache_file(issue, "implementation-notes", ".md")
+    # write_scratch refuses any existing path, symlinks included; the check below vets what is already there.
+    try:
+        write_scratch(path, load_template("implementation-notes"))
+    except FileExistsError:
+        pass
+    if path.is_symlink() or not path.is_file():
+        raise PdlcError(f"implementation notes are not a regular file: {path}")
+    return f"## Implementation Notes\n\n{path}"
+
+
 def inspect(issue: str) -> str:
     item, tasks, comments = record_snapshot(issue)
     delivery = [t for t in tasks if t.get("taskId")]
@@ -417,7 +439,8 @@ def inspect(issue: str) -> str:
             unit = "## Next Task\n\nNone. Every delivery task is closed. Continue the workflow with the command under `## Publish`."
             publish = f"Run `pdlc post implement {number} EVIDENCE` to publish the stage at Review Required."
 
-    sections = ["## Readiness", "", message, "", "## Mode", "", f"mode: {mode}", "", attachments]
+    notes = _implementation_notes(str(number))
+    sections = ["## Readiness", "", message, "", "## Mode", "", f"mode: {mode}", "", attachments, "", notes]
     if checks is not None:
         sections += ["", checks]
     sections += ["", unit, "", "## Publish", "", publish]

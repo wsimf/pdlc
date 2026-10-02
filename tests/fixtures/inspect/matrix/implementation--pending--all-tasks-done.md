@@ -106,6 +106,10 @@ mode: none
 
 None
 
+## Implementation Notes
+
+$CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
+
 ## Checks
 
 - PR #40: green

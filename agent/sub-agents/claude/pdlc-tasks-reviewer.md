@@ -47,7 +47,7 @@ The prompt file carries the parent work item's complete body, the artifact file 
 3. Verify complete `UJ-*` coverage: every UI task references at least one approved journey, and every approved journey has at least one UI task — bidirectional.
 4. Verify `type` (`core` or `ui`) in the manifest is accurate for each task — a strict fact about whether the task delivers user-facing surface, not a guess — since it decides the stamped `[UI]`/`[CORE]` tag and later implementation routing.
 5. Verify dependencies (`depends`) reference real task ids and the graph is acyclic; CORE tasks precede UI tasks that consume their contracts.
-6. Verify each task body has concrete, verifiable acceptance criteria, a bounded scope with real non-goals, correct HITL/AFK classification, and no duplicated ownership with another task.
+6. Verify each task body has concrete, verifiable acceptance criteria, a bounded scope with real non-goals, and no duplicated ownership with another task.
 7. Review task-body readability: flag `Scope` that re-narrates the requirement instead of naming what changes, acceptance criteria written as activities rather than observable outcomes, `Expected evidence` that merely restates those criteria, `Non-goals` filler that names no owning sibling task, and any type, file, or API name that pre-empts the technical-planning stage.
 8. Verify each task body actually supports the manifest's `covers`/`depends` claims, including any semantic conflict beyond the labelled ID lines.
 9. For every removed task, confirm its reason holds and that no requirement, journey, or dependency it carried is left uncovered.

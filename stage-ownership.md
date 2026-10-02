@@ -51,7 +51,7 @@ and `reason` for every cell.
 | Technical Plan | Approval Required | Valid | HUMAN_APPROVAL | Human | No | `pdlc post approve` |
 | Technical Plan | Approved | Heals | → Implementation/Pending | Agent | Yes | |
 | Technical Plan | Stale | Valid | PLAN | Agent | Maybe (evidence present and changes are clear; otherwise No) | |
-| Implementation | Pending | Valid | IMPLEMENT | Agent | Maybe (task HITL requirements may require approval) | |
+| Implementation | Pending | Valid | IMPLEMENT | Agent | Maybe (a concrete decision may require approval) | |
 | Implementation | Review Required | Valid | REVIEW | Agent | Yes | independent review |
 | Implementation | Changes Required | Valid | IMPLEMENT | Agent | Maybe (evidence present and changes are clear; otherwise No) | |
 | Implementation | Decision Required | Valid | HUMAN_DECISION | Human | No | |

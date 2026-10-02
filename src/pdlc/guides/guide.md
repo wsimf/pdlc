@@ -48,7 +48,7 @@ The usual shape is `stage work → Review Required → independent review → Ap
 
 - Product owns the problem, goals, requirements, constraints, non-goals, decisions, and open questions.
 - UI owns UI behavior, accessibility, states, and user journeys, or the explicit no-UI decision.
-- Tasks owns stable delivery tasks, requirement coverage, dependencies, acceptance criteria, and HITL/AFK classification.
+- Tasks owns stable delivery tasks, requirement coverage, dependencies, and acceptance criteria.
 - Technical Plan owns source ownership, architecture, sequencing, risks, and validation planning.
 - Implementation owns production changes, task-level coverage, pull requests, and implementation evidence.
 - Testing owns whole-feature traceability, acceptance coverage, and test evidence.

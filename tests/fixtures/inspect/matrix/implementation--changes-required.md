@@ -106,6 +106,10 @@ mode: triage
 
 None
 
+## Implementation Notes
+
+$CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
+
 ## Open Requests
 
 Every delivery task is already implemented and published in the PR stack below; these requests ask for changes to that implemented work. Run `pdlc checkout NUMBER` with the top task's number to put the working tree on the top branch with every task branch of the stack local. Each fix lands as a new commit on the branch of the task it belongs to, lowest first; a fix with no clear owner, or one that needs a lower fix to build on, goes on the top branch. These requests stay listed until the stage publishes, so this unit is offered again until then.

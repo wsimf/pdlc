@@ -10,6 +10,10 @@ mode: none
 
 None
 
+## Implementation Notes
+
+$CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
+
 ## Checks
 
 - no registered pull request

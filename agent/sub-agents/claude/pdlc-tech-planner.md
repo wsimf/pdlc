@@ -94,7 +94,7 @@ A record whose plans leave your hands carries no Assumptions subsection at all.
 
 ## Write the plans
 
-For every task planned, write only that task's plan content between its tech plan markers — no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, HITL/AFK classification, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
+For every task planned, write only that task's plan content between its tech plan markers — no copy of the task body. Preserve the task's scope, non-goals, dependencies, coverage, and acceptance criteria; never edit the task body. If one is wrong, report it as a blocker. Do not write implementation notes or Result prose.
 
 A plan block might read like this, where each path is a source file the task changes:
 

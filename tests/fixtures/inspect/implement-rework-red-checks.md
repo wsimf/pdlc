@@ -10,6 +10,10 @@ mode: rework
 
 None
 
+## Implementation Notes
+
+$CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
+
 ## Next Fix
 
 ### WORK-60-TASK-001 [CORE] First

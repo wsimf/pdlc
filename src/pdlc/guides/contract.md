@@ -41,7 +41,7 @@ When human-readable output cites one, quote or paraphrase the requirement beside
 
 - Product owns the problem, goals, requirements, constraints, non-goals, success measures, assumptions, decisions, and open questions.
 - UI owns the UI specification, accessibility, states, and user journeys.
-- Tasks owns stable `WORK-NNN-TASK-NNN` delivery tasks, requirements, dependencies, acceptance criteria, and HITL/AFK classification.
+- Tasks owns stable `WORK-NNN-TASK-NNN` delivery tasks, requirements, dependencies, and acceptance criteria.
 - Technical Plan owns source ownership, architecture, sequencing, risks, and validation planning.
 - Implementation owns production changes, task unit coverage, stacked pull requests, and implementation result evidence.
 - Testing owns whole-feature traceability, acceptance coverage, and CI evidence across the task pull-request stack.
@@ -182,7 +182,7 @@ The parent body contains human-authored content only; the backend owns how recor
 The parent body contains stable named sections for Product, UI, Decisions, Open Questions, and Verification.
 A stage owner may replace only its owned sections and must preserve approved upstream intent.
 
-Delivery-task bodies contain stable task identity, scope, requirements, dependencies, acceptance criteria, and HITL/AFK classification.
+Delivery-task bodies contain stable task identity, scope, requirements, dependencies, and acceptance criteria.
 Plans and implementation evidence are posted to the task when their command contract says so.
 
 Attachments are local agent inputs.

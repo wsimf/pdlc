@@ -10,6 +10,10 @@ mode: implement
 
 None
 
+## Implementation Notes
+
+$CACHE_ROOT/.pdlc/cache/60/pdlc-implementation-notes.md
+
 ## Next Task
 
 ### WORK-60-TASK-001 [CORE] Core work

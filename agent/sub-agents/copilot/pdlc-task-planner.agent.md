@@ -42,20 +42,12 @@ Prefer the smallest tree that keeps every slice independently verifiable. If two
 
 Every `FR-*` and `C-*` must map to at least one task. Every UI task must reference at least one approved `UJ-*` journey, and every approved journey must be covered by at least one UI task.
 
-Classify HITL/AFK per task by what its implementation needs from a human, not by how hard it is:
-
-- `HITL` only when implementation needs a product or UX decision the parent does not already settle, a design or UX approval, or an action that cannot be undone once it runs — a data migration, a message sent outside the system, a breaking change to a public contract.
-- `AFK` for everything else, including technical choices an implementer can make and a reviewer will see in the diff. Difficulty, size, and risk alone do not make a task HITL.
-
-Prefer AFK where possible.
-
 ## Write each task body
 
-Each task body carries dependency links, FR/C/UJ coverage, HITL/AFK classification, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful:
+Each task body carries dependency links, FR/C/UJ coverage, scope, and acceptance criteria. Include non-goals, risk, or expected implementation evidence only when useful:
 
 ```markdown
 **Blocked by:** TASK-001, or None
-**Type:** AFK or HITL
 **Requirements Covered:** FR-1, FR-2, C-1
 **UI Journeys:** UJ-1 (UI tasks only)
 
@@ -136,6 +128,5 @@ Return to the calling skill:
 1. Parent work item number and whether this was a first pass or a reconciliation.
 2. Task count by phase and why that count, dependency order, and requirement/journey coverage.
 3. Manifest and task body file paths.
-4. HITL tasks and why.
-5. Conflicts or gaps in the Product/UI content returned rather than resolved.
-6. Validation intentionally not run.
+4. Conflicts or gaps in the Product/UI content returned rather than resolved.
+5. Validation intentionally not run.
