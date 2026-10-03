@@ -33,7 +33,7 @@ flowchart LR
 
 ## Installation
 
-Clone this repository and run the setup script from its root. Supports Bash on macOS, Linux, and WSL.
+Clone this repository and run the setup script from its root. Use Bash on macOS, Linux, or WSL, or PowerShell 5.1+ on Windows.
 
 ### Install yourself
 
@@ -50,6 +50,8 @@ cd pdlc
 ./setup.sh
 ```
 
+On Windows, run `.\setup.ps1` instead of `./setup.sh`. Windows symbolic links require Developer Mode or an administrator shell; see [Microsoft's symbolic link guidance](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/new-item#example-7-create-a-symbolic-link-to-a-file-or-folder). The Windows script has not yet been tested on Windows.
+
 ### Setup installs
 
 - Python 3.12+ if no compatible interpreter is installed.
@@ -59,7 +61,7 @@ cd pdlc
 - Sub-agents for detected Claude, Codex, and Copilot directories; Claude/Copilot files are linked, Codex files are copied.
 - The PDLC CLI, installed or updated from this checkout through uv.
 
-Setup pulls the latest code first and prompts before Python/extension installs and each link/copy group. Use `./setup.sh -y` to accept all prompts. Rerun the same script to update or retry; matching links and agent files are replaced, unrelated files are preserved. Keep the checkout in place because skills link to it.
+Setup pulls the latest code first and prompts before Python/extension installs and each link/copy group. Use `./setup.sh -y` or `.\setup.ps1 -Yes` to accept all prompts. Rerun the same script to update or retry; matching links and agent files are replaced, unrelated files are preserved. Keep the checkout in place because skills link to it.
 
 Sign in with `gh auth login` and, if using Azure, `az login`. Then run `pdlc setup` from your project repository to configure work item management. If `pdlc` is missing from PATH, run `uv tool update-shell` and reopen your shell.
 

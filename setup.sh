@@ -16,13 +16,21 @@ done
 die() { printf 'Setup cancelled: %s\n' "$*" >&2; exit 1; }
 trap 'printf "Setup failed at line %s. Fix the reported error and rerun ./setup.sh.\n" "$LINENO" >&2' ERR
 
+step() {
+    if [[ -t 1 && ${TERM:-dumb} != dumb ]]; then
+        printf '\n\033[33m[%s] %s\033[0m\n' "$1" "$2"
+    else
+        printf '\n[%s] %s\n' "$1" "$2"
+    fi
+}
+
 confirm() {
     local answer
     if "$assume_yes"; then
         printf '%s [yes: -y]\n' "$1"
         return 0
     fi
-    printf '%s [y/N] ' "$1"
+    printf '\n\n%s [y/N] ' "$1"
     if ! IFS= read -r answer; then
         printf '\n'
         return 1
@@ -66,14 +74,16 @@ cat <<'ART'
 Let's set up PDLC!
 ART
 
-printf '\n[0] Pulling the latest repository changes...\n'
+step 0 'Pulling the latest repository changes...'
 git pull --ff-only
 validate_checkout
+printf 'Repository is up to date.\n'
 
-printf '\n[1] Checking uv...\n'
+step 1 'Checking uv...'
 command -v uv >/dev/null 2>&1 || die 'install uv from https://docs.astral.sh/uv/getting-started/installation/ and rerun.'
+printf 'uv is available.\n'
 
-printf '\n[2] Checking Python...\n'
+step 2 'Checking Python...'
 # Read the package requirement before Python itself is available to parse TOML.
 python_requirement=$(sed -n 's/^requires-python[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' pyproject.toml)
 [[ "$python_requirement" =~ ^\>=([0-9]+\.[0-9]+(\.[0-9]+)?)$ ]] || die 'unsupported requires-python in pyproject.toml.'
@@ -81,26 +91,34 @@ python_minimum=${BASH_REMATCH[1]}
 if ! python_path=$(uv python find --system --no-project --no-python-downloads "$python_requirement" 2>/dev/null); then
     confirm "PDLC needs Python $python_requirement to run. Install Python $python_minimum with uv now?" || die 'Python installation declined.'
     uv python install "$python_minimum"
+    printf 'Python %s installed.\n' "$python_minimum"
     python_path=$(uv python find --system --no-project --no-python-downloads "$python_requirement")
 fi
-printf 'Using Python: %s\n' "$python_path"
+printf 'Compatible Python is available: %s\n' "$python_path"
 
-printf '\n[3] Checking GitHub CLI...\n'
+step 3 'Checking GitHub CLI...'
 command -v gh >/dev/null 2>&1 || die 'install GitHub CLI from https://cli.github.com/ and rerun.'
+printf 'GitHub CLI is present.\n'
 
-printf '\n[4] Checking gh stack...\n'
+step 4 'Checking gh stack...'
 if ! gh stack --help >/dev/null 2>&1; then
     confirm 'Install the gh stack extension with GitHub CLI now?' || die 'gh stack installation declined.'
     gh extension install github/gh-stack
+    printf 'gh stack extension installed.\n'
+else
+    printf 'gh stack extension is available.\n'
 fi
 
-printf '\n[5] Checking optional Azure tooling...\n'
+step 5 'Checking optional Azure tooling...'
 printf 'Azure CLI and azure-devops are only needed for Azure DevOps work item management. PDLC also supports GitHub Issues and Projects via gh.\n'
 if command -v az >/dev/null 2>&1; then
+    printf 'Azure CLI is present.\n'
     if az extension show --name azure-devops >/dev/null 2>&1; then
         printf 'azure-devops extension is already installed.\n'
     elif confirm 'Install the optional azure-devops extension with Azure CLI now?'; then
-        if ! az extension add --name azure-devops; then
+        if az extension add --name azure-devops; then
+            printf 'azure-devops extension installed.\n'
+        else
             printf 'Optional azure-devops installation failed; continuing. Rerun setup to retry.\n' >&2
         fi
     else
@@ -124,7 +142,6 @@ install_entries() {
         if [[ -d "$destination" && ! -L "$destination" ]]; then
             die "cannot replace directory $destination; move it aside and rerun."
         fi
-        printf '%s: %s -> %s\n' "$mode" "$source" "$destination"
         if [[ "$mode" == symlink ]]; then
             rm -f "$destination"
             ln -s "$source" "$destination"
@@ -141,17 +158,19 @@ install_entries() {
                 die "copy failed for $destination; rerun to retry."
             fi
         fi
+        printf 'Installed %s: %s -> %s\n' "$mode" "$source" "$destination"
     done
 }
 
-printf '\n[6] Prerequisites ready. Configuring PDLC on this machine...\n'
-printf '\n[7] Installing skills...\n'
+step 6 'Configuring PDLC on this machine...'
+printf 'Required prerequisites are ready.\n'
+step 7 'Installing skills...'
 install_entries symlink "$repo_root/agent/skills" "$HOME/.agents/skills"
 if [[ -d "$HOME/.claude" ]]; then
     install_entries symlink "$repo_root/agent/skills" "$HOME/.claude/skills"
 fi
 
-printf '\n[8] Installing sub-agents for available harnesses...\n'
+step 8 'Installing sub-agents for available harnesses...'
 if [[ -d "$HOME/.claude" ]]; then
     install_entries symlink "$repo_root/agent/sub-agents/claude" "$HOME/.claude/agents"
 fi
@@ -161,8 +180,10 @@ fi
 if [[ -d "$HOME/.copilot" ]]; then
     install_entries symlink "$repo_root/agent/sub-agents/copilot" "$HOME/.copilot/agents"
 fi
+printf 'Sub-agent setup finished.\n'
 
-printf '\n[9] Installing or updating the CLI from this checkout...\n'
+step 9 'Installing or updating the CLI from this checkout...'
 uv tool install --force --reinstall --python "$python_path" --no-python-downloads "$repo_root"
+printf 'PDLC CLI installed or updated from this checkout.\n'
 printf '\nPDLC setup complete! If pdlc is not on PATH, run: uv tool update-shell\n'
 printf 'Configure work item management with: pdlc setup\n'
