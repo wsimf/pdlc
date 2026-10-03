@@ -1,105 +1,79 @@
 # PDLC
 
-**PDLC runs a feature from idea to shipped code as a governed lifecycle on your existing issue tracker, with coding agents doing the work and the tracker holding the state.**
+**From idea to shipped code, with agents doing the work and you making the decisions.**
 
-Point it at a one-line idea or an existing work item. It drives the feature through a fixed sequence of stages — product spec, UI, task breakdown, technical plan, implementation, testing, verification — pausing for human approval at the gates that matter and letting an autonomous loop grind through the rest. Every stage produces a reviewed artifact; every transition is recorded as evidence on the work item itself, not in a side database.
+PDLC coordinates coding agents through reviewed work recorded in your issue tracker. Agents plan, implement, test, and review; the workflow pauses at human gates for your approval or decision.
 
-## What it is
+- **Lifecycle as code.** Workflows define stages, transitions, review gates, and completion rules in Python. The included Feature workflow is available today; add or change workflows in code.
+- **Durable evidence.** Work items hold progress, decisions, and review results in GitHub Issues + Projects or Azure Boards.
+- **Reviewable delivery.** Tasks become linked, stacked GitHub pull requests, with independent reviews and CI checks.
+- **Your toolchain.** Project configuration routes work to your own skills and specialist agents.
 
-- An installable `pdlc` CLI that is the only interface to the workflow state.
-- A set of agent **skills** (`agent/skills/`) and specialist **sub-agents** (`agent/sub-agents/`) that drive the lifecycle by calling that CLI — one skill per stage, plus an orchestrator and an autonomous queue loop.
-- A backend abstraction: work items live in **GitHub Issues + Projects** or **Azure Boards**; code and pull requests live in **GitHub**; the two are chosen independently, so Azure Boards can pair with GitHub code hosting.
+## Lifecycle
 
-## Core idea
+The included [Feature workflow](src/pdlc/domain/workflows/workflow_feature.py) defines this path; other coded workflows can define their own:
 
-The work-item store is the system of record. Local files are temporary inputs; the CLI is the only way to read or change lifecycle state.
+```mermaid
+flowchart LR
+    Product --> UI --> Tasks --> Plan["Technical Plan"]
+    Plan --> Implementation --> Testing --> Verification --> Complete
+```
 
-- **Fixed lifecycle.** `Product → UI → Tasks → Technical Plan → Implementation → Testing → Verification → Complete`. A per-work-item `Gate State` (`Pending`, `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, `Approval Required`, `Approved`, `Stale`) says what the active stage is waiting on.
-- **Machine-checked, never inferred.** Stage, gate, task identity, PR linkage, evidence, and completion readiness come from the store — never from branch names, checkboxes, or prose.
-- **Evidence, not logs.** Each transition appends an evidence comment explaining why it happened; the work-item body stays a clean current-intent specification.
-- **Human gates are explicit.** Approvals, skips, decision resolutions, invalidations, and final completion are always driver actions. Everything else — routing, reviews, CI reconciliation, retries with backoff — can run unattended.
-- **Independent review at every stage.** Read-only reviewer sub-agents check each artifact against the requirements and plans before the gate opens; a reviewer can raise a `Decision Required` block when a finding needs a product, architecture, or scope call.
-- **Stacked delivery.** Implementation is decomposed into dependency-ordered delivery tasks, each shipped as its own stacked pull request linked back to the parent.
+Human gates pause the agent loop. Work resumes after you approve or resolve the decision.
 
-## Capabilities
-
-- **Start** a feature from an idea: `pdlc` with a description hands it to `pdlc-write`, which drafts and reviews the Product artifact.
-- **Orient** on any work item: `pdlc inspect <work-item>` returns metadata, the classified task tree, linked-PR check rollup, and the routing decision for what is due next.
-- **Drive** the queue: `pdlc next` routes one item (or scans the whole queue) to the next stage skill; `pdlc next loop` retries with backoff until something is actionable.
-- **Advance** stages with the `pdlc post *` commands — each one performs a single authorized transition and records its evidence.
-- **Inspect** progress read-only with `pdlc inspect timeline`, `pdlc inspect changes`, `pdlc inspect comments --page N`, and per-stage readiness checks (`inspect implement`, `inspect test`, `inspect verify`, `inspect complete`).
-- **Route seams to your toolchain.** A consuming repo maps each capability slot (implementer, reviewer, test author, …) to its own skill or sub-agent through `.pdlc/config.toml`; unset slots fall back to a general-purpose agent, so the skills name no project-specific tool.
-
-Run `pdlc --help` for the full command list. Run `pdlc guide guide` for the general guide or `pdlc guide decisions` for the decision-resolution workflow.
+```mermaid
+flowchart LR
+    Work["Agent work"] --> Review["Independent review"]
+    Review -->|Changes needed| Work
+    Review -->|Ready| Pause["Pause for human approval"]
+    Review -->|Decision needed| Decision["Pause for human decision"]
+    Decision -->|Resolved| Work
+    Pause -->|Approved| Next["Continue workflow"]
+```
 
 ## Installation
 
-Install the `pdlc` CLI as a `uv` tool so it lands on `PATH`:
+Clone this repository and run the setup script from its root. Supports Bash on macOS, Linux, and WSL.
+
+### Install yourself
+
+| Tool | Purpose |
+|---|---|
+| [Git](https://git-scm.com/downloads) | Clone the repository and manage worktrees. |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python package and tool manager; installs Python and the PDLC CLI. |
+| [GitHub CLI (`gh`)](https://cli.github.com/) | GitHub Issues, Projects, pull requests, and CI. |
+| [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) | Optional; needed only for Azure DevOps work item management. |
 
 ```bash
-uv tool install 'git+ssh://git@github.com/wsimf/pdlc.git@master'
+git clone https://github.com/wsimf/pdlc.git
+cd pdlc
+./setup.sh
 ```
 
-Pin a branch or tag by changing the `@master` suffix (for example `@my-branch` or `@v0.1.0`).
+### Setup installs
 
-Verify with:
+- Python 3.12+ if no compatible interpreter is installed.
+- The `gh stack` extension if missing.
+- The optional `azure-devops` extension if Azure CLI is installed.
+- Skills linked into `~/.agents/skills`, plus `~/.claude/skills` when Claude is present.
+- Sub-agents for detected Claude, Codex, and Copilot directories; Claude/Copilot files are linked, Codex files are copied.
+- The PDLC CLI, installed or updated from this checkout through uv.
 
-```bash
-pdlc --help
-```
+Setup pulls the latest code first and prompts before Python/extension installs and each link/copy group. Use `./setup.sh -y` to accept all prompts. Rerun the same script to update or retry; matching links and agent files are replaced, unrelated files are preserved. Keep the checkout in place because skills link to it.
 
-### Updating
-
-Re-pull the pinned ref and reinstall:
-
-```bash
-uv tool upgrade pdlc --reinstall
-```
-
-To switch to a different branch or tag, reinstall with `--force`:
-
-```bash
-uv tool install --force 'git+ssh://git@github.com/wsimf/pdlc.git@my-branch'
-```
+Sign in with `gh auth login` and, if using Azure, `az login`. Then run `pdlc setup` from your project repository to configure work item management. If `pdlc` is missing from PATH, run `uv tool update-shell` and reopen your shell.
 
 ## Worktrees
 
-`pdlc prepare` and `pdlc cleanup` are human-only helpers — they are not part of the agent workflow and do not appear in `pdlc --help`. They bracket a work item's implementation with an isolated Git worktree so the agent never touches your main checkout.
-
-Run `pdlc prepare` **before starting implementation**, once a record is planned and its tasks are ready:
+Use `pdlc prepare` from your project repository to create or reopen a dedicated Git worktree for a work item, then point your agent at that folder:
 
 ```bash
 cd "$(pdlc prepare 142)"
 ```
 
-This creates `<worktree.root>/<repo-name>/142` on a `pdlc/record-142` branch (from the repo's default branch), optionally runs your init script, and prints the path so the subshell `cd`s into it. Point the agent at that directory and let it run the `gh stack` implementation loop there. Re-running `pdlc prepare 142` just reprints the existing path.
+For work that depends on another unmerged item, use `pdlc prepare my-feature --after 141`. Optional `[worktree]` configuration sets the root, base ref, and init script.
 
-To build on another work item that has not merged yet, prepare with `--after`, before the new work item even exists:
-
-```bash
-cd "$(pdlc prepare my-feature --after 141)"
-```
-
-The branch starts from 141's latest implemented task branch, so writing, planning, and implementation all see its code, and `141` is recorded in the worktree's own Git config (local only; `extensions.worktreeConfig` is enabled the first time). When `pdlc inspect implement` runs there for the new work item's first task, it stacks onto 141's latest task pull request instead of starting a fresh stack, and `gh stack sync --prune` rebases the new work onto the default branch once 141 lands. If 141 has no implemented task pull request yet, the worktree starts from the default branch and the first task is blocked until one exists; if 141 is already Complete, the new work starts a fresh stack.
-
-Run `pdlc cleanup` **after the record is complete**, from your main checkout:
-
-```bash
-pdlc cleanup 142
-```
-
-It resolves the work item, refuses unless it is locked at `Complete`, then removes the worktree and force-deletes its local branches — `pdlc/record-142` and every `pdlc/<slug>/<task-id>` branch `gh stack` created. Merged pull requests and remote branches are left to GitHub. Add `--yes` to skip the confirmation prompt.
-
-Configure with the optional `[worktree]` table (merged from `~/.pdlc/config.toml` then `.pdlc/config.toml` like every other setting):
-
-```toml
-[worktree]
-root = "~/.pdlc/worktrees"   # optional; this is also the default
-base_ref = "origin/main"      # optional; default: the repo's detected default branch
-init_script = "npm ci"        # optional; pdlc prepare offers to run it in the new worktree
-```
-
-`init_script` runs as a shell snippet in the new worktree; `pdlc prepare` shows it and prompts before running (`--yes` to skip). Keep it POSIX `sh` — it is passed to the platform shell.
+Once the item is Complete, run `pdlc cleanup 142` from your main checkout to remove its worktree and local delivery branches. These are human-run helpers.
 
 ## Development
 
@@ -241,7 +215,7 @@ Run `pdlc setup` to create this file interactively. It detects the GitHub reposi
 
 | Field | Type | Options / contents |
 |---|---|---|
-| `Status` | Single select | `Product`, `UI`, `Tasks`, `Technical Plan`, `Implementation`, `Testing`, `Verification`, `Complete` — the fixed lifecycle stages, in order. |
+| `Status` | Single select | `Product`, `UI`, `Tasks`, `Technical Plan`, `Implementation`, `Testing`, `Verification`, `Complete` — stages of the included Feature workflow. |
 | `Gate State` | Single select | `Pending`, `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, `Approval Required`, `Approved`, `Stale` — where the current stage sits (pending work, under review, needs a human decision, blocked on CI, awaiting approval, approved, or stale after upstream change). |
 | `Lifecycle` | Single select | `Planning`, `Completed` — `Completed` is set only by `pdlc post complete`; everything else stays `Planning`. |
 | `Slug` | Text | Short work-item identifier stamped once at creation and never overwritten. |
@@ -285,7 +259,7 @@ Add all six to **`Product Backlog Item`**, the work-item type PDLC uses for a re
 
 | Field | Type | Options / contents |
 |---|---|---|
-| `PdlcStatus` | Picklist (string) | `Product`, `UI`, `Tasks`, `Technical Plan`, `Implementation`, `Testing`, `Verification`, `Complete` — the fixed lifecycle stages, in order. |
+| `PdlcStatus` | Picklist (string) | `Product`, `UI`, `Tasks`, `Technical Plan`, `Implementation`, `Testing`, `Verification`, `Complete` — stages of the included Feature workflow. |
 | `PdlcGateState` | Picklist (string) | `Pending`, `Review Required`, `Changes Required`, `Decision Required`, `CI Pending`, `Approval Required`, `Approved`, `Stale` — where the current stage sits. |
 | `PdlcLifecycle` | Picklist (string) | `Planning`, `Completed` — `Completed` is set only by `pdlc post complete`; everything else stays `Planning`. |
 | `PdlcSkippedStates` | Text (single line) | Comma-separated list of lifecycle stages declared skipped ahead of time via `pdlc post skip`. |
