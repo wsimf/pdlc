@@ -119,7 +119,7 @@ import sys
 from dataclasses import dataclass
 from html import escape
 
-from pdlc.domain.records import PullRef, pull_ref
+from pdlc.domain.records import PullRef, pull_ref, pull_request_label
 from pdlc.internal.pull_requests import pr_label, prs_json
 from pdlc.domain.changes import SOURCE_LABELS, ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
@@ -289,7 +289,7 @@ def _next_fix_section(item: dict, fix: _Fix, decisions: list[ChangeRequest]) -> 
     if fix.red:
         lines += ["", f"#### Failing checks ({len(fix.red)})"]
         for pr in fix.red:
-            lines.append(f"- PR #{pr['number']}: {pr.get('checks')} ({pr['url']})")
+            lines.append(f"- PR {pull_request_label(pr)}: {pr.get('checks')} ({pr['url']})")
     if decisions:
         # A thread escalated to the driver stays unresolved on the host, so
         # this unit comes round again once the decision is answered; the answer
@@ -360,7 +360,7 @@ def _nested(body: str, depth: int = 2) -> str:
 def _checks_section(pull_requests: list[dict]) -> str:
     lines = ["## Checks", ""]
     for pr in pull_requests:
-        lines.append(f"- PR #{pr['number']}: {check_state(pr.get('checks'))}")
+        lines.append(f"- PR {pull_request_label(pr)}: {check_state(pr.get('checks'))}")
     if not pull_requests:
         lines.append("- no registered pull request")
     return "\n".join(lines)

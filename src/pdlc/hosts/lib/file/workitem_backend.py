@@ -337,7 +337,7 @@ class FileWorkItemBackend(WorkItemBackend):
         meta["state"] = "OPEN"
         _write_meta(path, meta)
 
-    def task_pr_numbers(self, ref: str) -> list[PullRef]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         return sorted({pr for path in self._task_dirs(ref) for pr in _prs(_read_meta(path))})
 
     # --- attached pull requests ---

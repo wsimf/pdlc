@@ -10,22 +10,37 @@ from unittest.mock import Mock, patch
 from _gh_replay import GitHubHostTest, pull_request_node, pull_requests_graphql
 from _support import FileBackendTest
 
-from pdlc.config import Config
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.config import Config, install_config, reset_config
 from pdlc.domain.records import PullRef
 from pdlc.hosts.lib.github.code_host import GitHubCodeHost
-from pdlc.internal.stack import stack_entry_pr, task_branch_name
+from pdlc.internal.stack import stack_entry_pr, stack_pr, task_branch_name
 
 
 class StackEntryPointTests(unittest.TestCase):
     """PDLC resolves one fact for the stack — where to enter it — from the PR
     registry. `gh stack` owns everything else."""
 
+    def setUp(self):
+        install_config(Config(tracker_provider="file", code_provider="file"))
+        self.addCleanup(reset_config)
+
     def _task(self, number, task_id, *, implemented=False, prs=()):
         return {
             "number": number, "taskId": task_id,
-            "hasImplementation": implemented, "prs": [PullRef(pr) for pr in prs],
+            "hasImplementation": implemented,
+            "prs": [pr if isinstance(pr, PullRef) else PullRef(pr) for pr in prs],
         }
+
+    def test_a_pull_request_in_another_repository_never_enters_the_stack(self):
+        # `gh stack` acts on this checkout only, so a higher-numbered PR
+        # registered from another repository is not the entry point.
+        delivery = [
+            self._task(1, "TASK-001", implemented=True, prs=[40, PullRef(90, "acme/web")]),
+            self._task(2, "TASK-002"),
+        ]
+        self.assertEqual(stack_entry_pr(delivery, delivery[1]), 40)
+        self.assertIsNone(stack_pr([PullRef(90, "acme/web")]))
 
     def test_branch_name_is_derived_from_the_task_identity(self):
         self.assertEqual(task_branch_name("record-9", "TASK-003"), "pdlc/record-9/task-003")

@@ -155,7 +155,7 @@ class WorkItemBackend(ABC):
         closure when a driver invalidates Technical Plan or Implementation
         back onto it, so the task is back in scope for rework."""
 
-    def task_pr_numbers(self, ref: str) -> list[PullRef]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         """Registered task PRs; adapters may avoid loading task bodies/comments."""
         return sorted({pr for task in self.tasks(ref) for pr in task["prs"]})
 

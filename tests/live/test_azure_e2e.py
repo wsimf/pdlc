@@ -157,7 +157,7 @@ class AzureLiveEndToEndTest(unittest.TestCase):
 
         by_number = self.backend.tasks_by_number([str(task_number)])
         self.assertEqual(by_number[0]["number"], task_number)
-        self.assertEqual(self.backend.task_pr_numbers(str(parent_number)), [])
+        self.assertEqual(self.backend.task_prs(str(parent_number)), [])
 
         # --- close / reopen ---
         self.backend.close_task(str(task_number))

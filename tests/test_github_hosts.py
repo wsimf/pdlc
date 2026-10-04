@@ -881,6 +881,11 @@ class CodeHostTest(GitHubHostTest):
         repos = [next(arg for arg in args if arg.startswith("owner=")) + "/" + next(arg for arg in args if arg.startswith("repo=")) for args, _ in queries]
         self.assertEqual(repos, ["owner=acme/repo=web", "owner=wsimf/repo=pdlc"])
 
+    def test_a_malformed_code_repository_names_its_setting(self) -> None:
+        self.configure(code_repository="not-a-repo")
+        with self.assertRaisesRegex(PdlcError, r"^\[code\.github\] repository must be owner/name$"):
+            self.host.unresolved_review_comments(PullRef(1))
+
     def test_pr_dict_carries_the_head_commit(self) -> None:
         from pdlc.hosts.lib.github.code_host import _pr_dict
         base = {"number": 5, "title": "t", "url": "u", "state": "MERGED", "isDraft": False,

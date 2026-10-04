@@ -362,7 +362,7 @@ class AzureWorkItemBackend(WorkItemBackend):
     def reopen_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_open_state())
 
-    def task_pr_numbers(self, ref: str) -> list[PullRef]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         items = azure.children(self._record_id(ref), ("System.Id", azure.PRS_FIELD))
         return sorted({pr for item in items for pr in _parse_prs(item.get("fields") or {})})
 

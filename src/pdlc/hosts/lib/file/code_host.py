@@ -1,7 +1,8 @@
 """File code host: pull requests come from a `pull_requests.json` under each
-record's directory in `$PDLC_HOME`, mirroring the shape the GitHub host returns. `repository` may be omitted and
-reads as "" — a file PR belongs to no repository, so its ref is the bare number.
-Which of them belong to a record is decided by the explicit registry on the
+record's directory in `$PDLC_HOME`, mirroring the shape the GitHub host returns.
+`repository` may be omitted and reads as "" — a file PR belongs to no
+repository, so its ref is the bare number; a given one is casefolded like a
+`PullRef`'s. Which of them belong to a record is decided by the explicit registry on the
 work item and its tasks (see `internal.pull_requests`), not by this file.
 
     $PDLC_HOME/records/<n>/pull_requests.json
@@ -34,7 +35,10 @@ def _all_pull_requests() -> list[dict]:
     for record in root.glob("*"):
         path = record / "pull_requests.json"
         if path.is_file():
-            found.extend({"repository": "", **pr} for pr in json.loads(path.read_text(encoding="utf-8")))
+            found.extend(
+                {**pr, "repository": (pr.get("repository") or "").casefold()}
+                for pr in json.loads(path.read_text(encoding="utf-8"))
+            )
     return found
 
 

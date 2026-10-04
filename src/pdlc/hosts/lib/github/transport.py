@@ -116,22 +116,22 @@ def assignee_args() -> list[str]:
     return ["--assignee", configured if configured and configured.casefold() != "@me" else "@me"]
 
 
-def _owner_name(repository: str | None, setting: str) -> tuple[str, str]:
+def _owner_name(repository: str | None, table: str) -> tuple[str, str]:
     if not repository or "/" not in repository:
-        raise PdlcError(f"[{setting}] must be owner/name")
+        raise PdlcError(f"[{table}] repository must be owner/name")
     owner, _, name = repository.partition("/")
     return owner, name
 
 
 def tracker_owner_repository() -> tuple[str, str]:
     """`(owner, name)` of the tracker repository, for Issue GraphQL reads."""
-    return _owner_name(get_config().tracker_repository, "tracker.github] repository")
+    return _owner_name(get_config().tracker_repository, "tracker.github")
 
 
 def code_owner_repository(repository: str = "") -> tuple[str, str]:
     """`(owner, name)` of `repository` (a `PullRef`'s), else of the code
     repository, for pull-request GraphQL reads."""
-    return _owner_name(repository or get_config().code_repository, "code.github] repository")
+    return _owner_name(repository or get_config().code_repository, "code.github")
 
 
 # A bare `#123` that GitHub would autolink to an issue/PR and record as a

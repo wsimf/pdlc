@@ -159,7 +159,7 @@ class RecordPullRequestsTests(FileBackendTest):
     def test_the_same_number_in_two_repositories_resolves_to_two_pull_requests(self):
         from pdlc.internal.pull_requests import pr_label, record_pull_requests
 
-        web = {"number": 148, "repository": "acme/web", "title": "web pr", "url": "u", "state": "OPEN",
+        web = {"number": 148, "repository": "Acme/Web", "title": "web pr", "url": "u", "state": "OPEN",
                "isDraft": False, "branch": "pdlc/record-70/task-001", "mergedAt": None, "checks": "FAILURE"}
         path = self.records_dir() / "70" / "pull_requests.json"
         path.write_text(json.dumps([*json.loads(path.read_text()), web]))

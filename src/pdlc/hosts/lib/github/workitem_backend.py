@@ -113,7 +113,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def reopen_task(self, task_ref: str) -> None:
         run_gh(["issue", "reopen", str(task_ref), *tracker_repo_args()])
 
-    def task_pr_numbers(self, ref: str) -> list[PullRef]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         return sorted({pr for task in github_issues.subissues_for(ref, include_comments=False) for pr in task["prs"]})
 
     # --- attached pull requests ---

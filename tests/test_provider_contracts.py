@@ -230,7 +230,7 @@ class AzureRecoveryTests(unittest.TestCase):
 
     def test_pr_registry_read_does_not_hydrate_comments(self):
         with patch.object(AzureWorkItemBackend, "_record_id", return_value=7), patch.object(azure, "children", return_value=[{"fields": {azure.PRS_FIELD: "3 9"}}]) as children, patch.object(azure, "comments") as comments:
-            self.assertEqual([ref.number for ref in AzureWorkItemBackend().task_pr_numbers("7")], [3, 9])
+            self.assertEqual([ref.number for ref in AzureWorkItemBackend().task_prs("7")], [3, 9])
         comments.assert_not_called()
         children.assert_called_once_with(7, ("System.Id", azure.PRS_FIELD))
 

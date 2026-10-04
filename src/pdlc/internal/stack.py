@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pdlc.domain.records import pull_request_label
+from pdlc.config import get_config
+from pdlc.domain.records import PullRef, pull_request_label
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_TITLE_PATTERN
 from pdlc.domain.workflow import Lifecycle
@@ -53,6 +54,14 @@ def latest_implemented_task(delivery_tasks: list[dict], before: int | None = Non
     return max(candidates, key=lambda task: task["number"]) if candidates else None
 
 
+def stack_pr(refs: list[PullRef]) -> int | None:
+    """The highest-numbered of ``refs`` in the configured code repository, as
+    the number `gh stack` takes, or None when there is none. `gh stack` acts on
+    the current checkout only, so a PR in another repository never enters it."""
+    local = [ref.number for ref in refs if ref.repository == get_config().pull_request_repository()]
+    return max(local) if local else None
+
+
 def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     """The pull request to hand `gh stack checkout` so the local stack for
     ``chosen`` is set up before its branch is added, or None when ``chosen`` is
@@ -64,7 +73,7 @@ def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     so one registered number is enough even on a fresh clone.
     """
     latest = latest_implemented_task(delivery_tasks, before=chosen["number"])
-    return max(latest["prs"]).number if latest else None
+    return stack_pr(latest["prs"]) if latest else None
 
 
 def stack_gaps(pull_requests: list[dict]) -> list[str]:
@@ -100,7 +109,7 @@ def resolve_predecessor(ref: str) -> Predecessor:
     latest = latest_implemented_task(task_tree(ref))
     if latest is None:
         return Predecessor(ref, False, None, None)
-    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), max(latest["prs"]).number)
+    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), stack_pr(latest["prs"]))
 
 
 @dataclass(frozen=True)
@@ -157,7 +166,7 @@ def resolve_task_checkout(ref: str) -> TaskCheckout:
     return TaskCheckout(
         task=chosen,
         branch=task_branch_name(item_branch_slug(item), task_id),
-        pr=max(prs).number if prs else None,
+        pr=stack_pr(prs),
         entry_pr=stack_entry_pr(delivery, chosen),
         predecessor=after_predecessor(delivery, chosen),
     )

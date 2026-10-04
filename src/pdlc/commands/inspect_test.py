@@ -55,7 +55,7 @@ from __future__ import annotations
 import sys
 
 
-from pdlc.domain.records import PullRef, pull_ref
+from pdlc.domain.records import PullRef, pull_ref, pull_request_label
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.lifecycle import PdlcError
@@ -107,7 +107,7 @@ def _testable_scope_section(tasks: list[dict], pull_requests: list[dict]) -> lis
         for pr, files in task_prs:
             sections += [
                 "",
-                f"PR #{pr['number']} ({pr['state']}, checks: {pr['checks']})",
+                f"PR {pull_request_label(pr)} ({pr['state']}, checks: {pr['checks']})",
                 "Files touched:" if files else "Files touched: none found — inspect the PR diff directly.",
             ]
             sections += [f"- {f}" for f in files]

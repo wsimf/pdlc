@@ -276,7 +276,7 @@ def _decisions_text(requests: list[ChangeRequest]) -> str:
 
 
 def _checks_text(red: list[dict]) -> str:
-    return "\n".join(f"- PR #{pr['number']}: {pr.get('checks')} ({pr['url']})" for pr in red)
+    return "\n".join(f"- PR {pull_request_label(pr)}: {pr.get('checks')} ({pr['url']})" for pr in red)
 
 
 def _implement_context(

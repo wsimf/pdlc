@@ -49,7 +49,7 @@ def registered_prs(ref: str, *, record: dict | None = None, tasks: list[dict] | 
     record = record or resolve_item(ref)
     refs: set[PullRef] = set(record.get("prs") or [])
     if tasks is None:
-        refs.update(get_backend().task_pr_numbers(ref))
+        refs.update(get_backend().task_prs(ref))
     else:
         for task in tasks:
             refs.update(task.get("prs") or [])
