@@ -55,6 +55,7 @@ from __future__ import annotations
 import sys
 
 
+from pdlc.domain.records import PullRef, pull_ref
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.lifecycle import PdlcError
@@ -70,7 +71,7 @@ from pdlc.internal.failure import report_failure
 # local git state — the same set whether the PR is merged, still open, or the
 # worktree hasn't fetched its branch at all.
 def _files_for_pull_request(pr: dict) -> list[str]:
-    return get_code_host().pull_request_files(pr["number"])
+    return get_code_host().pull_request_files(pull_ref(pr))
 
 
 def testable_scope(tasks: list[dict], pull_requests: list[dict]) -> list[tuple[dict, list[tuple[dict, list[str]]]]]:
@@ -79,19 +80,19 @@ def testable_scope(tasks: list[dict], pull_requests: list[dict]) -> list[tuple[d
     acceptance-test-writer` reads the same scope, so the brief and this
     command never disagree about what is under test."""
     in_scope = [t for t in tasks if t["state"] == "CLOSED" and t["hasImplementation"]]
-    pr_by_number = {pr["number"]: pr for pr in pull_requests}
-    files_by_number: dict[int, list[str]] = {}
+    pr_by_ref = {pull_ref(pr): pr for pr in pull_requests}
+    files_by_ref: dict[PullRef, list[str]] = {}
 
     scope: list[tuple[dict, list[tuple[dict, list[str]]]]] = []
     for task in in_scope:
         # A task's scope is its explicitly registered PRs. The record-level
         # registry may include PRs for sibling tasks and must not leak them
         # into every testing prompt.
-        task_prs = [pr_by_number[number] for number in task.get("prs", []) if number in pr_by_number]
+        task_prs = [pr_by_ref[ref] for ref in task.get("prs", []) if ref in pr_by_ref]
         for pr in task_prs:
-            if pr["number"] not in files_by_number:
-                files_by_number[pr["number"]] = _files_for_pull_request(pr)
-        scope.append((task, [(pr, files_by_number[pr["number"]]) for pr in task_prs]))
+            if pull_ref(pr) not in files_by_ref:
+                files_by_ref[pull_ref(pr)] = _files_for_pull_request(pr)
+        scope.append((task, [(pr, files_by_ref[pull_ref(pr)]) for pr in task_prs]))
     return scope
 
 

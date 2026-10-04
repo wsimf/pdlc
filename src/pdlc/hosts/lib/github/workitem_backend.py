@@ -8,7 +8,7 @@ raw body write and record creation.
 
 from __future__ import annotations
 
-from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+from pdlc.domain.records import Comment, CreatedRecord, PullRef, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
 
 import pdlc.hosts.lib.github.issues as github_issues
 import pdlc.hosts.lib.github.pr_registry as pr_registry
@@ -113,23 +113,23 @@ class GitHubWorkItemBackend(WorkItemBackend):
     def reopen_task(self, task_ref: str) -> None:
         run_gh(["issue", "reopen", str(task_ref), *tracker_repo_args()])
 
-    def task_pr_numbers(self, ref: str) -> list[int]:
-        return sorted({number for task in github_issues.subissues_for(ref, include_comments=False) for number in task["prs"]})
+    def task_pr_numbers(self, ref: str) -> list[PullRef]:
+        return sorted({pr for task in github_issues.subissues_for(ref, include_comments=False) for pr in task["prs"]})
 
     # --- attached pull requests ---
 
     # Records and delivery tasks are both Issues, so one implementation serves
     # each: the registry lives in the Issue body either way.
 
-    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+    def attach_pr(self, ref: str, pr: PullRef) -> list[PullRef]:
         stored = self._raw_body(ref)
-        updated, numbers = pr_registry.with_pr(stored, int(pr_number))
+        updated, numbers = pr_registry.with_pr(stored, pr)
         if updated != stored:
             with body_file(updated) as path:
                 run_gh(["issue", "edit", str(ref), *tracker_repo_args(), "--body-file", path])
         return numbers
 
-    def attached_prs(self, ref: str) -> list[int]:
+    def attached_prs(self, ref: str) -> list[PullRef]:
         return pr_registry.prs(self._raw_body(ref))
 
     # --- creation ---

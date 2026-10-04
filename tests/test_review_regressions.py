@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+from pdlc.config import Config, install_config, reset_config
+from pdlc.domain.records import PullRef
 from pdlc.commands.inspect_test import _testable_scope_section
 from pdlc.commands.inspect_implement import _next_task_section
 from pdlc.commands.inspect_task import _render_task
@@ -10,6 +12,9 @@ from pdlc.internal import pull_requests
 
 
 class ReviewRegressionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        install_config(Config())
+        self.addCleanup(reset_config)
     def test_comment_notice_reports_exact_older_count(self):
         self.assertEqual(older_comments_notice("TASK-001", {"totalCount": 205}, 100), "105 more comments; use pdlc inspect comments TASK-001 --page 2")
         self.assertEqual(older_comments_notice("TASK-001", {"totalCount": 100}, 100), "")
@@ -36,10 +41,10 @@ class ReviewRegressionTests(unittest.TestCase):
 
     def test_testable_scope_fetches_each_task_pr_once_and_keeps_ownership(self):
         tasks = [
-            {"state": "CLOSED", "hasImplementation": True, "title": "A", "prs": [1], "isUI": False},
-            {"state": "CLOSED", "hasImplementation": True, "title": "B", "prs": [2], "isUI": False},
+            {"state": "CLOSED", "hasImplementation": True, "title": "A", "prs": [PullRef(1)], "isUI": False},
+            {"state": "CLOSED", "hasImplementation": True, "title": "B", "prs": [PullRef(2)], "isUI": False},
         ]
-        prs = [{"number": 1, "state": "MERGED", "checks": "SUCCESS", "isDraft": False}, {"number": 2, "state": "MERGED", "checks": "SUCCESS", "isDraft": False}]
+        prs = [{"number": 1, "repository": "", "state": "MERGED", "checks": "SUCCESS", "isDraft": False}, {"number": 2, "repository": "", "state": "MERGED", "checks": "SUCCESS", "isDraft": False}]
         with patch("pdlc.commands.inspect_test._files_for_pull_request", side_effect=lambda pr: [f"f{pr['number']}"]) as fetch:
             output = "\n".join(_testable_scope_section(tasks, prs))
         self.assertEqual(fetch.call_count, 2)
@@ -48,11 +53,11 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertNotIn("### A\n\nPR #1 (MERGED, checks: SUCCESS)\nFiles touched:\n- f1\n\nPR #2", output)
 
     def test_registry_snapshot_avoids_record_and_task_fetches(self):
-        record = {"prs": [1]}
-        pr = {"number": 1, "title": "PR", "url": "", "state": "OPEN", "isDraft": False, "branch": "task", "mergedAt": None, "checks": "NONE"}
+        record = {"prs": [PullRef(1)]}
+        pr = {"number": 1, "repository": "", "label": "#1", "title": "PR", "url": "", "state": "OPEN", "isDraft": False, "branch": "task", "mergedAt": None, "checks": "NONE"}
         with patch.object(pull_requests, "resolve_item") as resolve, patch.object(pull_requests, "get_backend") as backend:
             with patch.object(pull_requests, "get_code_host") as host:
-                host.return_value.pull_requests_by_number.return_value = [pr]
+                host.return_value.pull_requests.return_value = [pr]
                 self.assertEqual(pull_requests.record_pull_requests("7", record=record, tasks=[]), [pr])
         resolve.assert_not_called()
         backend.assert_not_called()

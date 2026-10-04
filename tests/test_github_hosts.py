@@ -11,7 +11,9 @@ import json
 import unittest
 from pathlib import Path
 
+from pdlc.config import Config, install_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.records import PullRef
 from pdlc.domain.workflow import WorkType
 from pdlc.hosts.lib.github import issues as github_issues, project as github_project, pr_registry as github_pr_registry
 from pdlc.hosts.lib.github.code_host import GitHubCodeHost
@@ -452,7 +454,7 @@ class SubIssueUpsertTest(GitHubHostTest):
         [task] = github_issues.tasks_by_number(["11"])
 
         self.assertEqual(task["body"], "See #45\n")
-        self.assertEqual(task["prs"], [7])
+        self.assertEqual(task["prs"], [PullRef(7, "wsimf/pdlc")])
         self.assertEqual(task["comments"], ["Descoped from work item #3: gone\n"])
         self.assertEqual(task["commentObjects"][0]["body"], "Descoped from work item #3: gone\n")
 
@@ -550,47 +552,68 @@ class SubIssueUpsertTest(GitHubHostTest):
         with self.assertRaisesRegex(PdlcError, "incomplete sub-issue removal"):
             github_issues.remove_subissue("3", "11")
 
+PR_148 = PullRef(148, "acme/api")
+PR_152 = PullRef(152, "acme/api")
+
+
+def _refs(*numbers: int) -> list[PullRef]:
+    return [PullRef(number, "wsimf/pdlc") for number in numbers]
+
+
 class PrRegistryFormatTest(unittest.TestCase):
     """The GitHub backend's own storage format for attached pull requests."""
 
     BODY = "## Scope\nDo the thing.\n\n## Acceptance criteria\n- ok\n"
 
+    def setUp(self) -> None:
+        install_config(Config(tracker_provider="github", code_repository="acme/API"))
+        self.addCleanup(reset_config)
+
     def test_round_trips_pr_numbers_without_touching_the_body(self) -> None:
-        stamped = github_pr_registry.attach(self.BODY, [148, 152])
-        self.assertTrue(stamped.startswith("<!-- pdlc:meta\n"))
-        self.assertEqual(github_pr_registry.prs(stamped), [148, 152])
+        stamped = github_pr_registry.attach(self.BODY, [PR_148, PR_152])
+        self.assertTrue(stamped.startswith("<!-- pdlc:meta\nprs: acme/api#148 acme/api#152\n-->"))
+        self.assertEqual(github_pr_registry.prs(stamped), [PR_148, PR_152])
         self.assertEqual(github_pr_registry.strip(stamped), self.BODY)
+
+    def test_bare_numbers_read_as_the_code_repository_and_others_keep_theirs(self) -> None:
+        stored = "<!-- pdlc:meta\nprs: 152 acme/web#3 Acme/API#148 junk\n-->\n\n" + self.BODY
+        self.assertEqual(github_pr_registry.prs(stored), [PullRef(3, "acme/web"), PR_148, PR_152])
+
+    def test_the_same_number_in_two_repositories_is_two_pull_requests(self) -> None:
+        once, _ = github_pr_registry.with_pr(self.BODY, PR_148)
+        _, refs = github_pr_registry.with_pr(once, PullRef(148, "acme/web"))
+        self.assertEqual(refs, [PR_148, PullRef(148, "acme/web")])
 
     def test_plain_body_has_no_registry(self) -> None:
         self.assertEqual(github_pr_registry.prs(self.BODY), [])
         self.assertEqual(github_pr_registry.strip(self.BODY), self.BODY)
 
     def test_with_pr_dedupes_and_sorts(self) -> None:
-        once, numbers = github_pr_registry.with_pr(self.BODY, 160)
-        self.assertEqual(numbers, [160])
-        twice, numbers = github_pr_registry.with_pr(once, 148)
-        self.assertEqual(numbers, [148, 160])
+        once, numbers = github_pr_registry.with_pr(self.BODY, PullRef(160, "acme/api"))
+        self.assertEqual(numbers, [PullRef(160, "acme/api")])
+        twice, numbers = github_pr_registry.with_pr(once, PR_148)
+        self.assertEqual(numbers, [PR_148, PullRef(160, "acme/api")])
         self.assertEqual(github_pr_registry.strip(twice), self.BODY)
 
     def test_with_pr_returns_the_body_unchanged_when_already_attached(self) -> None:
-        once, _ = github_pr_registry.with_pr(self.BODY, 148)
-        again, numbers = github_pr_registry.with_pr(once, 148)
+        once, _ = github_pr_registry.with_pr(self.BODY, PR_148)
+        again, numbers = github_pr_registry.with_pr(once, PR_148)
         self.assertIs(again, once)
-        self.assertEqual(numbers, [148])
+        self.assertEqual(numbers, [PR_148])
 
     def test_attaching_nothing_removes_the_block(self) -> None:
-        stamped = github_pr_registry.attach(self.BODY, [148])
+        stamped = github_pr_registry.attach(self.BODY, [PR_148])
         self.assertEqual(github_pr_registry.attach(stamped, []), self.BODY)
 
     def test_restore_carries_the_block_onto_a_new_body(self) -> None:
-        stored = github_pr_registry.attach("## Scope\nold\n", [148])
+        stored = github_pr_registry.attach("## Scope\nold\n", [PR_148])
         restored = github_pr_registry.restore(stored, self.BODY)
-        self.assertEqual(github_pr_registry.prs(restored), [148])
+        self.assertEqual(github_pr_registry.prs(restored), [PR_148])
         self.assertEqual(github_pr_registry.strip(restored), self.BODY)
 
     def test_view_splits_a_raw_node(self) -> None:
-        node = github_pr_registry.view({"number": 7, "body": github_pr_registry.attach(self.BODY, [148])})
-        self.assertEqual(node["prs"], [148])
+        node = github_pr_registry.view({"number": 7, "body": github_pr_registry.attach(self.BODY, [PR_148])})
+        self.assertEqual(node["prs"], [PR_148])
         self.assertEqual(node["body"], self.BODY)
 
 
@@ -658,7 +681,7 @@ class WorkItemBackendTest(GitHubHostTest):
             }),
         )
         item = self.backend.resolve("3")
-        self.assertEqual(item["prs"], [148, 152])
+        self.assertEqual(item["prs"], [PullRef(148, "wsimf/pdlc"), PullRef(152, "wsimf/pdlc")])
         self.assertEqual(item["issueBody"], "## Product\nkeep #9\n")
         self.assertNotIn("pdlc:meta", item["issueBody"])
 
@@ -668,23 +691,25 @@ class WorkItemBackendTest(GitHubHostTest):
         self._stored_body("<!-- pdlc:meta\nprs: 148 152\n-->\n\n## Product\nold\n")
         written = self._capture_edited_body()
         self.backend.write_body("3", "## Product\nnew body\n")
-        self.assertEqual(github_pr_registry.prs(written[0]), [148, 152])
+        self.assertEqual(github_pr_registry.prs(written[0]), [PullRef(148, "wsimf/pdlc"), PullRef(152, "wsimf/pdlc")])
         self.assertIn("new body", written[0])
 
     def test_attach_pr_adds_a_number_and_reports_the_full_list(self) -> None:
         self._stored_body("<!-- pdlc:meta\nprs: 148\n-->\n\n## Scope\n")
         written = self._capture_edited_body()
-        self.assertEqual(self.backend.attach_pr("3", 152), [148, 152])
-        self.assertEqual(github_pr_registry.prs(written[0]), [148, 152])
+        refs = [PullRef(148, "wsimf/pdlc"), PullRef(152, "wsimf/pdlc")]
+        self.assertEqual(self.backend.attach_pr("3", refs[1]), refs)
+        self.assertEqual(github_pr_registry.prs(written[0]), refs)
+        self.assertTrue(written[0].startswith("<!-- pdlc:meta\nprs: wsimf/pdlc#148 wsimf/pdlc#152\n-->"))
 
     def test_attach_pr_is_idempotent_and_skips_the_write(self) -> None:
         self._stored_body("<!-- pdlc:meta\nprs: 148\n-->\n\n## Scope\n")
-        self.assertEqual(self.backend.attach_pr("3", 148), [148])
+        self.assertEqual(self.backend.attach_pr("3", PullRef(148, "wsimf/pdlc")), [PullRef(148, "wsimf/pdlc")])
         self.assertFalse([call for call in self.gh.calls if call[0][:2] == ["issue", "edit"]])
 
     def test_attached_prs_reads_the_registry(self) -> None:
         self._stored_body("<!-- pdlc:meta\nprs: 152 148\n-->\n\n## Scope\n")
-        self.assertEqual(self.backend.attached_prs("3"), [148, 152])
+        self.assertEqual(self.backend.attached_prs("3"), [PullRef(148, "wsimf/pdlc"), PullRef(152, "wsimf/pdlc")])
 
     def test_create_parses_issue_number_and_adds_project_item(self) -> None:
         self.gh.gh(
@@ -764,12 +789,12 @@ class CodeHostTest(GitHubHostTest):
         }
         self.gh.graphql("pullRequest(number:", pull_requests_graphql(nodes.get))
 
-        prs = self.host.pull_requests_by_number([5, 9, 4])
+        prs = self.host.pull_requests(_refs(5, 9, 4))
 
         self.assertEqual([pr["number"] for pr in prs], [5, 9, 4])
         self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "PENDING", "NONE"])
         self.assertEqual(prs[2], {
-            "number": 4, "title": "PR 4", "url": "u4", "state": "MERGED", "isDraft": False,
+            "number": 4, "repository": "wsimf/pdlc", "title": "PR 4", "url": "u4", "state": "MERGED", "isDraft": False,
             "branch": "branch-4", "mergedAt": "2026-09-14T09:45:00Z", "checks": "NONE", "headSha": "sha4",
         })
         self.assertEqual(len(self.gh.calls), 1)
@@ -787,13 +812,13 @@ class CodeHostTest(GitHubHostTest):
         runs = [run("SUCCESS", "2026-09-29T08:39:00Z"), run("FAILURE", "2026-09-29T07:40:00Z")]
         self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(number, contexts=runs)))
 
-        self.assertEqual(self.host.pull_requests_by_number([5])[0]["checks"], "SUCCESS")
+        self.assertEqual(self.host.pull_requests(_refs(5))[0]["checks"], "SUCCESS")
         query = next(arg for args, _ in self.gh.calls for arg in args if arg.startswith("query="))
         self.assertIn("name status conclusion startedAt completedAt", query)
         self.assertIn("checkSuite { app { slug } workflowRun { workflow { databaseId name } } }", query)
 
     def test_pull_requests_by_number_skips_the_host_when_none_are_registered(self) -> None:
-        self.assertEqual(self.host.pull_requests_by_number([]), [])
+        self.assertEqual(self.host.pull_requests([]), [])
         self.assertEqual(self.gh.calls, [])
 
     def test_pull_requests_by_number_pages_an_overflowing_rollup_through_pr_view(self) -> None:
@@ -808,7 +833,7 @@ class CodeHostTest(GitHubHostTest):
             "statusCheckRollup": [{"state": "SUCCESS"}, {"status": "COMPLETED", "conclusion": "FAILURE"}],
         })
 
-        prs = self.host.pull_requests_by_number([5, 9])
+        prs = self.host.pull_requests(_refs(5, 9))
 
         self.assertEqual([pr["checks"] for pr in prs], ["SUCCESS", "FAILURE"])
         self.assertEqual([args[2] for args, _ in self.gh.calls if args[:2] == ["pr", "view"]], ["9"])
@@ -828,7 +853,7 @@ class CodeHostTest(GitHubHostTest):
             ],
         })
 
-        self.assertEqual(self.host.pull_requests_by_number([5])[0]["checks"], "SUCCESS")
+        self.assertEqual(self.host.pull_requests(_refs(5))[0]["checks"], "SUCCESS")
 
     def test_pull_requests_by_number_fails_closed_on_unknown(self) -> None:
         self.gh.graphql(
@@ -837,13 +862,24 @@ class CodeHostTest(GitHubHostTest):
         )
 
         with self.assertRaisesRegex(PdlcError, "registered pull request #9 could not be found"):
-            self.host.pull_requests_by_number([5, 9, 4])
+            self.host.pull_requests(_refs(5, 9, 4))
 
     def test_pull_requests_by_number_fails_closed_on_a_null_alias(self) -> None:
         self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: None if number == 9 else pull_request_node(number, contexts=[])))
 
         with self.assertRaisesRegex(PdlcError, "registered pull request #9 could not be found"):
-            self.host.pull_requests_by_number([5, 9])
+            self.host.pull_requests(_refs(5, 9))
+
+    def test_pull_requests_reads_each_repository_in_its_own_query(self) -> None:
+        self.gh.graphql("pullRequest(number:", pull_requests_graphql(lambda number: pull_request_node(number, contexts=[])))
+
+        prs = self.host.pull_requests([PullRef(5, "acme/web"), PullRef(5, "wsimf/pdlc"), PullRef(7, "acme/web")])
+
+        self.assertEqual([(pr["repository"], pr["number"]) for pr in prs], [("acme/web", 5), ("wsimf/pdlc", 5), ("acme/web", 7)])
+        queries = [call for call in self.gh.calls if any("pullRequest(number:" in arg for arg in call[0])]
+        self.assertEqual(len(queries), 2)
+        repos = [next(arg for arg in args if arg.startswith("owner=")) + "/" + next(arg for arg in args if arg.startswith("repo=")) for args, _ in queries]
+        self.assertEqual(repos, ["owner=acme/repo=web", "owner=wsimf/repo=pdlc"])
 
     def test_pr_dict_carries_the_head_commit(self) -> None:
         from pdlc.hosts.lib.github.code_host import _pr_dict
@@ -958,7 +994,7 @@ class CodeHostTest(GitHubHostTest):
         self.gh.graphql("pullRequest(number:", PdlcError("HTTP 401: Bad credentials"))
 
         with self.assertRaises(PdlcError) as caught:
-            self.host.pull_requests_by_number([5])
+            self.host.pull_requests(_refs(5))
         self.assertIn("#5", str(caught.exception))
         self.assertIn("Bad credentials", str(caught.exception))
         self.assertNotIn("could not be found", str(caught.exception))
@@ -968,7 +1004,9 @@ class CodeHostTest(GitHubHostTest):
             "pr", "view",
             response={"files": [{"path": "a.py"}, {"path": "b.md"}]},
         )
-        self.assertEqual(self.host.pull_request_files(7), ["a.py", "b.md"])
+        self.assertEqual(self.host.pull_request_files(PullRef(7, "acme/web")), ["a.py", "b.md"])
+        view = next(call[0] for call in self.gh.calls if call[0][:2] == ["pr", "view"])
+        self.assertEqual(view[view.index("--repo") + 1], "acme/web")
 
     def test_ensure_pull_request_linked_returns_the_current_branch_pr_without_editing(self) -> None:
         self.gh.gh(
@@ -999,7 +1037,8 @@ class CodeHostTest(GitHubHostTest):
             ]}}}}),
         )
 
-        comments = self.host.unresolved_review_comments(148)
+        comments = self.host.unresolved_review_comments(PullRef(148, "acme/web"))
+        self.assertEqual(self.gh.graphql_variables("reviewThreads"), {"owner": "acme", "repo": "web", "number": "148"})
 
         self.assertEqual(comments, [{
             "author": "reviewer", "body": "fix the null case", "url": "u2",
@@ -1012,7 +1051,7 @@ class CodeHostTest(GitHubHostTest):
             graphql_data({"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}),
         )
 
-        self.assertEqual(self.host.unresolved_review_comments(148), [])
+        self.assertEqual(self.host.unresolved_review_comments(PullRef(148, "wsimf/pdlc")), [])
 
 
 if __name__ == "__main__":

@@ -111,6 +111,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from pdlc.domain.records import PullRef, pull_request_label
 from pdlc.commands.inspect_capability import _name as capability_name
 from pdlc.commands.inspect_capability import _one as capability_line
 from pdlc.commands.inspect_test import readiness as testing_readiness
@@ -213,8 +214,10 @@ def _parent_body(item: dict) -> str:
     return item.get("issueBody") or ""
 
 
-def _owner_repo() -> tuple[str, str]:
-    repository = get_config().code_repository or ""
+def _owner_repo(repository: str = "") -> tuple[str, str]:
+    """`(owner, name)` of `repository` (a `PullRef`'s), else of the configured
+    code repository."""
+    repository = repository or get_config().code_repository or ""
     owner, _, name = repository.partition("/")
     if not owner or not name:
         raise PdlcError(
@@ -300,13 +303,13 @@ def _implement_context(
     }
 
 
-def _pr_fix_context(task: dict, pr: int, red: list[dict], requests: list[ChangeRequest]) -> dict[str, object]:
-    owner, name = _owner_repo()
+def _pr_fix_context(task: dict, pr: PullRef, red: list[dict], requests: list[ChangeRequest]) -> dict[str, object]:
+    owner, name = _owner_repo(pr.repository)
     checks = _checks_text(red)
     return {
         "EXECUTION_SCOPE": "this one pull request",
         **_task_context(task),
-        "PR_NUMBER": str(pr),
+        "PR_NUMBER": str(pr.number),
         "OWNER": owner,
         "REPO": name,
         "DECISIONS_TEXT": _decisions_text(requests),
@@ -340,7 +343,7 @@ class _Unit:
     comments: list[dict]
     task: dict  # the task under review/test; the top task for a triage unit
     kind: str  # implement | pr-fix | triage
-    pr: int | None = None
+    pr: PullRef | None = None
     red: tuple[dict, ...] = ()
     requests: tuple[ChangeRequest, ...] = ()
 
@@ -391,7 +394,9 @@ def _implementer_brief(unit: _Unit, review: str = "") -> str:
     if unit.kind == "triage":
         return render("triage", {**_triage_context(unit.item, unit.delivery, list(unit.requests)), **extra})
     if unit.kind == "pr-fix":
-        context = _pr_fix_context(unit.task, unit.pr or 0, list(unit.red), list(unit.requests))
+        if unit.pr is None:
+            raise PdlcError("a pull-request fix unit names no pull request")
+        context = _pr_fix_context(unit.task, unit.pr, list(unit.red), list(unit.requests))
         return render("pr-fix", {**context, **extra})
     findings = "\n\n".join(part for part in (_checks_text(list(unit.red)) if unit.red else "", review) if part)
     context = _implement_context(unit.item, unit.delivery, unit.task, unit.comments, findings)
@@ -511,7 +516,7 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
         raise PdlcError("no task has closed with its implementation recorded yet — nothing is implemented")
 
     files = list(dict.fromkeys(name for _, prs in scope for _, touched in prs for name in touched))
-    numbers = [f"#{pr['number']}" for _, prs in scope for pr, _ in prs]
+    numbers = [pull_request_label(pr) for _, prs in scope for pr, _ in prs]
     requests = open_change_requests(comments, pipeline_for_item(item), item["Status"]).requests
     blocks = [_requests_text(list(requests))] if requests else []
     if findings:

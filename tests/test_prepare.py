@@ -8,6 +8,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
+from pdlc.domain.records import PullRef
 from pdlc.cli import _dispatch, _usage
 from pdlc.commands import prepare
 from pdlc.config import load_config, reset_config
@@ -65,19 +66,19 @@ class PrepareCommandTests(unittest.TestCase):
 
     def test_resumes_highest_task_with_an_open_registered_pr(self):
         tasks = [
-            {"number": 1, "title": "WORK-142-TASK-001", "taskId": "TASK-001", "prs": [10]},
-            {"number": 2, "title": "WORK-142-TASK-002", "taskId": "TASK-002", "prs": [20]},
-            {"number": 3, "title": "WORK-142-TASK-003", "taskId": "TASK-003", "prs": [30]},
+            {"number": 1, "title": "WORK-142-TASK-001", "taskId": "TASK-001", "prs": [PullRef(10)]},
+            {"number": 2, "title": "WORK-142-TASK-002", "taskId": "TASK-002", "prs": [PullRef(20)]},
+            {"number": 3, "title": "WORK-142-TASK-003", "taskId": "TASK-003", "prs": [PullRef(30)]},
         ]
         with patch.object(prepare, "task_tree", return_value=tasks), \
                 patch.object(prepare, "get_code_host") as code_host:
-            code_host.return_value.pull_requests_by_number.return_value = [
-                {"number": 10, "state": "MERGED"},
-                {"number": 20, "state": "OPEN"},
-                {"number": 30, "state": "CLOSED"},
+            code_host.return_value.pull_requests.return_value = [
+                {"number": 10, "repository": "", "state": "MERGED"},
+                {"number": 20, "repository": "", "state": "OPEN"},
+                {"number": 30, "repository": "", "state": "CLOSED"},
             ]
             self.assertEqual(prepare._resume_task("142"), "WORK-142-TASK-002")
-            code_host.return_value.pull_requests_by_number.assert_called_once_with([10, 20, 30])
+            code_host.return_value.pull_requests.assert_called_once_with([PullRef(10), PullRef(20), PullRef(30)])
 
     def test_resumes_in_new_worktree_and_keeps_path_only_on_stdout(self):
         current = os.getcwd()

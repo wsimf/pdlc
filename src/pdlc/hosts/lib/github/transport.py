@@ -101,9 +101,10 @@ def tracker_repo_args() -> list[str]:
     return ["--repo", repository] if repository else []
 
 
-def code_repo_args() -> list[str]:
-    """`--repo` for a pull-request call: `[code.github] repository`."""
-    repository = get_config().code_repository
+def code_repo_args(repository: str = "") -> list[str]:
+    """`--repo` for a pull-request call: `repository` (a `PullRef`'s), else
+    `[code.github] repository`."""
+    repository = repository or get_config().code_repository or ""
     return ["--repo", repository] if repository else []
 
 
@@ -127,9 +128,10 @@ def tracker_owner_repository() -> tuple[str, str]:
     return _owner_name(get_config().tracker_repository, "tracker.github] repository")
 
 
-def code_owner_repository() -> tuple[str, str]:
-    """`(owner, name)` of the code repository, for pull-request GraphQL reads."""
-    return _owner_name(get_config().code_repository, "code.github] repository")
+def code_owner_repository(repository: str = "") -> tuple[str, str]:
+    """`(owner, name)` of `repository` (a `PullRef`'s), else of the code
+    repository, for pull-request GraphQL reads."""
+    return _owner_name(repository or get_config().code_repository, "code.github] repository")
 
 
 # A bare `#123` that GitHub would autolink to an issue/PR and record as a

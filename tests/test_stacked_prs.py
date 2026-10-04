@@ -12,6 +12,7 @@ from _support import FileBackendTest
 
 from pdlc.config import Config
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.records import PullRef
 from pdlc.hosts.lib.github.code_host import GitHubCodeHost
 from pdlc.internal.stack import stack_entry_pr, task_branch_name
 
@@ -23,7 +24,7 @@ class StackEntryPointTests(unittest.TestCase):
     def _task(self, number, task_id, *, implemented=False, prs=()):
         return {
             "number": number, "taskId": task_id,
-            "hasImplementation": implemented, "prs": list(prs),
+            "hasImplementation": implemented, "prs": [PullRef(pr) for pr in prs],
         }
 
     def test_branch_name_is_derived_from_the_task_identity(self):
@@ -60,7 +61,7 @@ class StackEntryPointTests(unittest.TestCase):
 
     def test_ignores_entries_without_a_task_identity(self):
         delivery = [
-            {"number": 1, "taskId": None, "hasImplementation": True, "prs": [40]},
+            {"number": 1, "taskId": None, "hasImplementation": True, "prs": [PullRef(40)]},
             self._task(2, "TASK-002"),
         ]
         self.assertIsNone(stack_entry_pr(delivery, delivery[1]))
@@ -186,7 +187,7 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.host.submit_task_stack()
         self.assertFalse(any(args[:2] == ["repo", "view"] for args, _ in self.gh.calls))
 
-    def test_stack_pr_numbers_reads_only_branch_pr_numbers(self):
+    def test_stack_pr_refs_reads_only_branch_pr_numbers(self):
         self.gh.gh("stack", "view", response={
             "trunk": "main",
             "currentBranch": "pdlc/record-9/task-002",
@@ -197,7 +198,7 @@ class GitHubStackSubmitTests(GitHubHostTest):
             ],
         })
         # A branch with no PR yet is simply absent from the numbers.
-        self.assertEqual(self.host.stack_pr_numbers(), [40, 41])
+        self.assertEqual(self.host.stack_pr_refs(), [PullRef(40, "wsimf/pdlc"), PullRef(41, "wsimf/pdlc")])
 
     def test_set_pull_request_content_overwrites_title_and_body(self):
         captured: list[tuple[list[str], str]] = []
@@ -208,7 +209,7 @@ class GitHubStackSubmitTests(GitHubHostTest):
 
         self.gh.route(lambda args, _input: args[:2] == ["pr", "edit"], edit)
 
-        self.host.set_pull_request_content(148, "[CORE] Persist geometry", "## Implementation\n\nShipped.\n")
+        self.host.set_pull_request_content(PullRef(148, "wsimf/pdlc"), "[CORE] Persist geometry", "## Implementation\n\nShipped.\n")
 
         args, body = captured[0]
         self.assertEqual(args[:3], ["pr", "edit", "148"])
@@ -226,7 +227,7 @@ class GitHubStackSubmitTests(GitHubHostTest):
             lambda args, _input: (seen.append(args), "")[1],
         )
 
-        self.host.mark_pull_requests_ready([148])
+        self.host.mark_pull_requests_ready([PullRef(148, "acme/svc-a")])
 
         self.assertEqual(seen[0][seen[0].index("--repo") + 1], "acme/svc-a")
 
@@ -237,10 +238,10 @@ class GitHubStackSubmitTests(GitHubHostTest):
             lambda args, _input: (seen.append(args), "")[1],
         )
 
-        self.host.mark_pull_requests_ready([148, 149])
+        self.host.mark_pull_requests_ready([PullRef(148, "wsimf/pdlc"), PullRef(149, "acme/web")])
 
         self.assertEqual([args[:3] for args in seen], [["pr", "ready", "148"], ["pr", "ready", "149"]])
-        self.assertTrue(all("--repo" in args for args in seen))
+        self.assertEqual([args[args.index("--repo") + 1] for args in seen], ["wsimf/pdlc", "acme/web"])
 
     def test_mark_pull_requests_ready_with_no_numbers_calls_gh_nothing(self):
         self.host.mark_pull_requests_ready([])
@@ -415,7 +416,7 @@ class ImplementTaskStackTests(FileBackendTest):
         self.register_prs(501, [29])
 
         host = Mock()
-        host.link_task_stack.return_value = {"number": 148, "branch": "pdlc/record-70/task-001"}
+        host.link_task_stack.return_value = {"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}
         with (
             patch("pdlc.commands.post_implement_task.get_code_host", return_value=host),
             patch("pdlc.internal.stack.worktree_after", return_value="50"),
@@ -433,7 +434,7 @@ class ImplementTaskStackTests(FileBackendTest):
         metadata["fields"]["Gate State"] = "Changes Required"
         (self.records_dir() / "70" / "meta.json").write_text(json.dumps(metadata) + "\n")
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.submit_task_stack.return_value = [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
@@ -450,7 +451,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.side_effect = [
             PdlcError("stack submission failed"),
-            [{"number": 148, "branch": "pdlc/record-70/task-001"}],
+            [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}],
         ]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             failed = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Retry failed.")))
@@ -468,7 +469,7 @@ class ImplementTaskStackTests(FileBackendTest):
     def test_relanding_a_closed_task_edits_its_implementation_comment_in_place(self):
         self._seed()
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001", "checks": "PENDING"}]
+        host.submit_task_stack.return_value = [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001", "checks": "PENDING"}]
         host.unresolved_review_comments.return_value = []
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             first = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
@@ -492,13 +493,13 @@ class ImplementTaskStackTests(FileBackendTest):
         self.assertTrue(payload["closed"])
         self.assertEqual(payload["openThreads"], 0)
         self.assertEqual(payload["checks"], "pending")
-        host.unresolved_review_comments.assert_called_once_with(148)
+        host.unresolved_review_comments.assert_called_once_with(PullRef(148))
 
     def test_an_open_task_closes_without_a_flag(self):
         # Closing is decided by the task's state, with no flag to ask for it.
         self._seed()
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.submit_task_stack.return_value = [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
@@ -515,7 +516,7 @@ class ImplementTaskStackTests(FileBackendTest):
         ]
         task_dir.joinpath("comments.jsonl").write_text("".join(json.dumps(c) + "\n" for c in comments))
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.submit_task_stack.return_value = [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.evidence_file(self.implementation_summary("Final.")))
         self.assertEqual(result.code, 0, result.stderr)
@@ -529,6 +530,7 @@ class ImplementTaskStackTests(FileBackendTest):
         host = Mock()
         host.submit_task_stack.return_value = [{
             "number": 148,
+            "repository": "",
             "branch": "pdlc/record-70/task-001",
             "title": "Core",
             "url": "u148",
@@ -544,21 +546,21 @@ class ImplementTaskStackTests(FileBackendTest):
         self._seed()
         host = Mock()
         host.submit_task_stack.return_value = [{
-            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+            "number": 148, "repository": "", "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         # The `[CORE]`/`[UI]` tag is stripped from the PR title unconditionally.
         host.set_pull_request_content.assert_called_once_with(
-            148, "Core", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
+            PullRef(148), "Core", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
 
     def test_pr_title_format_config_resolves_placeholders(self):
         self._seed()
         host = Mock()
         host.submit_task_stack.return_value = [{
-            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+            "number": 148, "repository": "", "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
                 patch(
@@ -568,14 +570,14 @@ class ImplementTaskStackTests(FileBackendTest):
             result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
         self.assertEqual(result.code, 0, result.stderr)
         host.set_pull_request_content.assert_called_once_with(
-            148, "[feature 70] Core (TASK-001)", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
+            PullRef(148), "[feature 70] Core (TASK-001)", "## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
 
     def test_pr_attachment_config_appends_a_line_with_the_bare_work_number(self):
         self._seed()
         host = Mock()
         host.submit_task_stack.return_value = [{
-            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+            "number": 148, "repository": "", "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
         }]
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
                 patch(
@@ -588,7 +590,7 @@ class ImplementTaskStackTests(FileBackendTest):
         # resolved to the parent's bare number; the `## Implementation` comment
         # on the task never carries it.
         host.set_pull_request_content.assert_called_once_with(
-            148, "Core", "Fixes 70 / see 70\n\n## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
+            PullRef(148), "Core", "Fixes 70 / see 70\n\n## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
         self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
 
@@ -598,7 +600,7 @@ class ImplementTaskStackTests(FileBackendTest):
         self._seed()
         host = Mock()
         host.submit_task_stack.return_value = [{
-            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+            "number": 148, "repository": "", "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
         }]
         config = replace(config, pr_attachment="Part of {work.ref}", pr_title_format="{task.title} ({work.ref})")
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
@@ -624,7 +626,7 @@ class ImplementTaskStackTests(FileBackendTest):
         self._seed()
         before = self.task_comments_text(70, 701)
         host = Mock()
-        host.submit_task_stack.return_value = [{"number": 148, "branch": "pdlc/record-70/task-001"}]
+        host.submit_task_stack.return_value = [{"number": 148, "repository": "", "branch": "pdlc/record-70/task-001"}]
         host.set_pull_request_content.side_effect = PdlcError("gh pr edit failed")
         with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host):
             result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
@@ -649,7 +651,7 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
     def _pr(self, number: int, state: str, *, is_draft: bool) -> dict:
         return {
-            "number": number, "title": f"Task {number}", "url": f"https://x/{number}",
+            "number": number, "repository": "", "title": f"Task {number}", "url": f"https://x/{number}",
             "state": state, "isDraft": is_draft, "branch": f"pdlc/record-70/task-{number:03d}",
             "mergedAt": "2026-01-01T00:00:00Z" if state == "MERGED" else None, "checks": "SUCCESS",
         }
@@ -664,8 +666,8 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
     def _host(self, prs: list[dict]) -> Mock:
         host = Mock()
-        by_number = {pr["number"]: pr for pr in prs}
-        host.pull_requests_by_number.side_effect = lambda numbers: [by_number[n] for n in numbers]
+        by_ref = {PullRef(pr["number"]): pr for pr in prs}
+        host.pull_requests.side_effect = lambda refs: [by_ref[ref] for ref in refs]
         return host
 
     def test_only_open_registered_prs_are_marked_ready(self):
@@ -685,7 +687,7 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
 
         self.assertEqual(result.code, 0, result.stderr)
         host.submit_task_stack.assert_called_once_with()
-        host.mark_pull_requests_ready.assert_called_once_with([148, 149])
+        host.mark_pull_requests_ready.assert_called_once_with([PullRef(148), PullRef(149)])
         self.assertEqual(self.state(70), ("Implementation", "Review Required"))
         # The record's pull requests come from the registry its tasks carry, so
         # nothing is resolved from whichever branch of the stack is checked out

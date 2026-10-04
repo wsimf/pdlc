@@ -5,7 +5,7 @@ this backend keeps its own registry in a machine-owned HTML comment pinned to
 the top of the Issue body:
 
     <!-- pdlc:meta
-    prs: 148 152
+    prs: owner/api#148 owner/web#152
     -->
 
     ## Scope
@@ -18,12 +18,17 @@ whole responsibility — see `strip`/`restore`.
 
 The block is deliberately minimal. Each `key: value` line's value is
 whitespace-split into a token list with no quoting or escaping, which suits the
-numeric tokens stored today and is not a general key-value store.
+`owner/name#N` pull-request tokens stored today and is not a general key-value
+store. A bare `N` written before pull requests were repository-qualified reads
+as the configured code repository's, and is qualified on the next write.
 """
 
 from __future__ import annotations
 
 import re
+
+from pdlc.config import get_config
+from pdlc.domain.records import PullRef, parse_pull_refs
 
 _OPEN = "<!-- pdlc:meta"
 _PATTERN = re.compile(r"\A<!-- pdlc:meta\n(.*?)\n-->\n?", re.DOTALL)
@@ -57,15 +62,14 @@ def write_meta(body: str, meta: dict[str, list[str]]) -> str:
     return f"{_OPEN}\n{lines}\n-->\n\n{clean}"
 
 
-def prs(body: str) -> list[int]:
-    """The pull-request numbers registered on a raw Issue body, ascending."""
-    numbers = [int(value) for value in read_meta(body).get("prs", []) if value.isdigit()]
-    return sorted(set(numbers))
+def prs(body: str) -> list[PullRef]:
+    """The pull requests registered on a raw Issue body, ascending."""
+    return parse_pull_refs(read_meta(body).get("prs", []), get_config().pull_request_repository())
 
 
-def attach(body: str, numbers: list[int] | None) -> str:
-    """`body` (human content) carrying a registry block for `numbers`."""
-    return write_meta(body, {"prs": [str(number) for number in sorted(set(numbers or []))]})
+def attach(body: str, refs: list[PullRef] | None) -> str:
+    """`body` (human content) carrying a registry block for `refs`."""
+    return write_meta(body, {"prs": [ref.token() for ref in sorted(set(refs or []))]})
 
 
 def restore(stored: str, body: str) -> str:
@@ -75,20 +79,20 @@ def restore(stored: str, body: str) -> str:
     return write_meta(body, read_meta(stored))
 
 
-def with_pr(stored: str, pr_number: int) -> tuple[str, list[int]]:
-    """The raw body that attaches `pr_number` to `stored`, and the full list.
-    Returns `stored` unchanged when the number is already attached.
+def with_pr(stored: str, ref: PullRef) -> tuple[str, list[PullRef]]:
+    """The raw body that attaches `ref` to `stored`, and the full list.
+    Returns `stored` unchanged when the pull request is already attached.
 
     The caller's read-modify-write would lose a concurrent body edit made
     between its read and its write. Acceptable while these calls are serialized
     by one agent per record; revisit if bodies become genuinely concurrently
     written."""
     current = prs(stored)
-    if pr_number in current:
+    if ref in current:
         return stored, current
-    updated = sorted({*current, pr_number})
+    updated = sorted({*current, ref})
     meta = read_meta(stored)
-    meta["prs"] = [str(number) for number in updated]
+    meta["prs"] = [entry.token() for entry in updated]
     return write_meta(stored, meta), updated
 
 

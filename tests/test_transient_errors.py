@@ -579,7 +579,7 @@ class RecoveryLandingGateTest(FileBackendTest):
             self.land("post_implement", 94, self.evidence_file())
         self.seed_record(95, "Testing", "Pending")
         host = mock.Mock()
-        host.ensure_pull_request_linked.return_value = {"number": 7, "url": "https://x/7"}
+        host.ensure_pull_request_linked.return_value = {"number": 7, "repository": "", "url": "https://x/7"}
         with mock.patch("pdlc.commands.post_test.get_code_host", return_value=host), \
                 mock.patch("pdlc.commands.post_test.attach_pr"):
             self.land("post_test", 95, self.evidence_file(), "--traceability", self.write_file("trace.md", "FR-1: covered.\n"))

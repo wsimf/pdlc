@@ -255,6 +255,13 @@ class Config:
             required["code.github.repository"] = self.code_repository
         return [name for name, value in required.items() if not value]
 
+    def pull_request_repository(self) -> str:
+        """The repository a bare pull-request number belongs to: the GitHub
+        code repository, casefolded, or "" for a code provider without
+        repositories. Registries read legacy bare numbers against it."""
+        code = self.code_provider or default_code_provider(self.tracker_provider or "github")
+        return (self.code_repository or "").casefold() if code == "github" else ""
+
 
 @dataclass(frozen=True)
 class Capabilities:

@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from pdlc.domain.records import PullRef
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import (
     CLOSED_STATUSES,
@@ -88,18 +89,18 @@ def task_files(tasks: list[dict]) -> dict[str, set[str] | None]:
     """Every closed task's PR files off the code host; None when a task has no
     registered PR, so its evidence is never treated as still holding."""
     host = get_code_host()
-    cache: dict[int, list[str]] = {}
+    cache: dict[PullRef, list[str]] = {}
     files: dict[str, set[str] | None] = {}
     for task in claim_tasks(tasks):
-        numbers = task.get("prs") or []
-        if not numbers:
+        refs = task.get("prs") or []
+        if not refs:
             files[task_key(task)] = None
             continue
         found: set[str] = set()
-        for number in numbers:
-            if number not in cache:
-                cache[number] = host.pull_request_files(number)
-            found.update(cache[number])
+        for ref in refs:
+            if ref not in cache:
+                cache[ref] = host.pull_request_files(ref)
+            found.update(cache[ref])
         files[task_key(task)] = found
     return files
 

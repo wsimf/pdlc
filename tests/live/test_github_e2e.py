@@ -17,7 +17,7 @@ import unittest
 from uuid import uuid4
 
 from pdlc.config import Config, install_config, reset_config
-from pdlc.domain.records import TaskInput
+from pdlc.domain.records import PullRef, TaskInput
 from pdlc.hosts.lib.github.transport import run_gh, run_gh_json
 from pdlc.hosts.lib.github.workitem_backend import GitHubWorkItemBackend
 from pdlc.hosts.workitem_host import reset_backend
@@ -140,9 +140,10 @@ class GitHubLiveEndToEndTest(unittest.TestCase):
         self.assertEqual({comment["body"] for comment in page.comments}, {comment["body"] for comment in comments})
 
         # --- attached pull requests ---
-        numbers = self.backend.attach_pr(str(self.parent_number), 999999)
-        self.assertEqual(numbers, [999999])
-        self.assertEqual(self.backend.attached_prs(str(self.parent_number)), [999999])
+        pr = PullRef(999999, self.repository.casefold())
+        numbers = self.backend.attach_pr(str(self.parent_number), pr)
+        self.assertEqual(numbers, [pr])
+        self.assertEqual(self.backend.attached_prs(str(self.parent_number)), [pr])
 
         # --- delivery tasks ---
         task_input: list[TaskInput] = [{

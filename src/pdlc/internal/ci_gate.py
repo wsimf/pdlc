@@ -19,6 +19,7 @@ own (Verification) passes with none registered.
 
 from __future__ import annotations
 
+from pdlc.domain.records import pull_request_label
 from pdlc.internal.churn_gate import autoapprove_stage
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.workitem import post_comment, set_gate
@@ -89,7 +90,7 @@ def resolve_ci_gate(issue: str, record: dict, pipeline: Pipeline, source: State)
 
     if state == "red":
         failed = ", ".join(
-            f"#{pr['number']} ({pr.get('checks')})"
+            f"{pull_request_label(pr)} ({pr.get('checks')})"
             for pr in pull_requests
             if (pr.get("checks") or "") in _RED
         )

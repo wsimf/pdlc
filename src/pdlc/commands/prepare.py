@@ -58,6 +58,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from pdlc.domain.records import pull_ref
 from pdlc.config import get_config, repository_root
 from pdlc.commands.checkout import checkout
 from pdlc.domain.lifecycle import PdlcError
@@ -155,11 +156,11 @@ def _resume_task(workitem: str) -> str | None:
     if not workitem.isdecimal():
         return None
     tasks = [task for task in task_tree(workitem) if task.get("taskId") and task.get("prs")]
-    numbers = sorted({number for task in tasks for number in task["prs"]})
-    if not numbers:
+    refs = sorted({ref for task in tasks for ref in task["prs"]})
+    if not refs:
         return None
-    prs = {pr["number"]: pr for pr in get_code_host().pull_requests_by_number(numbers)}
-    if set(prs) != set(numbers):
+    prs = {pull_ref(pr): pr for pr in get_code_host().pull_requests(refs)}
+    if set(prs) != set(refs):
         raise PdlcError("code host returned fewer pull requests than the task registry; refusing to prepare")
     open_tasks = [task for task in tasks if prs[max(task["prs"])]["state"] == "OPEN"]
     return max(open_tasks, key=lambda task: task["number"])["title"] if open_tasks else None

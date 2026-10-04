@@ -18,6 +18,8 @@ The repository file is optional when `~/.pdlc/config.toml` exists. An unknown ta
 
 The tracker holds work items; the code provider holds pull requests. They are configured independently, so one tracker can serve several code repositories — each microservice checkout points `[tracker.github] repository` at the shared tracker while its pull requests stay in its own repository. When unset, both `[tracker.github] repository` and `[code.github] repository` default to the checkout's `origin` remote, and the code repository then to the tracker repository, so a single-repository project sets at most the tracker.
 
+Pull requests are registered on work items as `owner/name#N`, so several code repositories can share one tracker without two PRs of the same number colliding; a PR in the configured code repository still reads as `#N` in output.
+
 ## Repository-specific home settings
 
 Home-only repository sections reuse the same tables and keys as ordinary configuration, including `[agents]` and `[skills]`:

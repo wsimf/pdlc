@@ -3,11 +3,12 @@
     pdlc post attach-pr - attach a pull request to a delivery task by hand
 
 USAGE
-    pdlc post attach-pr DELIVERY_TASK PR_NUMBER
+    pdlc post attach-pr DELIVERY_TASK PR
 
 DESCRIPTION
-    Records PR_NUMBER (a bare number or `#123`) on the delivery task's
-    pull-request list. Idempotent.
+    Records PR on the delivery task's pull-request list. Idempotent. PR is a
+    bare number or `#123` for a pull request in the configured code
+    repository, or `owner/name#123` for one in another repository.
 
 This is the list later stages read for a task's pull requests, rather than
 inferring them from a `Closes #N` keyword or a branch name. `pdlc post
@@ -15,7 +16,10 @@ implement-task` registers the task's PR for you; reach for this only to
 attach a PR it did not create or to repair a missing link. DELIVERY_TASK
 must be a work item with WORK-NNN-TASK-NNN identity.
 
-    {"task": 47, "prs": [148]}
+`prs` lists every pull request now on the task: a number for one in the
+configured code repository, `owner/name#N` for one in another.
+
+    {"task": 47, "prs": [148, "acme/web#12"]}
 """
 
 from __future__ import annotations
@@ -24,25 +28,25 @@ import argparse
 import json
 import sys
 
+from pdlc.config import get_config
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.records import PullRef
+from pdlc.internal.pull_requests import prs_json
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.workitem import attach_pr, tasks_by_number
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
 
 
-def post_attach_pr(delivery_task: str, pr_number: str) -> dict:
+def post_attach_pr(delivery_task: str, pr: str) -> dict:
     if not delivery_task.isdigit():
         raise PdlcError(f"delivery task number must be numeric: {delivery_task}")
-    number = pr_number.lstrip("#")
-    if not number.isdigit():
-        raise PdlcError(f"pull request number must be numeric: {pr_number}")
+    ref = PullRef.parse(pr, get_config().pull_request_repository())
 
     task = tasks_by_number([delivery_task])[0]
     if task.get("taskId") is None:
         raise PdlcError(f"work item #{delivery_task} is not a delivery task (no WORK-NNN-TASK-NNN identity)")
 
-    prs = attach_pr(delivery_task, int(number))
-    return {"task": int(delivery_task), "prs": prs}
+    return {"task": int(delivery_task), "prs": prs_json(attach_pr(delivery_task, ref))}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,15 +58,15 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Attach a pull request to a delivery task")
     parser.add_argument("delivery_task", help="Delivery task number")
-    parser.add_argument("pr_number", help="Pull request number")
+    parser.add_argument("pr", help="Pull request: N, #N, or owner/name#N")
     args = parser.parse_args(raw_args)
 
     try:
         set_recovery(Recovery(
             check=f"pdlc inspect task {args.delivery_task}",
-            landed=f"pull request #{args.pr_number} is registered on the task",
+            landed=f"pull request {args.pr} is registered on the task",
         ))
-        result = post_attach_pr(args.delivery_task, args.pr_number)
+        result = post_attach_pr(args.delivery_task, args.pr)
     except PdlcError as error:
         return report_failure(error)
 

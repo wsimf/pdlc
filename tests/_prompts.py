@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+from pdlc.config import get_config
+from pdlc.domain.records import PullRef
 from tests._support import FileBackendTest
 
 
@@ -26,6 +28,11 @@ class _Capabilities:
 
     def agent(self, slot: str) -> str:
         return self.agents.get(slot) or "general-purpose"
+
+
+def _ref(pr: int | PullRef) -> PullRef:
+    """A fixture's PR number as a ref in the configured code repository."""
+    return pr if isinstance(pr, PullRef) else PullRef(pr, get_config().pull_request_repository())
 
 
 class PromptHarness(FileBackendTest):
@@ -47,12 +54,16 @@ class PromptHarness(FileBackendTest):
     _THREAD_READERS = ("prompt", "inspect_implement", "inspect_verify")
 
     def _prs(self, pull_requests: list[dict]) -> None:
+        # A fixture PR lives in the configured code repository unless it says otherwise.
+        repository = get_config().pull_request_repository()
+        pull_requests = [{"repository": repository, **pr} for pr in pull_requests]
         for module in self._PR_READERS:
             patcher = patch(f"pdlc.commands.{module}.record_pull_requests", return_value=pull_requests)
             patcher.start()
             self.addCleanup(patcher.stop)
 
     def _threads(self, threads: list[dict]) -> None:
+        threads = [{**thread, "pr": _ref(thread["pr"])} for thread in threads]
         for module in self._THREAD_READERS:
             patcher = patch(f"pdlc.commands.{module}.record_open_review_comments", return_value=threads)
             patcher.start()

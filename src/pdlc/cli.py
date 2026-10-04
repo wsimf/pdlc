@@ -134,7 +134,7 @@ def _usage() -> str:
         "  post complete WI EVIDENCE              final lock to Complete (driver-only)\n"
         "  post skip WI STAGE                     mark stages skipped ahead of time (driver-only)\n"
         "  post invalidate WI STAGE EVIDENCE [--task N ...]  return a stage to Stale after upstream change\n"
-        "  post attach-pr TASK PR#                manually link a PR to a task\n"
+        "  post attach-pr TASK PR                 manually link a PR to a task\n"
         "  post attach-user-comment WI --body FILE|-|text:BODY  add a discussion comment\n"
         "\nFLAGS\n"
         "  --tracker-repo OWNER/REPO   override [tracker.github] repository for this run\n"

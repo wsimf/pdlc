@@ -8,6 +8,7 @@ from __future__ import annotations
 import unittest
 
 from _az_replay import ORGANIZATION, PROJECT, AzureHostTest, work_item
+from pdlc.domain.records import PullRef
 from pdlc.config import Config, ConfigurationError
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
@@ -63,7 +64,7 @@ class ResolutionTest(AzureHostTest):
         self.assertEqual(item["Skipped States"], "UI")
         self.assertEqual(item["Slug"], "retry-uploads")
         self.assertEqual(item["workType"], "feature")
-        self.assertEqual(item["prs"], [148, 152])
+        self.assertEqual(item["prs"], [PullRef(148), PullRef(152)])
 
     def test_unset_custom_fields_are_absent_rather_than_empty(self):
         # Azure omits a never-written custom field from `fields` entirely; the
@@ -267,26 +268,35 @@ class AttachedPullRequestTest(AzureHostTest):
     def test_attaching_is_idempotent_and_returns_the_full_list(self):
         self._stored("")
         backend = AzureWorkItemBackend()
-        self.assertEqual(backend.attach_pr("8", 152), [152])
-        self.assertEqual(backend.attach_pr("8", 148), [148, 152])
-        self.assertEqual(backend.attach_pr("8", 148), [148, 152])
-        self.assertEqual(backend.attached_prs("8"), [148, 152])
+        self.assertEqual(backend.attach_pr("8", PullRef(152)), [PullRef(152)])
+        self.assertEqual(backend.attach_pr("8", PullRef(148)), [PullRef(148), PullRef(152)])
+        self.assertEqual(backend.attach_pr("8", PullRef(148)), [PullRef(148), PullRef(152)])
+        self.assertEqual(backend.attached_prs("8"), [PullRef(148), PullRef(152)])
 
     def test_re_attaching_writes_nothing(self):
         self._stored("148 152")
-        AzureWorkItemBackend().attach_pr("8", 148)
+        AzureWorkItemBackend().attach_pr("8", PullRef(148))
         self.assertEqual([args[:3] for args in self.az.calls], [["boards", "work-item", "show"]])
 
     def test_numbers_are_stored_space_separated_and_ascending(self):
         self._stored("152")
-        AzureWorkItemBackend().attach_pr("8", 148)
+        AzureWorkItemBackend().attach_pr("8", PullRef(148))
         self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {PRS_FIELD: "148 152"})
+
+    def test_github_code_pull_requests_are_stored_repository_qualified(self):
+        # Azure Boards paired with GitHub code: a bare number written earlier
+        # reads as the code repository's, and the rewrite qualifies it.
+        self.configure(code_provider="github", code_repository="Acme/API")
+        self._stored("152")
+        refs = AzureWorkItemBackend().attach_pr("8", PullRef(3, "acme/web"))
+        self.assertEqual(refs, [PullRef(3, "acme/web"), PullRef(152, "acme/api")])
+        self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {PRS_FIELD: "acme/web#3 acme/api#152"})
 
     def test_a_hand_edited_field_does_not_break_a_read(self):
         # The field is editable in the Azure UI; a stray word must not make the
         # record unreadable.
         self._stored("148 oops 152")
-        self.assertEqual(AzureWorkItemBackend().attached_prs("8"), [148, 152])
+        self.assertEqual(AzureWorkItemBackend().attached_prs("8"), [PullRef(148), PullRef(152)])
 
 
 class DeliveryTaskTest(AzureHostTest):
@@ -315,7 +325,7 @@ class DeliveryTaskTest(AzureHostTest):
         self.assertEqual(task["taskId"], "TASK-001")
         self.assertEqual(task["state"], "OPEN")
         self.assertEqual(task["body"], "do the thing")
-        self.assertEqual(task["prs"], [148])
+        self.assertEqual(task["prs"], [PullRef(148)])
         self.assertEqual(task["url"], f"{ORGANIZATION}/{PROJECT}/_workitems/edit/8")
 
     def test_closed_and_removed_tasks_both_read_as_closed(self):

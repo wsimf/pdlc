@@ -79,6 +79,8 @@ import json
 import re
 import sys
 
+from pdlc.domain.records import pull_ref
+from pdlc.internal.pull_requests import pr_label, pr_output, prs_json
 from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
@@ -274,25 +276,25 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
-    console_debug(f"updating title and description of PR #{task_pr['number']}")
+    console_debug(f"updating title and description of PR {pr_label(task_pr)}")
     # Give the freshly submitted PR its title (see `_pr_title`) and this evidence
     # as its description, replacing `gh stack`'s auto-generated summary. Runs before the
     # comment and closure so a failure here leaves the task re-runnable, exactly
     # like a stack-submit failure.
     get_code_host().set_pull_request_content(
-        task_pr["number"],
+        pull_ref(task_pr),
         _pr_title(task, parent_number_for_task(task), pipeline.work_type),
         _pr_body(summary, parent_number_for_task(task)),
     )
-    result["taskPr"] = task_pr
-    result["prs"] = attach_pr(task["number"], task_pr["number"])
+    result["taskPr"] = pr_output(task_pr)
+    result["prs"] = prs_json(attach_pr(task["number"], pull_ref(task_pr)))
 
     _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
     if relanding:
         # Read back what the next `pdlc inspect implement` will see, so the
         # caller knows whether this task will be offered again.
-        result["openThreads"] = len(get_code_host().unresolved_review_comments(task_pr["number"]))
+        result["openThreads"] = len(get_code_host().unresolved_review_comments(pull_ref(task_pr)))
         result["checks"] = check_state(task_pr.get("checks"))
     else:
         close_task(delivery_task)

@@ -315,7 +315,7 @@ Recovery:
 
 ### `pdlc post attach-pr`
 
-Writes: attach the PR number to the task (read-modify-write of the task body or field). Skipped when already attached.
+Writes: attach the PR ref (`owner/name#N`, or a bare number for the file code host) to the task (read-modify-write of the task body or field). Skipped when already attached.
 
 Re-run: always safe.
 

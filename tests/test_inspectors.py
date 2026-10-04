@@ -8,7 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from _support import FileBackendTest, _file_config
-from pdlc.config import install_config, load_config
+from pdlc.config import get_config, install_config, load_config
+from pdlc.domain.records import PullRef
 
 
 class InspectTests(FileBackendTest):
@@ -335,6 +336,7 @@ class InspectImplementTests(FileBackendTest):
             self.addCleanup(patcher.stop)
 
     def _threads(self, threads: list[dict]) -> None:
+        threads = [{**thread, "pr": PullRef(thread["pr"], get_config().pull_request_repository())} for thread in threads]
         patcher = patch("pdlc.commands.inspect_implement.record_open_review_comments", return_value=threads)
         patcher.start()
         self.addCleanup(patcher.stop)

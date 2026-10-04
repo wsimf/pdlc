@@ -98,7 +98,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         implementation = self.write_file("implementation.md", self.implementation_summary("Shipped. FR-1 covered."))
         code_host = Mock()
         code_host.submit_task_stack.return_value = [{
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": True, "branch": "pdlc/shell/task-001",
             "mergedAt": None, "checks": "SUCCESS",
         }]
@@ -106,7 +106,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
             implemented = self.invoke("post_implement_task", task_number, implementation)
         self.assertEqual(implemented.code, 0, implemented.stderr)
         self.seed_prs(issue, [{
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": False, "branch": "feature/task",
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
@@ -126,7 +126,7 @@ class DueNextLifecycleE2ETests(FileBackendTest):
         trace = self.write_file("trace.md", "FR-1 -> core_service.py\n")
         test_host = Mock()
         test_host.ensure_pull_request_linked.return_value = {
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": False, "branch": "feature/task",
             "mergedAt": None, "checks": "SUCCESS",
         }

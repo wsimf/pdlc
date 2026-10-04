@@ -11,7 +11,7 @@ rather than asserting anything.
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest, ReviewComment
+from pdlc.domain.records import PullRef, PullRequest, ReviewComment
 
 from abc import ABC, abstractmethod
 
@@ -20,18 +20,20 @@ class CodeHost(ABC):
     @abstractmethod
     def ensure_pull_request_linked(self, code_ref: str) -> PullRequest:
         """The implementation pull request for the current branch, as a PR dict.
-        The caller registers its number on the record; this does not edit the
-        PR body or the work item."""
+        The caller registers its `PullRef` on the record; this does not edit
+        the PR body or the work item."""
 
     @abstractmethod
-    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
-        """The given pull requests as dicts, in `numbers` order. Each entry:
-        {number, title, url, state, isDraft, branch, mergedAt, checks}. A
-        registered number that cannot be resolved must raise; silently dropping
-        it would make completion and CI gates unsound. An empty list returns []."""
+    def pull_requests(self, refs: list[PullRef]) -> list[PullRequest]:
+        """The given pull requests as dicts, in `refs` order, each read from its
+        own repository. Each entry: {number, repository, title, url, state,
+        isDraft, branch, mergedAt, checks}, where `number` and `repository`
+        equal the ref's. A registered ref that cannot be resolved must raise;
+        silently dropping it would make completion and CI gates unsound. An
+        empty list returns []."""
 
     @abstractmethod
-    def pull_request_files(self, pr_number: str | int) -> list[str]:
+    def pull_request_files(self, pr: PullRef) -> list[str]:
         """Repository-relative paths the pull request touches."""
 
     @abstractmethod
@@ -75,7 +77,7 @@ class CodeHost(ABC):
         ``submit_task_stack``."""
 
     @abstractmethod
-    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+    def set_pull_request_content(self, pr: PullRef, title: str, body: str) -> None:
         """Overwrite one pull request's title and description outright.
 
         Called at task checkpoint, right after ``submit_task_stack``, so the
@@ -85,7 +87,7 @@ class CodeHost(ABC):
         ``submit_task_stack``; the checkpoint path never reaches it there."""
 
     @abstractmethod
-    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+    def unresolved_review_comments(self, pr: PullRef) -> list[ReviewComment]:
         """Every review-thread comment on this pull request that is still
         unresolved on the host, oldest first: one entry per thread — its root
         comment only, not later replies — as
@@ -95,7 +97,7 @@ class CodeHost(ABC):
         "none found"."""
 
     @abstractmethod
-    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+    def mark_pull_requests_ready(self, refs: list[PullRef]) -> None:
         """Take the given pull requests out of draft so humans can review them.
 
         Called once at ``pdlc post implement`` — after every delivery task is
@@ -103,5 +105,5 @@ class CodeHost(ABC):
         on the record and its tasks, which in the stacked flow is more than one.
         Must be idempotent: an already-ready PR is left untouched, so a
         ``Changes Required`` bounce that republishes is safe. A host with no
-        draft concept does nothing; a merged or closed number is skipped by the
+        draft concept does nothing; a merged or closed PR is skipped by the
         caller, not raised on here."""

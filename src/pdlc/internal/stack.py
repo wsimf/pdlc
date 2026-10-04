@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pdlc.domain.records import pull_request_label
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import TASK_TITLE_PATTERN
 from pdlc.domain.workflow import Lifecycle
@@ -63,7 +64,7 @@ def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     so one registered number is enough even on a fresh clone.
     """
     latest = latest_implemented_task(delivery_tasks, before=chosen["number"])
-    return max(latest["prs"]) if latest else None
+    return max(latest["prs"]).number if latest else None
 
 
 def stack_gaps(pull_requests: list[dict]) -> list[str]:
@@ -71,7 +72,7 @@ def stack_gaps(pull_requests: list[dict]) -> list[str]:
     checked out, or a fix not yet restacked. Merged PRs are skipped: a squash
     merge rewrites their commits, so their code arrives through the base."""
     return [
-        f"#{pr['number']} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}"
+        f"{pull_request_label(pr)} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}"
         for pr in pull_requests
         if pr.get("state") == "OPEN" and pr.get("headSha") and not contains_commit(pr["headSha"])
     ]
@@ -99,7 +100,7 @@ def resolve_predecessor(ref: str) -> Predecessor:
     latest = latest_implemented_task(task_tree(ref))
     if latest is None:
         return Predecessor(ref, False, None, None)
-    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), max(latest["prs"]))
+    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), max(latest["prs"]).number)
 
 
 @dataclass(frozen=True)
@@ -156,7 +157,7 @@ def resolve_task_checkout(ref: str) -> TaskCheckout:
     return TaskCheckout(
         task=chosen,
         branch=task_branch_name(item_branch_slug(item), task_id),
-        pr=max(prs) if prs else None,
+        pr=max(prs).number if prs else None,
         entry_pr=stack_entry_pr(delivery, chosen),
         predecessor=after_predecessor(delivery, chosen),
     )

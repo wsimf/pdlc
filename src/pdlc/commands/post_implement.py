@@ -48,6 +48,7 @@ import json
 import sys
 
 
+from pdlc.domain.records import pull_ref
 from pdlc.commands.checkout import check_out
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.complete_transition import complete_transition, prepare_transition
@@ -104,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         # ones out of draft together for human review. Done before the evidence
         # posts so a failure here leaves the record cleanly republishable.
         open_prs = [pr for pr in record_pull_requests(issue) if pr["state"] == "OPEN"]
-        code_host.mark_pull_requests_ready([pr["number"] for pr in open_prs])
+        code_host.mark_pull_requests_ready([pull_ref(pr) for pr in open_prs])
         result = complete_transition(publication, evidence_body, attachment_inputs)
         result["checkedOut"] = top_checkout.branch if top_checkout else None
         result["readyPullRequests"] = [{"number": pr["number"], "url": pr["url"]} for pr in open_prs]

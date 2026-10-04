@@ -273,7 +273,7 @@ Add one field to **`Task`**, the work-item type PDLC uses for a delivery task:
 
 | Field | Type | Options / contents |
 |---|---|---|
-| `PdlcPrs` | Text (single line) | Space-separated pull-request numbers attached to that task. Written by `pdlc post implement-task` / `post attach-pr`. |
+| `PdlcPrs` | Text (single line) | Space-separated pull requests attached to that task, as `owner/name#N` (a bare `N` reads as the configured code repository's). Written by `pdlc post implement-task` / `post attach-pr`. |
 
 Descriptions and evidence comments are written as Markdown, so they render properly in the Azure UI. PDLC sets that format when it creates a work item and whenever it edits its description; nothing needs configuring.
 
