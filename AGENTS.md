@@ -63,7 +63,7 @@ XDG_CACHE_HOME=/tmp/pdlc-uv-cache uv build
 git diff --check
 ```
 
-For local workflow scenarios set `[backend] name = "file"` in `.pdlc/config.toml` and point `PDLC_HOME` at a temporary directory. The default work-item backend is GitHub; the file backend persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-host selection follows `[code_host] name`, and attachments follow `[attachment_host] name`. Only `PDLC_HOME`, `PDLC_REPOSITORY`, and `PDLC_DEBUG` are read from the environment; every other setting is a config-file key.
+For local workflow scenarios set `[tracker] provider = "file"` in `.pdlc/config.toml` and point `PDLC_HOME` at a temporary directory. The default tracker is GitHub; the file tracker persists records under `.pdlc` unless `PDLC_HOME` overrides it. Code-provider selection follows `[code] provider`, and attachments follow `[attachments] provider`. Only `PDLC_HOME`, `PDLC_TRACKER_REPOSITORY`, and `PDLC_DEBUG` are read from the environment; every other setting is a config-file key.
 
 The skills name no project-specific tool. A consuming repo routes each seam to its own specialist skill or sub-agent through the `[agents]` and `[skills]` tables of `.pdlc/config.toml`, read back by `pdlc inspect capability`; an unset slot falls back to `general-purpose` or an inline seam. The slot contract lives in `pdlc guide capabilities`.
 
@@ -77,7 +77,7 @@ adapted from `gh`'s help layout to pdlc's own non-publishing/publishing split:
 
 - The top-level `pdlc --help` is a "parent with children" surface. Its sections are `USAGE`,
   `NON-PUBLISHING COMMANDS` (setup, inspect*, prompt*, next), `PUBLISHING COMMANDS` (post*), `FLAGS` (the
-  global `--repo`/`--project-number`/`--project-owner`/`--backend`/`--home` overrides),
+  global `--tracker-repo`/`--project-number`/`--project-owner`/`--tracker`/`--home` overrides),
   `ARGUMENTS`, `EXAMPLES`, and `LEARN MORE`.
 - `pdlc prompt --help` is the only other one. It is an index, not a brief builder: a `COMMANDS`
   section naming each `prompt <brief>` leaf, the `DESCRIPTION` prose every brief shares, and a

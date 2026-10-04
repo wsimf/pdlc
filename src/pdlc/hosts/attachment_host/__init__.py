@@ -13,7 +13,7 @@ _instance: AttachmentHost | None = None
 def get_host() -> AttachmentHost:
     global _instance
     if _instance is None:
-        name = get_config().attachment_host or "file"
+        name = get_config().attachments_provider or "file"
         if name == "file":
             from pdlc.hosts.file_provider import FileAttachmentHost
 
@@ -23,7 +23,7 @@ def get_host() -> AttachmentHost:
 
             _instance = NoneAttachmentHost()
         else:
-            raise RuntimeError(f"unknown [attachment_host] name: {name!r}")
+            raise RuntimeError(f"unknown [attachments] provider: {name!r}")
     return _instance
 
 

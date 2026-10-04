@@ -3,6 +3,7 @@ registry, the GitHub host's delegation to `gh stack`, and task checkpointing."""
 
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -214,6 +215,20 @@ class GitHubStackSubmitTests(GitHubHostTest):
         self.assertIn("--repo", args)
         self.assertEqual(args[args.index("--title") + 1], "[CORE] Persist geometry")
         self.assertEqual(body, "## Implementation\n\nShipped.\n")
+
+    def test_pull_request_calls_name_the_code_repository_not_the_tracker(self):
+        # A service repository's pull requests stay in its own repository even
+        # when its work items live in a shared tracker.
+        self.configure(tracker_repository="acme/product", code_repository="acme/svc-a")
+        seen: list[list[str]] = []
+        self.gh.route(
+            lambda args, _input: args[:2] == ["pr", "ready"],
+            lambda args, _input: (seen.append(args), "")[1],
+        )
+
+        self.host.mark_pull_requests_ready([148])
+
+        self.assertEqual(seen[0][seen[0].index("--repo") + 1], "acme/svc-a")
 
     def test_mark_pull_requests_ready_takes_each_number_out_of_draft(self):
         seen: list[list[str]] = []
@@ -576,6 +591,34 @@ class ImplementTaskStackTests(FileBackendTest):
             148, "Core", "Fixes 70 / see 70\n\n## Implementation\n\n" + self.implementation_summary("Shipped it.").strip()
         )
         self.assertNotIn("Fixes 70", self.task_comments_text(70, 701))
+
+    def _checkpoint_pr(self, config: Config) -> tuple[str, str]:
+        """The title and body a checkpoint gives the task PR under ``config``,
+        with `{work.ref}` in both the title format and the attachment."""
+        self._seed()
+        host = Mock()
+        host.submit_task_stack.return_value = [{
+            "number": 148, "branch": "pdlc/record-70/task-001", "title": "auto", "url": "u148",
+        }]
+        config = replace(config, pr_attachment="Part of {work.ref}", pr_title_format="{task.title} ({work.ref})")
+        with patch("pdlc.commands.post_implement_task.get_code_host", return_value=host), \
+                patch("pdlc.commands.post_implement_task.get_config", return_value=config):
+            result = self.invoke("post_implement_task", 701, self.write_file("impl.md", self.implementation_summary("Shipped it.")))
+        self.assertEqual(result.code, 0, result.stderr)
+        _, title, body = host.set_pull_request_content.call_args.args
+        return title, body.split("\n\n", 1)[0]
+
+    def test_work_ref_is_bare_when_issues_and_prs_share_a_repository(self):
+        config = Config(tracker_repository="acme/widgets", code_repository="Acme/Widgets")
+        self.assertEqual(self._checkpoint_pr(config), ("Core (#70)", "Part of #70"))
+
+    def test_work_ref_is_qualified_for_a_shared_tracker_repository(self):
+        config = Config(tracker_repository="acme/product", code_repository="acme/svc-a")
+        self.assertEqual(self._checkpoint_pr(config), ("Core (acme/product#70)", "Part of acme/product#70"))
+
+    def test_work_ref_uses_azure_boards_link_syntax(self):
+        config = Config(tracker_provider="azure", code_repository="acme/svc-a")
+        self.assertEqual(self._checkpoint_pr(config), ("Core (AB#70)", "Part of AB#70"))
 
     def test_pr_content_failure_leaves_the_task_rerunnable(self):
         self._seed()

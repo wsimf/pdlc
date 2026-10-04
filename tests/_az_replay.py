@@ -188,9 +188,9 @@ class AzureHostTest(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        self._saved_repository = os.environ.pop("PDLC_REPOSITORY", None)
+        self._saved_repository = os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
         install_config(Config(
-            backend="azure",
+            tracker_provider="azure",
             azure_org=ORGANIZATION,
             azure_project=PROJECT,
         ))
@@ -206,7 +206,7 @@ class AzureHostTest(unittest.TestCase):
     def _restore_env(self) -> None:
         reset_config()
         if self._saved_repository is not None:
-            os.environ["PDLC_REPOSITORY"] = self._saved_repository
+            os.environ["PDLC_TRACKER_REPOSITORY"] = self._saved_repository
 
 
 mock = unittest.mock

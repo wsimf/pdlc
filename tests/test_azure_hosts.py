@@ -738,55 +738,55 @@ class CreationAndIdentityTest(AzureHostTest):
 
 
 class AzureConfigurationTest(unittest.TestCase):
-    def test_the_azure_backend_requires_its_own_coordinates(self):
+    def test_the_azure_tracker_requires_its_own_coordinates(self):
         with self.assertRaises(ConfigurationError) as caught:
-            Config(backend="azure", code_host="none").validate_for_backend()
-        self.assertIn("backend.azure.organization", str(caught.exception))
-        self.assertIn("backend.azure.project", str(caught.exception))
+            Config(tracker_provider="azure", code_provider="none").validate_providers()
+        self.assertIn("tracker.azure.organization", str(caught.exception))
+        self.assertIn("tracker.azure.project", str(caught.exception))
 
-    def test_a_github_code_host_still_needs_a_repository(self):
+    def test_a_github_code_provider_still_needs_a_repository(self):
         # The two hosts are independent: Azure Boards + GitHub repos is the
         # target pairing, so neither half's requirements imply the other's.
-        with self.assertRaisesRegex(ConfigurationError, "backend.github.repository"):
+        with self.assertRaisesRegex(ConfigurationError, "code.github.repository"):
             Config(
-                backend="azure", code_host="github",
+                tracker_provider="azure", code_provider="github",
                 azure_org="https://dev.azure.com/acme", azure_project="delivery",
-            ).validate_for_backend()
+            ).validate_providers()
 
     def test_azure_never_requires_github_project_coordinates(self):
         Config(
-            backend="azure", code_host="github", repository="acme/widgets",
+            tracker_provider="azure", code_provider="github", code_repository="acme/widgets",
             azure_org="https://dev.azure.com/acme", azure_project="delivery",
-        ).validate_for_backend()
+        ).validate_providers()
 
-    def test_an_unset_code_host_requires_no_repository(self):
-        # `PDLC_CODE_HOST` unset under an azure backend resolves to `none`, so
+    def test_an_unset_code_provider_requires_no_repository(self):
+        # `[code] provider` unset under an azure tracker resolves to `none`, so
         # validation must not demand GitHub coordinates the run will never use.
         Config(
-            backend="azure",
+            tracker_provider="azure",
             azure_org="https://dev.azure.com/acme", azure_project="delivery",
-        ).validate_for_backend()
+        ).validate_providers()
 
-    def test_validation_and_selection_agree_on_the_implied_code_host(self):
-        # One helper feeds both `validate_for_backend` and the code-host
+    def test_validation_and_selection_agree_on_the_implied_code_provider(self):
+        # One helper feeds both `validate_providers` and the code-provider
         # selector; if they ever diverge, a run validates against one host and
         # then executes against another.
-        from pdlc.config import default_code_host
+        from pdlc.config import default_code_provider
         from pdlc.hosts.code_host import _default_name
 
         from pdlc.config import install_config, reset_config
 
         self.addCleanup(reset_config)
         for backend, expected in (("github", "github"), ("file", "file"), ("azure", "none")):
-            with self.subTest(backend=backend):
-                self.assertEqual(default_code_host(backend), expected)
-                install_config(Config(backend=backend))
+            with self.subTest(tracker_provider=backend):
+                self.assertEqual(default_code_provider(backend), expected)
+                install_config(Config(tracker_provider=backend))
                 self.assertEqual(_default_name(), expected)
 
     def test_a_missing_organization_fails_at_the_transport_rather_than_guessing(self):
         from pdlc.config import install_config, reset_config
 
-        install_config(Config(backend="azure"))
+        install_config(Config(tracker_provider="azure"))
         self.addCleanup(reset_config)
         from pdlc.hosts.lib.azure.transport import azure_config
 

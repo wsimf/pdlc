@@ -53,11 +53,21 @@ UJ-1 covers the first run.
 
 TASK_BODY_DEFAULT = "## Scope\nx\n\n## Acceptance criteria\n- ok\n"
 
+def isolate_home_config(test: unittest.TestCase) -> None:
+    """Point `~/.pdlc/config.toml` at a missing file for one test, so a
+    developer's own machine-wide config never leaks into the suite."""
+    missing = Path(tempfile.mkdtemp()) / "config.toml"
+    test.addCleanup(shutil.rmtree, missing.parent, ignore_errors=True)
+    patcher = mock.patch("pdlc.config.home_config_path", return_value=missing)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 def _file_config() -> Config:
     return Config(
-        backend="file",
-        code_host="file",
-        attachment_host="file",
+        tracker_provider="file",
+        code_provider="file",
+        attachments_provider="file",
         actor="tester",
         no_sleep=True,
     )
@@ -92,12 +102,13 @@ class FileBackendTest(unittest.TestCase):
         self._saved_env: dict[str, str | None] = {}
         # `PDLC_HOME` still points the file backend at its store; every other
         # setting now comes from the installed Config.
-        for key in ("PDLC_HOME", "PDLC_REPOSITORY", "PDLC_DEBUG"):
+        for key in ("PDLC_HOME", "PDLC_TRACKER_REPOSITORY", "PDLC_DEBUG"):
             self._saved_env[key] = os.environ.get(key)
         os.environ["PDLC_HOME"] = str(self.home)
-        os.environ.pop("PDLC_REPOSITORY", None)
+        os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
         os.environ.pop("PDLC_DEBUG", None)
         install_config(replace(_file_config(), cache_root=str(self.work)))
+        isolate_home_config(self)
         capabilities = mock.patch("pdlc.config._capabilities", Capabilities.empty())
         capabilities.start()
         self.addCleanup(capabilities.stop)

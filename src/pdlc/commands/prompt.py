@@ -214,12 +214,12 @@ def _parent_body(item: dict) -> str:
 
 
 def _owner_repo() -> tuple[str, str]:
-    repository = get_config().repository or ""
+    repository = get_config().code_repository or ""
     owner, _, name = repository.partition("/")
     if not owner or not name:
         raise PdlcError(
             "this brief names the pull request's repository, which is not configured; "
-            "set [backend.github] repository or pass --repo OWNER/REPO"
+            "set [code.github] repository"
         )
     return owner, name
 

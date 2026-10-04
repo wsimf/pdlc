@@ -40,8 +40,8 @@ class AzureLiveEndToEndTest(unittest.TestCase):
         self.project = _AZURE["project"]
 
         install_config(Config(
-            backend="azure",
-            code_host="none",
+            tracker_provider="azure",
+            code_provider="none",
             azure_org=self.organization,
             azure_project=self.project,
             azure_record_type=_AZURE.get("record_type"),

@@ -51,7 +51,7 @@ def _record_type() -> str:
 
 
 def _area_path() -> str | None:
-    """The optional `[backend.azure] area_path` new records are filed under."""
+    """The optional `[tracker.azure] area_path` new records are filed under."""
     return get_config().azure_area_path
 
 
@@ -83,7 +83,7 @@ def _task_in_progress_state() -> str | None:
 
 
 def _assigned_to() -> str | None:
-    """The optional `[backend.azure] assigned_to` queue-scan filter."""
+    """The optional `[tracker.azure] assigned_to` queue-scan filter."""
     return get_config().azure_assigned_to
 
 

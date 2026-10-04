@@ -625,6 +625,14 @@ class WorkItemBackendTest(GitHubHostTest):
         self.assertIn("--body-file", args)
         self.assertIn("--repo", args)
 
+    def test_issue_calls_name_the_tracker_repository_not_the_code(self) -> None:
+        self.configure(tracker_repository="acme/product", code_repository="acme/svc-a")
+        self._stored_body("## Product\nold\n")
+        self.gh.gh("issue", "edit", response="")
+        self.backend.write_body("3", "## Product\nnew body\n")
+        args, _ = next(call for call in self.gh.calls if call[0][:2] == ["issue", "edit"])
+        self.assertEqual(args[args.index("--repo") + 1], "acme/product")
+
     def test_resolve_splits_the_registry_out_of_the_body(self) -> None:
         self.gh.graphql(
             "issue(number: $issue)",

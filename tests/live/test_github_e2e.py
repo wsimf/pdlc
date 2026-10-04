@@ -38,9 +38,10 @@ class GitHubLiveEndToEndTest(unittest.TestCase):
         self.project_number = _GITHUB["project_number"]
 
         install_config(Config(
-            backend="github",
-            code_host="github",
-            repository=self.repository,
+            tracker_provider="github",
+            code_provider="github",
+            tracker_repository=self.repository,
+            code_repository=self.repository,
             project_owner=self.project_owner,
             project_number=self.project_number,
         ))

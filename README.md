@@ -119,42 +119,43 @@ Inspect comments without loading the full discussion with `pdlc inspect comments
 
 ## Configuration
 
-Configuration is file-first. Settings live in `.pdlc/config.toml` at the repository root, layered over `~/.pdlc/config.toml` for machine-wide defaults, with CLI options (`--repo`, `--backend`, `--project-number`, `--project-owner`, `--home`) on top for a single run.
+Configuration is file-first. Settings live in `.pdlc/config.toml` at the repository root, layered over `~/.pdlc/config.toml` for machine-wide defaults, with CLI options (`--tracker-repo`, `--tracker`, `--project-number`, `--project-owner`, `--home`) on top for a single run.
 
 Only two settings are read from the process environment, because they identify *where* things are before any config file is located:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PDLC_REPOSITORY` | unset | GitHub repository in `OWNER/REPOSITORY` form; overrides `[backend.github] repository`. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
-| `PDLC_HOME` | `.pdlc` | Local file-backend and attachment storage root; overrides `[runtime] home`. |
+| `PDLC_TRACKER_REPOSITORY` | unset | GitHub tracker repository in `OWNER/REPOSITORY` form; below `[tracker.github] repository` in every config file. Falls back to the checkout's `origin` remote (HTTPS or SSH) when nothing sets it; an SSH host alias that hides `github.com` is not resolved. |
+| `PDLC_HOME` | `.pdlc` | Local file-tracker and attachment storage root; overrides `[runtime] home`. |
 | `PDLC_DEBUG` | unset | `true` turns on external-call tracing before a config file is read; equivalent to `[debug] enabled = true`. |
 
-Every other setting is a `.pdlc/config.toml` key. All are optional unless a selected backend or workflow requires them:
+Every other setting is a `.pdlc/config.toml` key. All are optional unless a selected tracker, code provider, or workflow requires them:
 
 | Table / key | Default | Purpose |
 |---|---|---|
-| `[backend] name` | `github` | Work-item backend: `github`, `azure`, or `file`. |
-| `[backend.github] repository` | unset; required for GitHub | GitHub repository in `OWNER/REPOSITORY` form. |
-| `[backend.github] project_number` | unset; required for GitHub | GitHub Projects number. |
-| `[backend.github] project_owner` | unset; required for GitHub | GitHub Projects owner. |
-| `[backend.github] assigned_to` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. New records and task Issues are assigned to this login, or to the authenticated user when unset. |
-| `[backend.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
-| `[backend.azure] project` | unset; required for Azure | Azure DevOps project name. |
-| `[backend.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
-| `[backend.azure] area_path` | Project root | Optional. Area path new records are created under, e.g. `PROJECT\Team`. Delivery tasks always inherit their parent record's area path. |
-| `[backend.azure] closed_state` | `Done` | Work-item state a record is closed into by `pdlc post complete`. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
-| `[backend.azure] open_state` | `To Do` | Work-item state name. Falls back for `task_open_state` when that is unset. |
-| `[backend.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
-| `[backend.azure] task_removed_state` | Falls back to `task_closed_state` | Delivery task state a task descoped by `pdlc post tasks` moves to. Set `Removed` on Agile or Scrum so descoped work does not count as completed; Basic has no such state. |
-| `[backend.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
-| `[backend.azure] task_in_progress_state` | unset | Optional. No work-item fallback — set explicitly if your process has an in-progress `Task` state you want recorded. |
-| `[backend.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. New records and tasks are assigned to this identity, or to the signed-in `az` account when unset. |
-| `[code_host] name` | Follows `[backend] name`; `none` for `azure` | Code/PR host: `github`, `file`, or `none`. |
-| `[code_host] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`). PR body only — never added to the `## Implementation` comment. |
-| `[code_host] pr_title_format` | unset | Optional format string for each task PR title when `pdlc post implement-task` submits the stack. Placeholders: `{task.title}` (the delivery task's title, with its `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the parent's bare number), `{work.type}` (`feature`/`bug`). Unset uses the bare stripped task title; the `[CORE]`/`[UI]` tag is dropped either way. |
-| `[attachment_host] name` | `file` | Attachment host: `file` or `none`. |
-| `[runtime] home` | `.pdlc` | Local file-backend and attachment storage root (see also `PDLC_HOME`). |
-| `[runtime] actor` | `local` | Actor name recorded by the file backend. |
+| `[tracker] provider` | `github` | Where work items live: `github`, `azure`, or `file`. |
+| `[tracker.github] repository` | checkout `origin`; required for GitHub | GitHub repository holding work-item Issues, in `OWNER/REPOSITORY` form. Several code repositories can share one tracker. |
+| `[tracker.github] project_number` | unset; required for GitHub | GitHub Projects number. |
+| `[tracker.github] project_owner` | unset; required for GitHub | GitHub Projects owner. |
+| `[tracker.github] assigned_to` | unset | Optional. When set, the GitHub queue scan only returns Issues assigned to this login; `@me` resolves to the authenticated user. New records and task Issues are assigned to this login, or to the authenticated user when unset. |
+| `[tracker.azure] organization` | unset; required for Azure | Azure DevOps organization URL, e.g. `https://dev.azure.com/OWNER`. |
+| `[tracker.azure] project` | unset; required for Azure | Azure DevOps project name. |
+| `[tracker.azure] record_type` | `Product Backlog Item` | Work-item type used for a PDLC record. Set to `User Story` on an Agile process. |
+| `[tracker.azure] area_path` | Project root | Optional. Area path new records are created under, e.g. `PROJECT\Team`. Delivery tasks always inherit their parent record's area path. |
+| `[tracker.azure] closed_state` | `Done` | Work-item state a record is closed into by `pdlc post complete`. Falls back for `task_closed_state` when that is unset. `Closed` is always recognized as terminal for a delivery task regardless of this setting. |
+| `[tracker.azure] open_state` | `To Do` | Work-item state name. Falls back for `task_open_state` when that is unset. |
+| `[tracker.azure] task_closed_state` | Falls back to `closed_state` | Delivery task (`Task`) state closed into. Set this when the record type and `Task` use different state vocabularies. |
+| `[tracker.azure] task_removed_state` | Falls back to `task_closed_state` | Delivery task state a task descoped by `pdlc post tasks` moves to. Set `Removed` on Agile or Scrum so descoped work does not count as completed; Basic has no such state. |
+| `[tracker.azure] task_open_state` | Falls back to `open_state` | Delivery task (`Task`) state a task is reopened into by `pdlc post invalidate` when it targets `Technical Plan` or `Implementation`. |
+| `[tracker.azure] task_in_progress_state` | unset | Optional. No work-item fallback — set explicitly if your process has an in-progress `Task` state you want recorded. |
+| `[tracker.azure] assigned_to` | unset | Optional. When set, the Azure queue scan only returns records assigned to this identity (display name or unique name); `@me` maps to Azure's `@Me` WIQL macro. New records and tasks are assigned to this identity, or to the signed-in `az` account when unset. |
+| `[code] provider` | Follows `[tracker] provider`; `none` for `azure` | Where pull requests live: `github`, `file`, or `none`. |
+| `[code.github] repository` | checkout `origin`, else `[tracker.github] repository`; required for GitHub | GitHub repository holding pull requests, in `OWNER/REPOSITORY` form. Set it only when `origin` is not a github.com URL or PRs open on another repository. |
+| `[code] pr_attachment` | unset | Optional line inserted as the first line of each task PR body when `pdlc post implement-task` submits the stack. Every `{work.number}` is replaced with the parent work item's bare number (no `#`), and every `{work.ref}` with a reference that links it from the code repository (`#N`, `OWNER/REPOSITORY#N` for another GitHub tracker repository, or `AB#N` for Azure Boards). PR body only — never added to the `## Implementation` comment. |
+| `[code] pr_title_format` | unset | Optional format string for each task PR title when `pdlc post implement-task` submits the stack. Placeholders: `{task.title}` (the delivery task's title, with its `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the parent's bare number), `{work.type}` (`feature`/`bug`), `{work.ref}`. Unset uses the bare stripped task title; the `[CORE]`/`[UI]` tag is dropped either way. |
+| `[attachments] provider` | `file` | Where attachments live: `file` or `none`. |
+| `[runtime] home` | `.pdlc` | Local file-tracker and attachment storage root (see also `PDLC_HOME`). |
+| `[runtime] actor` | `local` | Actor name recorded by the file tracker. |
 | `[runtime] ref_label` | `pdlc` | Label used for local inspector scratch files. |
 | `[cache] root` | `repository_default` | Parent of `.pdlc/cache/<workitem>/` for generated inspector reports and prompt briefs. `repository_default` uses the repository root; `global_default` uses the user's home; a custom absolute path uses that directory, and a relative path is resolved from the repository root. Each filename ends in a random suffix. Short-lived GitHub/Azure request bodies use the `unscoped` subdirectory and are removed after the request. |
 | `[workflow] max_attempts` | `5` | Maximum queue-loop polling attempts. |
@@ -169,23 +170,23 @@ Every other setting is a `.pdlc/config.toml` key. All are optional unless a sele
 For GitHub, create `.pdlc/config.toml` with:
 
 ```toml
-[backend]
-name = "github"
+[tracker]
+provider = "github"
 
-[backend.github]
-repository = "OWNER/REPOSITORY"
+[tracker.github]
+repository = "OWNER/REPOSITORY"   # optional; defaults to origin. Name a shared tracker here
 project_number = 123
 project_owner = "OWNER"
 assigned_to = "@me"          # optional; scope the queue scan to your Issues
 ```
 
-For Azure Boards, the work-item backend and the code host are separate choices — Azure Boards paired with GitHub repositories is the expected setup, so the GitHub table is still needed for the repository alone:
+For Azure Boards, the tracker and the code provider are separate choices — Azure Boards paired with GitHub repositories is the expected setup:
 
 ```toml
-[backend]
-name = "azure"
+[tracker]
+provider = "azure"
 
-[backend.azure]
+[tracker.azure]
 organization = "https://dev.azure.com/OWNER"
 project = "PROJECT"
 record_type = "Product Backlog Item"   # optional; defaults to "Product Backlog Item"
@@ -194,22 +195,22 @@ closed_state = "Done"        # optional; defaults to "Done"
 open_state = "To Do"         # optional; defaults to "To Do"
 assigned_to = "@me"          # optional; scope the queue scan to your work items
 
-[code_host]
-name = "github"
-pr_attachment = "Fixes {work.number}"   # optional; first line of each task PR body
+[code]
+provider = "github"
+pr_attachment = "Fixes {work.ref}"   # optional; first line of each task PR body
 pr_title_format = "[{work.number}] {task.title}"   # optional; each task PR title
 
-[backend.github]
-repository = "OWNER/REPOSITORY"
+[code.github]
+repository = "OWNER/REPOSITORY"   # optional; defaults to origin, else the tracker repository
 ```
 
-`assigned_to` is optional: when set, `pdlc next` and the queue scan only surface records assigned to that identity (`@me` is Azure's `@Me` macro), and new records and tasks are assigned to it; when unset, the queue is unfiltered and new records and tasks are assigned to the signed-in account. The GitHub backend has the same optional `assigned_to` under `[backend.github]`.
+`assigned_to` is optional: when set, `pdlc next` and the queue scan only surface records assigned to that identity (`@me` is Azure's `@Me` macro), and new records and tasks are assigned to it; when unset, the queue is unfiltered and new records and tasks are assigned to the signed-in account. The GitHub tracker has the same optional `assigned_to` under `[tracker.github]`.
 
-Only `organization` and `project` are required by the backend itself. `repository` is required by the *code host*, not the backend — the two are validated independently, so `name = "none"` under `[code_host]` needs neither it nor the `[backend.github]` table.
+Only `organization` and `project` are required by the tracker itself. The code repository belongs to the *code provider*, not the tracker — the two are validated independently, so `provider = "none"` under `[code]` needs no repository at all.
 
 `record_type` is more than a creation default: it is how PDLC recognizes a work item as a record rather than an ordinary board item, and it is the type the queue scan filters on. If you change it, the [custom fields](#azure-boards-fields) have to exist on that type instead.
 
-Run `pdlc setup` to create this file interactively. It detects the GitHub repository from `remote.origin.url`, lists available GitHub Projects with `gh`, and lets you choose the project owner or enter another owner.
+Run `pdlc setup` to create this file interactively. It detects the GitHub repository from `remote.origin.url`, asks which repository holds work items, lists available GitHub Projects with `gh`, and lets you choose the project owner or enter another owner.
 
 ### GitHub Project fields
 

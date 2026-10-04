@@ -3,7 +3,7 @@
 Configuration is file-first: ``~/.pdlc/config.toml`` for machine-wide defaults,
 layered under the repository's ``.pdlc/config.toml``, with CLI flags on top. Only
 two settings are still read from the process environment — ``PDLC_HOME`` and
-``PDLC_REPOSITORY`` — because they identify *where* the store and the checkout
+``PDLC_TRACKER_REPOSITORY`` — because they identify *where* the store and the checkout
 live before any file has been located.
 """
 
@@ -22,26 +22,27 @@ from pdlc.domain.lifecycle import PdlcError
 # ``(table, key) -> Config field``. The single source of truth for which TOML
 # settings exist and where each one lands on the dataclass.
 CONFIG_FIELDS = {
-    ("backend", "name"): "backend",
-    ("backend.github", "repository"): "repository",
-    ("backend.github", "project_number"): "project_number",
-    ("backend.github", "project_owner"): "project_owner",
-    ("backend.github", "assigned_to"): "github_assigned_to",
-    ("backend.azure", "organization"): "azure_org",
-    ("backend.azure", "project"): "azure_project",
-    ("backend.azure", "record_type"): "azure_record_type",
-    ("backend.azure", "area_path"): "azure_area_path",
-    ("backend.azure", "closed_state"): "azure_closed_state",
-    ("backend.azure", "open_state"): "azure_open_state",
-    ("backend.azure", "task_closed_state"): "azure_task_closed_state",
-    ("backend.azure", "task_open_state"): "azure_task_open_state",
-    ("backend.azure", "task_removed_state"): "azure_task_removed_state",
-    ("backend.azure", "task_in_progress_state"): "azure_task_in_progress_state",
-    ("backend.azure", "assigned_to"): "azure_assigned_to",
-    ("code_host", "name"): "code_host",
-    ("code_host", "pr_attachment"): "pr_attachment",
-    ("code_host", "pr_title_format"): "pr_title_format",
-    ("attachment_host", "name"): "attachment_host",
+    ("tracker", "provider"): "tracker_provider",
+    ("tracker.github", "repository"): "tracker_repository",
+    ("tracker.github", "project_number"): "project_number",
+    ("tracker.github", "project_owner"): "project_owner",
+    ("tracker.github", "assigned_to"): "github_assigned_to",
+    ("tracker.azure", "organization"): "azure_org",
+    ("tracker.azure", "project"): "azure_project",
+    ("tracker.azure", "record_type"): "azure_record_type",
+    ("tracker.azure", "area_path"): "azure_area_path",
+    ("tracker.azure", "closed_state"): "azure_closed_state",
+    ("tracker.azure", "open_state"): "azure_open_state",
+    ("tracker.azure", "task_closed_state"): "azure_task_closed_state",
+    ("tracker.azure", "task_open_state"): "azure_task_open_state",
+    ("tracker.azure", "task_removed_state"): "azure_task_removed_state",
+    ("tracker.azure", "task_in_progress_state"): "azure_task_in_progress_state",
+    ("tracker.azure", "assigned_to"): "azure_assigned_to",
+    ("code", "provider"): "code_provider",
+    ("code", "pr_attachment"): "pr_attachment",
+    ("code", "pr_title_format"): "pr_title_format",
+    ("code.github", "repository"): "code_repository",
+    ("attachments", "provider"): "attachments_provider",
     ("runtime", "home"): "home",
     ("runtime", "actor"): "actor",
     ("runtime", "ref_label"): "ref_label",
@@ -90,34 +91,41 @@ class ConfigurationError(PdlcError):
     """A configuration problem that should be shown directly to the user."""
 
 
-def default_code_host(backend: str) -> str:
-    """The code host implied by a backend when ``[code_host] name`` is unset.
+def default_code_provider(tracker: str) -> str:
+    """The code provider implied by a tracker when ``[code] provider`` is unset.
 
-    Azure Boards owns work items only, so it implies no code host at all; the
-    GitHub and file backends each host code themselves. Shared with
+    Azure Boards owns work items only, so it implies no code provider at all;
+    the GitHub and file trackers each host code themselves. Shared with
     ``pdlc.hosts.code_host`` so validation and selection cannot disagree about
-    which host a given backend actually runs with.
+    which provider a given tracker actually runs with.
     """
-    return backend if backend in ("github", "file") else "none"
+    return tracker if tracker in ("github", "file") else "none"
 
 
 @dataclass(frozen=True)
 class Config:
-    repository: str | None = None
+    # Where work items live (`[tracker.github] repository`) and where pull
+    # requests live (`[code.github] repository`). They differ when several code
+    # repositories share one tracker; each defaults to the checkout's `origin`,
+    # and the code repository then to the tracker repository.
+    tracker_repository: str | None = None
+    code_repository: str | None = None
     project_number: str | None = None
     project_owner: str | None = None
     github_assigned_to: str | None = None
-    backend: str | None = None
-    code_host: str | None = None
-    attachment_host: str | None = None
+    tracker_provider: str | None = None
+    code_provider: str | None = None
+    attachments_provider: str | None = None
     # Optional line appended to each task PR body at `pdlc post implement-task`;
-    # `{work.number}` resolves to the parent work item's bare number.
+    # `{work.number}` resolves to the parent work item's bare number and
+    # `{work.ref}` to a reference that links it from the code repository.
     pr_attachment: str | None = None
     # Optional format string for each task PR title at `pdlc post implement-task`.
     # Placeholders: `{task.title}` (the delivery task's title, with its
     # `WORK-N-TASK-N` id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}`
     # (e.g. `TASK-001`), `{work.number}` (the parent's bare number), and
-    # `{work.type}` (`feature`/`bug`). Unset uses the bare stripped task title.
+    # `{work.type}` (`feature`/`bug`), and `{work.ref}`. Unset uses the bare
+    # stripped task title.
     pr_title_format: str | None = None
     home: str | None = None
     actor: str | None = None
@@ -206,49 +214,46 @@ class Config:
             raise ConfigurationError("[cache.root] must be a directory or a named default")
         return cls(**data)  # type: ignore[arg-type]
 
-    def validate_for_backend(self) -> None:
-        """Require each selected host's own coordinates.
+    def validate_providers(self) -> None:
+        """Require each selected provider's own coordinates.
 
-        The work-item backend and the code host are independent: Azure Boards
-        is expected to pair with GitHub repos, so an azure backend still needs
-        a repository whenever the code host is GitHub.
+        The tracker and the code provider are independent: Azure Boards is
+        expected to pair with GitHub repositories, and several code
+        repositories may share one GitHub tracker, so each side checks only
+        its own settings.
         """
-        backend = self.backend or "github"
-        if backend not in {"github", "azure", "file"}:
-            raise ConfigurationError(f"unknown [backend] name: {backend!r}")
-        code_host = self.code_host or default_code_host(backend)
-        if code_host not in {"github", "file", "none"}:
-            raise ConfigurationError(f"unknown [code_host] name: {code_host!r}")
-        if self.attachment_host not in {None, "file", "none"}:
-            raise ConfigurationError(
-                f"unknown [attachment_host] name: {self.attachment_host!r}"
-            )
-        if backend == "file":
-            if code_host == "github" and not self.repository:
-                raise ConfigurationError(
-                    configuration_guidance(["backend.github.repository"])
-                )
-            return
-        required: dict[str, str | None] = {}
-        if backend == "azure":
-            required |= {
-                "backend.azure.organization": self.azure_org,
-                "backend.azure.project": self.azure_project,
-            }
-            if code_host == "github":
-                required["backend.github.repository"] = self.repository
-            missing = [name for name, value in required.items() if not value]
-            if missing:
-                raise ConfigurationError(configuration_guidance(missing))
-            return
-        required = {
-            "backend.github.repository": self.repository,
-            "backend.github.project_number": self.project_number,
-            "backend.github.project_owner": self.project_owner,
-        }
-        missing = [name for name, value in required.items() if not value]
+        missing = self.missing_settings()
         if missing:
             raise ConfigurationError(configuration_guidance(missing))
+
+    def missing_settings(self) -> list[str]:
+        """Every required `table.key` the selected providers lack; raises on an
+        unknown provider name. Shared with `pdlc doctor`."""
+        tracker = self.tracker_provider or "github"
+        if tracker not in {"github", "azure", "file"}:
+            raise ConfigurationError(f"unknown [tracker] provider: {tracker!r}")
+        code = self.code_provider or default_code_provider(tracker)
+        if code not in {"github", "file", "none"}:
+            raise ConfigurationError(f"unknown [code] provider: {code!r}")
+        if self.attachments_provider not in {None, "file", "none"}:
+            raise ConfigurationError(
+                f"unknown [attachments] provider: {self.attachments_provider!r}"
+            )
+        required: dict[str, str | None] = {}
+        if tracker == "github":
+            required |= {
+                "tracker.github.repository": self.tracker_repository,
+                "tracker.github.project_number": self.project_number,
+                "tracker.github.project_owner": self.project_owner,
+            }
+        elif tracker == "azure":
+            required |= {
+                "tracker.azure.organization": self.azure_org,
+                "tracker.azure.project": self.azure_project,
+            }
+        if code == "github":
+            required["code.github.repository"] = self.code_repository
+        return [name for name, value in required.items() if not value]
 
 
 @dataclass(frozen=True)
@@ -309,9 +314,9 @@ def config_path(start: Path | None = None) -> Path:
 def git_remote_repository(root: Path) -> str | None:
     """Best-effort ``owner/name`` from the repository's ``origin`` remote.
 
-    This is only the last-resort source for ``PDLC_REPOSITORY``: an environment
-    variable or a `config.toml` value always wins and this never overrides one
-    (see ``load_config``). Anything unexpected — no git, no ``origin``, a
+    This is the default for both the tracker and the code repository: an
+    environment variable or a `config.toml` value always wins and this never
+    overrides one (see ``load_config``). Anything unexpected — no git, no ``origin``, a
     non-GitHub URL, or an SSH host alias that hides ``github.com`` — yields
     ``None`` so the normal "not configured" error still stands rather than a
     wrong guess.
@@ -332,6 +337,22 @@ def git_remote_repository(root: Path) -> str | None:
         r"github\.com(?::\d+)?[:/]([^/ :]+)/([^/]+?)(?:\.git)?$", result.stdout.strip()
     )
     return f"{match.group(1)}/{match.group(2)}" if match else None
+
+
+# ``(environment variable, Config field)``: the only settings read from the
+# process environment, below every config file.
+ENVIRONMENT_FIELDS = (("PDLC_HOME", "home"), ("PDLC_TRACKER_REPOSITORY", "tracker_repository"))
+
+# Repository fields that default to the checkout's `origin` when unset.
+REPOSITORY_FIELDS = ("tracker_repository", "code_repository")
+
+
+def checkout_identity(derived: str | None, repo_values: dict[str, object]) -> str | None:
+    """The ``owner/name`` selecting a home ``[repository."owner/name"]``
+    section: the checkout's GitHub ``origin``, else the repository file's
+    explicit ``[code.github] repository`` — the checkout is the code side."""
+    explicit = repo_values.get("code_repository")
+    return derived or (str(explicit) if explicit else None)
 
 
 def home_config_path() -> Path:
@@ -434,7 +455,7 @@ def _read_file(
 
 def load_config(start: Path | None = None, *, overrides: dict[str, object] | None = None) -> Config:
     """Merge configuration, cache it, and return it. Ascending priority:
-    the ``PDLC_HOME`` / ``PDLC_REPOSITORY`` environment variables, then
+    the ``PDLC_HOME`` / ``PDLC_TRACKER_REPOSITORY`` environment variables, then
     ``~/.pdlc/config.toml`` defaults and matching repository section, then the
     repository's ``.pdlc/config.toml``, then
     ``overrides`` (CLI flags). Capability slots merge the same way, per slot.
@@ -442,9 +463,10 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
     The repository file is optional when a home file exists, so ``pdlc`` runs
     outside a Git repository on machine-wide config alone.
 
-    The repository alone has a further fallback: if nothing sets it, it is
-    derived from the checkout's ``origin`` remote. An explicit value always
-    wins.
+    The tracker and code repositories have a further fallback: whichever
+    nothing sets is derived from the checkout's ``origin`` remote, and the code
+    repository then falls back to the tracker repository. An explicit value
+    always wins.
     """
     global _config, _capabilities
     home_path = home_config_path()
@@ -458,24 +480,27 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
         _read_file(repo_path) if repo_path is not None else ({}, Capabilities.empty())
     )
     derived = git_remote_repository(repo_path.parent.parent) if repo_path else None
-    identity = derived or repo_flat.get("repository")
+    identity = checkout_identity(derived, repo_flat)
     home_flat, home_caps = _read_file(
-        home_path, repository=str(identity) if identity else None, allow_repositories=True,
+        home_path, repository=identity, allow_repositories=True,
     )
     merged: dict[str, object] = {}
-    for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):
+    for environment_name, field in ENVIRONMENT_FIELDS:
         if os.environ.get(environment_name):
             merged[field] = os.environ[environment_name]
     merged.update(home_flat)
     merged.update(repo_flat)
     if overrides:
         merged.update({k: v for k, v in overrides.items() if v is not None})
-    # Last resort only: when nothing names the GitHub repository, derive it from
-    # the checkout's `origin` remote so a shared repo works without every
-    # developer keeping a local `PDLC_REPOSITORY`.
-    if not merged.get("repository") and repo_path is not None:
-        if derived:
-            merged["repository"] = derived
+    # Last resort only: whichever repository nothing names comes from the
+    # checkout's `origin` remote, so a shared repo works without every
+    # developer configuring it. Without a GitHub origin (outside a checkout,
+    # or behind an SSH host alias) pull requests live beside the issues.
+    if derived:
+        for field in REPOSITORY_FIELDS:
+            merged.setdefault(field, derived)
+    if not merged.get("code_repository") and merged.get("tracker_repository"):
+        merged["code_repository"] = merged["tracker_repository"]
     _capabilities = Capabilities(
         agents={**home_caps.agents, **repo_caps.agents},
         skills={**home_caps.skills, **repo_caps.skills},
@@ -520,9 +545,9 @@ def get_config() -> Config:
 
 def configuration_guidance(missing: list[str]) -> str:
     required = missing or [
-        "backend.github.repository",
-        "backend.github.project_number",
-        "backend.github.project_owner",
+        "tracker.github.repository",
+        "tracker.github.project_number",
+        "tracker.github.project_owner",
     ]
     details = f"Missing: {', '.join(missing)}\n\n" if missing else ""
     sections: dict[str, list[str]] = {}
@@ -533,10 +558,10 @@ def configuration_guidance(missing: list[str]) -> str:
         f"[{section}]\n" + "\n".join(lines) for section, lines in sections.items()
     )
     repository_hint = (
-        "\n\nThe repository is normally auto-detected from this checkout's "
-        "`origin` remote; it must be set explicitly here because that lookup did "
+        "\n\nRepositories are normally auto-detected from this checkout's "
+        "`origin` remote; set them explicitly here because that lookup did "
         "not resolve a github.com repository."
-        if "backend.github.repository" in missing
+        if any(name.endswith(".github.repository") for name in missing)
         else ""
     )
     return (
@@ -545,7 +570,7 @@ def configuration_guidance(missing: list[str]) -> str:
         "Create .pdlc/config.toml with the required values, for example:\n\n"
         f"{example}\n\n"
         "You can also put the same values in ~/.pdlc/config.toml for machine-wide "
-        "defaults. Only PDLC_HOME and PDLC_REPOSITORY are read from the environment."
+        "defaults. Only PDLC_HOME and PDLC_TRACKER_REPOSITORY are read from the environment."
         f"{repository_hint}"
     )
 

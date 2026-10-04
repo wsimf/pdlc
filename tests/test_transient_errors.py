@@ -352,7 +352,7 @@ class DeleteCommentTest(unittest.TestCase):
         from pdlc.hosts.lib.github import issues
 
         with (
-            mock.patch.object(issues, "owner_repository", return_value=("o", "r")),
+            mock.patch.object(issues, "tracker_owner_repository", return_value=("o", "r")),
             mock.patch.object(issues, "run_gh", side_effect=error),
         ):
             issues.delete_comment(self.URL)
@@ -376,7 +376,7 @@ class TransientPreservedTest(_ProcessTest):
         with (
             mock.patch.object(workitem_backend, "get_config", return_value=config),
             mock.patch.object(workitem_backend, "body_file", return_value=contextlib.nullcontext("b.md")),
-            mock.patch.object(workitem_backend, "repo_args", return_value=[]),
+            mock.patch.object(workitem_backend, "tracker_repo_args", return_value=[]),
             mock.patch.object(workitem_backend, "assignee_args", return_value=[]),
             mock.patch.object(workitem_backend, "run_gh", return_value=url + "\n"),
             mock.patch.object(workitem_backend, "run_gh_json", side_effect=TransientError("reset", attempts=1)),

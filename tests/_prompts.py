@@ -31,7 +31,7 @@ class _Capabilities:
 class PromptHarness(FileBackendTest):
     def setUp(self) -> None:
         super().setUp()
-        self.configure(code_host="github", repository="acme/widgets")
+        self.configure(code_provider="github", code_repository="acme/widgets")
         # Live PR and review-thread state would need a real `gh`; every test
         # states the host state it needs, and reads clean otherwise.
         self._prs([])

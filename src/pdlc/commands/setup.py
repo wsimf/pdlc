@@ -64,43 +64,45 @@ def _projects(owner: str) -> list[dict]:
 def _write_config(
     path: Path,
     *,
-    backend: str,
-    code_host: str,
-    repository: str | None,
+    tracker: str,
+    code: str,
+    tracker_repository: str | None,
+    code_repository: str | None,
     project_number: str | None,
     project_owner: str | None,
     azure: dict[str, str] | None = None,
 ) -> None:
-    lines = ["[backend]", f'name = "{backend}"', "", "[code_host]", f'name = "{code_host}"', "", "[attachment_host]", 'name = "file"']
-    if backend == "azure" and azure:
+    lines = ["[tracker]", f'provider = "{tracker}"']
+    if tracker == "github":
         lines += [
             "",
-            "[backend.azure]",
-            f'organization = "{azure["organization"]}"',
-            f'project = "{azure["project"]}"',
-        ]
-    # The GitHub table carries the repository for the code host as well as the
-    # Project coordinates for the backend, so an Azure board paired with GitHub
-    # repos still writes it — with the repository alone.
-    if backend == "github":
-        lines += [
-            "",
-            "[backend.github]",
-            f'repository = "{repository}"',
+            "[tracker.github]",
+            f'repository = "{tracker_repository}"',
             f"project_number = {project_number}",
             f'project_owner = "{project_owner}"',
         ]
-    elif code_host == "github" and repository:
-        lines += ["", "[backend.github]", f'repository = "{repository}"']
+    elif tracker == "azure" and azure:
+        lines += [
+            "",
+            "[tracker.azure]",
+            f'organization = "{azure["organization"]}"',
+            f'project = "{azure["project"]}"',
+        ]
+    lines += ["", "[code]", f'provider = "{code}"']
+    # The code repository defaults to the checkout's origin, so it is written
+    # only when that cannot be detected.
+    if code == "github" and code_repository:
+        lines += ["", "[code.github]", f'repository = "{code_repository}"']
+    lines += ["", "[attachments]", 'provider = "file"']
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _code_host(detected: bool, input_fn: Input) -> str:
-    """Ask which host owns code and pull requests. Independent of the
-    work-item backend: Azure Boards is expected to pair with GitHub repos."""
+def _code_provider(detected: bool, input_fn: Input) -> str:
+    """Ask which provider owns code and pull requests. Independent of the
+    tracker: Azure Boards is expected to pair with GitHub repos."""
     options = ["github (detected from remote.origin.url)", "file", "none"] if detected else ["github", "file", "none"]
-    return ["github", "file", "none"][_choose("Code host", options, input_fn)]
+    return ["github", "file", "none"][_choose("Code provider", options, input_fn)]
 
 
 def main(input_fn: Input = input, *, argv: list[str] | None = None) -> int:
@@ -112,24 +114,28 @@ def main(input_fn: Input = input, *, argv: list[str] | None = None) -> int:
         return 0
     config = load_config()
     current_owner, current_repository = _origin()
+    origin = f"{current_owner}/{current_repository}" if current_owner and current_repository else None
     print("pdlc setup")
     print("Configure this repository for the PDLC workflow.\n")
 
-    backend_options = ["github", "azure", "file"]
-    backend = backend_options[_choose("Backend", backend_options, input_fn)]
-    repository = f"{current_owner}/{current_repository}" if current_owner and current_repository else None
+    tracker_options = ["github", "azure", "file"]
+    tracker = tracker_options[_choose("Tracker", tracker_options, input_fn)]
+    tracker_repository = code_repository = None
     azure: dict[str, str] | None = None
     project_owner = project_number = None
 
-    if backend == "github":
-        if not current_repository:
-            print("No GitHub repository was detected from remote.origin.url.")
-            repository = _ask("Repository (OWNER/REPOSITORY)", config.repository, input_fn)
-        else:
-            print(f"Detected repository: {current_owner}/{current_repository}")
-
-        code_host = _code_host(bool(current_repository), input_fn)
-        owner_options = [current_owner] if current_owner else []
+    if tracker == "github":
+        if origin:
+            print(f"Detected repository: {origin}")
+        # Several code repositories may share one tracker, so the tracker can
+        # differ from this checkout.
+        tracker_repository = _ask(
+            "Tracker repository, where work items live (OWNER/REPOSITORY)",
+            config.tracker_repository or origin, input_fn,
+        )
+        code = _code_provider(bool(origin), input_fn)
+        tracker_owner = tracker_repository.partition("/")[0]
+        owner_options = [tracker_owner] if tracker_owner else []
         owner_options.append("other")
         owner_choice = _choose("Project owner", owner_options, input_fn)
         project_owner = (
@@ -151,7 +157,7 @@ def main(input_fn: Input = input, *, argv: list[str] | None = None) -> int:
             project_number = str(projects[project_choice]["number"])
         else:
             project_number = _ask_number("GitHub project number", config.project_number, input_fn)
-    elif backend == "azure":
+    elif tracker == "azure":
         azure = {
             # No placeholder default: pressing enter must not write a
             # syntactically valid but nonexistent organization.
@@ -165,23 +171,26 @@ def main(input_fn: Input = input, *, argv: list[str] | None = None) -> int:
             "\nThe PDLC custom fields are an organization-admin prerequisite; "
             "see \"Azure Boards fields\" in README.md."
         )
-        code_host = _code_host(bool(current_repository), input_fn)
-        if code_host == "github" and not current_repository:
-            repository = _ask("Repository (OWNER/REPOSITORY)", config.repository, input_fn)
-        elif code_host != "github":
-            repository = None
+        code = _code_provider(bool(origin), input_fn)
     else:
-        code_host = "file"
-        repository = None
-        print("Code host: file")
-        print("Attachment host: file")
+        code = "file"
+        print("Code provider: file")
+        print("Attachments provider: file")
+
+    if code == "github" and not origin:
+        print("No GitHub repository was detected from remote.origin.url.")
+        code_repository = _ask(
+            "Code repository, where pull requests live (OWNER/REPOSITORY)",
+            config.code_repository or tracker_repository, input_fn,
+        )
 
     path = config_path()
     _write_config(
         path,
-        backend=backend,
-        code_host=code_host,
-        repository=repository,
+        tracker=tracker,
+        code=code,
+        tracker_repository=tracker_repository,
+        code_repository=code_repository,
         project_number=project_number,
         project_owner=project_owner,
         azure=azure,

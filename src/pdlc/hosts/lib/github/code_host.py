@@ -24,8 +24,8 @@ from pdlc.domain.records import PullRequest, ReviewComment
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.hosts.lib.github.transport import (
     body_file,
-    owner_repository,
-    repo_args,
+    code_owner_repository,
+    code_repo_args,
     run_gh,
     run_gh_json,
     run_graphql,
@@ -232,7 +232,7 @@ class GitHubCodeHost(CodeHost):
     def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
         if not numbers:
             return []
-        owner, repository = owner_repository()
+        owner, repository = code_owner_repository()
         selections = "\n".join(
             f"pr{index}: pullRequest(number: {int(number)}) {{ {_PR_SELECTION} }}"
             for index, number in enumerate(numbers)
@@ -260,7 +260,7 @@ class GitHubCodeHost(CodeHost):
     @staticmethod
     def _pull_request_view(number: int) -> PullRequest:
         try:
-            pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
+            pr = run_gh_json(["pr", "view", str(number), *code_repo_args(), "--json", _PR_FIELDS])
         except TransientError:
             raise
         except PdlcError as error:
@@ -270,7 +270,7 @@ class GitHubCodeHost(CodeHost):
         return _pr_dict(pr)
 
     def pull_request_files(self, pr_number: str | int) -> list[str]:
-        data = run_gh_json(["pr", "view", str(pr_number), *repo_args(), "--json", "files"])
+        data = run_gh_json(["pr", "view", str(pr_number), *code_repo_args(), "--json", "files"])
         return [entry["path"] for entry in data.get("files", [])]
 
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
@@ -380,7 +380,7 @@ class GitHubCodeHost(CodeHost):
     @staticmethod
     def _pull_request_view_by_branch(branch: str) -> PullRequest:
         try:
-            pr = run_gh_json(["pr", "view", branch, *repo_args(), "--json", _PR_FIELDS])
+            pr = run_gh_json(["pr", "view", branch, *code_repo_args(), "--json", _PR_FIELDS])
         except TransientError:
             raise
         except PdlcError as error:
@@ -395,7 +395,7 @@ class GitHubCodeHost(CodeHost):
         # and body when it first creates the PR, never on a later sync/submit, so
         # the task's own title and evidence stay the PR's resting state.
         with body_file(body) as path:
-            run_gh(["pr", "edit", str(number), *repo_args(), "--title", title, "--body-file", path])
+            run_gh(["pr", "edit", str(number), *code_repo_args(), "--title", title, "--body-file", path])
 
     def mark_pull_requests_ready(self, numbers: list[int]) -> None:
         # `gh pr ready` on a PR that is already out of draft is a no-op that
@@ -403,10 +403,10 @@ class GitHubCodeHost(CodeHost):
         # no guard here. The caller filters out merged/closed numbers, which
         # `gh pr ready` would otherwise reject.
         for number in numbers:
-            run_gh(["pr", "ready", str(number), *repo_args()])
+            run_gh(["pr", "ready", str(number), *code_repo_args()])
 
     def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
-        owner, repository = owner_repository()
+        owner, repository = code_owner_repository()
         data = run_graphql(_REVIEW_THREADS_QUERY, owner=owner, repo=repository, number=int(pr_number))
         threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         comments = []

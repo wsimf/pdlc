@@ -324,7 +324,7 @@ class InspectImplementTests(FileBackendTest):
         stacked-PR mechanism; the suite's default file host has none. Live
         review-thread and PR state would need a real `gh`, so both read as
         clean unless a test says otherwise, and the checkout is on no stack."""
-        self.configure(code_host="github")
+        self.configure(code_provider="github")
         for target, value in (
             ("pdlc.commands.inspect_implement.record_open_review_comments", []),
             ("pdlc.commands.inspect_implement.record_pull_requests", []),

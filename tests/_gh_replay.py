@@ -155,10 +155,11 @@ class GitHubHostTest(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-        self._saved_repository = os.environ.pop("PDLC_REPOSITORY", None)
+        self._saved_repository = os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
         install_config(Config(
-            backend="github",
-            repository=self.REPOSITORY,
+            tracker_provider="github",
+            tracker_repository=self.REPOSITORY,
+            code_repository=self.REPOSITORY,
             project_owner=self.PROJECT_OWNER,
             project_number=self.PROJECT_NUMBER,
         ))
@@ -172,7 +173,7 @@ class GitHubHostTest(unittest.TestCase):
     def _restore_env(self) -> None:
         reset_config()
         if self._saved_repository is not None:
-            os.environ["PDLC_REPOSITORY"] = self._saved_repository
+            os.environ["PDLC_TRACKER_REPOSITORY"] = self._saved_repository
 
     def _clear_caches(self) -> None:
         github_project.project_fields.cache_clear()

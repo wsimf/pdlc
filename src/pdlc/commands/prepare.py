@@ -47,7 +47,7 @@ Config (`[worktree]` table, merged from home defaults, the matching home
     init_script  optional shell snippet run in the new worktree after creation
 
 Repository sections match the checkout's GitHub origin, case-insensitively;
-without a recognizable origin, the repository file's backend.github.repository
+without a recognizable origin, the repository file's code.github.repository
 supplies the identity. Existing worktrees do not run the init script again.
 """
 

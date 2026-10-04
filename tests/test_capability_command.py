@@ -2,11 +2,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _support import isolate_home_config
 from pdlc.commands import inspect_capability
 from pdlc.config import load_config
 
 
 class CapabilityCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_home_config(self)
+
     def load(self, config: str | None = None) -> None:
         root = Path(tempfile.mkdtemp())
         (root / ".git").mkdir()
