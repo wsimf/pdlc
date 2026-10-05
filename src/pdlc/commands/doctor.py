@@ -9,6 +9,11 @@ DESCRIPTION
     every validation result. Exit 1 when any validation fails; warnings do not
     fail the command.
 
+    A config file that is not valid TOML fails the command and is reported as a
+    warning naming the file; its values are ignored, so the remaining
+    validations and the tracker access probes are skipped rather than run
+    against defaults.
+
     Home defaults, the matching home repository section, repository settings,
     and CLI overrides merge in ascending priority, above environment values.
     Sources identify the repository section that supplies each effective value.
@@ -37,6 +42,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tomllib
 from dataclasses import fields
 from pathlib import Path
 
@@ -65,15 +71,21 @@ from pdlc.internal.inputs import print_help
 def _read(
     path: Path, values: dict[str, object], sources: dict[str, str], errors: list[str],
     *, repository: str | None = None, allow_repositories: bool = False,
-) -> bool:
+) -> str:
+    """Merges one config layer; returns its status: missing, present, or unparsable."""
     if not path.exists():
-        return False
+        return "missing"
+    try:
+        tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
+        errors.append(f"Could not read {path}: {error}")
+        return "unparsable"
     parsed, _ = _read_file(
         path, repository=repository, allow_repositories=allow_repositories,
         errors=errors, sources=sources,
     )
     values.update(parsed)
-    return True
+    return "present"
 
 
 def _typed_values(values: dict[str, object], errors: list[str]) -> dict[str, object]:
@@ -166,9 +178,9 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
         ensure_pdlc_ignored(root)
     repo_values: dict[str, object] = {}
     repo_sources: dict[str, str] = {}
-    repo_present = _read(repo_path, repo_values, repo_sources, errors) if repo_path else False
+    repo_status = _read(repo_path, repo_values, repo_sources, errors) if repo_path else "missing"
     derived = git_remote_repository(root) if root is not None else None
-    home_present = _read(
+    home_status = _read(
         home_path, home_values, home_sources, errors,
         repository=checkout_identity(derived, repo_values), allow_repositories=True,
     )
@@ -197,12 +209,21 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
 
     typed = _typed_values(values, errors)
     config = Config.from_values(typed)
-    warnings.extend(_validate(config, errors, derived))
-    access = _tracker_access(config)
+    unparsable = [str(path) for path, status in ((home_path, home_status), (repo_path, repo_status)) if status == "unparsable"]
+    access = None
+    if unparsable:
+        # Validating against defaults would report misleading failures for settings the file may hold.
+        warnings.extend(
+            f"{path} is not valid TOML; its values are ignored and remaining validations are skipped"
+            for path in unparsable
+        )
+    else:
+        warnings.extend(_validate(config, errors, derived))
+        access = _tracker_access(config)
     if access is not None:
         warnings.extend(access.warnings)
         errors.extend(access.errors)
-    lines = ["# PDLC doctor", "", f"Working directory: {Path.cwd()}", f"Repository root: {root or '(not found)' }", "", "## Config files", "", f"- ~/.pdlc/config.toml: {'present' if home_present else 'missing'} ({home_path})", f"- repo .pdlc/config.toml: {'present' if repo_present else 'missing'} ({repo_path or 'not found'})", "", "## Effective values", ""]
+    lines = ["# PDLC doctor", "", f"Working directory: {Path.cwd()}", f"Repository root: {root or '(not found)' }", "", "## Config files", "", f"- ~/.pdlc/config.toml: {home_status} ({home_path})", f"- repo .pdlc/config.toml: {repo_status} ({repo_path or 'not found'})", "", "## Effective values", ""]
     for field in fields(Config):
         value = getattr(config, field.name)
         shown = "(unset)" if value is None else repr(value)
@@ -211,9 +232,13 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
         lines += ["", "## Tracker access", ""]
         lines.extend(f"- {fact}" for fact in access.facts)
     lines += ["", "## Warnings", ""]
-    lines.extend(f"- WARNING: {warning}" for warning in warnings) or lines.append("- None")
+    lines.extend(f"- WARNING: {warning}" for warning in warnings)
+    if not warnings:
+        lines.append("- None")
     lines += ["", "## Validations", ""]
-    lines.extend(f"- FAIL: {error}" for error in errors) or lines.append("- PASS: all validations")
+    lines.extend(f"- FAIL: {error}" for error in errors)
+    if not errors:
+        lines.append("- PASS: all validations")
     lines += ["", "Result: " + ("FAIL" if errors else "PASS"), ""]
     return "\n".join(lines), int(bool(errors))
 
