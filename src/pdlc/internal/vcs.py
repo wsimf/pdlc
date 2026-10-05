@@ -15,6 +15,7 @@ from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.trace import record_external_call
+from pdlc.internal.workdir import working_directory
 
 # Record paperwork the file backend may keep in the repository; never code.
 _PAPERWORK_PREFIX = ".pdlc/"
@@ -22,7 +23,7 @@ _PAPERWORK_PREFIX = ".pdlc/"
 
 def _run_git(args: list[str], **kwargs: Any) -> "subprocess.CompletedProcess[Any]":
     record_external_call("git", ["git", *args])
-    return subprocess.run(["git", *args], **kwargs)
+    return subprocess.run(["git", *args], cwd=working_directory(), **kwargs)
 
 
 def head_commit() -> str:

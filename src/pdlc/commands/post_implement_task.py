@@ -88,6 +88,7 @@ from pdlc.internal.ci_gate import check_state
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import decision_required_message
 from pdlc.internal.inputs import print_help, require_file, wants_help
+from pdlc.internal.repositories import in_task_repository, task_repository
 from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.templates.template import require_template
 from pdlc.internal.workitem import (
@@ -125,7 +126,14 @@ def _submit_task_stack(task: dict) -> dict:
     since the predecessor's branch may live in another, still-active worktree
     and was never checked out here. That case renames the current branch to
     its deterministic name and links it onto the predecessor's stack instead.
+
+    Either way it runs in the task's own repository's folder.
     """
+    with in_task_repository(task):
+        return _submit_in_folder(task)
+
+
+def _submit_in_folder(task: dict) -> dict:
     parent = parent_number_for_task(task)
     slug = item_branch_slug(resolve_item(parent))
     branch = task_branch_name(slug, task["taskId"])
@@ -169,26 +177,27 @@ def _pr_title(task: dict, work_number: str, work_type: str) -> str:
         .replace("{task.id}", task["taskId"])
         .replace("{work.number}", work_number)
         .replace("{work.type}", str(work_type))
-        .replace("{work.ref}", _work_ref(work_number))
+        .replace("{work.ref}", _work_ref(work_number, task_repository(task)))
     )
 
 
-def _work_ref(work_number: str) -> str:
+def _work_ref(work_number: str, repository: str) -> str:
     """A reference to the parent work item that links it from the pull
-    request's own repository: a bare `#N` would resolve in the code repository,
-    so a tracker elsewhere needs its qualified form (`AB#N` is Azure Boards'
-    GitHub link syntax)."""
+    request's own ``repository``: a bare `#N` resolves there, so a tracker
+    elsewhere needs its qualified form (`AB#N` is Azure Boards' GitHub link
+    syntax)."""
     config = get_config()
     tracker = config.tracker_provider or "github"
     if tracker == "azure":
         return f"AB#{work_number}"
-    repository = config.tracker_repository or ""
-    if tracker == "github" and repository.casefold() != (config.code_repository or "").casefold():
-        return f"{repository}#{work_number}"
+    tracker_repository = config.tracker_repository or ""
+    pr_repository = repository or config.code_repository or ""
+    if tracker == "github" and tracker_repository.casefold() != pr_repository.casefold():
+        return f"{tracker_repository}#{work_number}"
     return f"#{work_number}"
 
 
-def _pr_body(summary: str, work_number: str) -> str:
+def _pr_body(summary: str, work_number: str, repository: str) -> str:
     """The task PR description: the optional `[code] pr_attachment` line as
     the first line, then the implementation evidence. Every `{work.number}` in
     the attachment is replaced by the parent work item's bare number and every
@@ -200,7 +209,7 @@ def _pr_body(summary: str, work_number: str) -> str:
     attachment = (get_config().pr_attachment or "").strip()
     if not attachment:
         return summary
-    attachment = attachment.replace("{work.number}", work_number).replace("{work.ref}", _work_ref(work_number))
+    attachment = attachment.replace("{work.number}", work_number).replace("{work.ref}", _work_ref(work_number, repository))
     return f"{attachment}\n\n{summary}"
 
 
@@ -284,7 +293,7 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     get_code_host().set_pull_request_content(
         pull_ref(task_pr),
         _pr_title(task, parent_number_for_task(task), pipeline.work_type),
-        _pr_body(summary, parent_number_for_task(task)),
+        _pr_body(summary, parent_number_for_task(task), task_repository(task)),
     )
     result["taskPr"] = pr_output(task_pr)
     result["prs"] = prs_json(attach_pr(task["number"], pull_ref(task_pr)))

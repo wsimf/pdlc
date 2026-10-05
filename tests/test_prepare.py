@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pdlc.domain.records import PullRef
 from pdlc.cli import _dispatch, _usage
 from pdlc.commands import prepare
-from pdlc.config import load_config, reset_config
+from pdlc.config import Config, load_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.stack import Predecessor
 from pdlc.internal.worktree import sanitize_workitem, target_path, worktree_root
@@ -71,6 +71,7 @@ class PrepareCommandTests(unittest.TestCase):
             {"number": 3, "title": "WORK-142-TASK-003", "taskId": "TASK-003", "prs": [PullRef(30)]},
         ]
         with patch.object(prepare, "task_tree", return_value=tasks), \
+                patch("pdlc.internal.repositories.get_config", return_value=Config(tracker_provider="file")), \
                 patch.object(prepare, "get_code_host") as code_host:
             code_host.return_value.pull_requests.return_value = [
                 {"number": 10, "repository": "", "state": "MERGED"},
@@ -288,10 +289,14 @@ class SimpleConfig:
     worktree_root = None
     worktree_init_script = None
     worktree_base_ref = None
+    code_repositories: tuple[str, ...] = ()
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def project_repositories(self):
+        return self.code_repositories or ("",)
 
 
 if __name__ == "__main__":

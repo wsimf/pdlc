@@ -20,6 +20,7 @@ from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.trace import record_external_call
+from pdlc.internal.workdir import working_directory
 
 
 _TOKEN = re.compile(r"[A-Za-z0-9._-]+")
@@ -48,7 +49,7 @@ def sanitize_workitem(token: str) -> str:
 def _git(args: list[str], *, cwd: Path | None = None) -> str:
     record_external_call("git", ["git", *args])
     result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=cwd
+        ["git", *args], capture_output=True, text=True, cwd=cwd or working_directory()
     )
     if result.returncode != 0:
         raise PdlcError(result.stderr.strip() or f"git {' '.join(args)} failed")
@@ -140,7 +141,7 @@ def restore_stash() -> None:
 def branch_exists(branch: str) -> bool:
     args = ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]
     record_external_call("git", args)
-    return subprocess.run(args, capture_output=True).returncode == 0
+    return subprocess.run(args, capture_output=True, cwd=working_directory()).returncode == 0
 
 
 def create_worktree(path: Path, branch: str, base_ref: str) -> None:

@@ -25,6 +25,18 @@ still runs.
 The same tables in `~/.pdlc/config.toml` set machine-wide routing; the
 repository file overrides it per slot.
 
+When delivery tasks name more than one repository, each repository may route
+its own seams. A `[repository."owner/name".agents]` or `.skills` table, in
+either file, overrides the project-wide slot for the work of a task in that
+repository; every slot it leaves unset falls back to the project-wide routing.
+`pdlc inspect capability SLOT --repository owner/name` resolves a slot that way.
+
+```toml
+[repository."acme/web".skills]
+build-run      = "vite-dev"
+test-framework = "vitest-runner"
+```
+
 Capability selection does not select workflow policy. The resolved record's `workType` selects its pipeline; `[agents]` and `[skills]` only select who performs an action already returned by that pipeline.
 
 ## Slots

@@ -91,3 +91,12 @@ def check_access(*, repository: str | None, project_owner: str | None, project_n
     if project_owner and project_number:
         _check_project(report, project_owner, project_number)
     return report
+
+
+def check_repositories(repositories: list[str]) -> AccessReport:
+    """Probes `gh` read access and permission on each code repository a
+    project spans; `check_access` has already reported the CLI and login."""
+    report = AccessReport()
+    for repository in repositories:
+        _check_repository(report, repository)
+    return report

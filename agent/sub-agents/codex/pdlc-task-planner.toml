@@ -59,6 +59,8 @@ Each task body carries dependency links, FR/C/UJ coverage, scope, and acceptance
 
 ```
 
+When `[code.github] repositories` in `.pdlc/config.toml` lists more than one repository, a task whose change lands outside the code repository adds `**Repository:** owner/name` beside `**Blocked by:**`, naming one listed repository; omit it for the code repository. One task changes exactly one repository, so split work that spans repositories into one task per repository linked by `**Blocked by:**`.
+
 Do not add generated task identity or phase tags to the title or body; return the manifest fields separately.
 
 Rules that keep task bodies readable — a task tree is only useful if a driver can scan it:

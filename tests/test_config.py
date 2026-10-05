@@ -293,9 +293,9 @@ class ConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(ConfigurationError, message):
                     load_config(self.make_git_repo("git@github.com:acme/A.git"))
 
-    def test_repository_sections_are_home_only(self):
+    def test_repository_settings_are_home_only(self):
         nested = self.make_repo('[repository."acme/A".worktree]\ninit_script = "A"\n')
-        with self.assertRaisesRegex(ConfigurationError, "Unknown table"):
+        with self.assertRaisesRegex(ConfigurationError, "settings are home-only"):
             load_config(nested)
 
     def test_repository_is_derived_from_git_origin_when_unset(self):

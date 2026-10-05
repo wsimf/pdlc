@@ -182,6 +182,7 @@ from pdlc.internal.workitem import (
 )
 from pdlc.internal.attachments import parse_attachment_arguments, save_attachments, validate_attachments
 from pdlc.internal.invalidation import land_patch, reauthor_invalidate_stage, record_patch_plan, reopen_tasks
+from pdlc.config import get_config
 from pdlc.domain.model import UI_TAG, marked_comments, task_title
 from pdlc.domain.patch import PatchPlan, require_same_ids
 from pdlc.domain.lifecycle import PdlcError, TransientError
@@ -192,6 +193,7 @@ from pdlc.domain.task_artifact import (
     reviewer_command,
     same_task_content,
     snapshot,
+    repository_errors,
     stored_fields,
     task_body_errors,
     ui_planner_command,
@@ -556,6 +558,7 @@ def land_tasks(issue: str, item: str, manifest_path: Path, evidence_body: str | 
         if task.get("unchanged"):
             continue
         plan["errors"].extend(f"{task['id']} body: {error}" for error in task_body_errors(task["bodyText"], is_ui=task.get("ui") is True))
+        plan["errors"].extend(f"{task['id']} body: {error}" for error in repository_errors(task["bodyText"], get_config().project_repositories()))
 
     if plan["errors"]:
         print("pdlc: the task breakdown is invalid:", file=sys.stderr)

@@ -25,6 +25,11 @@ DESCRIPTION
     host with no stacked-PR mechanism refuses rather than guessing a base
     branch. Nothing here rebases, pushes, or opens a pull request.
 
+    A task in another repository than the code repository is checked out in
+    that repository's own folder (its `[code.github.checkouts]` clone), never
+    in the current checkout, and the output names it on `repository:` and
+    `path:` lines so the work continues there.
+
     When the current branch already is the task's branch, the command reports
     that and changes nothing, whether or not the working tree holds uncommitted
     changes. For the first task of a worktree prepared with `pdlc prepare
@@ -69,6 +74,7 @@ import sys
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.inputs import print_help, wants_help
+from pdlc.internal.repositories import in_repository, repository_lines
 from pdlc.internal.stack import TaskCheckout, resolve_task_checkout
 from pdlc.internal.worktree import current_branch, restore_stash, stash_changes, working_tree_dirty
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
@@ -87,12 +93,13 @@ def check_out(target: TaskCheckout) -> str:
     """Put a clean working tree on ``target``'s branch and return what the host
     did. Used by `pdlc post implement` to leave the tree at the top of the
     stack; `pdlc checkout` itself also accepts a tree already on the branch."""
-    if working_tree_dirty():
-        raise PdlcError(
-            "the working tree has uncommitted changes; commit or stash them before "
-            f"checking out {target.branch}"
-        )
-    return _action(target)
+    with in_repository(target.repository):
+        if working_tree_dirty():
+            raise PdlcError(
+                "the working tree has uncommitted changes; commit or stash them before "
+                f"checking out {target.branch}"
+            )
+        return _action(target)
 
 
 def _carry(target: TaskCheckout, source: str) -> str:
@@ -127,6 +134,12 @@ def _carry(target: TaskCheckout, source: str) -> str:
 
 def checkout(ref: str, carry: bool = False) -> str:
     target = resolve_task_checkout(ref)
+    with in_repository(target.repository):
+        action = _checkout_action(target, carry)
+    return "\n".join([target.task["title"], *repository_lines(target.task), f"branch: {target.branch}", action]) + "\n"
+
+
+def _checkout_action(target: TaskCheckout, carry: bool) -> str:
     source = current_branch()
     if source == target.branch:
         action = f"already on {target.branch} — nothing to check out"
@@ -141,7 +154,7 @@ def checkout(ref: str, carry: bool = False) -> str:
             "Follow `pdlc guide uncommitted-changes` to carry them onto this task or set them aside, "
             "then run pdlc checkout again."
         )
-    return "\n".join([target.task["title"], f"branch: {target.branch}", action]) + "\n"
+    return action
 
 
 def main(argv: list[str] | None = None) -> int:

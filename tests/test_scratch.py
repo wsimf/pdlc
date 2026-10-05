@@ -35,7 +35,7 @@ class ScratchTest(unittest.TestCase):
 
     def test_repository_default_uses_repository_root(self) -> None:
         install_config(Config())
-        with mock.patch("pdlc.internal.scratch.repository_root", return_value=self.root):
+        with mock.patch("pdlc.internal.scratch.project_root", return_value=self.root):
             self.assertEqual(scratch_path("42", "42").parent, self.root / ".pdlc" / "cache" / "42")
 
     def test_global_default_uses_home(self) -> None:
@@ -45,7 +45,7 @@ class ScratchTest(unittest.TestCase):
 
     def test_relative_custom_root_is_relative_to_repository(self) -> None:
         install_config(Config(cache_root="artifacts"))
-        with mock.patch("pdlc.internal.scratch.repository_root", return_value=self.root):
+        with mock.patch("pdlc.internal.scratch.project_root", return_value=self.root):
             self.assertEqual(scratch_path("42", "42").parent, self.root / "artifacts" / ".pdlc" / "cache" / "42")
 
     def test_each_file_has_a_fresh_random_suffix_and_requested_type(self) -> None:

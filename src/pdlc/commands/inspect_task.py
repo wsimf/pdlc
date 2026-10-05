@@ -35,8 +35,14 @@ DESCRIPTION
     Each task ends with an `## Agent` section naming the implementer sub-agent the
     project routes that task to, resolved from its own `isUI` against the `[agents]`
     capability slots (`ui-implementer` / `core-implementer`, both falling back to
-    `general-purpose`). It is a routing fact, not an instruction to dispatch — only
-    `pdlc-implement` acts on it.
+    `general-purpose`), with the task's own repository's `[repository."owner/name"]`
+    layer applied over them. It is a routing fact, not an instruction to dispatch —
+    only `pdlc-implement` acts on it.
+
+    A task in another repository than the code repository also carries
+    `repository:` (its `owner/name`) and `path:` (the local folder it is worked
+    in) in its front matter; a code-repository task has neither, since its
+    folder is the current checkout.
 
     The parent Work Item's local attachments are rendered once, between the first
     task's front matter and its `# Task` body. Each task then carries its own
@@ -98,6 +104,7 @@ from pdlc.domain.model import TASK_EVIDENCE_HEADINGS, user_comments_markdown
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.reporting import older_comments_notice, yaml_front_matter
 from pdlc.internal.scratch import scratch_path, write_scratch
+from pdlc.internal.repositories import is_code_repository, repository_path, task_repository
 from pdlc.internal.workitem import resolve_item, tasks_by_number
 from pdlc.internal.failure import report_failure
 
@@ -108,7 +115,7 @@ from pdlc.internal.failure import report_failure
 def _agent_section(task: dict) -> str:
     slot = "ui-implementer" if task["isUI"] else "core-implementer"
     phase = "[UI]" if task["isUI"] else "[CORE]"
-    agent = get_capabilities().agent(slot)
+    agent = get_capabilities(task_repository(task)).agent(slot)
     return f"## Agent\n\n{agent} — the project's implementer for a {phase} task."
 
 
@@ -118,6 +125,10 @@ def _agent_section(task: dict) -> str:
 # evidence comments), matching `pdlc inspect`'s front-matter -> attachments -> user
 # comments -> body order but scoped to the task rather than the parent.
 def _render_task(task: dict, preamble: str = "") -> str:
+    repository = task_repository(task)
+    elsewhere = {} if is_code_repository(repository) else {
+        "repository": repository, "path": str(repository_path(repository)),
+    }
     front_matter = yaml_front_matter({
         "number": task["number"],
         "title": task["title"],
@@ -130,6 +141,7 @@ def _render_task(task: dict, preamble: str = "") -> str:
         "implementationInvalidated": task["implementationInvalidated"],
         "needsPlan": task["needsPlan"],
         "prs": prs_json(task["prs"]),
+        **elsewhere,
     })
     body = (task.get("body") or "").rstrip("\n")
     # The plan and implementation comments are unmarked; render them through

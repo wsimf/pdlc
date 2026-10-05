@@ -6,6 +6,7 @@ USAGE
     pdlc inspect capability                 # dump every slot and its resolution
     pdlc inspect capability build-run       # one line, ready to paste
     pdlc inspect capability build-run --name   # the configured name, or nothing
+    pdlc inspect capability build-run --repository acme/web   # as routed for one repository
 
 DESCRIPTION
     Resolve the project's PDLC capability routing so a calling skill can paste
@@ -27,9 +28,17 @@ DESCRIPTION
     calling skill uses it to drop a whole section of a brief when the project
     has no specialist for that seam, rather than pasting a fallback sentence.
 
+    ``--repository owner/name`` resolves the routing for work in that
+    repository: a slot set in its ``[repository."owner/name".agents]`` or
+    ``.skills`` table (in either config file) overrides the project-wide slot,
+    and every other slot resolves as usual. Without it, or for a repository with
+    no such table, the project-wide routing applies.
+
 FLAGS
     --name    action="store_true": print only the configured skill or sub-agent
               name for SLOT, or nothing when the slot is unset. Requires SLOT.
+    --repository OWNER/NAME
+              resolve with that repository's own capability layer applied.
 
 EXAMPLES
     # Paste-ready routing line for a sub-agent brief.
@@ -95,23 +104,23 @@ def _known(slot: str) -> str:
     raise ValueError(f"unknown capability slot {slot!r}. Known slots: {known}")
 
 
-def _one(slot: str) -> str:
-    caps = get_capabilities()
+def _one(slot: str, repository: str | None = None) -> str:
+    caps = get_capabilities(repository)
     if _known(slot) == "agents":
         return caps.agent(slot)
     return _skill_line(slot, caps.skill(slot))
 
 
-def _name(slot: str) -> str:
+def _name(slot: str, repository: str | None = None) -> str:
     """The configured name for a slot, or empty when the project left it unset.
     Callers use the empty answer to omit a section, so no default is applied."""
-    caps = get_capabilities()
+    caps = get_capabilities(repository)
     table = caps.agents if _known(slot) == "agents" else caps.skills
     return table.get(slot) or ""
 
 
-def _dump() -> str:
-    caps = get_capabilities()
+def _dump(repository: str | None = None) -> str:
+    caps = get_capabilities(repository)
     lines = ["# PDLC capabilities", "", "## Agents", ""]
     for slot in CAPABILITY_SLOTS["agents"]:
         configured = caps.agents.get(slot)
@@ -133,17 +142,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     name_only = "--name" in args
     args = [a for a in args if a != "--name"]
+    repository: str | None = None
+    if "--repository" in args:
+        index = args.index("--repository")
+        if index + 1 >= len(args) or args[index + 1].startswith("-"):
+            print("pdlc: --repository requires owner/name", file=sys.stderr)
+            return 1
+        repository = args[index + 1]
+        del args[index:index + 2]
     if len(args) > 1 or (name_only and not args):
-        print("usage: pdlc inspect capability [SLOT] [--name]", file=sys.stderr)
+        print("usage: pdlc inspect capability [SLOT] [--name] [--repository OWNER/NAME]", file=sys.stderr)
         return 1
 
     try:
         if not args:
-            output = _dump()
+            output = _dump(repository)
         elif name_only:
-            output = _name(args[0]) + "\n"
+            output = _name(args[0], repository) + "\n"
         else:
-            output = _one(args[0]) + "\n"
+            output = _one(args[0], repository) + "\n"
     except ValueError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         return 1

@@ -12,13 +12,29 @@ Later sources win, per key:
 4. The repository's `.pdlc/config.toml`.
 5. Global CLI flags for one run: `--tracker-repo`, `--project-number`, `--project-owner`, `--tracker`, `--home`.
 
-The repository file is optional when `~/.pdlc/config.toml` exists. An unknown table or key, or a non-scalar value, is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
+The repository file is optional when `~/.pdlc/config.toml` exists. It is the nearest `.pdlc/config.toml` at or above the Git repository root; above that root, only a directory that is not itself a Git repository and whose file sets `[code.github] repositories` counts, so a command run inside one repository of a multi-repository folder reads the folder's shared file while a worktree nested in another checkout does not. An unknown table or key, or a non-scalar value (other than `[code.github] repositories` and `[code.github.checkouts]`), is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
 
 ## Tracker and code
 
 The tracker holds work items; the code provider holds pull requests. They are configured independently, so one tracker can serve several code repositories — each microservice checkout points `[tracker.github] repository` at the shared tracker while its pull requests stay in its own repository. When unset, both `[tracker.github] repository` and `[code.github] repository` default to the checkout's `origin` remote, and the code repository then to the tracker repository, so a single-repository project sets at most the tracker.
 
 Pull requests are registered on work items as `owner/name#N`, so several code repositories can share one tracker without two PRs of the same number colliding; a PR in the configured code repository still reads as `#N` in output.
+
+## Delivery tasks in several repositories
+
+One work item can deliver into several repositories. `[code.github] repositories` lists every repository its delivery tasks may name; each task names one with a `**Repository:** owner/name` body line, and a task without one belongs to the code repository. One task is always exactly one repository. Unset, the list is just the code repository.
+
+Each repository is worked in one local folder: the code repository in the current checkout, every other one in the clone the home-only `[code.github.checkouts]` table maps it to. `pdlc checkout`, `pdlc post implement-task`, `pdlc post implement`, verification, and the briefs run that task's Git and stack calls in that folder, and name it on `repository:` / `path:` lines; a task whose repository has no mapped folder is refused. Each repository keeps its own task stack, and `pdlc prepare --after` is refused while the list names more than one repository.
+
+```toml
+# api/.pdlc/config.toml (shared)
+[code.github]
+repositories = ["acme/api", "acme/web"]
+
+# ~/.pdlc/config.toml (each developer's own clones)
+[code.github.checkouts]
+"acme/web" = "~/src/web"
+```
 
 ## Repository-specific home settings
 
@@ -41,7 +57,7 @@ build-run = "my-build-skill"
 
 Keys must be quoted `owner/name` identities, matched case-insensitively against the checkout's GitHub `origin`; linked worktrees and renamed checkout directories therefore select the same section. Without a recognizable GitHub origin, an explicit `code.github.repository` in the repository file supplies the identity. Global settings, environment values, and `--tracker-repo` do not select a section. Outside a Git repository, or without either identity source, only home defaults apply.
 
-Only the matching section contributes values. All sections are validated, including unmatched ones; duplicate identities differing only in case are rejected. Repository sections are not allowed in the repository file.
+Only the matching section contributes values. All sections are validated, including unmatched ones; duplicate identities differing only in case are rejected. The repository file may also hold `[repository."owner/name"]` sections, but only their `[agents]` and `[skills]` tables: in either file, those tables are that repository's capability layer, applied to the work of a delivery task in that repository (see `pdlc guide capabilities`).
 
 Values override per key; scripts replace rather than concatenate, and capability slots merge per slot. To suppress an inherited init script, set `init_script = ""` in the repository file. `prepare` runs the effective script only after creating a new worktree, subject to its normal confirmation or `--yes`; an existing worktree skips it. `pdlc doctor` reports which home section supplied each effective setting.
 
@@ -131,6 +147,11 @@ The `repository` keys are omitted above where they are derived from the checkout
 | Key | Required | Default | What it does |
 |---|---|---|---|
 | `repository` | Required when `[code] provider` is `github` | Derived from `origin`, else `[tracker.github] repository` | `owner/name` of the GitHub repository holding pull requests. Set it only when `origin` is not a github.com URL or pull requests are opened on another repository (a fork's upstream); `pdlc doctor` warns when it differs from `origin`. |
+| `repositories` | Optional | The code repository alone | List of `owner/name` every repository a delivery task's `**Repository:**` line may name, in addition to the code repository, which is always allowed; `pdlc post tasks` refuses any other. `pdlc doctor` checks access to each. |
+
+## `[code.github.checkouts]`
+
+Home-only; a table of `"owner/name" = "path"` mapping each repository in `[code.github] repositories`, other than the code repository, to the local clone its delivery tasks are worked in. Each path must be absolute or start with `~`. `pdlc doctor` warns about a listed repository with no mapping or a missing folder.
 
 ## `[attachments]`
 

@@ -68,7 +68,7 @@ class InspectHarness(GoldenMixin, PromptHarness):
             ("pdlc.internal.stack.worktree_after", None),
             ("pdlc.hosts.lib.github.code_host.GitHubCodeHost._current_stack", None),
             ("pdlc.commands.inspect_test.head_commit", HEAD),
-            ("pdlc.commands.inspect_verify.head_commit", HEAD),
+            ("pdlc.internal.verification.head_commit", HEAD),
             ("pdlc.internal.verification.changed_files", set()),
             ("pdlc.hosts.lib.github.code_host.GitHubCodeHost.pull_request_files", ["src/a.py"]),
         ):

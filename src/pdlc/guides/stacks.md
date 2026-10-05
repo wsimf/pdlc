@@ -12,6 +12,8 @@ Each delivery task gets one branch, and each branch gets one pull request. Each 
 
 Left is the bottom and merges first. Right is the top.
 
+When delivery tasks name several repositories, each repository has its own stack of that repository's tasks, worked in its own folder; every command below runs in the folder of the task it acts on, so run the `gh stack` repairs there too.
+
 Ownership is split three ways, and no party re-derives another's state:
 
 | Owner | Owns | Read it with |

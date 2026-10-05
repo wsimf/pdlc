@@ -119,7 +119,7 @@ class FileBackendTest(unittest.TestCase):
         self._reset_hosts()
         # The suite runs inside a developer checkout whose own uncommitted edits
         # must not trip `pdlc post verify`'s clean-tree guard.
-        clean_tree = mock.patch("pdlc.commands.post_verify.has_tracked_changes", return_value=False)
+        clean_tree = mock.patch("pdlc.internal.verification.has_tracked_changes", return_value=False)
         clean_tree.start()
         self.addCleanup(clean_tree.stop)
         self.addCleanup(self._restore_env)

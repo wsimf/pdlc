@@ -312,6 +312,8 @@ class PackagedPromptTests(unittest.TestCase):
         "TASK_TITLE": "Add the seam",
         "TASK_BODY": "Scope, non-goals, acceptance criteria.",
         "TECHNICAL_PLAN": "Touch one module.",
+        "REPOSITORY": "",
+        "REPOSITORY_PATH": "",
     }
 
     def test_package_loader_reads_a_bundled_fragment(self) -> None:
@@ -414,12 +416,16 @@ class PackagedPromptTests(unittest.TestCase):
                         "TASK_TAG": "WORK-12-TASK-1",
                         "TASK_TITLE": "First",
                         "TECHNICAL_PLAN": "Plan one.",
+                        "REPOSITORY": "",
+                        "REPOSITORY_PATH": "",
                     },
                     {
                         "BRANCH": "work-12-task-2",
                         "TASK_TAG": "WORK-12-TASK-2",
                         "TASK_TITLE": "Second",
                         "TECHNICAL_PLAN": "Plan two.",
+                        "REPOSITORY": "acme/web",
+                        "REPOSITORY_PATH": "/src/web",
                     },
                 ],
             },
@@ -427,6 +433,9 @@ class PackagedPromptTests(unittest.TestCase):
         self.assertIn("### work-12-task-1 — `WORK-12-TASK-1` `First`", rendered)
         self.assertIn("### work-12-task-2 — `WORK-12-TASK-2` `Second`", rendered)
         self.assertIn("Plan two.", rendered)
+        # Only the entry in another repository names its folder.
+        self.assertEqual(rendered.count("checked out at"), 1)
+        self.assertIn("`acme/web` repository, checked out at `/src/web`", rendered)
         self.assertNotIn("{{", rendered)
 
 

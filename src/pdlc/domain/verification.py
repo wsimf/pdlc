@@ -11,9 +11,11 @@ recommendation from the rows and findings.
 
 Findings outlive the report that raised them: `ledger` replays every
 parseable report in order, so a finding keeps its `F-n` ID and latest status
-until a later pass marks it fixed or deferred. One HEAD per report covers
-every task, because the verifier runs on the top of the task stack; `stale_rows`
-narrows re-verification to the rows whose files changed since that HEAD.
+until a later pass marks it fixed or deferred. One HEAD per repository covers
+every task, because the verifier runs on the top of each repository's task
+stack; `stale_rows` narrows re-verification to the rows whose files changed
+since those HEADs. The report's `head` is a HEAD spec (see `parse_heads`): the
+bare SHA for a single repository, exactly as before multi-repository records.
 
 Nothing here does I/O.
 """
@@ -52,8 +54,9 @@ SECTIONS = ("Claims Audit", "User Journeys", "UX", "Cumulative Review", "Open Co
 
 _SEP = " · "
 _NOTE_SEP = " — "
+_HEAD_ENTRY = r"(?:[^\s@,/]+/[^\s@,/]+@)?[0-9a-f]{7,40}"
 _HEADER_RE = re.compile(
-    r"^Run at (?P<run_at>.+?) · HEAD (?P<head>[0-9a-f]{7,40}) · (?P<recommendation>"
+    rf"^Run at (?P<run_at>.+?) · HEAD (?P<head>{_HEAD_ENTRY}(?:, {_HEAD_ENTRY})*) · (?P<recommendation>"
     + "|".join(RECOMMENDATIONS)
     + r")$"
 )
@@ -157,6 +160,34 @@ class Built:
     decisions: tuple[Decision, ...]
     deferred: tuple[str, ...]  # Open Questions lines, without the `Deferred — ` marker
     bounce: str | None
+
+
+# --- HEAD specs ---------------------------------------------------------------
+
+
+def parse_heads(spec: str) -> dict[str, str]:
+    """A report's HEAD spec as `{repository: sha}`. The spec is comma-separated
+    `[owner/name@]sha` entries; an unqualified entry, keyed "", is the code
+    repository's, so a single-repository spec is just its SHA."""
+    heads: dict[str, str] = {}
+    for entry in spec.split(", "):
+        repository, _, sha = entry.rpartition("@")
+        heads[repository.casefold()] = sha
+    return heads
+
+
+def format_heads(heads: dict[str, str]) -> str:
+    """The inverse of `parse_heads`: the code repository's ("" key) first and
+    unqualified, every other repository's after it in name order."""
+    return ", ".join(
+        sha if not repository else f"{repository}@{sha}"
+        for repository, sha in sorted(heads.items(), key=lambda item: (item[0] != "", item[0]))
+    )
+
+
+def short_heads(spec: str) -> str:
+    """A HEAD spec with every SHA cut to 12 characters, for display."""
+    return format_heads({repository: sha[:12] for repository, sha in parse_heads(spec).items()})
 
 
 # --- ledger and staleness ---------------------------------------------------

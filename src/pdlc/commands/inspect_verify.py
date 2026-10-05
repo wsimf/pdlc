@@ -40,7 +40,11 @@ fact is resolved here, never by the agent querying the work-item store or
    file, a compact per-comment index inline.
 5. Source: the HEAD this pass verifies. A report records that one commit, so
    HEAD must be the top of the task stack: every open task PR's head commit
-   must be in it, and any that is not is named with what to check out.
+   must be in it, and any that is not is named with what to check out. When
+   closed tasks name more than one repository, the report records one HEAD per
+   repository, each read in that repository's folder, written
+   `<sha>, owner/name@<sha>` with the code repository's first and unqualified;
+   each repository's folder must then be on the top of its own task stack.
 6. Journeys to review: not applicable when no task is tagged `isUI`. Else,
    every `UJ-*` journey block from the parent's own `UI` section that is not
    carried forward from an earlier report, copied in full — ready to paste
@@ -162,9 +166,8 @@ from pdlc.internal.pull_requests import (
 )
 from pdlc.internal.reporting import older_comments_notice
 from pdlc.internal.scratch import scratch_path, write_scratch
-from pdlc.internal.vcs import head_commit
 from pdlc.internal.stack import stack_gaps
-from pdlc.internal.verification import reports, reusable, skeleton, stale, ui_journeys
+from pdlc.internal.verification import current_heads, reports, reusable, skeleton, stale, ui_journeys
 from pdlc.internal.workitem import (
     comments_for_issue,
     read_section,
@@ -435,7 +438,7 @@ def inspect(issue: str) -> str:
     body = item.get("issueBody") or ""
     comments = comments_for_issue(issue)
     open_comments = record_open_review_comments(issue, record=item, tasks=tasks)
-    head = head_commit()
+    head = current_heads(tasks)
 
     sections += ["", *_task_completion_section(tasks, pull_requests, body)]
     sections += ["", *open_review_comments_section(open_comments)]
