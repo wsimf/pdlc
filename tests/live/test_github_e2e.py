@@ -17,7 +17,7 @@ import unittest
 from uuid import uuid4
 
 from pdlc.config import Config, install_config, reset_config
-from pdlc.domain.records import TaskInput
+from pdlc.domain.records import PullRef, TaskInput
 from pdlc.hosts.lib.github.transport import run_gh, run_gh_json
 from pdlc.hosts.lib.github.workitem_backend import GitHubWorkItemBackend
 from pdlc.hosts.workitem_host import reset_backend
@@ -38,9 +38,10 @@ class GitHubLiveEndToEndTest(unittest.TestCase):
         self.project_number = _GITHUB["project_number"]
 
         install_config(Config(
-            backend="github",
-            code_host="github",
-            repository=self.repository,
+            tracker_provider="github",
+            code_provider="github",
+            tracker_repository=self.repository,
+            code_repository=self.repository,
             project_owner=self.project_owner,
             project_number=self.project_number,
         ))
@@ -139,9 +140,10 @@ class GitHubLiveEndToEndTest(unittest.TestCase):
         self.assertEqual({comment["body"] for comment in page.comments}, {comment["body"] for comment in comments})
 
         # --- attached pull requests ---
-        numbers = self.backend.attach_pr(str(self.parent_number), 999999)
-        self.assertEqual(numbers, [999999])
-        self.assertEqual(self.backend.attached_prs(str(self.parent_number)), [999999])
+        pr = PullRef(999999, self.repository.casefold())
+        numbers = self.backend.attach_pr(str(self.parent_number), pr)
+        self.assertEqual(numbers, [pr])
+        self.assertEqual(self.backend.attached_prs(str(self.parent_number)), [pr])
 
         # --- delivery tasks ---
         task_input: list[TaskInput] = [{
@@ -165,7 +167,7 @@ class GitHubLiveEndToEndTest(unittest.TestCase):
 
         by_number = self.backend.tasks_by_number([str(self.task_number)])
         self.assertEqual(by_number[0]["number"], self.task_number)
-        self.assertEqual(self.backend.task_pr_numbers(str(self.parent_number)), [])
+        self.assertEqual(self.backend.task_prs(str(self.parent_number)), [])
 
         # --- close / reopen ---
         self.backend.close_task(str(self.task_number))

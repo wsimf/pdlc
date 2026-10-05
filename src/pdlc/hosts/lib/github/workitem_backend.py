@@ -8,7 +8,7 @@ raw body write and record creation.
 
 from __future__ import annotations
 
-from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+from pdlc.domain.records import Comment, CreatedRecord, PullRef, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
 
 import pdlc.hosts.lib.github.issues as github_issues
 import pdlc.hosts.lib.github.pr_registry as pr_registry
@@ -16,7 +16,7 @@ import pdlc.hosts.lib.github.project as github_project
 from pdlc.hosts.lib.github.transport import (
     assignee_args,
     body_file,
-    repo_args,
+    tracker_repo_args,
     restore_refs,
     run_gh,
     run_gh_json,
@@ -55,20 +55,20 @@ class GitHubWorkItemBackend(WorkItemBackend):
         github_project.set_skipped_states(item_id, value)
 
     def close_record(self, ref: str) -> None:
-        run_gh(["issue", "close", str(ref), *repo_args()])
+        run_gh(["issue", "close", str(ref), *tracker_repo_args()])
 
     # --- body ---
 
     def _raw_body(self, ref: str) -> str:
         """The Issue body as GitHub stores it, registry block included."""
-        return run_gh_json(["issue", "view", str(ref), *repo_args(), "--json", "body"]).get("body") or ""
+        return run_gh_json(["issue", "view", str(ref), *tracker_repo_args(), "--json", "body"]).get("body") or ""
 
     def write_body(self, ref: str, body: str) -> None:
         # `body` is human content: callers never see the registry block, so it
         # is re-read and re-attached here rather than trusted to survive a
         # caller's round trip.
         with body_file(pr_registry.restore(self._raw_body(ref), body)) as path:
-            run_gh(["issue", "edit", str(ref), *repo_args(), "--body-file", path])
+            run_gh(["issue", "edit", str(ref), *tracker_repo_args(), "--body-file", path])
 
     # --- comments ---
 
@@ -105,31 +105,31 @@ class GitHubWorkItemBackend(WorkItemBackend):
         return github_issues.upsert_tasks(parent, tasks, existing)
 
     def close_task(self, task_ref: str) -> None:
-        run_gh(["issue", "close", str(task_ref), *repo_args()])
+        run_gh(["issue", "close", str(task_ref), *tracker_repo_args()])
 
     def remove_task(self, parent: str, task_ref: str) -> None:
         github_issues.remove_subissue(parent, task_ref)
 
     def reopen_task(self, task_ref: str) -> None:
-        run_gh(["issue", "reopen", str(task_ref), *repo_args()])
+        run_gh(["issue", "reopen", str(task_ref), *tracker_repo_args()])
 
-    def task_pr_numbers(self, ref: str) -> list[int]:
-        return sorted({number for task in github_issues.subissues_for(ref, include_comments=False) for number in task["prs"]})
+    def task_prs(self, ref: str) -> list[PullRef]:
+        return sorted({pr for task in github_issues.subissues_for(ref, include_comments=False) for pr in task["prs"]})
 
     # --- attached pull requests ---
 
     # Records and delivery tasks are both Issues, so one implementation serves
     # each: the registry lives in the Issue body either way.
 
-    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+    def attach_pr(self, ref: str, pr: PullRef) -> list[PullRef]:
         stored = self._raw_body(ref)
-        updated, numbers = pr_registry.with_pr(stored, int(pr_number))
+        updated, numbers = pr_registry.with_pr(stored, pr)
         if updated != stored:
             with body_file(updated) as path:
-                run_gh(["issue", "edit", str(ref), *repo_args(), "--body-file", path])
+                run_gh(["issue", "edit", str(ref), *tracker_repo_args(), "--body-file", path])
         return numbers
 
-    def attached_prs(self, ref: str) -> list[int]:
+    def attached_prs(self, ref: str) -> list[PullRef]:
         return pr_registry.prs(self._raw_body(ref))
 
     # --- creation ---
@@ -143,7 +143,7 @@ class GitHubWorkItemBackend(WorkItemBackend):
             # `gh issue create` has no --json: the new Issue's URL is the last
             # line of its output.
             output = run_gh([
-                "issue", "create", *repo_args(), "--title", title,
+                "issue", "create", *tracker_repo_args(), "--title", title,
                 "--body-file", body_path, *assignee_args(),
             ])
 
@@ -169,5 +169,5 @@ class GitHubWorkItemBackend(WorkItemBackend):
         return run_gh_json(["api", "user"])["login"]
 
     def ref_label(self) -> str:
-        repository = get_config().repository
+        repository = get_config().tracker_repository
         return repository.rsplit("/", 1)[-1] if repository else "pdlc"

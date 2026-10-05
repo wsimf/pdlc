@@ -79,14 +79,14 @@ COMMANDS = {
 def _usage() -> str:
     return (
         "USAGE\n"
-        "  pdlc [--repo OWNER/REPO] [--project-number N] [--project-owner OWNER] "
-        "[--backend NAME] [--home PATH] COMMAND ...\n"
+        "  pdlc [--tracker-repo OWNER/REPO] [--project-number N] [--project-owner OWNER] "
+        "[--tracker PROVIDER] [--home PATH] COMMAND ...\n"
         "\n"
         "  Global options override .pdlc/config.toml for this run.\n"
         "  Run `pdlc COMMAND --help` for a command's own usage, flags, and behavioral contract.\n"
         "\nNON-PUBLISHING COMMANDS\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
-        "  doctor                      inspect config, derived values, backend CLI access, and all validation results\n"
+        "  doctor                      inspect config, derived values, tracker CLI access, and all validation results\n"
         "  guide                       print a bundled Markdown guide for PDLC agents\n"
         "  template NAME               print a bundled evidence template a post command checks its body against\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
@@ -134,13 +134,13 @@ def _usage() -> str:
         "  post complete WI EVIDENCE              final lock to Complete (driver-only)\n"
         "  post skip WI STAGE                     mark stages skipped ahead of time (driver-only)\n"
         "  post invalidate WI STAGE EVIDENCE [--task N ...]  return a stage to Stale after upstream change\n"
-        "  post attach-pr TASK PR#                manually link a PR to a task\n"
+        "  post attach-pr TASK PR                 manually link a PR to a task\n"
         "  post attach-user-comment WI --body FILE|-|text:BODY  add a discussion comment\n"
         "\nFLAGS\n"
-        "  --repo OWNER/REPO           override [repo] name for this run\n"
+        "  --tracker-repo OWNER/REPO   override [tracker.github] repository for this run\n"
         "  --project-number N          override the configured project number\n"
         "  --project-owner OWNER       override the configured project owner\n"
-        "  --backend NAME              override [backend] name (github, azure, file)\n"
+        "  --tracker PROVIDER          override [tracker] provider (github, azure, file)\n"
         "  --home PATH                 override PDLC_HOME for this run\n"
         "\nARGUMENTS\n"
         "  WI, ISSUE, WORK_ITEM        the parent work item number\n"
@@ -156,10 +156,10 @@ def _usage() -> str:
 
 
 _FLAG_FIELDS = {
-    "--repo": "repository",
+    "--tracker-repo": "tracker_repository",
     "--project-number": "project_number",
     "--project-owner": "project_owner",
-    "--backend": "backend",
+    "--tracker": "tracker_provider",
     "--home": "home",
 }
 
@@ -230,7 +230,7 @@ def _dispatch(raw_arguments: list[str]) -> int:
             module = importlib.import_module(module_name)
             return int(module.main(argv=command_arguments))
         config = load_config(overrides=overrides)
-        # setup runs the wizard; capability routing is local and needs no backend.
+        # setup runs the wizard; capability routing is local and needs no tracker.
         local_only = {
             "pdlc.commands.setup",
             "pdlc.commands.doctor",
@@ -239,7 +239,7 @@ def _dispatch(raw_arguments: list[str]) -> int:
             "pdlc.commands.prepare",
         }
         if module_name not in local_only and not wants_help(command_arguments):
-            config.validate_for_backend()
+            config.validate_providers()
     except ConfigurationError as error:
         print(f"pdlc: {error}", file=sys.stderr)
         print(

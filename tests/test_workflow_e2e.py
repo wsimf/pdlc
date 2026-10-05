@@ -109,7 +109,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         impl = self.write_file("impl.md", "## Implementation\n\n" + self.implementation_summary("Shipped. FR-1 covered."))
         stack_host = Mock()
         stack_host.submit_task_stack.return_value = [{
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": True, "branch": "pdlc/shell/task-001",
             "mergedAt": None, "checks": "PENDING",
         }]
@@ -121,11 +121,11 @@ class WorkflowEndToEndTests(FileBackendTest):
         self.assertEqual(self.task_meta(issue, task_number)["state"], "CLOSED")
 
         self.seed_prs(issue, [{
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": False, "branch": "feature/task",
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }, {
-            "number": 148, "title": "Implement", "url": "https://x/148",
+            "number": 148, "repository": "", "title": "Implement", "url": "https://x/148",
             "state": "OPEN", "isDraft": False, "branch": "feature/x",
             "mergedAt": None, "checks": "SUCCESS", "relation": "closes",
         }])
@@ -142,7 +142,7 @@ class WorkflowEndToEndTests(FileBackendTest):
         trace = self.write_file("trace.md", "FR-1 -> record lands -> core_service.py lands()\n")
         test_host = Mock()
         test_host.ensure_pull_request_linked.return_value = {
-            "number": 147, "title": "Task implementation", "url": "https://x/147",
+            "number": 147, "repository": "", "title": "Task implementation", "url": "https://x/147",
             "state": "OPEN", "isDraft": False, "branch": "feature/task",
             "mergedAt": None, "checks": "SUCCESS",
         }

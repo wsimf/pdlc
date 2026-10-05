@@ -6,13 +6,19 @@ PDLC reads its settings from TOML files. Run `pdlc doctor` to see the resolved v
 
 Later sources win, per key:
 
-1. The `PDLC_HOME` and `PDLC_REPOSITORY` environment variables.
+1. The `PDLC_HOME` and `PDLC_TRACKER_REPOSITORY` environment variables.
 2. `~/.pdlc/config.toml` — machine-wide defaults.
 3. The matching `[repository."owner/name"]` section in the home file.
 4. The repository's `.pdlc/config.toml`.
-5. Global CLI flags for one run: `--repo`, `--project-number`, `--project-owner`, `--backend`, `--home`.
+5. Global CLI flags for one run: `--tracker-repo`, `--project-number`, `--project-owner`, `--tracker`, `--home`.
 
 The repository file is optional when `~/.pdlc/config.toml` exists. An unknown table or key, or a non-scalar value, is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
+
+## Tracker and code
+
+The tracker holds work items; the code provider holds pull requests. They are configured independently, so one tracker can serve several code repositories — each microservice checkout points `[tracker.github] repository` at the shared tracker while its pull requests stay in its own repository. When unset, both `[tracker.github] repository` and `[code.github] repository` default to the checkout's `origin` remote, and the code repository then to the tracker repository, so a single-repository project sets at most the tracker.
+
+Pull requests are registered on work items as `owner/name#N`, so several code repositories can share one tracker without two PRs of the same number colliding; a PR in the configured code repository still reads as `#N` in output.
 
 ## Repository-specific home settings
 
@@ -33,7 +39,7 @@ init_script = "./scripts/bootstrap.sh"
 build-run = "my-build-skill"
 ```
 
-Keys must be quoted `owner/name` identities, matched case-insensitively against the checkout's GitHub `origin`; linked worktrees and renamed checkout directories therefore select the same section. Without a recognizable GitHub origin, an explicit `backend.github.repository` in the repository file supplies the identity. Global settings, environment values, and `--repo` do not select a section. Outside a Git repository, or without either identity source, only home defaults apply.
+Keys must be quoted `owner/name` identities, matched case-insensitively against the checkout's GitHub `origin`; linked worktrees and renamed checkout directories therefore select the same section. Without a recognizable GitHub origin, an explicit `code.github.repository` in the repository file supplies the identity. Global settings, environment values, and `--tracker-repo` do not select a section. Outside a Git repository, or without either identity source, only home defaults apply.
 
 Only the matching section contributes values. All sections are validated, including unmatched ones; duplicate identities differing only in case are rejected. Repository sections are not allowed in the repository file.
 
@@ -41,10 +47,19 @@ Values override per key; scripts replace rather than concatenate, and capability
 
 ## Minimal configurations
 
-GitHub (the default backend):
+GitHub (the default tracker), issues and pull requests in this checkout's repository:
 
 ```toml
-[backend.github]
+[tracker.github]
+project_number = "7"
+project_owner  = "my-org"
+```
+
+A shared GitHub tracker, from one of several service repositories:
+
+```toml
+[tracker.github]
+repository     = "my-org/product"
 project_number = "7"
 project_owner  = "my-org"
 ```
@@ -52,47 +67,47 @@ project_owner  = "my-org"
 Azure Boards work items with GitHub code:
 
 ```toml
-[backend]
-name = "azure"
+[tracker]
+provider = "azure"
 
-[backend.azure]
+[tracker.azure]
 organization = "https://dev.azure.com/my-org"
 project      = "my-project"
 
-[code_host]
-name = "github"
+[code]
+provider = "github"
 ```
 
-Local file backend, for scenarios and tests:
+Local file tracker, for scenarios and tests:
 
 ```toml
-[backend]
-name = "file"
+[tracker]
+provider = "file"
 ```
 
-`[backend.github] repository` is omitted above because it is derived from the checkout's `origin` remote when nothing sets it; set it explicitly when that remote is not a github.com URL.
+The `repository` keys are omitted above where they are derived from the checkout's `origin` remote; set them explicitly when that remote is not a github.com URL, or when pull requests belong to a repository other than `origin` (a fork's upstream).
 
-## `[backend]`
-
-| Key | Required | Default | What it does |
-|---|---|---|---|
-| `name` | Optional | `github` | Work-item backend: `github`, `azure`, or `file`. Selects which `[backend.*]` table must be filled in. |
-
-## `[backend.github]`
+## `[tracker]`
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `repository` | Required for the `github` backend, and whenever `[code_host] name` is `github` | Derived from `origin` | `owner/name` of the GitHub repository holding Issues and PRs. |
-| `project_number` | Required for the `github` backend | — | Number of the GitHub Project that tracks PDLC state. |
-| `project_owner` | Required for the `github` backend | — | User or organization that owns that Project. |
+| `provider` | Optional | `github` | Where work items live: `github`, `azure`, or `file`. Selects which `[tracker.*]` table must be filled in. |
+
+## `[tracker.github]`
+
+| Key | Required | Default | What it does |
+|---|---|---|---|
+| `repository` | Required for the `github` tracker | Derived from `origin` | `owner/name` of the GitHub repository holding work-item Issues. |
+| `project_number` | Required for the `github` tracker | — | Number of the GitHub Project that tracks PDLC state. |
+| `project_owner` | Required for the `github` tracker | — | User or organization that owns that Project. |
 | `assigned_to` | Optional | Unset (no filter; new Issues assigned to the authenticated `gh` user) | Limits queue scans to Issues assigned to this login and assigns new records and tasks to it; `@me` resolves to the authenticated `gh` user. |
 
-## `[backend.azure]`
+## `[tracker.azure]`
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `organization` | Required for the `azure` backend | — | Azure DevOps organization URL. |
-| `project` | Required for the `azure` backend | — | Azure DevOps project; also the reference label on evidence. |
+| `organization` | Required for the `azure` tracker | — | Azure DevOps organization URL. |
+| `project` | Required for the `azure` tracker | — | Azure DevOps project; also the reference label on evidence. |
 | `record_type` | Optional | `Product Backlog Item` | Work-item type used for PDLC records. |
 | `area_path` | Optional | Project root | Area path new records are created under; delivery tasks inherit their parent record's area path. |
 | `open_state` | Optional | `To Do` | State written when a record opens. |
@@ -103,27 +118,33 @@ name = "file"
 | `task_in_progress_state` | Optional | Unset | Accepted but not currently used. |
 | `assigned_to` | Optional | Signed-in `az` account | Limits queue scans to this identity and assigns new records and tasks to it; `@me` filters by the signed-in account. |
 
-## `[code_host]`
+## `[code]`
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `name` | Optional | `github` for the `github` and `file` backends, `none` for `azure` | Where PRs live: `github`, `file`, or `none`. Set `github` to pair an Azure backend with GitHub PRs. |
-| `pr_title_format` | Optional | The task title | Format for task PR titles. Placeholders: `{task.title}` (id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}`, `{work.number}`, `{work.type}`. |
-| `pr_attachment` | Optional | Unset | Line appended to every task PR body; `{work.number}` resolves to the parent work item number. |
+| `provider` | Optional | `github` for the `github` and `file` trackers, `none` for `azure` | Where PRs live: `github`, `file`, or `none`. Set `github` to pair an Azure tracker with GitHub PRs. |
+| `pr_title_format` | Optional | The task title | Format for task PR titles. Placeholders: `{task.title}` (id prefix and `[CORE]`/`[UI]` tag stripped), `{task.id}`, `{work.number}`, `{work.type}`, `{work.ref}`. |
+| `pr_attachment` | Optional | Unset | Line appended to every task PR body. `{work.number}` resolves to the parent work item number; `{work.ref}` to a reference that links it from the code repository: `#N` when the tracker is the same GitHub repository, `owner/name#N` for another GitHub repository, `AB#N` for Azure Boards. |
 
-## `[attachment_host]`
+## `[code.github]`
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `name` | Optional | `file` | `file` stores `--attachment` files locally (see `pdlc guide attachments`); `none` rejects any `--attachment`. |
+| `repository` | Required when `[code] provider` is `github` | Derived from `origin`, else `[tracker.github] repository` | `owner/name` of the GitHub repository holding pull requests. Set it only when `origin` is not a github.com URL or pull requests are opened on another repository (a fork's upstream); `pdlc doctor` warns when it differs from `origin`. |
+
+## `[attachments]`
+
+| Key | Required | Default | What it does |
+|---|---|---|---|
+| `provider` | Optional | `file` | `file` stores `--attachment` files locally (see `pdlc guide attachments`); `none` rejects any `--attachment`. |
 
 ## `[runtime]`
 
 | Key | Required | Default | What it does |
 |---|---|---|---|
-| `home` | Optional | `.pdlc` in the working directory | Store root for the file backend and local attachments. Same as `PDLC_HOME`. |
-| `actor` | Optional | `local` | Actor name the file backend records on evidence. |
-| `ref_label` | Optional | `pdlc` | Reference label the file backend uses on evidence. |
+| `home` | Optional | `.pdlc` in the working directory | Store root for the file tracker and local attachments. Same as `PDLC_HOME`. |
+| `actor` | Optional | `local` | Actor name the file tracker records on evidence. |
+| `ref_label` | Optional | `pdlc` | Reference label the file tracker uses on evidence. |
 
 ## `[cache]`
 

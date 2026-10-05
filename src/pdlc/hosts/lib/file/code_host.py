@@ -1,6 +1,8 @@
 """File code host: pull requests come from a `pull_requests.json` under each
 record's directory in `$PDLC_HOME`, mirroring the shape the GitHub host returns.
-Which of them belong to a record is decided by the explicit registry on the
+`repository` may be omitted and reads as "" — a file PR belongs to no
+repository, so its ref is the bare number; a given one is casefolded like a
+`PullRef`'s. Which of them belong to a record is decided by the explicit registry on the
 work item and its tasks (see `internal.pull_requests`), not by this file.
 
     $PDLC_HOME/records/<n>/pull_requests.json
@@ -11,7 +13,7 @@ work item and its tasks (see `internal.pull_requests`), not by this file.
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRequest, ReviewComment
+from pdlc.domain.records import PullRef, PullRequest, ReviewComment
 
 import json
 import os
@@ -33,7 +35,10 @@ def _all_pull_requests() -> list[dict]:
     for record in root.glob("*"):
         path = record / "pull_requests.json"
         if path.is_file():
-            found.extend(json.loads(path.read_text(encoding="utf-8")))
+            found.extend(
+                {**pr, "repository": (pr.get("repository") or "").casefold()}
+                for pr in json.loads(path.read_text(encoding="utf-8"))
+            )
     return found
 
 
@@ -43,19 +48,18 @@ class FileCodeHost(CodeHost):
         entries = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
         if not entries:
             raise PdlcError(f"no pull request recorded for work item #{code_ref}")
-        return entries[0]
+        return {"repository": "", **entries[0]}
 
-    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
-        wanted = [int(n) for n in numbers]
-        by_number = {int(pr["number"]): pr for pr in _all_pull_requests() if pr.get("number") is not None}
-        missing = [n for n in wanted if n not in by_number]
+    def pull_requests(self, refs: list[PullRef]) -> list[PullRequest]:
+        by_ref = {PullRef(int(pr["number"]), pr["repository"]): pr for pr in _all_pull_requests() if pr.get("number") is not None}
+        missing = [ref.token() for ref in refs if ref not in by_ref]
         if missing:
             raise PdlcError(f"registered pull requests not found: {missing}")
-        return [by_number[n] for n in wanted]
+        return [by_ref[ref] for ref in refs]
 
-    def pull_request_files(self, pr_number: str | int) -> list[str]:
+    def pull_request_files(self, pr: PullRef) -> list[str]:
         for pull_request in _all_pull_requests():
-            if str(pull_request.get("number")) == str(pr_number):
+            if PullRef(int(pull_request.get("number") or 0), pull_request["repository"]) == pr:
                 return pull_request.get("files", [])
         return []
 
@@ -68,14 +72,14 @@ class FileCodeHost(CodeHost):
     def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
         raise PdlcError("the file code host cannot link stacked pull requests")
 
-    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+    def set_pull_request_content(self, pr: PullRef, title: str, body: str) -> None:
         raise PdlcError("the file code host cannot edit pull requests")
 
-    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+    def mark_pull_requests_ready(self, refs: list[PullRef]) -> None:
         # `pull_requests.json` carries no live draft state to transition; a file
         # workflow scenario has nothing to mark ready.
         return None
 
-    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
+    def unresolved_review_comments(self, pr: PullRef) -> list[ReviewComment]:
         # `pull_requests.json` carries no live review-thread state either.
         return []

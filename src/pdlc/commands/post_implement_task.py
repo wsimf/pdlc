@@ -52,10 +52,13 @@ deterministic name and links it onto the predecessor's stack instead, since
 there is no local `gh stack` tracking to submit in that case. Either way this
 then sets that PR's
 title (the delivery task's own title with its `WORK-N-TASK-N` id prefix and
-`[CORE]`/`[UI]` tag stripped, or the optional `[code_host] pr_title_format`
+`[CORE]`/`[UI]` tag stripped, or the optional `[code] pr_title_format`
 applied to it) and its body to this evidence (prefixed with the optional
-`[code_host] pr_attachment` line, with `{work.number}` resolved to the parent
-work item's bare number), and records its number on the task, then
+`[code] pr_attachment` line, with `{work.number}` resolved to the parent
+work item's bare number and `{work.ref}` to a reference that links the parent
+from the code repository: `#N` when issues and pull requests share a GitHub
+repository, `owner/name#N` when the tracker is another GitHub repository, and
+`AB#N` for an Azure Boards tracker), and records its number on the task, then
 writes the comment. The attachment line is PR-body only and never appears in the
 `## Implementation` comment. A failure in that sequence
 leaves no `## Implementation` comment and no closure, so `pdlc inspect implement`
@@ -76,6 +79,8 @@ import json
 import re
 import sys
 
+from pdlc.domain.records import pull_ref
+from pdlc.internal.pull_requests import pr_label, pr_output, prs_json
 from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.attachments import parent_number_for_task, parse_attachment_arguments, save_attachments
@@ -149,9 +154,10 @@ _TASK_TAG = re.compile(r"^\[(?:CORE|UI)\]\s*")
 def _pr_title(task: dict, work_number: str, work_type: str) -> str:
     """The task PR title: the delivery task's own title with its `WORK-N-TASK-N`
     id prefix and `[CORE]`/`[UI]` tag stripped, or the optional
-    `[code_host] pr_title_format` applied to it. Placeholders: `{task.title}`
+    `[code] pr_title_format` applied to it. Placeholders: `{task.title}`
     (the stripped title), `{task.id}` (e.g. `TASK-001`), `{work.number}` (the
-    parent's bare number), `{work.type}` (`feature`/`bug`).
+    parent's bare number), `{work.type}` (`feature`/`bug`), `{work.ref}` (see
+    `_work_ref`).
     """
     bare = _TASK_TAG.sub("", task_title(task) or task["taskId"]).strip()
     template = (get_config().pr_title_format or "").strip()
@@ -163,13 +169,30 @@ def _pr_title(task: dict, work_number: str, work_type: str) -> str:
         .replace("{task.id}", task["taskId"])
         .replace("{work.number}", work_number)
         .replace("{work.type}", str(work_type))
+        .replace("{work.ref}", _work_ref(work_number))
     )
 
 
+def _work_ref(work_number: str) -> str:
+    """A reference to the parent work item that links it from the pull
+    request's own repository: a bare `#N` would resolve in the code repository,
+    so a tracker elsewhere needs its qualified form (`AB#N` is Azure Boards'
+    GitHub link syntax)."""
+    config = get_config()
+    tracker = config.tracker_provider or "github"
+    if tracker == "azure":
+        return f"AB#{work_number}"
+    repository = config.tracker_repository or ""
+    if tracker == "github" and repository.casefold() != (config.code_repository or "").casefold():
+        return f"{repository}#{work_number}"
+    return f"#{work_number}"
+
+
 def _pr_body(summary: str, work_number: str) -> str:
-    """The task PR description: the optional `[code_host] pr_attachment` line as
+    """The task PR description: the optional `[code] pr_attachment` line as
     the first line, then the implementation evidence. Every `{work.number}` in
-    the attachment is replaced by the parent work item's bare number. Unset
+    the attachment is replaced by the parent work item's bare number and every
+    `{work.ref}` by `_work_ref`. Unset
     config leaves the body as the evidence alone, so the PR description then
     matches the `## Implementation` comment. The attachment never reaches the
     comment — it is a PR-body-only affordance.
@@ -177,7 +200,8 @@ def _pr_body(summary: str, work_number: str) -> str:
     attachment = (get_config().pr_attachment or "").strip()
     if not attachment:
         return summary
-    return f"{attachment.replace('{work.number}', work_number)}\n\n{summary}"
+    attachment = attachment.replace("{work.number}", work_number).replace("{work.ref}", _work_ref(work_number))
+    return f"{attachment}\n\n{summary}"
 
 
 def _record_implementation(delivery_task: str, comment_objects: list[dict], summary: str) -> None:
@@ -252,25 +276,25 @@ def post_implement_task(delivery_task: str, evidence: str, attachment_inputs: li
     # comment and no closure, so `pdlc inspect implement` still offers it and a
     # re-run is clean rather than a duplicate comment.
     task_pr = _submit_task_stack(task)
-    console_debug(f"updating title and description of PR #{task_pr['number']}")
+    console_debug(f"updating title and description of PR {pr_label(task_pr)}")
     # Give the freshly submitted PR its title (see `_pr_title`) and this evidence
     # as its description, replacing `gh stack`'s auto-generated summary. Runs before the
     # comment and closure so a failure here leaves the task re-runnable, exactly
     # like a stack-submit failure.
     get_code_host().set_pull_request_content(
-        task_pr["number"],
+        pull_ref(task_pr),
         _pr_title(task, parent_number_for_task(task), pipeline.work_type),
         _pr_body(summary, parent_number_for_task(task)),
     )
-    result["taskPr"] = task_pr
-    result["prs"] = attach_pr(task["number"], task_pr["number"])
+    result["taskPr"] = pr_output(task_pr)
+    result["prs"] = prs_json(attach_pr(task["number"], pull_ref(task_pr)))
 
     _record_implementation(delivery_task, task.get("commentObjects") or [], summary)
 
     if relanding:
         # Read back what the next `pdlc inspect implement` will see, so the
         # caller knows whether this task will be offered again.
-        result["openThreads"] = len(get_code_host().unresolved_review_comments(task_pr["number"]))
+        result["openThreads"] = len(get_code_host().unresolved_review_comments(pull_ref(task_pr)))
         result["checks"] = check_state(task_pr.get("checks"))
     else:
         close_task(delivery_task)

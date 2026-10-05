@@ -9,8 +9,13 @@ here re-derives that from remote branch listings or branch names.
 
 `unresolved_review_comments` reads live review-thread state via GraphQL —
 `isResolved` is not exposed by `gh pr view --json`, only by the review-threads
-connection. `pull_requests_by_number` reads every registered PR in one aliased
-GraphQL query, so a record's N pull requests cost one round trip, not N.
+connection. `pull_requests` reads every registered PR of one repository in one
+aliased GraphQL query, so a record's N pull requests cost one round trip per
+code repository, not N.
+
+Every call addressing a registered PR takes its `PullRef` and targets that
+PR's own repository, so a record shared by several code repositories reads
+each PR where it lives. The `gh stack` calls act on the current checkout only.
 """
 
 from __future__ import annotations
@@ -18,14 +23,15 @@ from __future__ import annotations
 import contextlib
 import re
 
-from pdlc.domain.records import PullRequest, ReviewComment
+from pdlc.domain.records import PullRef, PullRequest, ReviewComment
 
 
+from pdlc.config import get_config
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.hosts.lib.github.transport import (
     body_file,
-    owner_repository,
-    repo_args,
+    code_owner_repository,
+    code_repo_args,
     run_gh,
     run_gh_json,
     run_graphql,
@@ -86,6 +92,10 @@ _PR_NOT_FOUND = ("could not resolve to a pullrequest", "no pull requests found",
 # A batched query fails as a whole when one alias misses; GraphQL names that
 # alias's number in the error, which `gh` passes through on stderr.
 _MISSING_PR_NUMBER = re.compile(r"could not resolve to a pullrequest with the number of (\d+)", re.IGNORECASE)
+
+
+def _ref_label(ref: PullRef) -> str:
+    return ref.label(get_config().pull_request_repository())
 
 
 def _is_pr_not_found(error: PdlcError) -> bool:
@@ -200,9 +210,20 @@ def _checks_state(pull_request: dict) -> str:
     return "PENDING"
 
 
-def _pr_dict(pr: dict) -> dict:
+# `https://github.com/<owner>/<name>/pull/<n>`: a PR's own repository.
+_PR_URL = re.compile(r"github\.com/([^/]+/[^/]+)/pull/\d+")
+
+
+def _pr_dict(pr: dict, repository: str = "") -> dict:
+    """The canonical PR dict. ``repository`` is the ref's when the PR was read
+    by ref; a PR found by branch takes it from its URL, else the configured
+    code repository's."""
+    match = _PR_URL.search(pr.get("url") or "")
+    if not repository:
+        repository = match.group(1).casefold() if match else get_config().pull_request_repository()
     return {
         "number": pr["number"],
+        "repository": repository,
         "title": pr["title"],
         "url": pr["url"],
         "state": pr["state"],
@@ -229,48 +250,58 @@ class GitHubCodeHost(CodeHost):
             raise PdlcError("current branch pull request has no number")
         return _pr_dict(pull_request)
 
-    def pull_requests_by_number(self, numbers: list[int]) -> list[PullRequest]:
-        if not numbers:
-            return []
-        owner, repository = owner_repository()
+    def pull_requests(self, refs: list[PullRef]) -> list[PullRequest]:
+        by_repository: dict[str, list[PullRef]] = {}
+        for ref in refs:
+            by_repository.setdefault(ref.repository, []).append(ref)
+        resolved: dict[PullRef, PullRequest] = {}
+        for repository, group in by_repository.items():
+            for ref, pr in zip(group, self._repository_pull_requests(repository, group)):
+                resolved[ref] = pr
+        return [resolved[ref] for ref in refs]
+
+    def _repository_pull_requests(self, repository: str, refs: list[PullRef]) -> list[PullRequest]:
+        """``refs`` (all in ``repository``) in one aliased GraphQL query."""
+        owner, name = code_owner_repository(repository)
         selections = "\n".join(
-            f"pr{index}: pullRequest(number: {int(number)}) {{ {_PR_SELECTION} }}"
-            for index, number in enumerate(numbers)
+            f"pr{index}: pullRequest(number: {ref.number}) {{ {_PR_SELECTION} }}"
+            for index, ref in enumerate(refs)
         )
         query = f"query($owner: String!, $repo: String!) {{ repository(owner: $owner, name: $repo) {{\n{selections}\n}} }}"
+        labels = ", ".join(_ref_label(ref) for ref in refs)
         try:
-            data = run_graphql(query, owner=owner, repo=repository)["data"]["repository"]
+            data = run_graphql(query, owner=owner, repo=name)["data"]["repository"]
         except TransientError:
             raise
         except PdlcError as error:
             if _is_pr_not_found(error):
                 match = _MISSING_PR_NUMBER.search(str(error))
-                missing = f"#{match.group(1)}" if match else "among " + ", ".join(f"#{number}" for number in numbers)
+                missing = _ref_label(PullRef(int(match.group(1)), repository)) if match else f"among {labels}"
                 raise PdlcError(f"registered pull request {missing} could not be found") from error
-            raise PdlcError(f"could not resolve pull requests {', '.join(f'#{number}' for number in numbers)}: {error}") from error
+            raise PdlcError(f"could not resolve pull requests {labels}: {error}") from error
         resolved = []
-        for index, number in enumerate(numbers):
+        for index, ref in enumerate(refs):
             pr = data.get(f"pr{index}")
             if pr is None:
-                raise PdlcError(f"registered pull request #{number} could not be found")
+                raise PdlcError(f"registered pull request {_ref_label(ref)} could not be found")
             rollup = _graphql_rollup(pr)
-            resolved.append(_pr_dict({**pr, "statusCheckRollup": rollup}) if rollup is not None else self._pull_request_view(number))
+            resolved.append(_pr_dict({**pr, "statusCheckRollup": rollup}, ref.repository) if rollup is not None else self._pull_request_view(ref))
         return resolved
 
     @staticmethod
-    def _pull_request_view(number: int) -> PullRequest:
+    def _pull_request_view(ref: PullRef) -> PullRequest:
         try:
-            pr = run_gh_json(["pr", "view", str(number), *repo_args(), "--json", _PR_FIELDS])
+            pr = run_gh_json(["pr", "view", str(ref.number), *code_repo_args(ref.repository), "--json", _PR_FIELDS])
         except TransientError:
             raise
         except PdlcError as error:
             if _is_pr_not_found(error):
-                raise PdlcError(f"registered pull request #{number} could not be found") from error
-            raise PdlcError(f"could not resolve pull request #{number}: {error}") from error
-        return _pr_dict(pr)
+                raise PdlcError(f"registered pull request {_ref_label(ref)} could not be found") from error
+            raise PdlcError(f"could not resolve pull request {_ref_label(ref)}: {error}") from error
+        return _pr_dict(pr, ref.repository)
 
-    def pull_request_files(self, pr_number: str | int) -> list[str]:
-        data = run_gh_json(["pr", "view", str(pr_number), *repo_args(), "--json", "files"])
+    def pull_request_files(self, pr: PullRef) -> list[str]:
+        data = run_gh_json(["pr", "view", str(pr.number), *code_repo_args(pr.repository), "--json", "files"])
         return [entry["path"] for entry in data.get("files", [])]
 
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
@@ -352,7 +383,7 @@ class GitHubCodeHost(CodeHost):
         console_debug("submitting stack branches and pull requests")
         run_gh(["stack", "submit", "--auto"], timeout=180 * len(branches))
         console_debug("reading submitted pull requests")
-        return self.pull_requests_by_number(self.stack_pr_numbers())
+        return self.pull_requests(self.stack_pr_refs())
 
     def _has_unpruned_merge(self) -> bool:
         """Whether a stack PR has merged on GitHub while its branch is still
@@ -360,7 +391,7 @@ class GitHubCodeHost(CodeHost):
         may lag until the next sync."""
         return any(
             pr["state"] == "MERGED" and _local_branch_exists(pr["branch"])
-            for pr in self.pull_requests_by_number(self.stack_pr_numbers())
+            for pr in self.pull_requests(self.stack_pr_refs())
         )
 
     def link_task_stack(self, entry_pr: int, branch: str) -> PullRequest:
@@ -380,7 +411,7 @@ class GitHubCodeHost(CodeHost):
     @staticmethod
     def _pull_request_view_by_branch(branch: str) -> PullRequest:
         try:
-            pr = run_gh_json(["pr", "view", branch, *repo_args(), "--json", _PR_FIELDS])
+            pr = run_gh_json(["pr", "view", branch, *code_repo_args(), "--json", _PR_FIELDS])
         except TransientError:
             raise
         except PdlcError as error:
@@ -389,25 +420,25 @@ class GitHubCodeHost(CodeHost):
             raise PdlcError(f"could not resolve pull request for {branch}: {error}") from error
         return _pr_dict(pr)
 
-    def set_pull_request_content(self, number: int, title: str, body: str) -> None:
+    def set_pull_request_content(self, pr: PullRef, title: str, body: str) -> None:
         # `gh pr edit --title --body-file` replaces both fields wholesale. This
         # runs after `submit_task_stack`, and `gh stack` only writes a PR's title
         # and body when it first creates the PR, never on a later sync/submit, so
         # the task's own title and evidence stay the PR's resting state.
         with body_file(body) as path:
-            run_gh(["pr", "edit", str(number), *repo_args(), "--title", title, "--body-file", path])
+            run_gh(["pr", "edit", str(pr.number), *code_repo_args(pr.repository), "--title", title, "--body-file", path])
 
-    def mark_pull_requests_ready(self, numbers: list[int]) -> None:
+    def mark_pull_requests_ready(self, refs: list[PullRef]) -> None:
         # `gh pr ready` on a PR that is already out of draft is a no-op that
         # still exits 0, so republishing after a `Changes Required` bounce needs
-        # no guard here. The caller filters out merged/closed numbers, which
+        # no guard here. The caller filters out merged/closed PRs, which
         # `gh pr ready` would otherwise reject.
-        for number in numbers:
-            run_gh(["pr", "ready", str(number), *repo_args()])
+        for ref in refs:
+            run_gh(["pr", "ready", str(ref.number), *code_repo_args(ref.repository)])
 
-    def unresolved_review_comments(self, pr_number: str | int) -> list[ReviewComment]:
-        owner, repository = owner_repository()
-        data = run_graphql(_REVIEW_THREADS_QUERY, owner=owner, repo=repository, number=int(pr_number))
+    def unresolved_review_comments(self, pr: PullRef) -> list[ReviewComment]:
+        owner, repository = code_owner_repository(pr.repository)
+        data = run_graphql(_REVIEW_THREADS_QUERY, owner=owner, repo=repository, number=pr.number)
         threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         comments = []
         for thread in threads:
@@ -427,18 +458,19 @@ class GitHubCodeHost(CodeHost):
         return comments
 
     @staticmethod
-    def stack_pr_numbers() -> list[int]:
-        """The pull-request numbers in the current local stack, bottom-to-top,
-        as `gh stack view --json` reports them.
+    def stack_pr_refs() -> list[PullRef]:
+        """The pull requests in the current local stack, bottom-to-top, as
+        `gh stack view --json` reports them, in the configured code repository.
 
         Only `branches[].pr.number` is read from that payload — `pr` is absent
         for a branch with no pull request yet. Every other PR field comes from
-        `pull_requests_by_number`, so one canonical dict shape serves every
-        caller and this stays insensitive to the rest of the extension's JSON.
+        `pull_requests`, so one canonical dict shape serves every caller and
+        this stays insensitive to the rest of the extension's JSON.
         """
         data = run_gh_json(["stack", "view", "--json"])
+        repository = get_config().pull_request_repository()
         return [
-            int(branch["pr"]["number"])
+            PullRef(int(branch["pr"]["number"]), repository)
             for branch in (data.get("branches") or [])
             if isinstance(branch.get("pr"), dict) and branch["pr"].get("number") is not None
         ]

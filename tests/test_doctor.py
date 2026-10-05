@@ -21,20 +21,20 @@ class DoctorTests(unittest.TestCase):
         (self.repo_root / ".pdlc").mkdir(parents=True)
         self.repo_config = self.repo_root / ".pdlc" / "config.toml"
         # Keep config-only tests off the real `gh`/`az`; access tests re-patch it.
-        access = patch("pdlc.commands.doctor._backend_access", return_value=None)
-        self.backend_access = access.start()
+        access = patch("pdlc.commands.doctor._tracker_access", return_value=None)
+        self.tracker_access = access.start()
         self.addCleanup(access.stop)
 
     def test_repository_section_sources_and_loading_precedence_agree(self) -> None:
         self.home_path.parent.mkdir(parents=True)
         self.home_path.write_text(
-            '[backend]\nname = "file"\n'
-            '[backend.github]\nrepository = "global/repo"\n'
-            '[repository."acme/A".backend.github]\nrepository = "scoped/repo"\n'
+            '[tracker]\nprovider = "file"\n'
+            '[tracker.github]\nrepository = "global/repo"\n'
+            '[repository."acme/A".tracker.github]\nrepository = "scoped/repo"\n'
             '[repository."acme/A".worktree]\ninit_script = "A"\n'
             '[repository."acme/B".worktree]\ninit_script = "B"\n'
         )
-        self.repo_config.write_text('[backend.github]\nrepository = "local/repo"\n')
+        self.repo_config.write_text('[tracker.github]\nrepository = "local/repo"\n')
         (self.repo_root / ".git").mkdir()
         self.addCleanup(reset_config)
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
@@ -42,21 +42,23 @@ class DoctorTests(unittest.TestCase):
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
              patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/A"), \
              patch("pdlc.config.git_remote_repository", return_value="acme/A"), \
-             patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repo"}):
-            for overrides, expected in ((None, "local/repo"), ({"repository": "cli/repo"}, "cli/repo")):
+             patch.dict(os.environ, {"PDLC_TRACKER_REPOSITORY": "environment/repo"}):
+            for overrides, expected in ((None, "local/repo"), ({"tracker_repository": "cli/repo"}, "cli/repo")):
                 with self.subTest(overrides=overrides):
                     output, code = run(overrides=overrides)
                     config = load_config(self.repo_root, overrides=overrides)
                     self.assertEqual(code, 0)
-                    self.assertEqual(config.repository, expected)
-                    self.assertIn(f"repository = '{expected}'", output)
+                    self.assertEqual(config.tracker_repository, expected)
+                    self.assertIn(f"tracker_repository = '{expected}'", output)
+                    self.assertEqual(config.code_repository, "acme/A")
+                    self.assertIn("code_repository = 'acme/A' [derived from git origin]", output)
                     self.assertEqual(config.worktree_init_script, "A")
                     self.assertIn(f'worktree_init_script = \'A\' [{self.home_path} [repository."acme/A"]]', output)
 
     def test_invalid_unmatched_sections_report_errors_without_losing_valid_values(self) -> None:
         self.home_path.parent.mkdir(parents=True)
         self.home_path.write_text(
-            '[backend]\nname = "file"\n'
+            '[tracker]\nprovider = "file"\n'
             '[repository."acme/A".worktree]\ninit_script = "A"\n'
             '[repository."acme/B".worktree]\nbogus = "B"\n'
             '[repository."acme/B".workflow]\nmax_attempts = 0\n'
@@ -71,49 +73,64 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("max_attempts", output)
         self.assertIn('[repository."acme/B"]', output)
 
-    def test_scoped_repository_value_does_not_trigger_global_warning(self) -> None:
+    def test_scoped_repository_value_is_accepted(self) -> None:
         self.home_path.parent.mkdir(parents=True)
-        self.home_path.write_text('[backend]\nname = "file"\n[repository."acme/A".backend.github]\nrepository = "acme/A"\n')
+        self.home_path.write_text('[tracker]\nprovider = "file"\n[repository."acme/A".tracker.github]\nrepository = "acme/A"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
              patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/A"):
             output, code = run()
         self.assertEqual(code, 0)
-        self.assertNotIn("likely misconfigured", output)
+        self.assertIn("tracker_repository = 'acme/A'", output)
 
     def test_reports_all_missing_github_values(self) -> None:
-        self.repo_config.write_text('[backend]\nname = "github"\n')
+        self.repo_config.write_text('[tracker]\nprovider = "github"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
             output, code = run()
         self.assertEqual(code, 1)
-        self.assertIn("missing required setting: backend.github.repository", output)
-        self.assertIn("missing required setting: backend.github.project_number", output)
-        self.assertIn("missing required setting: backend.github.project_owner", output)
-        self.assertEqual(output.count("- FAIL:"), 3)
+        self.assertIn("missing required setting: tracker.github.repository", output)
+        self.assertIn("missing required setting: tracker.github.project_number", output)
+        self.assertIn("missing required setting: tracker.github.project_owner", output)
+        self.assertIn("missing required setting: code.github.repository", output)
+        self.assertEqual(output.count("- FAIL:"), 4)
 
-    def test_prints_sources_derivations_and_home_repository_warning(self) -> None:
+    def test_prints_sources_and_derivations(self) -> None:
         self.home_path.parent.mkdir(parents=True)
-        self.home_path.write_text('[backend.github]\nrepository = "acme/widgets"\n')
-        self.repo_config.write_text('[backend]\nname = "file"\n')
+        self.home_path.write_text('[tracker.github]\nrepository = "acme/widgets"\n')
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
             output, code = run()
         self.assertEqual(code, 0)
-        self.assertIn("repository = 'acme/widgets'", output)
+        self.assertIn("tracker_repository = 'acme/widgets'", output)
+        self.assertIn("code_repository = 'acme/widgets' [same as tracker_repository]", output)
         self.assertIn(str(self.home_path), output)
-        self.assertIn("repository is set in ~/.pdlc/config.toml", output)
-        self.assertIn("backend = 'file'", output)
+        # A machine-wide tracker is how several service checkouts share one.
+        self.assertNotIn("WARNING: [tracker.github]", output)
+        self.assertIn("tracker_provider = 'file'", output)
 
-    def test_reports_derived_repository_as_a_warning(self) -> None:
-        self.repo_config.write_text('[backend]\nname = "github"\n')
+    def test_reports_derived_repositories_with_their_source(self) -> None:
+        self.repo_config.write_text('[tracker]\nprovider = "github"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
              patch("pdlc.commands.doctor.git_remote_repository", return_value="acme/widgets"):
             output, code = run()
         self.assertEqual(code, 1)
-        self.assertIn("repository = 'acme/widgets' [derived from git origin]", output)
-        self.assertIn("repository is auto-derived from git origin", output)
+        self.assertIn("tracker_repository = 'acme/widgets' [derived from git origin]", output)
+        self.assertIn("code_repository = 'acme/widgets' [derived from git origin]", output)
+
+    def test_warns_when_the_code_repository_is_not_origin(self) -> None:
+        self.repo_config.write_text(
+            '[tracker]\nprovider = "file"\n[code]\nprovider = "github"\n'
+            '[code.github]\nrepository = "upstream/widgets"\n'
+        )
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
+             patch("pdlc.commands.doctor.git_remote_repository", return_value="fork/widgets"):
+            output, code = run()
+        self.assertEqual(code, 0)
+        self.assertIn("[code.github] repository is upstream/widgets but this checkout's origin is fork/widgets", output)
 
     def test_adds_gitignore_entry_once_when_directory_is_not_ignored(self) -> None:
         subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
@@ -134,7 +151,7 @@ class DoctorTests(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
         ignore_file = self.repo_root / ".gitignore"
         ignore_file.write_text(".*\n")
-        self.repo_config.write_text('[backend]\nname = "file"\n')
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
         subprocess.run(["git", "-C", str(self.repo_root), "add", "-f", ".pdlc/config.toml"], check=True)
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
@@ -142,7 +159,7 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(ignore_file.read_text(), ".*\n")
 
     def test_gitignore_failure_does_not_fail_doctor(self) -> None:
-        self.repo_config.write_text('[backend]\nname = "file"\n')
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
         subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
         (self.repo_root / ".gitignore").mkdir()
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
@@ -151,7 +168,7 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(code, 0)
 
     def test_non_git_directory_does_not_create_gitignore(self) -> None:
-        self.repo_config.write_text('[backend]\nname = "file"\n')
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
             _, code = run()
@@ -169,7 +186,7 @@ class DoctorTests(unittest.TestCase):
         linked = self.directory / "linked"
         subprocess.run(["git", "-C", str(self.repo_root), "worktree", "add", "-q", "-b", "linked", str(linked)], check=True)
         (linked / ".pdlc").mkdir()
-        (linked / ".pdlc" / "config.toml").write_text('[backend]\nname = "file"\n')
+        (linked / ".pdlc" / "config.toml").write_text('[tracker]\nprovider = "file"\n')
         self.assertTrue((linked / ".git").is_file())
         self.assertEqual(repository_root(linked), linked.resolve())
 
@@ -181,12 +198,12 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual((linked / ".gitignore").read_text(), "/.pdlc/\n")
         self.assertFalse((self.repo_root / ".gitignore").exists())
 
-    def test_backend_access_section_joins_warnings_and_failures(self) -> None:
+    def test_tracker_access_section_joins_warnings_and_failures(self) -> None:
         self.repo_config.write_text(
-            '[backend]\nname = "github"\n[code_host]\nname = "github"\n'
-            '[backend.github]\nrepository = "acme/widgets"\nproject_number = 3\nproject_owner = "acme"\n'
+            '[tracker]\nprovider = "github"\n[code]\nprovider = "github"\n'
+            '[tracker.github]\nrepository = "acme/widgets"\nproject_number = 3\nproject_owner = "acme"\n'
         )
-        self.backend_access.return_value = AccessReport(
+        self.tracker_access.return_value = AccessReport(
             facts=["gh login: octo via keyring (success)"],
             warnings=["gh 2.1.0 is older than the minimum 2.100.0; upgrade it"],
             errors=["gh cannot read Project acme/3: not found"],
@@ -195,20 +212,20 @@ class DoctorTests(unittest.TestCase):
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
             output, code = run()
         self.assertEqual(code, 1)
-        self.assertIn("## Backend access\n\n- gh login: octo via keyring (success)", output)
+        self.assertIn("## Tracker access\n\n- gh login: octo via keyring (success)", output)
         self.assertIn("- WARNING: gh 2.1.0 is older than the minimum 2.100.0", output)
         self.assertIn("- FAIL: gh cannot read Project acme/3: not found", output)
 
-    def test_file_backend_has_no_backend_access_section(self) -> None:
-        self.backend_access.stop()
-        self.repo_config.write_text('[backend]\nname = "file"\n[code_host]\nname = "none"\n')
+    def test_file_tracker_has_no_tracker_access_section(self) -> None:
+        self.tracker_access.stop()
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n[code]\nprovider = "none"\n')
         with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
              patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root), \
              patch("pdlc.hosts.lib.github.access.run_process", side_effect=AssertionError("no gh call")), \
              patch("pdlc.hosts.lib.azure.access.run_process", side_effect=AssertionError("no az call")):
             output, code = run()
         self.assertEqual(code, 0)
-        self.assertNotIn("## Backend access", output)
+        self.assertNotIn("## Tracker access", output)
 
 
 def _fake_cli(responses: dict[tuple[str, ...], str | Exception]):

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from _support import FileBackendTest
+from pdlc.domain.records import PullRef
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.verification import FindingEntry, Report, Row, render
 
@@ -120,7 +121,7 @@ class InspectVerifyTests(FileBackendTest):
         with mock.patch(
             "pdlc.commands.inspect_verify.record_open_review_comments",
             return_value=[{
-                "pr": 148, "author": "reviewer", "body": "fix the null case",
+                "pr": PullRef(148), "author": "reviewer", "body": "fix the null case",
                 "url": "u2", "path": "src/cache.py", "line": 42,
             }],
         ):

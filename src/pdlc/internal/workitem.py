@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
+from pdlc.config import get_config
 from pdlc.domain.changes import approval_gap
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.domain.records import PullRef
 from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Lifecycle, Pipeline, State, WorkType
 from pdlc.domain.workflows.pipeline import PIPELINES
@@ -375,18 +377,18 @@ def reopen_task(task_ref: str) -> None:
     get_backend().reopen_task(str(task_ref))
 
 
-def attach_pr(ref: str, pr_number: int) -> list[int]:
-    """Attach `pr_number` to a record or one of its delivery tasks, so later
+def attach_pr(ref: str, pr: PullRef) -> list[PullRef]:
+    """Attach `pr` to a record or one of its delivery tasks, so later
     stages read its pull requests explicitly rather than inferring them from a
     PR body or a branch name. Idempotent; returns the full list.
 
     Where the backend keeps the link is its own concern — see
     `WorkItemBackend.attach_pr`."""
-    console_debug(f"registering PR #{pr_number} on work item {ref!r}")
-    return get_backend().attach_pr(str(ref), int(pr_number))
+    console_debug(f"registering PR {pr.label(get_config().pull_request_repository())} on work item {ref!r}")
+    return get_backend().attach_pr(str(ref), pr)
 
 
-def attached_prs(ref: str) -> list[int]:
+def attached_prs(ref: str) -> list[PullRef]:
     """Every pull request attached to `ref`, ascending."""
     console_debug(f"loading registered PRs for work item {ref!r}")
     return get_backend().attached_prs(str(ref))

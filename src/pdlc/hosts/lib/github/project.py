@@ -8,7 +8,7 @@ from __future__ import annotations
 from functools import cache
 
 from pdlc.hosts.lib.github.transport import (
-    owner_repository,
+    tracker_owner_repository,
     run_gh_json,
     run_graphql,
 )
@@ -187,7 +187,7 @@ def _queue_summary(
 
 
 def _resolved_assignee() -> str | None:
-    """The configured `[backend.github] assigned_to` queue-scan filter as a
+    """The configured `[tracker.github] assigned_to` queue-scan filter as a
     login, or None when unset. `@me` (any case) resolves to the authenticated
     GitHub user so config need not hardcode a login."""
     value = (get_config().github_assigned_to or "").strip()
@@ -200,7 +200,7 @@ def _resolved_assignee() -> str | None:
 
 # Returns only Issue summaries from the configured repository; drafts and
 # cross-repository Project cards are not PDLC records for this backend. When
-# `[backend.github] assigned_to` is set, only Issues assigned to that login.
+# `[tracker.github] assigned_to` is set, only Issues assigned to that login.
 def queue_items() -> list[QueueItemSummary]:
     config = get_config()
     assignee = _resolved_assignee()
@@ -216,7 +216,7 @@ def queue_items() -> list[QueueItemSummary]:
         items = project["items"]
         summaries.extend(
             summary for item in items.get("nodes", [])
-            if (summary := _queue_summary(item, config.repository, assignee)) is not None
+            if (summary := _queue_summary(item, config.tracker_repository, assignee)) is not None
         )
         page = items["pageInfo"]
         if not page["hasNextPage"]:
@@ -262,7 +262,7 @@ def item_for_issue(issue: str) -> dict:
         raise PdlcError(f"Issue number must be numeric: {issue}")
 
     config = get_config()
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     data = run_graphql(ITEM_FOR_ISSUE_QUERY, owner=owner, repo=repository, issue=int(issue))
     issue_node = data["data"]["repository"]["issue"]
     if issue_node is None:
@@ -318,7 +318,7 @@ def issue_for_slug(slug: str) -> str:
     """
     matches: list[str] = []
     after: str | None = None
-    repository = get_config().repository or ""
+    repository = get_config().tracker_repository or ""
     while True:
         variables = {"projectId": _project_id()}
         if after:

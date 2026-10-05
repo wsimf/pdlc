@@ -14,11 +14,11 @@ queue item: {id, content: {number, title, url}, "Status", "Gate State",
              "Lifecycle", "Skipped States", "workType"}
 work item:  {id, content: {number, title, url}, issueBody,
              "Status", "Gate State", "Lifecycle", "Skipped States", "Slug",
-             "workType", prs: [int],
+             "workType", prs: [PullRef],
              comments?}                # comments included only when free to
 comment:    {body, createdAt, url, author: {login}}
 task:       {number, title, url, state ("OPEN"|"CLOSED"), body, comments: [str],
-             taskId, prs: [int]}       # taskId is the WORK-N-TASK-NNN id or None
+             taskId, prs: [PullRef]}     # taskId is the WORK-N-TASK-NNN id or None
 
 Bodies crossing this port are human-authored content only. Whatever a backend
 stores alongside them to track attached pull requests is its own business and
@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pdlc.domain.workflow import WorkType
 
 
-from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+from pdlc.domain.records import Comment, CreatedRecord, PullRef, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
 
 @dataclass(frozen=True)
 class CommentPage:
@@ -155,17 +155,20 @@ class WorkItemBackend(ABC):
         closure when a driver invalidates Technical Plan or Implementation
         back onto it, so the task is back in scope for rework."""
 
-    def task_pr_numbers(self, ref: str) -> list[int]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         """Registered task PRs; adapters may avoid loading task bodies/comments."""
-        return sorted({number for task in self.tasks(ref) for number in task["prs"]})
+        return sorted({pr for task in self.tasks(ref) for pr in task["prs"]})
 
     # --- attached pull requests ---
 
     @abstractmethod
-    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+    def attach_pr(self, ref: str, pr: PullRef) -> list[PullRef]:
         """Attach a pull request to a record or one of its delivery tasks, both
-        addressed by their shared ref. Idempotent; returns every number now
-        attached, ascending.
+        addressed by their shared ref. Idempotent; returns every pull request
+        now attached, ascending. The stored form must keep `pr.repository`, so
+        records shared by several code repositories never confuse two PRs with
+        the same number; a stored bare number reads as
+        `Config.pull_request_repository()`'s.
 
         How the link is stored is entirely the backend's choice — a block in the
         body, a column, a native work-item↔PR relation. Callers only ever ask
@@ -173,7 +176,7 @@ class WorkItemBackend(ABC):
         task dict."""
 
     @abstractmethod
-    def attached_prs(self, ref: str) -> list[int]:
+    def attached_prs(self, ref: str) -> list[PullRef]:
         """Every pull request attached to `ref`, ascending. Empty when none are.
 
         Prefer the `prs` key already present on a resolved work item or task

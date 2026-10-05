@@ -49,9 +49,9 @@ class CliTests(unittest.TestCase):
             return pdlc.config._config
 
         with patch("pdlc.cli.load_config", side_effect=fake_load_config), patch("pdlc.cli.importlib.import_module", return_value=SimpleNamespace(main=command)):
-            self.assertEqual(main(["--backend", "file", "inspect", "7"]), 0)
+            self.assertEqual(main(["--tracker", "file", "inspect", "7"]), 0)
             self.assertIsNone(pdlc.config._config)
-            self.assertEqual(main(["--backend", "azure", "inspect", "8"]), 0)
+            self.assertEqual(main(["--tracker", "azure", "inspect", "8"]), 0)
             self.assertIsNone(pdlc.config._config)
         self.assertEqual(seen, [("FileWorkItemBackend", ["7"]), ("AzureWorkItemBackend", ["8"])])
 
@@ -93,9 +93,9 @@ class CliTests(unittest.TestCase):
         self.assertIn("unknown command", str(caught.exception))
 
     def test_options_become_config_overrides(self):
-        remaining, overrides, debug = _options(["--repo", "o/r", "--backend", "file", "inspect", "9"])
+        remaining, overrides, debug = _options(["--tracker-repo", "o/r", "--tracker", "file", "inspect", "9"])
         self.assertEqual(remaining, ["inspect", "9"])
-        self.assertEqual(overrides, {"repository": "o/r", "backend": "file"})
+        self.assertEqual(overrides, {"tracker_repository": "o/r", "tracker_provider": "file"})
         self.assertFalse(debug)
 
     def test_debug_is_invocation_only_and_hidden_from_help(self):
@@ -115,14 +115,14 @@ class CliTests(unittest.TestCase):
 
     def test_option_without_a_value_is_rejected(self):
         with self.assertRaises(ValueError):
-            _options(["--repo"])
+            _options(["--tracker-repo"])
 
     def test_bare_invocation_prints_usage(self):
         output = io.StringIO()
         with patch.object(sys, "argv", ["pdlc"]), redirect_stdout(output):
             self.assertEqual(main(), 0)
         self.assertIn("USAGE", output.getvalue())
-        self.assertIn("pdlc [--repo", output.getvalue())
+        self.assertIn("pdlc [--tracker-repo", output.getvalue())
 
     def test_unknown_command_through_main_exits_one(self):
         err = io.StringIO()

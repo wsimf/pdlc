@@ -58,6 +58,7 @@ from __future__ import annotations
 import sys
 
 
+from pdlc.domain.records import pull_request_label
 from pdlc.internal.pull_requests import record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.completion import completion_blockers
@@ -80,7 +81,7 @@ from pdlc.internal.failure import report_failure
 def _task_completion_section(tasks: list[dict], pull_requests: list[dict]) -> list[str]:
     open_tasks = [t for t in tasks if t["state"] != "CLOSED"]
     unsettled_prs = [
-        f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
+        f"- {pull_request_label(pr)} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
         if pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE")
     ]

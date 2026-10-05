@@ -71,25 +71,25 @@ class ConfigTests(unittest.TestCase):
 
     def test_repository_file_overrides_the_environment_variable(self):
         nested = self.make_repo(
-            '[backend.github]\n'
+            '[tracker.github]\n'
             'repository = "file/repository"\n'
             'project_number = 7\n'
             'project_owner = "file-owner"\n'
         )
-        with patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repository"}):
+        with patch.dict(os.environ, {"PDLC_TRACKER_REPOSITORY": "environment/repository"}):
             config = load_config(nested)
-        self.assertEqual(config.repository, "file/repository")
+        self.assertEqual(config.tracker_repository, "file/repository")
         self.assertEqual(config.project_owner, "file-owner")
         self.assertEqual(config.project_number, "7")
 
     def test_optional_assignee_filters_are_read_from_config(self):
         nested = self.make_repo(
-            '[backend]\nname = "azure"\n'
-            '[backend.azure]\n'
+            '[tracker]\nprovider = "azure"\n'
+            '[tracker.azure]\n'
             'organization = "https://dev.azure.com/acme"\n'
             'project = "delivery"\n'
             'assigned_to = "@me"\n'
-            '[backend.github]\n'
+            '[tracker.github]\n'
             'repository = "acme/repo"\n'
             'assigned_to = "ada"\n'
         )
@@ -97,34 +97,34 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.azure_assigned_to, "@me")
         self.assertEqual(config.github_assigned_to, "ada")
 
-    def test_pr_attachment_is_read_from_the_code_host_table(self):
+    def test_pr_attachment_is_read_from_the_code_table(self):
         nested = self.make_repo(
-            '[backend]\nname = "file"\n'
-            '[code_host]\nname = "github"\npr_attachment = "Fixes {work.number}"\n'
+            '[tracker]\nprovider = "file"\n'
+            '[code]\nprovider = "github"\npr_attachment = "Fixes {work.number}"\n'
         )
         config = load_config(nested)
         self.assertEqual(config.pr_attachment, "Fixes {work.number}")
 
-    def test_pr_title_format_is_read_from_the_code_host_table(self):
+    def test_pr_title_format_is_read_from_the_code_table(self):
         nested = self.make_repo(
-            '[backend]\nname = "file"\n'
-            '[code_host]\nname = "github"\npr_title_format = "[{work.number}] {task.title}"\n'
+            '[tracker]\nprovider = "file"\n'
+            '[code]\nprovider = "github"\npr_title_format = "[{work.number}] {task.title}"\n'
         )
         config = load_config(nested)
         self.assertEqual(config.pr_title_format, "[{work.number}] {task.title}")
 
     def test_config_file_supports_toml_types(self):
         nested = self.make_repo(
-            '[backend]\nname = "file"\n'
+            '[tracker]\nprovider = "file"\n'
             '[workflow]\nno_sleep = true\nmax_attempts = 4\n'
         )
         config = load_config(nested)
-        self.assertEqual(config.backend, "file")
+        self.assertEqual(config.tracker_provider, "file")
         self.assertIs(config.no_sleep, True)
         self.assertEqual(config.max_attempts, 4)
 
     def test_debug_flag_is_read_from_the_debug_table(self):
-        nested = self.make_repo('[backend]\nname = "file"\n[debug]\nenabled = true\n')
+        nested = self.make_repo('[tracker]\nprovider = "file"\n[debug]\nenabled = true\n')
         config = load_config(nested)
         self.assertIs(config.debug, True)
 
@@ -134,7 +134,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(load_config(nested).cache_root, "artifacts")
 
     def test_cache_root_defaults_to_repository(self):
-        nested = self.make_repo('[backend]\nname = "file"\n')
+        nested = self.make_repo('[tracker]\nprovider = "file"\n')
         self.assertEqual(load_config(nested).cache_root, "repository_default")
 
     def test_blank_cache_root_is_rejected(self):
@@ -143,41 +143,41 @@ class ConfigTests(unittest.TestCase):
             load_config(nested)
 
     def test_cli_overrides_beat_the_config_file(self):
-        nested = self.make_repo('[backend.github]\nrepository = "file/repository"\n')
-        config = load_config(nested, overrides={"repository": "cli/repository"})
-        self.assertEqual(config.repository, "cli/repository")
-        self.assertEqual(get_config().repository, "cli/repository")
+        nested = self.make_repo('[tracker.github]\nrepository = "file/repository"\n')
+        config = load_config(nested, overrides={"tracker_repository": "cli/repository"})
+        self.assertEqual(config.tracker_repository, "cli/repository")
+        self.assertEqual(get_config().tracker_repository, "cli/repository")
 
     def test_environment_is_used_when_config_is_missing(self):
         nested = self.make_repo()
         with patch.dict(
             os.environ,
-            {"PDLC_REPOSITORY": "environment/repository"},
+            {"PDLC_TRACKER_REPOSITORY": "environment/repository"},
             clear=False,
         ):
             config = load_config(nested)
-        self.assertEqual(config.repository, "environment/repository")
+        self.assertEqual(config.tracker_repository, "environment/repository")
 
     def test_github_validation_explains_configuration(self):
         with self.assertRaisesRegex(ConfigurationError, "Create .pdlc/config.toml"):
-            Config().validate_for_backend()
+            Config().validate_providers()
 
     def test_missing_repository_names_the_value_and_the_origin_fallback(self):
-        guidance = configuration_guidance(["backend.github.repository"])
-        self.assertIn("Missing: backend.github.repository", guidance)
+        guidance = configuration_guidance(["tracker.github.repository"])
+        self.assertIn("Missing: tracker.github.repository", guidance)
         self.assertIn("auto-detected", guidance)
         self.assertIn("origin", guidance)
 
     def test_guidance_omits_the_origin_hint_when_repository_is_not_missing(self):
         self.assertNotIn(
-            "auto-detected", configuration_guidance(["backend.github.project_number"])
+            "auto-detected", configuration_guidance(["tracker.github.project_number"])
         )
 
-    def test_file_backend_does_not_need_github_values(self):
-        Config(backend="file").validate_for_backend()
+    def test_file_tracker_does_not_need_github_values(self):
+        Config(tracker_provider="file").validate_providers()
 
     def test_config_rejects_unknown_settings(self):
-        nested = self.make_repo('[backend]\nunknown = "value"\n')
+        nested = self.make_repo('[tracker]\nunknown = "value"\n')
         with self.assertRaisesRegex(ConfigurationError, "Unknown setting"):
             load_config(nested)
 
@@ -211,9 +211,9 @@ class ConfigTests(unittest.TestCase):
         self.assertIsNone(caps.skill("build-run"))
 
     def test_repository_config_overrides_home(self):
-        self.write_home_config('[backend.github]\nrepository = "home/repository"\n')
-        nested = self.make_repo('[backend.github]\nrepository = "repo/repository"\n')
-        self.assertEqual(load_config(nested).repository, "repo/repository")
+        self.write_home_config('[tracker.github]\nrepository = "home/repository"\n')
+        nested = self.make_repo('[tracker.github]\nrepository = "repo/repository"\n')
+        self.assertEqual(load_config(nested).tracker_repository, "repo/repository")
 
     def test_home_repository_sections_are_isolated_and_case_insensitive(self):
         self.write_home_config(
@@ -252,19 +252,19 @@ class ConfigTests(unittest.TestCase):
 
     def test_global_and_cli_repository_values_do_not_select_hooks(self):
         self.write_home_config(
-            '[backend.github]\nrepository = "acme/B"\n'
+            '[tracker.github]\nrepository = "acme/B"\n'
             '[repository."acme/A".worktree]\ninit_script = "A"\n'
             '[repository."acme/B".worktree]\ninit_script = "B"\n'
         )
         nested = self.make_git_repo("git@github.com:acme/A.git")
-        with patch.dict(os.environ, {"PDLC_REPOSITORY": "acme/B"}):
-            self.assertEqual(load_config(nested, overrides={"repository": "acme/B"}).worktree_init_script, "A")
+        with patch.dict(os.environ, {"PDLC_TRACKER_REPOSITORY": "acme/B"}):
+            self.assertEqual(load_config(nested, overrides={"tracker_repository": "acme/B"}).worktree_init_script, "A")
             self.assertIsNone(load_config(self.make_repo()).worktree_init_script)
             self.assertIsNone(load_config(self.non_repo_dir()).worktree_init_script)
 
     def test_local_repository_identity_is_fallback_only(self):
         self.write_home_config('[repository."acme/A".worktree]\ninit_script = "A"\n')
-        config = '[backend.github]\nrepository = "acme/A"\n'
+        config = '[code.github]\nrepository = "acme/A"\n'
         for origin, script in (("https://gitlab.com/acme/A.git", "A"), ("git@github.com:acme/B.git", None)):
             with self.subTest(origin=origin):
                 self.assertEqual(load_config(self.make_git_repo(origin, config)).worktree_init_script, script)
@@ -309,25 +309,26 @@ class ConfigTests(unittest.TestCase):
             with self.subTest(origin_url=origin_url):
                 nested = self.make_git_repo(origin_url)
                 with patch.dict(os.environ, {}, clear=False):
-                    os.environ.pop("PDLC_REPOSITORY", None)
+                    os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
                     config = load_config(nested)
-                self.assertEqual(config.repository, "acme/widgets")
+                self.assertEqual(config.tracker_repository, "acme/widgets")
+                self.assertEqual(config.code_repository, "acme/widgets")
 
     def test_configured_repository_beats_git_origin(self):
         nested = self.make_git_repo(
             "https://github.com/acme/widgets.git",
-            '[backend.github]\nrepository = "acme/configured"\n',
+            '[tracker.github]\nrepository = "acme/configured"\n',
         )
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("PDLC_REPOSITORY", None)
-            self.assertEqual(load_config(nested).repository, "acme/configured")
+            os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
+            self.assertEqual(load_config(nested).tracker_repository, "acme/configured")
 
     def test_environment_repository_beats_git_origin(self):
         nested = self.make_git_repo("https://github.com/acme/widgets.git")
         with patch.dict(
-            os.environ, {"PDLC_REPOSITORY": "acme/from-env"}, clear=False
+            os.environ, {"PDLC_TRACKER_REPOSITORY": "acme/from-env"}, clear=False
         ):
-            self.assertEqual(load_config(nested).repository, "acme/from-env")
+            self.assertEqual(load_config(nested).tracker_repository, "acme/from-env")
 
     def test_non_github_git_origin_is_not_derived(self):
         for origin_url in (
@@ -337,27 +338,62 @@ class ConfigTests(unittest.TestCase):
             with self.subTest(origin_url=origin_url):
                 nested = self.make_git_repo(origin_url)
                 with patch.dict(os.environ, {}, clear=False):
-                    os.environ.pop("PDLC_REPOSITORY", None)
+                    os.environ.pop("PDLC_TRACKER_REPOSITORY", None)
                     config = load_config(nested)
-                self.assertIsNone(config.repository)
+                self.assertIsNone(config.tracker_repository)
+                self.assertIsNone(config.code_repository)
 
     def test_home_config_repository_overrides_the_environment_variable(self):
-        self.write_home_config('[backend.github]\nrepository = "home/repository"\n')
+        self.write_home_config('[tracker.github]\nrepository = "home/repository"\n')
         nested = self.make_repo()
-        with patch.dict(os.environ, {"PDLC_REPOSITORY": "environment/repository"}):
+        with patch.dict(os.environ, {"PDLC_TRACKER_REPOSITORY": "environment/repository"}):
             config = load_config(nested)
-        self.assertEqual(config.repository, "home/repository")
+        self.assertEqual(config.tracker_repository, "home/repository")
+
+    def test_tracker_and_code_repositories_are_independent(self):
+        # A service checkout pointing at a shared tracker keeps its own pull
+        # requests: only the tracker is configured, the code side is origin.
+        nested = self.make_git_repo(
+            "git@github.com:acme/svc-a.git",
+            '[tracker.github]\nrepository = "acme/product"\n',
+        )
+        config = load_config(nested)
+        self.assertEqual(config.tracker_repository, "acme/product")
+        self.assertEqual(config.code_repository, "acme/svc-a")
+        overridden = load_config(self.make_git_repo(
+            "git@github.com:acme/svc-a.git",
+            '[tracker.github]\nrepository = "acme/product"\n[code.github]\nrepository = "upstream/svc-a"\n',
+        ))
+        self.assertEqual(overridden.code_repository, "upstream/svc-a")
+
+    def test_code_repository_falls_back_to_the_tracker_without_origin(self):
+        nested = self.make_git_repo(
+            "git@github-work:acme/widgets.git",
+            '[tracker.github]\nrepository = "acme/widgets"\n',
+        )
+        self.assertEqual(load_config(nested).code_repository, "acme/widgets")
+
+    def test_code_github_repository_is_required_for_a_github_code_provider(self):
+        config = Config(tracker_provider="azure", code_provider="github", azure_org="o", azure_project="p")
+        with self.assertRaisesRegex(ConfigurationError, r"code\.github\.repository"):
+            config.validate_providers()
+
+    def test_old_backend_tables_are_unknown(self):
+        for body in ('[backend]\nname = "file"\n', '[code_host]\nname = "github"\n', '[attachment_host]\nname = "file"\n'):
+            with self.subTest(body=body):
+                with self.assertRaisesRegex(ConfigurationError, "Unknown table"):
+                    load_config(self.make_repo(body))
 
     def test_home_config_applies_without_repository(self):
         self.write_home_config(
-            '[backend.github]\n'
+            '[tracker.github]\n'
             'repository = "home/repository"\n'
             'project_number = "9"\n'
             'project_owner = "home-owner"\n'
         )
         config = load_config(self.non_repo_dir())
-        self.assertEqual(config.repository, "home/repository")
-        config.validate_for_backend()
+        self.assertEqual(config.tracker_repository, "home/repository")
+        config.validate_providers()
 
     def test_missing_repository_still_errors_without_home(self):
         with self.assertRaisesRegex(ConfigurationError, "not configured for this repository"):
@@ -383,12 +419,13 @@ class ConfigTests(unittest.TestCase):
         path = root / ".pdlc" / "config.toml"
         _write_config(
             path,
-            backend="github",
-            code_host="github",
-            repository="owner/repository",
+            tracker="github",
+            code="github",
+            tracker_repository="owner/repository",
+            code_repository=None,
             project_number="12",
             project_owner="owner",
         )
         config = load_config(root)
-        self.assertEqual(config.repository, "owner/repository")
+        self.assertEqual(config.tracker_repository, "owner/repository")
         self.assertEqual(config.project_number, "12")

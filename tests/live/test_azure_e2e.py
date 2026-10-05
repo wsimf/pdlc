@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from uuid import uuid4
 
 from pdlc.config import Config, install_config, reset_config
-from pdlc.domain.records import TaskInput
+from pdlc.domain.records import PullRef, TaskInput
 from pdlc.hosts.lib.azure.transport import project_args, run_az
 from pdlc.hosts.lib.azure.workitem_backend import AzureWorkItemBackend
 from pdlc.hosts.lib.azure.workitems import query, wiql_literal
@@ -40,8 +40,8 @@ class AzureLiveEndToEndTest(unittest.TestCase):
         self.project = _AZURE["project"]
 
         install_config(Config(
-            backend="azure",
-            code_host="none",
+            tracker_provider="azure",
+            code_provider="none",
             azure_org=self.organization,
             azure_project=self.project,
             azure_record_type=_AZURE.get("record_type"),
@@ -129,9 +129,9 @@ class AzureLiveEndToEndTest(unittest.TestCase):
         self.assertEqual({comment["body"] for comment in page.comments}, {comment["body"] for comment in comments})
 
         # --- attached pull requests ---
-        numbers = self.backend.attach_pr(str(parent_number), 999999)
-        self.assertEqual(numbers, [999999])
-        self.assertEqual(self.backend.attached_prs(str(parent_number)), [999999])
+        numbers = self.backend.attach_pr(str(parent_number), PullRef(999999))
+        self.assertEqual(numbers, [PullRef(999999)])
+        self.assertEqual(self.backend.attached_prs(str(parent_number)), [PullRef(999999)])
 
         # --- delivery tasks ---
         task_input: list[TaskInput] = [{
@@ -157,7 +157,7 @@ class AzureLiveEndToEndTest(unittest.TestCase):
 
         by_number = self.backend.tasks_by_number([str(task_number)])
         self.assertEqual(by_number[0]["number"], task_number)
-        self.assertEqual(self.backend.task_pr_numbers(str(parent_number)), [])
+        self.assertEqual(self.backend.task_prs(str(parent_number)), [])
 
         # --- close / reopen ---
         self.backend.close_task(str(task_number))

@@ -498,15 +498,15 @@ pdlc doctor
 pdlc <span class="muted">"add CSV export to the reports screen"</span>
 pdlc inspect 142
 pdlc next loop</code>
-        <p class="lede" style="margin-top:18px;font-size:clamp(13px,1.1vw,15.5px);color:var(--dim)">Requires Python 3.12+ and <span class="mono">uv</span>. <span class="mono">pdlc doctor</span> validates the config, its derived values and backend CLI access before anything runs. <span class="mono">pdlc guide contract</span> is the lifecycle reference; <span class="mono">pdlc guide config</span> explains every key.</p>
+        <p class="lede" style="margin-top:18px;font-size:clamp(13px,1.1vw,15.5px);color:var(--dim)">Requires Python 3.12+ and <span class="mono">uv</span>. <span class="mono">pdlc doctor</span> validates the config, its derived values and tracker CLI access before anything runs. <span class="mono">pdlc guide contract</span> is the lifecycle reference; <span class="mono">pdlc guide config</span> explains every key.</p>
       </div>
       <div>
         <div class="term" style="font-size:clamp(10.5px,.95vw,13.5px)"><span class="d"># .pdlc/config.toml</span>
-<span class="h">[backend]</span>
-name = <span class="p">"github"</span>       <span class="d"># github | azure | file</span>
+<span class="h">[tracker]</span>
+provider = <span class="p">"github"</span>   <span class="d"># github | azure | file</span>
 
-<span class="h">[code_host]</span>
-name = <span class="p">"github"</span>
+<span class="h">[code]</span>
+provider = <span class="p">"github"</span>
 
 <span class="h">[agents]</span>
 core-implementer = <span class="p">"my-core-implementer"</span>
@@ -520,7 +520,7 @@ test-authoring    = <span class="p">"my-test-authoring"</span>
 <span class="h">[worktree]</span>
 root      = <span class="p">"~/.pdlc/worktrees"</span>
 base_ref  = <span class="p">"origin/main"</span></div>
-        <p class="lede" style="margin-top:18px;font-size:clamp(13px,1.1vw,15.5px);color:var(--dim)">The same tables in <span class="mono">~/.pdlc/config.toml</span> set machine-wide defaults; the repository file overrides them per slot. Only <span class="mono">PDLC_HOME</span>, <span class="mono">PDLC_REPOSITORY</span> and <span class="mono">PDLC_DEBUG</span> come from the environment.</p>
+        <p class="lede" style="margin-top:18px;font-size:clamp(13px,1.1vw,15.5px);color:var(--dim)">The same tables in <span class="mono">~/.pdlc/config.toml</span> set machine-wide defaults; the repository file overrides them per slot. Only <span class="mono">PDLC_HOME</span>, <span class="mono">PDLC_TRACKER_REPOSITORY</span> and <span class="mono">PDLC_DEBUG</span> come from the environment.</p>
       </div>
     </div>
   </div>

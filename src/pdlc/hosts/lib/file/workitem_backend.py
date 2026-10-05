@@ -26,13 +26,14 @@ reference stays valid even after an earlier comment is deleted.
 
 from __future__ import annotations
 
-from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+from pdlc.domain.records import Comment, CreatedRecord, PullRef, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem, parse_pull_refs
 
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pdlc.config import get_config
 from pdlc.domain.lifecycle import NotFound, PdlcError
 from pdlc.domain.task_artifact import same_task_body
 from pdlc.domain.workflow import WorkType
@@ -119,7 +120,7 @@ class FileWorkItemBackend(WorkItemBackend):
             "number": meta["number"],
             "content": {"number": meta["number"], "title": meta.get("title"), "url": meta.get("url")},
             "issueBody": body,
-            "prs": list(meta.get("prs", [])),
+            "prs": _prs(meta),
             "comments": _read_comments(path),
             **{name: fields.get(name, "") for name in FIELD_NAMES},
             "workType": meta.get("workType", ""),
@@ -138,7 +139,7 @@ class FileWorkItemBackend(WorkItemBackend):
             "comments": [comment["body"] for comment in comments],
             "commentObjects": comments,
             "taskId": meta.get("taskId"),
-            "prs": list(meta.get("prs", [])),
+            "prs": _prs(meta),
         }
 
     # --- resolution ---
@@ -336,27 +337,28 @@ class FileWorkItemBackend(WorkItemBackend):
         meta["state"] = "OPEN"
         _write_meta(path, meta)
 
-    def task_pr_numbers(self, ref: str) -> list[int]:
-        return sorted({number for path in self._task_dirs(ref) for number in _read_meta(path).get("prs", [])})
+    def task_prs(self, ref: str) -> list[PullRef]:
+        return sorted({pr for path in self._task_dirs(ref) for pr in _prs(_read_meta(path))})
 
     # --- attached pull requests ---
 
     # A `prs` array in the entity's own meta.json. Records and delivery tasks
     # both resolve through _entity_dir, so one implementation serves each, and
-    # `body.md` stays plain human-authored Markdown.
+    # `body.md` stays plain human-authored Markdown. See `_pr_values`.
 
     @single_writer
-    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+    def attach_pr(self, ref: str, pr: PullRef) -> list[PullRef]:
         path = self._entity_dir(ref)
         meta = _read_meta(path)
-        numbers = sorted({*meta.get("prs", []), int(pr_number)})
-        if numbers != meta.get("prs"):
-            meta["prs"] = numbers
+        refs = sorted({*_prs(meta), pr})
+        values = _pr_values(refs)
+        if values != meta.get("prs"):
+            meta["prs"] = values
             _write_meta(path, meta)
-        return numbers
+        return refs
 
-    def attached_prs(self, ref: str) -> list[int]:
-        return sorted(_read_meta(self._entity_dir(ref)).get("prs", []))
+    def attached_prs(self, ref: str) -> list[PullRef]:
+        return _prs(_read_meta(self._entity_dir(ref)))
 
     # --- creation ---
 
@@ -380,17 +382,23 @@ class FileWorkItemBackend(WorkItemBackend):
     # --- identity ---
 
     def current_actor(self) -> str:
-        from pdlc.config import get_config
-
         return get_config().actor or "local"
 
     def ref_label(self) -> str:
-        from pdlc.config import get_config
-
         return get_config().ref_label or "pdlc"
 
 
 # --- flat helpers ---
+
+def _prs(meta: dict) -> list[PullRef]:
+    return parse_pull_refs(meta.get("prs", []), get_config().pull_request_repository())
+
+
+def _pr_values(refs: list[PullRef]) -> list[int | str]:
+    """`prs` as stored: a bare number for a PR without a repository (the file
+    code host's), else its `owner/name#N` token."""
+    return [ref.number if not ref.repository else ref.token() for ref in refs]
+
 
 def _read_meta(path: Path) -> dict:
     return json.loads((path / "meta.json").read_text(encoding="utf-8"))

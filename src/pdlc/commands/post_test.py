@@ -32,6 +32,8 @@ import json
 import sys
 
 
+from pdlc.domain.records import pull_ref
+from pdlc.internal.pull_requests import pr_output
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.complete_transition import complete_transition, prepare_transition
 from pdlc.internal.attachments import parse_attachment_arguments
@@ -60,9 +62,9 @@ def post_test(issue: str, evidence: str, traceability: str, attachment_inputs: l
     # published through it rather than a bare `git push` of the top branch.
     code_host.submit_task_stack()
     pull_request = code_host.ensure_pull_request_linked(issue)
-    attach_pr(issue, pull_request["number"])
+    attach_pr(issue, pull_ref(pull_request))
     result = complete_transition(publication, body, attachment_inputs)
-    result["pullRequest"] = pull_request
+    result["pullRequest"] = pr_output(pull_request)
     return result
 
 

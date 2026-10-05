@@ -119,6 +119,8 @@ import sys
 from dataclasses import dataclass
 from html import escape
 
+from pdlc.domain.records import PullRef, pull_ref, pull_request_label
+from pdlc.internal.pull_requests import pr_label, prs_json
 from pdlc.domain.changes import SOURCE_LABELS, ChangeRequest, open_change_requests
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import MARKER_PREFIX, evidence_comment_text, item_gate, timeline_formatted_at
@@ -142,7 +144,7 @@ class _Fix:
     """One implemented task with something live to fix on its pull request(s)."""
 
     task: dict
-    pr: int
+    pr: PullRef
     threads: list[dict]
     red: list[dict]
 
@@ -197,10 +199,10 @@ def _fixes(delivery: list[dict], pull_requests: list[dict], threads: list[dict])
     implemented = sorted((t for t in delivery if t.get("prs")), key=_stack_order)
     if not implemented:
         return []
-    owner: dict[int, dict] = {}
+    owner: dict[PullRef, dict] = {}
     for task in implemented:
-        for number in task["prs"]:
-            owner.setdefault(number, task)
+        for ref in task["prs"]:
+            owner.setdefault(ref, task)
     top = implemented[-1]
 
     threads_by_task: dict[int, list[dict]] = {}
@@ -210,7 +212,7 @@ def _fixes(delivery: list[dict], pull_requests: list[dict], threads: list[dict])
     red_by_task: dict[int, list[dict]] = {}
     for pr in pull_requests:
         if check_state(pr.get("checks")) == "red":
-            task = owner.get(pr["number"], top)
+            task = owner.get(pull_ref(pr), top)
             red_by_task.setdefault(task["number"], []).append(pr)
 
     fixes = []
@@ -271,11 +273,11 @@ def _next_fix_section(item: dict, fix: _Fix, decisions: list[ChangeRequest]) -> 
         f"### {task['title']}",
         f"number: {number}",
         f"taskId: {task['taskId']}",
-        f"pr: {fix.pr}",
+        f"pr: {prs_json([fix.pr])[0]}",
         f"branch: {task_branch_name(item_branch_slug(item), task['taskId'])}",
         f"state: {task['state']}",
         "",
-        f"This task is already implemented and its current changes are published in PR #{fix.pr}. "
+        f"This task is already implemented and its current changes are published in PR {pr_label(fix.pr)}. "
         f"Run `pdlc checkout {number}` to put the working tree on that PR's branch; every fix below lands "
         "as a new commit on top of it, after the implementer has investigated the current implementation.",
     ]
@@ -287,7 +289,7 @@ def _next_fix_section(item: dict, fix: _Fix, decisions: list[ChangeRequest]) -> 
     if fix.red:
         lines += ["", f"#### Failing checks ({len(fix.red)})"]
         for pr in fix.red:
-            lines.append(f"- PR #{pr['number']}: {pr.get('checks')} ({pr['url']})")
+            lines.append(f"- PR {pull_request_label(pr)}: {pr.get('checks')} ({pr['url']})")
     if decisions:
         # A thread escalated to the driver stays unresolved on the host, so
         # this unit comes round again once the decision is answered; the answer
@@ -336,7 +338,7 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
     lines += ["", "#### Stack"]
     for index, task in enumerate(implemented):
         top = ", top" if index == len(implemented) - 1 else ""
-        lines.append(f"- {task['title']} (number {task['number']}, PR #{max(task['prs'])}{top})")
+        lines.append(f"- {task['title']} (number {task['number']}, PR {pr_label(max(task['prs']))}{top})")
     if not implemented:
         lines.append("- no implemented task has a registered pull request")
     lines += [
@@ -358,7 +360,7 @@ def _nested(body: str, depth: int = 2) -> str:
 def _checks_section(pull_requests: list[dict]) -> str:
     lines = ["## Checks", ""]
     for pr in pull_requests:
-        lines.append(f"- PR #{pr['number']}: {check_state(pr.get('checks'))}")
+        lines.append(f"- PR {pull_request_label(pr)}: {check_state(pr.get('checks'))}")
     if not pull_requests:
         lines.append("- no registered pull request")
     return "\n".join(lines)

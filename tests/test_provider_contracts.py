@@ -11,7 +11,8 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-from _support import FileBackendTest
+from _support import FileBackendTest, isolate_home_config
+from pdlc.domain.records import PullRef
 from pdlc.commands.post_decision import _defer
 from pdlc.config import (
     CONFIG_FIELDS,
@@ -34,7 +35,7 @@ from pdlc.hosts.lib.github import project
 from pdlc.hosts.lib.process import parse_json, run_process
 from pdlc.internal import workitem
 from pdlc.internal.inputs import resolve_text
-from pdlc.internal.pull_requests import registered_pr_numbers
+from pdlc.internal.pull_requests import registered_prs
 
 
 class ConfigurationContractTests(unittest.TestCase):
@@ -62,8 +63,9 @@ class ConfigurationContractTests(unittest.TestCase):
 
     def test_guidance_contains_parseable_grouped_toml(self):
         for names in (
-            ["backend.github.repository"],
-            ["backend.azure.organization", "backend.azure.project"],
+            ["tracker.github.repository"],
+            ["tracker.azure.organization", "tracker.azure.project"],
+            ["code.github.repository"],
         ):
             guidance = configuration_guidance(names)
             example = guidance.split("for example:\n\n", 1)[1].split("\n\nYou can", 1)[0]
@@ -87,10 +89,10 @@ class FailureContractTests(unittest.TestCase):
 
     def test_missing_registered_pr_is_a_failure_for_each_code_host(self):
         for host in (FileCodeHost(), NoneCodeHost(), GitHubCodeHost()):
-            with self.subTest(host=type(host).__name__), patch("pdlc.hosts.lib.file.code_host._all_pull_requests", return_value=[]), patch("pdlc.hosts.lib.github.code_host.run_graphql", side_effect=PdlcError("Could not resolve to a PullRequest with the number of 123.")), patch("pdlc.hosts.lib.github.code_host.owner_repository", return_value=("wsimf", "pdlc")):
+            with self.subTest(host=type(host).__name__), patch("pdlc.hosts.lib.file.code_host._all_pull_requests", return_value=[]), patch("pdlc.hosts.lib.github.code_host.run_graphql", side_effect=PdlcError("Could not resolve to a PullRequest with the number of 123.")), patch("pdlc.hosts.lib.github.code_host.code_owner_repository", return_value=("wsimf", "pdlc")):
                 with self.assertRaises(PdlcError):
-                    host.pull_requests_by_number([123])
-                self.assertEqual(host.pull_requests_by_number([]), [])
+                    host.pull_requests([PullRef(123, "wsimf/pdlc")])
+                self.assertEqual(host.pull_requests([]), [])
 
     def test_pr_auth_failure_keeps_its_diagnostic(self):
         with patch("pdlc.hosts.lib.github.code_host.run_gh_json", side_effect=PdlcError("authentication expired")):
@@ -182,6 +184,9 @@ class FailureContractTests(unittest.TestCase):
 
 
 class AzureRecoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        isolate_home_config(self)
+
     task = {"id": "TASK-001", "title": "Title", "bodyText": "Body"}
     candidate = {
         "id": 8,
@@ -225,7 +230,7 @@ class AzureRecoveryTests(unittest.TestCase):
 
     def test_pr_registry_read_does_not_hydrate_comments(self):
         with patch.object(AzureWorkItemBackend, "_record_id", return_value=7), patch.object(azure, "children", return_value=[{"fields": {azure.PRS_FIELD: "3 9"}}]) as children, patch.object(azure, "comments") as comments:
-            self.assertEqual(AzureWorkItemBackend().task_pr_numbers("7"), [3, 9])
+            self.assertEqual([ref.number for ref in AzureWorkItemBackend().task_prs("7")], [3, 9])
         comments.assert_not_called()
         children.assert_called_once_with(7, ("System.Id", azure.PRS_FIELD))
 
@@ -296,7 +301,7 @@ class FileStoreContractTests(FileBackendTest):
         self.seed_task(70, 71, "TASK-001", "CLOSED", "WORK-70-TASK-001 Title")
         self.register_prs(71, [3])
         with patch.object(FileWorkItemBackend, "_task_view", side_effect=AssertionError("hydrated task")):
-            self.assertEqual(registered_pr_numbers("70"), [3])
+            self.assertEqual(registered_prs("70"), [PullRef(3)])
 
 
 class GitHubSlugTests(unittest.TestCase):
@@ -306,14 +311,14 @@ class GitHubSlugTests(unittest.TestCase):
                 "nodes": [{"slug": {"text": "same"}, "content": {"number": number, "repository": {"nameWithOwner": "o/r"}}}],
                 "pageInfo": {"hasNextPage": more, "endCursor": "next" if more else None},
             }}}}
-        with patch.object(project, "_project_id", return_value="P"), patch.object(project, "get_config", return_value=Config(repository="o/r")), patch.object(project, "run_graphql", side_effect=[page(1, True), page(2)]) as query:
+        with patch.object(project, "_project_id", return_value="P"), patch.object(project, "get_config", return_value=Config(tracker_repository="o/r")), patch.object(project, "run_graphql", side_effect=[page(1, True), page(2)]) as query:
             with self.assertRaisesRegex(PdlcError, "ambiguous"):
                 project.issue_for_slug("same")
             self.assertEqual(query.call_args.kwargs["after"], "next")
 
     def test_missing_slug_is_distinct_from_transport_failure(self):
         empty = {"data": {"node": {"items": {"nodes": [], "pageInfo": {"hasNextPage": False}}}}}
-        with patch.object(project, "_project_id", return_value="P"), patch.object(project, "get_config", return_value=Config(repository="o/r")), patch.object(project, "run_graphql", return_value=empty):
+        with patch.object(project, "_project_id", return_value="P"), patch.object(project, "get_config", return_value=Config(tracker_repository="o/r")), patch.object(project, "run_graphql", return_value=empty):
             with self.assertRaises(NotFound):
                 project.issue_for_slug("missing")
 

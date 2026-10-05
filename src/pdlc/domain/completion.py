@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pdlc.domain.records import pull_request_label
 from pdlc.domain.completion_evidence import parse_completion_report, undispositioned_questions
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import SCHEMA, parse
@@ -83,7 +84,7 @@ def completion_blockers(
     ]
     if unsettled_prs:
         listed = ", ".join(
-            f"#{pr['number']} {pr.get('state')} checks:{pr.get('checks')}" for pr in unsettled_prs
+            f"{pull_request_label(pr)} {pr.get('state')} checks:{pr.get('checks')}" for pr in unsettled_prs
         )
         blockers.append(Blocker(
             "pull-requests",

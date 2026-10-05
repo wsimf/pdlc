@@ -2,9 +2,76 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from pdlc.domain.lifecycle import PdlcError
+
+
+_PULL_REF = re.compile(r"\A(?:([\w.-]+/[\w.-]+)#|#)?(\d+)\Z")
+
+
+@dataclass(frozen=True, order=True)
+class PullRef:
+    """One registered pull request: its number and the `owner/name` code
+    repository holding it, casefolded. ``repository`` is "" for a code
+    provider without repositories (the file and none hosts), so a
+    single-repository registry still reads as plain numbers.
+
+    Ordered by number first, so ``max(refs)`` is a task's latest PR."""
+
+    number: int
+    repository: str = ""
+
+    @classmethod
+    def parse(cls, text: str, default_repository: str) -> PullRef:
+        """``N``, ``#N``, or ``owner/name#N``; a bare number belongs to
+        ``default_repository``. Raises PdlcError on anything else."""
+        match = _PULL_REF.match(text.strip())
+        if not match or int(match.group(2)) < 1:
+            raise PdlcError(f"pull request must be N or owner/name#N: {text!r}")
+        return cls(int(match.group(2)), (match.group(1) or default_repository).casefold())
+
+    def token(self) -> str:
+        """The registry form: ``owner/name#N``, or ``N`` without a repository."""
+        return f"{self.repository}#{self.number}" if self.repository else str(self.number)
+
+    def label(self, default_repository: str) -> str:
+        """The display form: ``#N`` in ``default_repository``, else ``owner/name#N``."""
+        return f"#{self.number}" if self.repository in ("", default_repository) else self.token()
+
+    def json(self, default_repository: str) -> int | str:
+        """The command-output form: the bare number in ``default_repository``,
+        so single-repository output stays numeric, else ``owner/name#N``."""
+        return self.number if self.repository in ("", default_repository) else self.token()
+
+
+def parse_pull_refs(tokens: Iterable[object], default_repository: str) -> list[PullRef]:
+    """Stored registry tokens as sorted, de-duplicated refs. Integers and
+    unparseable tokens are tolerated — registries can be hand-edited — the
+    former read as ``default_repository``'s, the latter dropped."""
+    refs: set[PullRef] = set()
+    for token in tokens:
+        if type(token) is int and token > 0:
+            refs.add(PullRef(token, default_repository))
+        elif isinstance(token, str):
+            try:
+                refs.add(PullRef.parse(token, default_repository))
+            except PdlcError:
+                continue
+    return sorted(refs)
+
+
+def pull_request_label(pr: dict[str, Any]) -> str:
+    """A PR dict's display name: its stamped `label`, else `#N`."""
+    return pr.get("label") or f"#{pr['number']}"
+
+
+def pull_ref(pr: PullRequest) -> PullRef:
+    """The registry identity of a resolved pull request."""
+    return PullRef(pr["number"], pr["repository"])
 
 
 class RecordContent(TypedDict):
@@ -32,7 +99,7 @@ QueueItemSummary = TypedDict("QueueItemSummary", {
 WorkItem = TypedDict("WorkItem", {
     "id": str, "content": RecordContent, "Status": str, "Gate State": str,
     "Lifecycle": str, "Skipped States": str, "workType": str,
-    "Slug": str, "issueBody": str, "prs": list[int],
+    "Slug": str, "issueBody": str, "prs": list[PullRef],
     "number": NotRequired[int], "comments": NotRequired[list[Comment]],
 })
 
@@ -45,7 +112,7 @@ class Task(TypedDict):
     body: str
     comments: list[str]
     taskId: str | None
-    prs: list[int]
+    prs: list[PullRef]
     commentObjects: NotRequired[list[Comment]]
     commentsMeta: NotRequired[dict[str, Any]]
     hasPlan: NotRequired[bool]
@@ -79,6 +146,9 @@ class CreatedRecord(TypedDict):
 
 class PullRequest(TypedDict):
     number: int
+    # Casefolded `owner/name` holding the PR; "" for a code provider without
+    # repositories. With `number` it forms the PR's `PullRef`.
+    repository: str
     title: str
     url: str
     state: Literal["OPEN", "CLOSED", "MERGED"]
@@ -91,6 +161,9 @@ class PullRequest(TypedDict):
     # the host does not report it.
     headSha: NotRequired[str]
     files: NotRequired[list[str]]
+    # How output names the PR (`#N`, or `owner/name#N` outside the configured
+    # code repository); stamped by `internal.pull_requests.record_pull_requests`.
+    label: NotRequired[str]
 
 
 class ReviewComment(TypedDict):
@@ -113,9 +186,9 @@ def _strings(value: dict[str, Any], names: tuple[str, ...], label: str) -> None:
             raise PdlcError(f"{label}.{name} must be a string")
 
 
-def _numbers(value: object, label: str) -> None:
-    if not isinstance(value, list) or any(type(n) is not int or n < 1 for n in value):
-        raise PdlcError(f"{label} must be an array of positive integers")
+def _refs(value: object, label: str) -> None:
+    if not isinstance(value, list) or any(not isinstance(ref, PullRef) for ref in value):
+        raise PdlcError(f"{label} must be an array of pull request refs")
 
 
 def validate_work_item(value: object) -> WorkItem:
@@ -125,7 +198,7 @@ def validate_work_item(value: object) -> WorkItem:
     _strings(content, ("title", "url"), "work item.content")
     if type(content.get("number")) is not int or content["number"] < 1:
         raise PdlcError("work item.content.number must be a positive integer")
-    _numbers(item.get("prs"), "work item.prs")
+    _refs(item.get("prs"), "work item.prs")
     return cast(WorkItem, item)
 
 
@@ -143,7 +216,7 @@ def validate_task(value: object) -> Task:
         raise PdlcError("task.commentObjects must be an array of comment objects")
     if task.get("taskId") is not None and not isinstance(task["taskId"], str):
         raise PdlcError("task.taskId must be a string or null")
-    _numbers(task.get("prs"), "task.prs")
+    _refs(task.get("prs"), "task.prs")
     return cast(Task, task)
 
 
@@ -157,7 +230,7 @@ def validate_task_inputs(values: list[dict[str, Any]]) -> list[TaskInput]:
 
 def validate_pull_request(value: object) -> PullRequest:
     pr = _object(value, "pull request")
-    _strings(pr, ("title", "url", "branch", "checks"), "pull request")
+    _strings(pr, ("repository", "title", "url", "branch", "checks"), "pull request")
     if type(pr.get("number")) is not int or pr["number"] < 1:
         raise PdlcError("pull request.number must be a positive integer")
     if pr.get("state") not in ("OPEN", "CLOSED", "MERGED"):

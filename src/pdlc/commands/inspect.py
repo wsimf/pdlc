@@ -157,7 +157,7 @@ import sys
 from pathlib import Path
 
 
-from pdlc.internal.pull_requests import record_pull_requests
+from pdlc.internal.pull_requests import pr_output, record_pull_requests
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown
 from pdlc.domain.changes import evidence_warnings, open_change_requests, open_changes_summary
 from pdlc.domain.lifecycle import PdlcError
@@ -831,10 +831,11 @@ def _task_front_matter(task: dict) -> str:
 
 
 def _compact_pull_request(pr: dict) -> dict:
+    shown = pr_output(pr)
     return {
-        key: pr[key]
+        key: shown[key]
         for key in ("number", "url", "state", "checks")
-        if key in pr
+        if key in shown
     }
 
 
@@ -910,7 +911,7 @@ def render(issue: str) -> tuple[str, str, Path]:
         "Lifecycle": item.get("Lifecycle"),
         "workType": item.get("workType") or "feature",
         "Skipped States": item_skipped_states(item),
-        "pullRequests": pull_requests,
+        "pullRequests": [pr_output(pr) for pr in pull_requests],
     }
 
     user_comments_section = user_comments_markdown(issue, comments=comments)

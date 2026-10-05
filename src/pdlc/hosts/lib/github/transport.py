@@ -90,25 +90,48 @@ def run_graphql(query: str, **variables: Any) -> dict:
     return run_gh_json(args)
 
 
-def repo_args() -> list[str]:
-    repository = get_config().repository
+# Issues and the Project live in the tracker repository; pull requests live in
+# the code repository. The two differ when several code repositories share one
+# tracker, so every `gh` call names the side it reads or writes.
+
+
+def tracker_repo_args() -> list[str]:
+    """`--repo` for an Issue call: `[tracker.github] repository`."""
+    repository = get_config().tracker_repository
+    return ["--repo", repository] if repository else []
+
+
+def code_repo_args(repository: str = "") -> list[str]:
+    """`--repo` for a pull-request call: `repository` (a `PullRef`'s), else
+    `[code.github] repository`."""
+    repository = repository or get_config().code_repository or ""
     return ["--repo", repository] if repository else []
 
 
 def assignee_args() -> list[str]:
     """`gh issue create` flags assigning a new Issue to the configured
-    `[backend.github] assigned_to` login, or to the authenticated user when
+    `[tracker.github] assigned_to` login, or to the authenticated user when
     that is unset — `gh` resolves `@me` itself, so neither costs a lookup."""
     configured = (get_config().github_assigned_to or "").strip()
     return ["--assignee", configured if configured and configured.casefold() != "@me" else "@me"]
 
 
-def owner_repository() -> tuple[str, str]:
-    repository = get_config().repository
+def _owner_name(repository: str | None, table: str) -> tuple[str, str]:
     if not repository or "/" not in repository:
-        raise PdlcError("PDLC_REPOSITORY must be owner/name to resolve an Issue")
+        raise PdlcError(f"[{table}] repository must be owner/name")
     owner, _, name = repository.partition("/")
     return owner, name
+
+
+def tracker_owner_repository() -> tuple[str, str]:
+    """`(owner, name)` of the tracker repository, for Issue GraphQL reads."""
+    return _owner_name(get_config().tracker_repository, "tracker.github")
+
+
+def code_owner_repository(repository: str = "") -> tuple[str, str]:
+    """`(owner, name)` of `repository` (a `PullRef`'s), else of the code
+    repository, for pull-request GraphQL reads."""
+    return _owner_name(repository or get_config().code_repository, "code.github")
 
 
 # A bare `#123` that GitHub would autolink to an issue/PR and record as a

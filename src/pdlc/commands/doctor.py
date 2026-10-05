@@ -17,7 +17,7 @@ DESCRIPTION
     when Git does not already ignore the directory. Failure to do so does not
     affect the result.
 
-    When the backend is github or azure, a "Backend access" section also shows
+    When the tracker is github or azure, a "Tracker access" section also shows
     what its CLI reports, using read-only calls only:
 
     - github: the `gh` version, the active github.com login, its token scopes
@@ -43,11 +43,14 @@ from pathlib import Path
 from pdlc.config import (
     Config,
     ConfigurationError,
+    ENVIRONMENT_FIELDS,
     FIELD_LOCATIONS,
+    REPOSITORY_FIELDS,
     _BOOL_FIELDS,
     _INT_FIELDS,
     _read_file,
-    default_code_host,
+    checkout_identity,
+    default_code_provider,
     git_remote_repository,
     home_config_path,
     repository_root,
@@ -105,53 +108,38 @@ def _typed_values(values: dict[str, object], errors: list[str]) -> dict[str, obj
     return valid
 
 
-def _validate(config: Config, errors: list[str]) -> list[str]:
+def _validate(config: Config, errors: list[str], derived: str | None) -> list[str]:
     warnings: list[str] = []
-    backend = config.backend or "github"
-    if not config.backend:
-        warnings.append("backend is defaulted to 'github'; set [backend] name explicitly")
-    if backend not in {"github", "azure", "file"}:
-        errors.append(f"unknown [backend] name: {backend!r}")
-    code_host = config.code_host or default_code_host(backend)
-    if not config.code_host:
-        warnings.append(f"code_host is derived as '{code_host}' from backend; set [code_host] name explicitly")
-    if code_host not in {"github", "file", "none"}:
-        errors.append(f"unknown [code_host] name: {code_host!r}")
-    if config.attachment_host not in {None, "file", "none"}:
-        errors.append(f"unknown [attachment_host] name: {config.attachment_host!r}")
-
-    required: dict[str, object] = {}
-    if backend == "github":
-        required = {
-            "backend.github.repository": config.repository,
-            "backend.github.project_number": config.project_number,
-            "backend.github.project_owner": config.project_owner,
-        }
-    elif backend == "azure":
-        required = {
-            "backend.azure.organization": config.azure_org,
-            "backend.azure.project": config.azure_project,
-        }
-        if code_host == "github":
-            required["backend.github.repository"] = config.repository
-    elif backend == "file" and code_host == "github":
-        required = {"backend.github.repository": config.repository}
-    for name, value in required.items():
-        if not value:
-            errors.append(f"missing required setting: {name}")
+    tracker = config.tracker_provider or "github"
+    if not config.tracker_provider:
+        warnings.append("tracker is defaulted to 'github'; set [tracker] provider explicitly")
+    if not config.code_provider:
+        code = default_code_provider(tracker) if tracker in {"github", "azure", "file"} else "none"
+        warnings.append(f"code provider is derived as '{code}' from the tracker; set [code] provider explicitly")
+    if derived and config.code_repository and config.code_repository.casefold() != derived.casefold():
+        warnings.append(
+            f"[code.github] repository is {config.code_repository} but this checkout's origin is {derived}; "
+            "branch pushes and stacks follow origin"
+        )
+    try:
+        missing = config.missing_settings()
+    except ConfigurationError as error:
+        errors.append(str(error))
+        return warnings
+    errors.extend(f"missing required setting: {name}" for name in missing)
     return warnings
 
 
-def _backend_access(config: Config) -> AccessReport | None:
-    """Probes the backend's host CLI; None for backends that need no CLI."""
-    backend = config.backend or "github"
-    if backend == "github":
+def _tracker_access(config: Config) -> AccessReport | None:
+    """Probes the tracker's host CLI; None for trackers that need no CLI."""
+    tracker = config.tracker_provider or "github"
+    if tracker == "github":
         return github_access.check_access(
-            repository=config.repository,
+            repository=config.tracker_repository,
             project_owner=config.project_owner,
             project_number=config.project_number,
         )
-    if backend == "azure":
+    if tracker == "azure":
         return azure_access.check_access(organization=config.azure_org, project=config.azure_project)
     return None
 
@@ -180,12 +168,11 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     repo_sources: dict[str, str] = {}
     repo_present = _read(repo_path, repo_values, repo_sources, errors) if repo_path else False
     derived = git_remote_repository(root) if root is not None else None
-    identity = derived or repo_values.get("repository")
     home_present = _read(
         home_path, home_values, home_sources, errors,
-        repository=str(identity) if identity else None, allow_repositories=True,
+        repository=checkout_identity(derived, repo_values), allow_repositories=True,
     )
-    for environment_name, field in (("PDLC_HOME", "home"), ("PDLC_REPOSITORY", "repository")):
+    for environment_name, field in ENVIRONMENT_FIELDS:
         if os.environ.get(environment_name):
             values[field] = os.environ[environment_name]
             sources[field] = environment_name
@@ -199,18 +186,19 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
                 values[field] = value
                 sources[field] = "CLI override"
 
-    if not values.get("repository") and root is not None:
-        if derived:
-            values["repository"] = derived
-            sources["repository"] = "derived from git origin"
-            warnings.append("repository is auto-derived from git origin; set backend.github.repository in ~/.pdlc/config.toml or the repo's .pdlc/config.toml")
-    if home_sources.get("repository") == str(home_path):
-        warnings.append("repository is set in ~/.pdlc/config.toml; this is likely misconfigured — set repository in the repo's .pdlc/config.toml instead")
+    if derived:
+        for field in REPOSITORY_FIELDS:
+            if not values.get(field):
+                values[field] = derived
+                sources[field] = "derived from git origin"
+    if not values.get("code_repository") and values.get("tracker_repository"):
+        values["code_repository"] = values["tracker_repository"]
+        sources["code_repository"] = "same as tracker_repository"
 
     typed = _typed_values(values, errors)
     config = Config.from_values(typed)
-    warnings.extend(_validate(config, errors))
-    access = _backend_access(config)
+    warnings.extend(_validate(config, errors, derived))
+    access = _tracker_access(config)
     if access is not None:
         warnings.extend(access.warnings)
         errors.extend(access.errors)
@@ -220,7 +208,7 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
         shown = "(unset)" if value is None else repr(value)
         lines.append(f"- {field.name} = {shown} [{_source(field.name, sources)}]")
     if access is not None:
-        lines += ["", "## Backend access", ""]
+        lines += ["", "## Tracker access", ""]
         lines.extend(f"- {fact}" for fact in access.facts)
     lines += ["", "## Warnings", ""]
     lines.extend(f"- WARNING: {warning}" for warning in warnings) or lines.append("- None")

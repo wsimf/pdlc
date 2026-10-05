@@ -13,7 +13,7 @@ README.md); this backend never creates or probes them.
 
 from __future__ import annotations
 
-from pdlc.domain.records import Comment, CreatedRecord, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem
+from pdlc.domain.records import Comment, CreatedRecord, PullRef, QueueItemSummary, Task, TaskInput, TaskPublication, WorkItem, parse_pull_refs
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, TypeVar
@@ -51,7 +51,7 @@ def _record_type() -> str:
 
 
 def _area_path() -> str | None:
-    """The optional `[backend.azure] area_path` new records are filed under."""
+    """The optional `[tracker.azure] area_path` new records are filed under."""
     return get_config().azure_area_path
 
 
@@ -83,7 +83,7 @@ def _task_in_progress_state() -> str | None:
 
 
 def _assigned_to() -> str | None:
-    """The optional `[backend.azure] assigned_to` queue-scan filter."""
+    """The optional `[tracker.azure] assigned_to` queue-scan filter."""
     return get_config().azure_assigned_to
 
 
@@ -112,10 +112,10 @@ def _text(fields: dict, name: str) -> str:
     return "" if value is None else str(value)
 
 
-def _parse_prs(fields: dict) -> list[int]:
-    """`Custom.PdlcPrs` as a sorted number list. Unparseable tokens are dropped
-    rather than failing a read — the field is human-editable in the Azure UI."""
-    return sorted({int(token) for token in _text(fields, azure.PRS_FIELD).split() if token.isdigit()})
+def _parse_prs(fields: dict) -> list[PullRef]:
+    """`Custom.PdlcPrs` as sorted refs. Unparseable tokens are dropped rather
+    than failing a read — the field is human-editable in the Azure UI."""
+    return parse_pull_refs(_text(fields, azure.PRS_FIELD).split(), get_config().pull_request_repository())
 
 
 def _work_type(fields: dict) -> str:
@@ -362,24 +362,24 @@ class AzureWorkItemBackend(WorkItemBackend):
     def reopen_task(self, task_ref: str) -> None:
         azure.update(azure.numeric(task_ref), state=_task_open_state())
 
-    def task_pr_numbers(self, ref: str) -> list[int]:
+    def task_prs(self, ref: str) -> list[PullRef]:
         items = azure.children(self._record_id(ref), ("System.Id", azure.PRS_FIELD))
-        return sorted({number for item in items for number in _parse_prs(item.get("fields") or {})})
+        return sorted({pr for item in items for pr in _parse_prs(item.get("fields") or {})})
 
     # --- attached pull requests ---
 
     # Records and delivery tasks both carry `Custom.PdlcPrs`, so one
     # implementation serves each and the description stays human content.
 
-    def attach_pr(self, ref: str, pr_number: int) -> list[int]:
+    def attach_pr(self, ref: str, pr: PullRef) -> list[PullRef]:
         item = azure.show(azure.numeric(ref))
         current = _parse_prs(item.get("fields") or {})
-        numbers = sorted({*current, int(pr_number)})
-        if numbers != current:
-            azure.update(item["id"], {azure.PRS_FIELD: " ".join(str(number) for number in numbers)})
-        return numbers
+        refs = sorted({*current, pr})
+        if refs != current:
+            azure.update(item["id"], {azure.PRS_FIELD: " ".join(entry.token() for entry in refs)})
+        return refs
 
-    def attached_prs(self, ref: str) -> list[int]:
+    def attached_prs(self, ref: str) -> list[PullRef]:
         return _parse_prs(azure.show(azure.numeric(ref)).get("fields") or {})
 
     # --- creation ---

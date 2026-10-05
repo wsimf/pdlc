@@ -352,7 +352,7 @@ class DeleteCommentTest(unittest.TestCase):
         from pdlc.hosts.lib.github import issues
 
         with (
-            mock.patch.object(issues, "owner_repository", return_value=("o", "r")),
+            mock.patch.object(issues, "tracker_owner_repository", return_value=("o", "r")),
             mock.patch.object(issues, "run_gh", side_effect=error),
         ):
             issues.delete_comment(self.URL)
@@ -376,7 +376,7 @@ class TransientPreservedTest(_ProcessTest):
         with (
             mock.patch.object(workitem_backend, "get_config", return_value=config),
             mock.patch.object(workitem_backend, "body_file", return_value=contextlib.nullcontext("b.md")),
-            mock.patch.object(workitem_backend, "repo_args", return_value=[]),
+            mock.patch.object(workitem_backend, "tracker_repo_args", return_value=[]),
             mock.patch.object(workitem_backend, "assignee_args", return_value=[]),
             mock.patch.object(workitem_backend, "run_gh", return_value=url + "\n"),
             mock.patch.object(workitem_backend, "run_gh_json", side_effect=TransientError("reset", attempts=1)),
@@ -579,7 +579,7 @@ class RecoveryLandingGateTest(FileBackendTest):
             self.land("post_implement", 94, self.evidence_file())
         self.seed_record(95, "Testing", "Pending")
         host = mock.Mock()
-        host.ensure_pull_request_linked.return_value = {"number": 7, "url": "https://x/7"}
+        host.ensure_pull_request_linked.return_value = {"number": 7, "repository": "", "url": "https://x/7"}
         with mock.patch("pdlc.commands.post_test.get_code_host", return_value=host), \
                 mock.patch("pdlc.commands.post_test.attach_pr"):
             self.land("post_test", 95, self.evidence_file(), "--traceability", self.write_file("trace.md", "FR-1: covered.\n"))

@@ -1,4 +1,4 @@
-"""Selects the configured work-item host."""
+"""Selects the configured tracker provider."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ _instance: WorkItemBackend | None = None
 def get_backend() -> WorkItemBackend:
     global _instance
     if _instance is None:
-        name = get_config().backend or "github"
+        name = get_config().tracker_provider or "github"
         if name == "github":
             from pdlc.hosts.github_provider import GitHubWorkItemBackend
 
@@ -25,7 +25,7 @@ def get_backend() -> WorkItemBackend:
 
             _instance = FileWorkItemBackend()
         else:
-            raise RuntimeError(f"unknown [backend] name: {name!r}")
+            raise RuntimeError(f"unknown [tracker] provider: {name!r}")
     return _instance
 
 

@@ -15,8 +15,8 @@ from pdlc.hosts.lib.github.transport import (
     body_file,
     neutralize_refs,
     restore_refs,
-    owner_repository,
-    repo_args,
+    tracker_owner_repository,
+    tracker_repo_args,
     run_gh,
     run_gh_json,
     run_graphql,
@@ -66,7 +66,7 @@ def remove_subissue(parent: int | str, child: int | str) -> None:
     """Close and detach a descoped task while retaining its Issue history."""
     if not str(parent).isdigit() or not str(child).isdigit():
         raise PdlcError("sub-issue numbers must be numeric")
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     query = f"""
     query($owner: String!, $repo: String!) {{
       repository(owner: $owner, name: $repo) {{
@@ -82,7 +82,7 @@ def remove_subissue(parent: int | str, child: int | str) -> None:
         raise PdlcError("one or more sub-issue nodes do not exist")
     if issues["child"].get("state") != "CLOSED":
         # "not planned" keeps a descoped task from reading as delivered work.
-        run_gh(["issue", "close", str(child), "--reason", "not planned", *repo_args()])
+        run_gh(["issue", "close", str(child), "--reason", "not planned", *tracker_repo_args()])
     mutation = """mutation($parentId: ID!, $childId: ID!) {
       removeSubIssue(input: {issueId: $parentId, subIssueId: $childId}) { issue { id } }
     }"""
@@ -98,7 +98,7 @@ def _link_subissues_once(parent: int | str, children: list[int | str]) -> None:
     if not all(number.isdigit() for number in numbers):
         raise PdlcError("sub-issue numbers must be numeric")
 
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     selections = "\n".join(
         f"issue{index}: issue(number: {int(number)}) {{ id }}"
         for index, number in enumerate(numbers)
@@ -181,7 +181,7 @@ def subissues_for(issue: str, *, include_comments: bool = True) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
 
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
 
     query = SUBISSUES_QUERY
     if not include_comments:
@@ -228,14 +228,14 @@ def _upsert_task(
         body_changed = not same_task_body(neutralize_refs(stored), neutralize_refs(body_text))
         if title_changed or body_changed:
             with body_file(pr_registry.attach(body_text, match.get("prs"))) as path:
-                run_gh(["issue", "edit", str(number), *repo_args(), "--title", full_title, "--body-file", path])
+                run_gh(["issue", "edit", str(number), *tracker_repo_args(), "--title", full_title, "--body-file", path])
             action = "retitled" if title_changed else "updated"
         else:
             action = "unchanged"
         url = match["url"]
     else:
         with body_file(body_text) as path:
-            output = run_gh(["issue", "create", *repo_args(), "--title", full_title, "--body-file", path, *assignee_args()])
+            output = run_gh(["issue", "create", *tracker_repo_args(), "--title", full_title, "--body-file", path, *assignee_args()])
         url = output.strip().splitlines()[-1]
         number_text = url.rsplit("/", 1)[-1]
         if not number_text.isdigit():
@@ -255,7 +255,7 @@ def _recover_unlinked_tasks(parent: str, task_ids: list[str], existing: list[dic
         return []
 
     candidates = run_gh_json([
-        "issue", "list", *repo_args(), "--state", "all",
+        "issue", "list", *tracker_repo_args(), "--state", "all",
         "--search", f"in:title WORK-{parent}-TASK-",
         "--limit", "100", "--json", "number,title,url,state,body",
     ])
@@ -306,7 +306,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
         if not number.isdigit():
             raise PdlcError(f"Issue number must be numeric: {number}")
 
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     selections = "\n".join(
         f"issue{index}: issue(number: {int(number)}) {{ number title url state body "
         + TASK_COMMENTS_SELECTION + " }"
@@ -342,7 +342,7 @@ def tasks_by_number(numbers: list[str]) -> list[dict]:
 
 def post_comment(issue: str, body: str) -> str:
     with body_file(body) as body_path:
-        return run_gh(["issue", "comment", str(issue), *repo_args(), "--body-file", body_path])
+        return run_gh(["issue", "comment", str(issue), *tracker_repo_args(), "--body-file", body_path])
 
 
 _COMMENT_ID_PATTERN = re.compile(r"#issuecomment-(\d+)$")
@@ -354,7 +354,7 @@ def edit_comment(comment_url: str, body: str) -> str:
     match = _COMMENT_ID_PATTERN.search(comment_url)
     if not match:
         raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     with body_file(body) as body_path:
         # `-f` (`--raw-field`) takes `@path` as a literal string; only `-F`
         # (`--field`) reads the file it names.
@@ -374,7 +374,7 @@ def delete_comment(comment_url: str) -> None:
     match = _COMMENT_ID_PATTERN.search(comment_url)
     if not match:
         raise PdlcError(f"cannot parse a GitHub comment id from: {comment_url}")
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     try:
         run_gh(["api", "--method", "DELETE", f"repos/{owner}/{repository}/issues/comments/{match.group(1)}"])
     except TransientError:
@@ -388,7 +388,7 @@ def delete_comment(comment_url: str) -> None:
 def comments_for_issue(issue: str) -> list[dict]:
     if not issue.isdigit():
         raise PdlcError(f"Issue number must be numeric: {issue}")
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     pages = run_gh_json([
         "api", "--paginate", "--slurp",
         f"repos/{owner}/{repository}/issues/{issue}/comments",
@@ -409,7 +409,7 @@ def comments_page(issue: str, page: int = 1, per_page: int = 100):
     from pdlc.hosts.workitem_host.base import CommentPage
     if not issue.isdigit() or page < 1 or per_page != 100:
         raise PdlcError("comments page must be >= 1 and use 100 comments per page")
-    owner, repository = owner_repository()
+    owner, repository = tracker_owner_repository()
     count_query = "query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){issue(number:$number){comments(last:100){totalCount pageInfo{hasPreviousPage startCursor}}}}}"
     total = run_graphql(count_query, owner=owner, repo=repository, number=int(issue))["data"]["repository"]["issue"]["comments"]["totalCount"]
     total_pages = max(1, (total + per_page - 1) // per_page)

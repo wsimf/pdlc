@@ -8,6 +8,7 @@ from __future__ import annotations
 import unittest
 
 from _az_replay import ORGANIZATION, PROJECT, AzureHostTest, work_item
+from pdlc.domain.records import PullRef
 from pdlc.config import Config, ConfigurationError
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.workflow import WorkType
@@ -63,7 +64,7 @@ class ResolutionTest(AzureHostTest):
         self.assertEqual(item["Skipped States"], "UI")
         self.assertEqual(item["Slug"], "retry-uploads")
         self.assertEqual(item["workType"], "feature")
-        self.assertEqual(item["prs"], [148, 152])
+        self.assertEqual(item["prs"], [PullRef(148), PullRef(152)])
 
     def test_unset_custom_fields_are_absent_rather_than_empty(self):
         # Azure omits a never-written custom field from `fields` entirely; the
@@ -267,26 +268,35 @@ class AttachedPullRequestTest(AzureHostTest):
     def test_attaching_is_idempotent_and_returns_the_full_list(self):
         self._stored("")
         backend = AzureWorkItemBackend()
-        self.assertEqual(backend.attach_pr("8", 152), [152])
-        self.assertEqual(backend.attach_pr("8", 148), [148, 152])
-        self.assertEqual(backend.attach_pr("8", 148), [148, 152])
-        self.assertEqual(backend.attached_prs("8"), [148, 152])
+        self.assertEqual(backend.attach_pr("8", PullRef(152)), [PullRef(152)])
+        self.assertEqual(backend.attach_pr("8", PullRef(148)), [PullRef(148), PullRef(152)])
+        self.assertEqual(backend.attach_pr("8", PullRef(148)), [PullRef(148), PullRef(152)])
+        self.assertEqual(backend.attached_prs("8"), [PullRef(148), PullRef(152)])
 
     def test_re_attaching_writes_nothing(self):
         self._stored("148 152")
-        AzureWorkItemBackend().attach_pr("8", 148)
+        AzureWorkItemBackend().attach_pr("8", PullRef(148))
         self.assertEqual([args[:3] for args in self.az.calls], [["boards", "work-item", "show"]])
 
     def test_numbers_are_stored_space_separated_and_ascending(self):
         self._stored("152")
-        AzureWorkItemBackend().attach_pr("8", 148)
+        AzureWorkItemBackend().attach_pr("8", PullRef(148))
         self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {PRS_FIELD: "148 152"})
+
+    def test_github_code_pull_requests_are_stored_repository_qualified(self):
+        # Azure Boards paired with GitHub code: a bare number written earlier
+        # reads as the code repository's, and the rewrite qualifies it.
+        self.configure(code_provider="github", code_repository="Acme/API")
+        self._stored("152")
+        refs = AzureWorkItemBackend().attach_pr("8", PullRef(3, "acme/web"))
+        self.assertEqual(refs, [PullRef(3, "acme/web"), PullRef(152, "acme/api")])
+        self.assertEqual(self.az.fields_written("boards", "work-item", "update"), {PRS_FIELD: "acme/web#3 acme/api#152"})
 
     def test_a_hand_edited_field_does_not_break_a_read(self):
         # The field is editable in the Azure UI; a stray word must not make the
         # record unreadable.
         self._stored("148 oops 152")
-        self.assertEqual(AzureWorkItemBackend().attached_prs("8"), [148, 152])
+        self.assertEqual(AzureWorkItemBackend().attached_prs("8"), [PullRef(148), PullRef(152)])
 
 
 class DeliveryTaskTest(AzureHostTest):
@@ -315,7 +325,7 @@ class DeliveryTaskTest(AzureHostTest):
         self.assertEqual(task["taskId"], "TASK-001")
         self.assertEqual(task["state"], "OPEN")
         self.assertEqual(task["body"], "do the thing")
-        self.assertEqual(task["prs"], [148])
+        self.assertEqual(task["prs"], [PullRef(148)])
         self.assertEqual(task["url"], f"{ORGANIZATION}/{PROJECT}/_workitems/edit/8")
 
     def test_closed_and_removed_tasks_both_read_as_closed(self):
@@ -738,55 +748,55 @@ class CreationAndIdentityTest(AzureHostTest):
 
 
 class AzureConfigurationTest(unittest.TestCase):
-    def test_the_azure_backend_requires_its_own_coordinates(self):
+    def test_the_azure_tracker_requires_its_own_coordinates(self):
         with self.assertRaises(ConfigurationError) as caught:
-            Config(backend="azure", code_host="none").validate_for_backend()
-        self.assertIn("backend.azure.organization", str(caught.exception))
-        self.assertIn("backend.azure.project", str(caught.exception))
+            Config(tracker_provider="azure", code_provider="none").validate_providers()
+        self.assertIn("tracker.azure.organization", str(caught.exception))
+        self.assertIn("tracker.azure.project", str(caught.exception))
 
-    def test_a_github_code_host_still_needs_a_repository(self):
+    def test_a_github_code_provider_still_needs_a_repository(self):
         # The two hosts are independent: Azure Boards + GitHub repos is the
         # target pairing, so neither half's requirements imply the other's.
-        with self.assertRaisesRegex(ConfigurationError, "backend.github.repository"):
+        with self.assertRaisesRegex(ConfigurationError, "code.github.repository"):
             Config(
-                backend="azure", code_host="github",
+                tracker_provider="azure", code_provider="github",
                 azure_org="https://dev.azure.com/acme", azure_project="delivery",
-            ).validate_for_backend()
+            ).validate_providers()
 
     def test_azure_never_requires_github_project_coordinates(self):
         Config(
-            backend="azure", code_host="github", repository="acme/widgets",
+            tracker_provider="azure", code_provider="github", code_repository="acme/widgets",
             azure_org="https://dev.azure.com/acme", azure_project="delivery",
-        ).validate_for_backend()
+        ).validate_providers()
 
-    def test_an_unset_code_host_requires_no_repository(self):
-        # `PDLC_CODE_HOST` unset under an azure backend resolves to `none`, so
+    def test_an_unset_code_provider_requires_no_repository(self):
+        # `[code] provider` unset under an azure tracker resolves to `none`, so
         # validation must not demand GitHub coordinates the run will never use.
         Config(
-            backend="azure",
+            tracker_provider="azure",
             azure_org="https://dev.azure.com/acme", azure_project="delivery",
-        ).validate_for_backend()
+        ).validate_providers()
 
-    def test_validation_and_selection_agree_on_the_implied_code_host(self):
-        # One helper feeds both `validate_for_backend` and the code-host
+    def test_validation_and_selection_agree_on_the_implied_code_provider(self):
+        # One helper feeds both `validate_providers` and the code-provider
         # selector; if they ever diverge, a run validates against one host and
         # then executes against another.
-        from pdlc.config import default_code_host
+        from pdlc.config import default_code_provider
         from pdlc.hosts.code_host import _default_name
 
         from pdlc.config import install_config, reset_config
 
         self.addCleanup(reset_config)
         for backend, expected in (("github", "github"), ("file", "file"), ("azure", "none")):
-            with self.subTest(backend=backend):
-                self.assertEqual(default_code_host(backend), expected)
-                install_config(Config(backend=backend))
+            with self.subTest(tracker_provider=backend):
+                self.assertEqual(default_code_provider(backend), expected)
+                install_config(Config(tracker_provider=backend))
                 self.assertEqual(_default_name(), expected)
 
     def test_a_missing_organization_fails_at_the_transport_rather_than_guessing(self):
         from pdlc.config import install_config, reset_config
 
-        install_config(Config(backend="azure"))
+        install_config(Config(tracker_provider="azure"))
         self.addCleanup(reset_config)
         from pdlc.hosts.lib.azure.transport import azure_config
 

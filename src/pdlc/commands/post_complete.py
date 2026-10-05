@@ -17,7 +17,7 @@ DESCRIPTION
     closes the record on its host. It never otherwise edits the parent body.
 
     Closing the record means a closed GitHub Issue, or on Azure the
-    configured `[backend.azure] closed_state` (default `Done`) written to
+    configured `[tracker.azure] closed_state` (default `Done`) written to
     the work item's own state.
 
     Once the record is locked and closed, it prunes local branches on a

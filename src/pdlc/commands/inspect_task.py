@@ -90,6 +90,7 @@ import argparse
 import sys
 
 
+from pdlc.internal.pull_requests import prs_json
 from pdlc.config import get_capabilities
 from pdlc.internal.attachments import attachments_for_item, attachments_markdown, parent_number_for_task
 from pdlc.domain.lifecycle import PdlcError
@@ -128,7 +129,7 @@ def _render_task(task: dict, preamble: str = "") -> str:
         "hasImplementation": task["hasImplementation"],
         "implementationInvalidated": task["implementationInvalidated"],
         "needsPlan": task["needsPlan"],
-        "prs": task["prs"],
+        "prs": prs_json(task["prs"]),
     })
     body = (task.get("body") or "").rstrip("\n")
     # The plan and implementation comments are unmarked; render them through

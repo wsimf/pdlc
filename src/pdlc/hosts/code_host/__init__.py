@@ -1,21 +1,21 @@
-"""Selects the configured code host."""
+"""Selects the configured code provider."""
 
 from __future__ import annotations
 
-from pdlc.config import default_code_host, get_config
+from pdlc.config import default_code_provider, get_config
 from pdlc.hosts.code_host.base import CodeHost
 
 _instance: CodeHost | None = None
 
 
 def _default_name() -> str:
-    return default_code_host(get_config().backend or "github")
+    return default_code_provider(get_config().tracker_provider or "github")
 
 
 def get_code_host() -> CodeHost:
     global _instance
     if _instance is None:
-        name = get_config().code_host or _default_name()
+        name = get_config().code_provider or _default_name()
         if name == "github":
             from pdlc.hosts.github_provider import GitHubCodeHost
 
@@ -29,7 +29,7 @@ def get_code_host() -> CodeHost:
 
             _instance = NoneCodeHost()
         else:
-            raise RuntimeError(f"unknown [code_host] name: {name!r}")
+            raise RuntimeError(f"unknown [code] provider: {name!r}")
     return _instance
 
 

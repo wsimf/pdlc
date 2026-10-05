@@ -149,6 +149,7 @@ import re
 import sys
 from typing import Callable
 
+from pdlc.domain.records import pull_request_label
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import marked_comments, timeline_formatted_at
 from pdlc.domain.verification import CLOSED_STATUSES, Finding, ledger
@@ -210,7 +211,7 @@ def _task_completion_section(tasks: list[dict], pull_requests: list[dict], body:
     # merge here would deadlock against that. They are surfaced only as context
     # for choosing the cumulative review's diff base. Completion owns the merged-and-green bar.
     pending_prs = [
-        f"- #{pr['number']} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
+        f"- {pull_request_label(pr)} {pr['state']} checks: {pr['checks']}" + (" (draft)" if pr["isDraft"] else "")
         for pr in pull_requests
         if pr["state"] != "MERGED" or pr["checks"] not in ("SUCCESS", "NONE")
     ]
