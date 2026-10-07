@@ -27,7 +27,7 @@ None.
 class PromptUiJourneyReviewerTest(PromptHarness):
     def setUp(self):
         super().setUp()
-        patcher = patch("pdlc.commands.prompt.head_commit", return_value="abc1234")
+        patcher = patch("pdlc.internal.verification.head_commit", return_value="abc1234")
         patcher.start()
         self.addCleanup(patcher.stop)
 

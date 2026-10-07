@@ -16,6 +16,7 @@ from typing import Any
 
 from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.internal.trace import command_label, console_debug, record_external_call
+from pdlc.internal.workdir import working_directory
 
 # A child CLI whose stdout is a pipe encodes text with the ambient locale, so a
 # non-UTF-8 locale makes `az` write an em dash as the lone byte 0x97. `LC_ALL`
@@ -172,7 +173,7 @@ def _attempt(executable: str, args: Sequence[str], input: str | None, timeout: f
             [executable, *args[1:]],
             input=input.encode("utf-8") if input is not None else None,
             capture_output=True, timeout=timeout, check=False,
-            env={**os.environ, **_UTF8_ENV},
+            env={**os.environ, **_UTF8_ENV}, cwd=working_directory(),
         )
     except subprocess.TimeoutExpired:
         console_debug(f"{label} timed out after {time.monotonic() - started:.1f}s")

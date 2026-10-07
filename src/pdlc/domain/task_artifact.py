@@ -35,6 +35,30 @@ def _field(body: str, label: str) -> str | None:
     return match.group(1) if match else None
 
 
+_REPOSITORY = re.compile(r"[^/\s]+/[^/\s]+")
+
+
+def declared_repository(body: str) -> str | None:
+    """The `owner/name` a body's **Repository:** line names, as written, or
+    None when it has no such line (the task is the code repository's)."""
+    value = (_field(body, "Repository") or "").strip().strip("`")
+    return value or None
+
+
+def repository_errors(body: str, allowed: tuple[str, ...]) -> list[str]:
+    """Check a body's **Repository:** line against the repositories the
+    project spans (casefolded `owner/name`). One task is one repository."""
+    value = declared_repository(body)
+    if value is None:
+        return []
+    if not _REPOSITORY.fullmatch(value):
+        return [f"**Repository:** must name one repository as owner/name, not {value!r}"]
+    if value.casefold() not in allowed:
+        listed = ", ".join(name for name in allowed if name) or "none configured"
+        return [f"**Repository:** {value} is not one of the project's repositories ({listed}); add it to [code.github] repositories or drop the line for the code repository"]
+    return []
+
+
 def declared_links(body: str) -> dict[str, list[str]]:
     """The covers and depends a body declares on its labelled lines; an absent label declares nothing."""
     requirements = _field(body, "Requirements Covered")

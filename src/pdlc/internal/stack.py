@@ -6,6 +6,10 @@ its bases, its rebases, and which branches have landed. Nothing here re-derives
 any of that; these helpers only translate PDLC identities (task ids, registered
 pull requests, a `pdlc prepare --after` predecessor) into the arguments
 `gh stack` expects.
+
+A work item has one stack per repository its tasks name: a task stacks only on
+earlier tasks of its own repository, and its `gh stack` calls run in that
+repository's folder (see `internal.repositories`).
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from pdlc.internal.workitem import (
     tasks_by_number,
     workflow_for_item,
 )
+from pdlc.internal.repositories import in_repository, is_code_repository, task_repository
 from pdlc.internal.vcs import contains_commit
 from pdlc.internal.worktree import worktree_after
 
@@ -38,27 +43,30 @@ def task_branch_name(slug: str, task_id: str) -> str:
     return f"pdlc/{slug}/{task_id.lower()}"
 
 
-def latest_implemented_task(delivery_tasks: list[dict], before: int | None = None) -> dict | None:
+def latest_implemented_task(
+    delivery_tasks: list[dict], before: int | None = None, repository: str | None = None,
+) -> dict | None:
     """The highest-numbered delivery task with an implementation and a
     registered pull request, optionally only among tasks numbered below
-    ``before``. Read from the explicit PR registry — never from a branch name or
-    a remote branch listing."""
+    ``before`` and only among ``repository``'s tasks. Read from the explicit PR
+    registry — never from a branch name or a remote branch listing."""
     candidates = [
         task
         for task in delivery_tasks
         if task.get("taskId")
         and (before is None or task["number"] < before)
+        and (repository is None or task_repository(task) == repository)
         and task.get("hasImplementation")
         and task.get("prs")
     ]
     return max(candidates, key=lambda task: task["number"]) if candidates else None
 
 
-def stack_pr(refs: list[PullRef]) -> int | None:
-    """The highest-numbered of ``refs`` in the configured code repository, as
-    the number `gh stack` takes, or None when there is none. `gh stack` acts on
-    the current checkout only, so a PR in another repository never enters it."""
-    local = [ref.number for ref in refs if ref.repository == get_config().pull_request_repository()]
+def stack_pr(refs: list[PullRef], repository: str) -> int | None:
+    """The highest-numbered of ``refs`` in ``repository``, as the number `gh
+    stack` takes, or None when there is none. `gh stack` acts on one
+    repository's checkout, so a PR in another repository never enters it."""
+    local = [ref.number for ref in refs if ref.repository == repository]
     return max(local) if local else None
 
 
@@ -68,23 +76,30 @@ def stack_entry_pr(delivery_tasks: list[dict], chosen: dict) -> int | None:
     the work item's first task, which the code host puts on the current
     branch's stack or a new one.
 
-    This is the highest-numbered already-implemented task before ``chosen``.
-    `gh stack checkout <pr>` discovers the rest of the stack from GitHub itself,
-    so one registered number is enough even on a fresh clone.
+    This is the highest-numbered already-implemented task before ``chosen`` in
+    ``chosen``'s repository. `gh stack checkout <pr>` discovers the rest of the
+    stack from GitHub itself, so one registered number is enough even on a
+    fresh clone.
     """
-    latest = latest_implemented_task(delivery_tasks, before=chosen["number"])
-    return stack_pr(latest["prs"]) if latest else None
+    repository = task_repository(chosen)
+    latest = latest_implemented_task(delivery_tasks, before=chosen["number"], repository=repository)
+    return stack_pr(latest["prs"], repository) if latest else None
 
 
 def stack_gaps(pull_requests: list[dict]) -> list[str]:
-    """Open task PRs whose head commit HEAD does not include — a lower branch
-    checked out, or a fix not yet restacked. Merged PRs are skipped: a squash
-    merge rewrites their commits, so their code arrives through the base."""
-    return [
-        f"{pull_request_label(pr)} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}"
-        for pr in pull_requests
-        if pr.get("state") == "OPEN" and pr.get("headSha") and not contains_commit(pr["headSha"])
-    ]
+    """Open task PRs whose head commit their repository's HEAD does not
+    include — a lower branch checked out, or a fix not yet restacked. Merged
+    PRs are skipped: a squash merge rewrites their commits, so their code
+    arrives through the base."""
+    gaps = []
+    for pr in pull_requests:
+        if pr.get("state") != "OPEN" or not pr.get("headSha"):
+            continue
+        with in_repository(pr.get("repository") or ""):
+            if contains_commit(pr["headSha"]):
+                continue
+        gaps.append(f"{pull_request_label(pr)} ({pr.get('branch') or 'unknown branch'}) @ {pr['headSha'][:12]}")
+    return gaps
 
 
 @dataclass(frozen=True)
@@ -106,10 +121,13 @@ def resolve_predecessor(ref: str) -> Predecessor:
     pipeline, state = workflow_for_item(item)
     if state.stage == pipeline.terminal_stage and state.lifecycle == Lifecycle.COMPLETED:
         return Predecessor(ref, True, None, None)
-    latest = latest_implemented_task(task_tree(ref))
+    # Only the code repository's tasks: the worktree being prepared is a checkout of it.
+    repository = get_config().pull_request_repository()
+    latest = latest_implemented_task(task_tree(ref), repository=repository)
     if latest is None:
         return Predecessor(ref, False, None, None)
-    return Predecessor(ref, False, task_branch_name(item_branch_slug(item), latest["taskId"]), stack_pr(latest["prs"]))
+    branch = task_branch_name(item_branch_slug(item), latest["taskId"])
+    return Predecessor(ref, False, branch, stack_pr(latest["prs"], repository))
 
 
 @dataclass(frozen=True)
@@ -119,9 +137,11 @@ class TaskCheckout:
     ``pr`` is the task's own registered pull request, ``entry_pr`` the previous
     implemented task's, and ``predecessor`` the `pdlc prepare --after` work item
     this task's worktree already sits on — in which case the branch is the
-    current one and there is nothing to check out."""
+    current one and there is nothing to check out. ``repository`` is the
+    task's, whose folder every checkout call runs in."""
 
     task: dict
+    repository: str
     branch: str
     pr: int | None
     entry_pr: int | None
@@ -163,10 +183,12 @@ def resolve_task_checkout(ref: str) -> TaskCheckout:
         raise PdlcError(f"work item {parent} has no delivery task {task_id}")
 
     prs = chosen.get("prs") or []
+    repository = task_repository(chosen)
     return TaskCheckout(
         task=chosen,
+        repository=repository,
         branch=task_branch_name(item_branch_slug(item), task_id),
-        pr=stack_pr(prs),
+        pr=stack_pr(prs, repository),
         entry_pr=stack_entry_pr(delivery, chosen),
         predecessor=after_predecessor(delivery, chosen),
     )
@@ -181,8 +203,9 @@ def after_predecessor(delivery_tasks: list[dict], chosen: dict) -> Predecessor |
     A predecessor whose branch may live in another, still-active worktree
     cannot be `gh stack checkout`-ed here, so callers route this case to
     `CodeHost.link_task_stack` instead of the ordinary checkout/add or
-    sync/submit calls."""
-    if stack_entry_pr(delivery_tasks, chosen) is not None:
+    sync/submit calls. A worktree is a checkout of the code repository, so a
+    task in another repository never has one."""
+    if not is_code_repository(task_repository(chosen)) or stack_entry_pr(delivery_tasks, chosen) is not None:
         return None
     after = worktree_after()
     return resolve_predecessor(after) if after else None

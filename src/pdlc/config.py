@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import tomllib
+import dataclasses
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
@@ -42,6 +43,8 @@ CONFIG_FIELDS = {
     ("code", "pr_attachment"): "pr_attachment",
     ("code", "pr_title_format"): "pr_title_format",
     ("code.github", "repository"): "code_repository",
+    ("code.github", "repositories"): "code_repositories",
+    ("code.github", "checkouts"): "code_checkouts",
     ("attachments", "provider"): "attachments_provider",
     ("runtime", "home"): "home",
     ("runtime", "actor"): "actor",
@@ -68,6 +71,11 @@ _INT_FIELDS = {
     "max_delay_seconds": 0,
 }
 _BOOL_FIELDS = ("no_sleep", "debug")
+# Non-scalar settings: `[code.github] repositories` is a list of `owner/name`,
+# and the home-only `[code.github.checkouts]` table maps `owner/name` to a path.
+_LIST_FIELDS = ("code_repositories",)
+_TABLE_FIELDS = ("code_checkouts",)
+_REPOSITORY_NAME = re.compile(r"[^/\s]+/[^/\s]+")
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
 # should route each seam to. They live in their own `config.toml` tables so a
@@ -102,6 +110,31 @@ def default_code_provider(tracker: str) -> str:
     return tracker if tracker in ("github", "file") else "none"
 
 
+def _repository_names(value: object, where: str) -> tuple[str, ...]:
+    """`[code.github] repositories` as casefolded `owner/name` entries."""
+    if not isinstance(value, (list, tuple)) or not all(
+        isinstance(entry, str) and _REPOSITORY_NAME.fullmatch(entry) for entry in value
+    ):
+        raise ConfigurationError(f"[{where}] must be a list of owner/name strings")
+    return tuple(dict.fromkeys(entry.casefold() for entry in value))
+
+
+def _checkout_paths(value: object, where: str) -> dict[str, str]:
+    """`[code.github.checkouts]` as casefolded `owner/name` -> local path."""
+    if not isinstance(value, dict):
+        raise ConfigurationError(f"[{where}] must be a table of owner/name = path")
+    paths: dict[str, str] = {}
+    for name, path in value.items():
+        if not _REPOSITORY_NAME.fullmatch(name):
+            raise ConfigurationError(f"[{where}] key must be owner/name: {name!r}")
+        if not isinstance(path, str) or not path.strip():
+            raise ConfigurationError(f"[{where}] {name} must be a non-empty path")
+        if not Path(path.strip()).expanduser().is_absolute():
+            raise ConfigurationError(f"[{where}] {name} must be an absolute path (or start with ~): {path!r}")
+        paths[name.casefold()] = path.strip()
+    return paths
+
+
 @dataclass(frozen=True)
 class Config:
     # Where work items live (`[tracker.github] repository`) and where pull
@@ -110,6 +143,11 @@ class Config:
     # and the code repository then to the tracker repository.
     tracker_repository: str | None = None
     code_repository: str | None = None
+    # Every repository the project's delivery tasks may name, casefolded; empty
+    # means only the code repository. `code_checkouts` (home-only) maps such a
+    # repository to the local clone its tasks are worked in.
+    code_repositories: tuple[str, ...] = ()
+    code_checkouts: dict[str, str] = dataclasses.field(default_factory=dict)
     project_number: str | None = None
     project_owner: str | None = None
     github_assigned_to: str | None = None
@@ -207,8 +245,12 @@ class Config:
                     f"[{FIELD_LOCATIONS[name]}] must be a boolean"
                 )
             data[name] = text in {"true", "1"}
+        if "code_repositories" in data:
+            data["code_repositories"] = _repository_names(data["code_repositories"], FIELD_LOCATIONS["code_repositories"])
+        if "code_checkouts" in data:
+            data["code_checkouts"] = _checkout_paths(data["code_checkouts"], FIELD_LOCATIONS["code_checkouts"])
         for name, value in list(data.items()):
-            if name not in _INT_FIELDS and name not in _BOOL_FIELDS:
+            if name not in (*_INT_FIELDS, *_BOOL_FIELDS, *_LIST_FIELDS, *_TABLE_FIELDS):
                 data[name] = str(value)
         if "cache_root" in data and not str(data["cache_root"]).strip():
             raise ConfigurationError("[cache.root] must be a directory or a named default")
@@ -262,6 +304,11 @@ class Config:
         code = self.code_provider or default_code_provider(self.tracker_provider or "github")
         return (self.code_repository or "").casefold() if code == "github" else ""
 
+    def project_repositories(self) -> tuple[str, ...]:
+        """Every repository a delivery task may name: the code repository (or
+        "" without one) followed by any other `[code.github] repositories`."""
+        return tuple(dict.fromkeys((self.pull_request_repository(), *self.code_repositories)))
+
 
 @dataclass(frozen=True)
 class Capabilities:
@@ -272,10 +319,33 @@ class Capabilities:
 
     agents: dict[str, str]
     skills: dict[str, str]
+    # Per-repository layers, keyed by casefolded `owner/name`, from the
+    # `[repository."owner/name".agents]` / `.skills` tables of either file.
+    repositories: dict[str, "Capabilities"] = dataclasses.field(default_factory=dict)
 
     @classmethod
     def empty(cls) -> "Capabilities":
         return cls(agents={}, skills={})
+
+    def merged(self, other: "Capabilities") -> "Capabilities":
+        """``other`` layered over this, slot by slot and repository by repository."""
+        repositories = dict(self.repositories)
+        for name, layer in other.repositories.items():
+            repositories[name] = repositories[name].merged(layer) if name in repositories else layer
+        return Capabilities(
+            agents={**self.agents, **other.agents},
+            skills={**self.skills, **other.skills},
+            repositories=repositories,
+        )
+
+    def for_repository(self, repository: str | None) -> "Capabilities":
+        """The routing for work in ``repository``: its own layer's slots
+        override the project-wide ones; any repository without a layer, or
+        None, gets the project-wide routing unchanged."""
+        layer = self.repositories.get((repository or "").casefold())
+        if layer is None:
+            return self
+        return Capabilities(agents={**self.agents, **layer.agents}, skills={**self.skills, **layer.skills})
 
     def agent(self, slot: str) -> str:
         """The sub-agent to dispatch this slot to; ``general-purpose`` if unset."""
@@ -314,8 +384,46 @@ def repository_root(start: Path | None = None) -> Path:
     raise ConfigurationError(configuration_guidance([]))
 
 
+def project_root(start: Path | None = None) -> Path:
+    """The directory whose ``.pdlc/config.toml`` configures ``start``.
+
+    Normally the Git repository root. Above it, an ancestor holding that file
+    still wins when it is not itself a Git repository and its file sets
+    `[code.github] repositories`, so a command run inside one repository of a
+    multi-repository folder reads the folder's shared config, while a worktree
+    nested inside another checkout, or a stray unrelated file, is never picked
+    up. The home directory never counts (its file is the machine-wide layer)."""
+    current = (start or Path.cwd()).resolve()
+    if current.is_file():
+        current = current.parent
+    home = Path.home().resolve()
+    inside_repository = False
+    for candidate in (current, *current.parents):
+        is_repository = (candidate / ".git").exists()
+        configured = candidate != home and (candidate / ".pdlc" / "config.toml").is_file()
+        if configured and not inside_repository:
+            return candidate
+        if configured and not is_repository and _shares_repositories(candidate / ".pdlc" / "config.toml"):
+            return candidate
+        inside_repository = inside_repository or is_repository
+    return repository_root(start)
+
+
+def _shares_repositories(path: Path) -> bool:
+    """Whether a config file above a Git root is a multi-repository folder's
+    shared file: it sets `[code.github] repositories`. An unreadable file
+    counts, so its error surfaces instead of being silently skipped."""
+    try:
+        values = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return True
+    code = values.get("code")
+    github = code.get("github") if isinstance(code, dict) else None
+    return isinstance(github, dict) and "repositories" in github
+
+
 def config_path(start: Path | None = None) -> Path:
-    return repository_root(start) / ".pdlc" / "config.toml"
+    return project_root(start) / ".pdlc" / "config.toml"
 
 
 def git_remote_repository(root: Path) -> str | None:
@@ -373,8 +481,11 @@ def _read_file(
 ) -> tuple[dict[str, object], Capabilities]:
     """Read one layer; diagnostics collect errors while normal loading refuses them.
 
-    Repository sections are home-only and reuse the ordinary settings schema.
-    Validate every section, but merge only the checkout's matching section.
+    In the home file, repository sections reuse the ordinary settings schema:
+    validate every section, but merge only the checkout's matching section's
+    settings. In either file a section's `[agents]` / `[skills]` tables become
+    that repository's capability layer (see `Capabilities.for_repository`); the
+    repository file allows nothing else in a section.
     """
     def fail(message: str) -> None:
         if errors is None:
@@ -399,12 +510,20 @@ def _read_file(
                 fail(f"Unknown table in {label}: [{section_name}]")
                 return
             for name, value in section_values.items():
+                field = CONFIG_FIELDS.get((section_name, name))
+                if field in _TABLE_FIELDS:
+                    if not allow_repositories:
+                        fail(f"[{section_name}.{name}] in {label} is home-only; set it in ~/.pdlc/config.toml")
+                    else:
+                        flattened[field] = value
+                    continue
                 if isinstance(value, dict):
                     visit((*section, name), value)
                     continue
-                field = CONFIG_FIELDS.get((section_name, name))
                 if field is None:
                     fail(f"Unknown setting in {label}: [{section_name}] {name}")
+                elif field in _LIST_FIELDS:
+                    flattened[field] = value
                 elif not isinstance(value, (str, int, float, bool)):
                     fail(f"Setting [{section_name}] {name} in {label} must be a TOML scalar")
                 else:
@@ -422,11 +541,12 @@ def _read_file(
                 visit((section,), table)
         return flattened, Capabilities(agents=capabilities["agents"], skills=capabilities["skills"])
 
-    defaults = {key: value for key, value in values.items() if not (allow_repositories and key == "repository")}
+    defaults = {key: value for key, value in values.items() if key != "repository"}
     flattened, caps = parse(defaults, str(path))
     if sources is not None:
         sources.update({field: str(path) for field in flattened})
-    if allow_repositories and "repository" in values:
+    repository_layers: dict[str, Capabilities] = {}
+    if "repository" in values:
         repositories = values["repository"]
         if not isinstance(repositories, dict):
             fail(f"[repository] in {path} must be a TOML table")
@@ -444,20 +564,24 @@ def _read_file(
                 if not isinstance(document, dict):
                     fail(f"{label} must be a TOML table")
                     continue
+                if not allow_repositories:
+                    settings = [key for key in document if key not in CAPABILITY_SLOTS]
+                    if settings:
+                        fail(f"{label} may hold only [agents] and [skills] tables; repository settings are home-only")
+                        continue
                 scoped, scoped_caps = parse(document, label)
+                if scoped_caps.agents or scoped_caps.skills:
+                    repository_layers[name.casefold()] = scoped_caps
                 try:
                     Config.from_values(scoped)
                 except ConfigurationError as error:
                     fail(f"{label}: {error}")
-                if repository is not None and name.casefold() == repository.casefold():
+                if allow_repositories and repository is not None and name.casefold() == repository.casefold():
                     flattened.update(scoped)
-                    caps = Capabilities(
-                        agents={**caps.agents, **scoped_caps.agents},
-                        skills={**caps.skills, **scoped_caps.skills},
-                    )
+                    caps = caps.merged(scoped_caps)
                     if sources is not None:
                         sources.update({field: label for field in scoped})
-    return flattened, caps
+    return flattened, Capabilities(caps.agents, caps.skills, repository_layers)
 
 
 def load_config(start: Path | None = None, *, overrides: dict[str, object] | None = None) -> Config:
@@ -508,10 +632,7 @@ def load_config(start: Path | None = None, *, overrides: dict[str, object] | Non
             merged.setdefault(field, derived)
     if not merged.get("code_repository") and merged.get("tracker_repository"):
         merged["code_repository"] = merged["tracker_repository"]
-    _capabilities = Capabilities(
-        agents={**home_caps.agents, **repo_caps.agents},
-        skills={**home_caps.skills, **repo_caps.skills},
-    )
+    _capabilities = home_caps.merged(repo_caps)
     _config = Config.from_values(merged)
     # The file backend still resolves its store from `PDLC_HOME`; bridge a
     # `[runtime] home` set only in a config file back onto the environment.
@@ -535,12 +656,13 @@ def set_config(**overrides: object) -> Config:
     return _config
 
 
-def get_capabilities() -> Capabilities:
-    """Return the project's capability routing, loading config if needed."""
+def get_capabilities(repository: str | None = None) -> Capabilities:
+    """Return the project's capability routing, loading config if needed, with
+    ``repository``'s own layer applied when one is given (a delivery task's)."""
     if _capabilities is None:
         load_config()
     assert _capabilities is not None
-    return _capabilities
+    return _capabilities.for_repository(repository)
 
 
 def get_config() -> Config:

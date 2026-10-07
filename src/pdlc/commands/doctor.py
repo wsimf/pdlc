@@ -34,6 +34,12 @@ DESCRIPTION
       Either an `az login` session or a PAT (AZURE_DEVOPS_EXT_PAT or
       `az devops login`) is enough; the project read settles which one works.
 
+    When `[code.github] repositories` lists the repositories a project spans
+    and the code provider is github, a "Code access" section probes each one
+    the same way, and every repository other than the code repository must map
+    to an existing local clone in `[code.github.checkouts]`; a missing mapping
+    or folder only warns, since only tasks in that repository need it.
+
     A missing CLI, extension, login, scope, or access fails the command. A CLI
     or extension older than the minimum version pdlc is tested with only warns.
 """
@@ -59,6 +65,7 @@ from pdlc.config import (
     default_code_provider,
     git_remote_repository,
     home_config_path,
+    config_path,
     repository_root,
 )
 from pdlc.hosts.lib.access import AccessReport
@@ -156,6 +163,27 @@ def _tracker_access(config: Config) -> AccessReport | None:
     return None
 
 
+def _code_access(config: Config) -> AccessReport | None:
+    """Probes every listed code repository and its local checkout; None
+    unless the code provider is github and `repositories` is set."""
+    tracker = config.tracker_provider or "github"
+    if (config.code_provider or default_code_provider(tracker)) != "github" or not config.code_repositories:
+        return None
+    report = github_access.check_repositories(list(config.code_repositories))
+    code = config.pull_request_repository()
+    for repository in config.code_repositories:
+        if repository == code:
+            continue
+        configured = config.code_checkouts.get(repository)
+        if not configured:
+            report.warnings.append(f"{repository} has no local checkout in [code.github.checkouts]; its tasks cannot be worked")
+        elif not Path(configured).expanduser().is_dir():
+            report.warnings.append(f"the [code.github.checkouts] folder for {repository} does not exist: {configured}")
+        else:
+            report.facts.append(f"checkout: {repository} at {Path(configured).expanduser()}")
+    return report
+
+
 def _source(field: str, sources: dict[str, str]) -> str:
     return sources.get(field, "default")
 
@@ -170,7 +198,10 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     home_sources: dict[str, str] = {}
     try:
         root = repository_root()
-        repo_path = root / ".pdlc" / "config.toml"
+        try:
+            repo_path = config_path(root)
+        except ConfigurationError:
+            repo_path = root / ".pdlc" / "config.toml"
     except ConfigurationError:
         root = None
         repo_path = None
@@ -211,6 +242,7 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     config = Config.from_values(typed)
     unparsable = [str(path) for path, status in ((home_path, home_status), (repo_path, repo_status)) if status == "unparsable"]
     access = None
+    code_access = None
     if unparsable:
         # Validating against defaults would report misleading failures for settings the file may hold.
         warnings.extend(
@@ -220,9 +252,13 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     else:
         warnings.extend(_validate(config, errors, derived))
         access = _tracker_access(config)
+        code_access = _code_access(config)
     if access is not None:
         warnings.extend(access.warnings)
         errors.extend(access.errors)
+    if code_access is not None:
+        warnings.extend(code_access.warnings)
+        errors.extend(code_access.errors)
     lines = ["# PDLC doctor", "", f"Working directory: {Path.cwd()}", f"Repository root: {root or '(not found)' }", "", "## Config files", "", f"- ~/.pdlc/config.toml: {home_status} ({home_path})", f"- repo .pdlc/config.toml: {repo_status} ({repo_path or 'not found'})", "", "## Effective values", ""]
     for field in fields(Config):
         value = getattr(config, field.name)
@@ -231,6 +267,9 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     if access is not None:
         lines += ["", "## Tracker access", ""]
         lines.extend(f"- {fact}" for fact in access.facts)
+    if code_access is not None:
+        lines += ["", "## Code access", ""]
+        lines.extend(f"- {fact}" for fact in code_access.facts)
     lines += ["", "## Warnings", ""]
     lines.extend(f"- WARNING: {warning}" for warning in warnings)
     if not warnings:

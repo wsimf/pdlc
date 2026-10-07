@@ -575,7 +575,8 @@ class RecoveryLandingGateTest(FileBackendTest):
     def test_post_implement_and_post_test_name_the_gate_they_land(self) -> None:
         self.seed_record(94, "Implementation", "Pending")
         with mock.patch("pdlc.commands.post_implement.get_code_host"), \
-                mock.patch("pdlc.commands.post_implement.check_out"):
+                mock.patch("pdlc.commands.post_implement.check_out"), \
+                mock.patch("pdlc.commands.post_implement.working_tree_dirty", return_value=False):
             self.land("post_implement", 94, self.evidence_file())
         self.seed_record(95, "Testing", "Pending")
         host = mock.Mock()

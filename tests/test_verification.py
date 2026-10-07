@@ -73,7 +73,7 @@ class VerificationTests(FileBackendTest):
     def test_refused_when_head_is_not_what_was_checked(self):
         self.seed_record(73, "Verification", "Pending")
         report = self.verify_report(73)
-        with mock.patch("pdlc.commands.post_verify.has_tracked_changes", return_value=True):
+        with mock.patch("pdlc.internal.verification.has_tracked_changes", return_value=True):
             dirty = self.invoke("post_verify", 73, report)
         self.assertEqual(dirty.code, 1)
         self.assertIn("tracked files differ from HEAD", dirty.stderr)

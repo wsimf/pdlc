@@ -183,13 +183,16 @@ Stack-specific failures are not transient and keep their own handling (`pdlc gui
 Writes:
 1. Stack restack and `gh stack submit --auto`, as above.
 2. Local `git checkout` of the top task branch.
+   When implemented tasks name several repositories, steps 1–2 repeat per repository, each in that repository's folder (code repository first).
 3. `gh pr ready` on every open registered PR.
 4. `PDLC-IMPLEMENTATION` comment.
 5. `set_state` → Implementation / Review Required.
 
 Check: `pdlc inspect N` — gate is Review Required; `pdlc inspect timeline N` — newest `PDLC-IMPLEMENTATION` is this evidence.
 
-Re-run: safe through step 3 (all idempotent). After 4, a re-run posts a second `PDLC-IMPLEMENTATION`.
+Before step 1, every repository's folder is resolved and, where a top task will be checked out, its tree checked clean, so a missing checkout or dirty tree fails before any stack is pushed.
+
+Re-run: safe through step 3 (all idempotent). A failure in one repository's submit leaves the repositories before it submitted and checked out; a re-run submits them again unchanged. After 4, a re-run posts a second `PDLC-IMPLEMENTATION`.
 
 ### `pdlc post test`
 

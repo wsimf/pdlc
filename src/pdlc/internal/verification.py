@@ -20,12 +20,17 @@ from pdlc.domain.verification import (
     Report,
     Row,
     VerifyContext,
+    format_heads,
     ledger,
     parse,
+    parse_heads,
+    short_heads,
     stale_rows,
 )
+from pdlc.config import get_config
 from pdlc.hosts.code_host import get_code_host
-from pdlc.internal.vcs import changed_files
+from pdlc.internal.repositories import in_repository, task_repository
+from pdlc.internal.vcs import changed_files, has_tracked_changes, head_commit
 from pdlc.internal.workitem import read_section, verification_evidence_comments
 
 _JOURNEY_HEADING = re.compile(r"^#{1,6}\s*(UJ-\d+)\b")
@@ -39,6 +44,56 @@ def task_key(task: dict) -> str:
 def claim_tasks(tasks: list[dict]) -> list[dict]:
     """Delivery tasks whose claims a report must audit: every closed task."""
     return [task for task in tasks if task["state"] == "CLOSED"]
+
+
+def claim_repositories(tasks: list[dict]) -> list[str]:
+    """Every repository a closed task belongs to; the code repository alone
+    when none is closed yet."""
+    code = get_config().pull_request_repository()
+    return sorted({task_repository(task) for task in claim_tasks(tasks)} or {code})
+
+
+def _spec_key(repository: str) -> str:
+    """A repository's key in a HEAD spec: "" for the code repository."""
+    return "" if repository == get_config().pull_request_repository() else repository
+
+
+def current_heads(tasks: list[dict]) -> str:
+    """The HEAD spec a verification of ``tasks`` runs at: each claim
+    repository's HEAD, read in its own folder. One repository's is its bare SHA."""
+    heads = {}
+    for repository in claim_repositories(tasks):
+        with in_repository(repository):
+            heads[_spec_key(repository)] = head_commit()
+    return format_heads(heads)
+
+
+def dirty_repositories(tasks: list[dict]) -> list[str]:
+    """Claim repositories whose tracked files differ from their HEAD."""
+    dirty = []
+    for repository in claim_repositories(tasks):
+        with in_repository(repository):
+            if has_tracked_changes():
+                dirty.append(repository)
+    return dirty
+
+
+def changed_since(spec: str, tasks: list[dict]) -> set[str] | None:
+    """Every `repository:path` that differs between a report's HEAD spec and
+    each repository's HEAD now; None when a HEAD cannot be read or a claim
+    repository has no HEAD in the spec (everything is stale)."""
+    code = get_config().pull_request_repository()
+    heads = {repository or code: sha for repository, sha in parse_heads(spec).items()}
+    if any(repository not in heads for repository in claim_repositories(tasks)):
+        return None
+    changed: set[str] = set()
+    for repository, sha in heads.items():
+        with in_repository(repository):
+            files = changed_files(sha)
+        if files is None:
+            return None
+        changed.update(f"{repository}:{path}" for path in files)
+    return changed
 
 
 def ui_journeys(body: str) -> dict[str, str]:
@@ -86,8 +141,9 @@ def context(
 
 
 def task_files(tasks: list[dict]) -> dict[str, set[str] | None]:
-    """Every closed task's PR files off the code host; None when a task has no
-    registered PR, so its evidence is never treated as still holding."""
+    """Every closed task's PR files off the code host, as `repository:path` in
+    the task's own repository; None when a task has no registered PR, so its
+    evidence is never treated as still holding."""
     host = get_code_host()
     cache: dict[PullRef, list[str]] = {}
     files: dict[str, set[str] | None] = {}
@@ -97,10 +153,11 @@ def task_files(tasks: list[dict]) -> dict[str, set[str] | None]:
             files[task_key(task)] = None
             continue
         found: set[str] = set()
+        repository = task_repository(task)
         for ref in refs:
             if ref not in cache:
                 cache[ref] = host.pull_request_files(ref)
-            found.update(cache[ref])
+            found.update(f"{repository}:{path}" for path in cache[ref])
         files[task_key(task)] = found
     return files
 
@@ -108,7 +165,7 @@ def task_files(tasks: list[dict]) -> dict[str, set[str] | None]:
 def stale(report: Report, tasks: list[dict]) -> set[tuple[str, str]]:
     """Rows of `report` that no longer hold against HEAD."""
     ui_tasks = {task_key(task) for task in claim_tasks(tasks) if task.get("isUI")}
-    return stale_rows(report, changed_files(report.head), task_files(tasks), ui_tasks)
+    return stale_rows(report, changed_since(report.head, tasks), task_files(tasks), ui_tasks)
 
 
 def reusable(all_reports: list[Report], tasks: list[dict]) -> dict[tuple[str, str], tuple[Row, str]]:
@@ -126,7 +183,7 @@ def reusable(all_reports: list[Report], tasks: list[dict]) -> dict[tuple[str, st
     closed: set[tuple[str, str]] = set()
     for report in reversed(all_reports):
         if report.head not in stale_at:
-            stale_at[report.head] = stale_rows(report, changed_files(report.head), files, ui_tasks)
+            stale_at[report.head] = stale_rows(report, changed_since(report.head, tasks), files, ui_tasks)
         for section, row in report.rows():
             key = (section, row.key)
             # not_applicable is recomputed from the tasks on every pass.
@@ -156,7 +213,7 @@ def skeleton(
         carried = reuse.get((section, key))
         entry: dict[str, Any] = {id_field: key, **extra} if id_field else dict(extra)
         if carried:
-            entry.update(reuse=f"valid — checked at {carried[1][:12]}", result=carried[0].result, note=carried[0].note)
+            entry.update(reuse=f"valid — checked at {short_heads(carried[1])}", result=carried[0].result, note=carried[0].note)
         else:
             entry.update(reuse="check", result=None, note="")
         return entry

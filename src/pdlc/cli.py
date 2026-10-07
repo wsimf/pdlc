@@ -100,7 +100,7 @@ def _usage() -> str:
         "  inspect test WI             whether testing is due; testable scope and files the PRs touched\n"
         "  inspect verify WI           verification readiness, open findings, and a pre-filled report\n"
         "  inspect complete WI         completion readiness: open tasks, unmerged/red PRs, open questions\n"
-        "  inspect capability [SLOT] [--name]  resolve the project's agent/skill routing for a seam\n"
+        "  inspect capability [SLOT] [--name] [--repository OWNER/NAME]  resolve the project's agent/skill routing for a seam\n"
         "  prompt                      index of the sub-agent briefs for the record's next unit\n"
         "  prompt task-implementer WI [--findings FILE]  the brief for the sub-agent that writes that unit's code\n"
         "  prompt task-reviewer WI --commits REVISIONS  the brief for the reviewer of one dispatch's commits\n"

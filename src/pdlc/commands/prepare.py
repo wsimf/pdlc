@@ -37,6 +37,12 @@ config (`pdlc.after`, enabling `extensions.worktreeConfig` the first time), and
 `pdlc inspect implement` run in the worktree stacks the first task onto the
 predecessor's latest pull request. The record is local only; re-running with
 `--after` on an existing worktree updates it without moving the branch.
+`--after` is refused when `[code.github] repositories` lists more than one
+repository: stacking across work items is single-repository only.
+
+The worktree is a checkout of the code repository, so only tasks in that
+repository count toward the stack it restores; a task naming another
+repository is worked in that repository's own checkout.
 
 Config (`[worktree]` table, merged from home defaults, the matching home
 `[repository."owner/name".worktree]` section, then .pdlc/config.toml):
@@ -64,6 +70,7 @@ from pdlc.commands.checkout import checkout
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.code_host import get_code_host
 from pdlc.internal.inputs import print_help
+from pdlc.internal.repositories import is_code_repository, task_repository
 from pdlc.internal.stack import resolve_predecessor
 from pdlc.internal.workitem import task_tree
 from pdlc.internal.worktree import (
@@ -113,6 +120,8 @@ def _parse(argv: list[str]) -> tuple[str, str | None, str | None, bool]:
         raise PdlcError("usage: pdlc prepare WORKITEM [--from REF | --after WORKITEM] [--yes]")
     if from_ref and after:
         raise PdlcError("--from and --after cannot be combined")
+    if after and len(get_config().project_repositories()) > 1:
+        raise PdlcError("--after is not supported when [code.github] repositories lists more than one repository")
     return workitem, from_ref, after, assume_yes
 
 
@@ -155,7 +164,10 @@ def _resume_task(workitem: str) -> str | None:
     """The highest task whose current registered PR is open, if any."""
     if not workitem.isdecimal():
         return None
-    tasks = [task for task in task_tree(workitem) if task.get("taskId") and task.get("prs")]
+    tasks = [
+        task for task in task_tree(workitem)
+        if task.get("taskId") and task.get("prs") and is_code_repository(task_repository(task))
+    ]
     refs = sorted({ref for task in tasks for ref in task["prs"]})
     if not refs:
         return None

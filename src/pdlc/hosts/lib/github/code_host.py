@@ -15,7 +15,8 @@ code repository, not N.
 
 Every call addressing a registered PR takes its `PullRef` and targets that
 PR's own repository, so a record shared by several code repositories reads
-each PR where it lives. The `gh stack` calls act on the current checkout only.
+each PR where it lives. The `gh stack` calls act on the folder subprocesses
+run in (`internal.workdir`): a task's own repository's checkout.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ from pdlc.hosts.lib.github.transport import (
 from pdlc.hosts.lib.process import run_process
 from pdlc.domain.lifecycle import PdlcError, TransientError
 from pdlc.internal.trace import console_debug
+from pdlc.internal.workdir import working_repository
 
 # Every review thread on the pull request, oldest first, with only its root
 # comment — later replies aren't fetched, since the thread's own `isResolved`
@@ -460,7 +462,8 @@ class GitHubCodeHost(CodeHost):
     @staticmethod
     def stack_pr_refs() -> list[PullRef]:
         """The pull requests in the current local stack, bottom-to-top, as
-        `gh stack view --json` reports them, in the configured code repository.
+        `gh stack view --json` reports them, in the repository subprocesses run
+        against (the configured code repository by default).
 
         Only `branches[].pr.number` is read from that payload — `pr` is absent
         for a branch with no pull request yet. Every other PR field comes from
@@ -468,7 +471,7 @@ class GitHubCodeHost(CodeHost):
         this stays insensitive to the rest of the extension's JSON.
         """
         data = run_gh_json(["stack", "view", "--json"])
-        repository = get_config().pull_request_repository()
+        repository = working_repository() or get_config().pull_request_repository()
         return [
             PullRef(int(branch["pr"]["number"]), repository)
             for branch in (data.get("branches") or [])

@@ -146,7 +146,8 @@ from pdlc.domain.model import (
     timeline_formatted_at,
 )
 from pdlc.internal.inputs import load_json_array, print_help, require_file, resolve_text, wants_help
-from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files, uncommitted_changes
+from pdlc.internal.repositories import in_task_repository, is_code_repository, repository_path, task_repository
+from pdlc.internal.vcs import diff_stat, diff_text, touched_files, uncommitted_changes
 from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
@@ -163,7 +164,7 @@ from pdlc.internal.workitem import (
 )
 from pdlc.commands.inspect_verify import _readiness as _verify_readiness
 from pdlc.commands.inspect_verify import _stale_rows as _verify_stale_rows
-from pdlc.internal.verification import ledger, reports as verify_reports, reusable, skeleton, ui_journeys
+from pdlc.internal.verification import current_heads, ledger, reports as verify_reports, reusable, skeleton, ui_journeys
 from pdlc.prompts.assemble import render
 from pdlc.prompts.context import (
     FR_C_PATTERN,
@@ -228,12 +229,18 @@ def _owner_repo(repository: str = "") -> tuple[str, str]:
 
 
 def _task_context(task: dict) -> dict[str, object]:
-    """The task identity every implementer brief opens with."""
+    """The task identity every implementer brief opens with. A task in another
+    repository than the code repository also names that repository and the
+    folder it is worked in; a code-repository task names neither."""
+    repository = task_repository(task)
+    elsewhere = not is_code_repository(repository)
     return {
         "TASK_TAG": task_tag(task),
         "TASK_TITLE": task_headline(task),
         "TASK_BODY": (task.get("body") or "").strip(),
         "TECHNICAL_PLAN": plan_body(task),
+        "REPOSITORY": repository if elsewhere else "",
+        "REPOSITORY_PATH": str(repository_path(repository)) if elsewhere else "",
     }
 
 
@@ -297,7 +304,7 @@ def _implement_context(
         "FINDINGS": findings,
         "FINDINGS_TEXT": findings,
         "UPSTREAM_CHANGES": _upstream_text(item, comments, "Implementation"),
-        "BUILD_RUN_SKILL": get_capabilities().skill("build-run") or "",
+        "BUILD_RUN_SKILL": get_capabilities(task_repository(chosen)).skill("build-run") or "",
         # Mockups and screenshots inform the UI; a CORE task goes without them.
         "ATTACHMENTS": attachments_list(attachments_for_item(item)) if chosen.get("isUI") else "",
     }
@@ -429,7 +436,7 @@ def _test_brief(
         {
             "EXECUTION_SCOPE": "this one task",
             **_task_context(unit.task),
-            **_capability_lines(),
+            **_capability_lines(task_repository(unit.task)),
             "TRACEABILITY_MAP": traceability,
             "IN_SCOPE_SOURCE": "\n".join(f"- {name}" for name in files) or "none",
             "WHAT_CHANGED": changed,
@@ -459,7 +466,9 @@ def implementer_brief(work_item: str, findings: str | None = None) -> str:
                 "brief was written. Continue with the skill's next step."
             )
         review = parsed.implementation
-    return _implementer_brief(_resolve(work_item), review)
+    unit = _resolve(work_item)
+    with in_task_repository(unit.task):
+        return _implementer_brief(unit, review)
 
 
 def reviewer_brief(work_item: str, commits: str) -> str:
@@ -468,7 +477,8 @@ def reviewer_brief(work_item: str, commits: str) -> str:
     unit = _resolve(work_item)
     outline = render("templates/implement-review-findings", {"TASK_TAG": task_tag(unit.task)})
     path = replace_cache_file(findings_path(work_item, IMPLEMENTATION_STAGE), outline)
-    return _review_brief(unit, commits, str(path))
+    with in_task_repository(unit.task):
+        return _review_brief(unit, commits, str(path))
 
 
 _NO_CODE_CHANGE = "No production code changed on this pass."
@@ -481,21 +491,24 @@ def test_writer_brief(
     reviewer's findings when a review sent the unit back."""
     if not report and not findings:
         raise PdlcError("--report is required unless --findings is given")
-    return _test_brief(
-        _resolve(work_item),
-        commits,
-        resolve_text(report, label="--report") if report else _NO_CODE_CHANGE,
-        resolve_text(traceability, label="--traceability"),
-        _implement_findings(findings) if findings else None,
-        changed_code=bool(report),
-    )
+    unit = _resolve(work_item)
+    with in_task_repository(unit.task):
+        return _test_brief(
+            unit,
+            commits,
+            resolve_text(report, label="--report") if report else _NO_CODE_CHANGE,
+            resolve_text(traceability, label="--traceability"),
+            _implement_findings(findings) if findings else None,
+            changed_code=bool(report),
+        )
 
 
-def _capability_lines() -> dict[str, object]:
-    """The test-authoring line, and the test-framework line when one is routed."""
+def _capability_lines(repository: str | None = None) -> dict[str, object]:
+    """The test-authoring line, and the test-framework line when one is routed,
+    with ``repository``'s own capability layer applied when one is given."""
     return {
-        "TEST_AUTHORING": capability_line("test-authoring"),
-        "TEST_FRAMEWORK": capability_name("test-framework") and capability_line("test-framework"),
+        "TEST_AUTHORING": capability_line("test-authoring", repository),
+        "TEST_FRAMEWORK": capability_name("test-framework", repository) and capability_line("test-framework", repository),
     }
 
 
@@ -1241,7 +1254,7 @@ def _verify_journeys(work_item: str) -> tuple[list[str], bool]:
     open_comments = record_open_review_comments(work_item, record=item, tasks=tasks)
     all_reports, _ = verify_reports(work_item, comments)
     known = ledger(all_reports)
-    report = skeleton(work_item, head_commit(), tasks, body, open_comments, known, reusable(all_reports, tasks))
+    report = skeleton(work_item, current_heads(tasks), tasks, body, open_comments, known, reusable(all_reports, tasks))
 
     if report["journeys"] is None:
         raise PdlcError("no UI tasks on this record — the user-journey reviewer has nothing to check")

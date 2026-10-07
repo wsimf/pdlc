@@ -95,7 +95,9 @@ The recommendation is derived, never supplied, and sets the gate:
 Every problem in the report is refused together, before anything is posted.
 The command also refuses while tracked files differ from HEAD (HEAD would not
 be what was checked), or while HEAD does not include every open task PR's head
-commit — check out the top of the task stack, restacked, first.
+commit — check out the top of the task stack, restacked, first. When closed
+tasks name more than one repository, both checks run in every one of those
+repositories' folders and `head` holds one HEAD per repository.
 
 The gate is only moved when Status is Verification and the current gate is
 Pending, Changes Required, or Stale — a run against an already-approved or
@@ -176,9 +178,9 @@ from pdlc.internal.attachments import parse_attachment_arguments, save_attachmen
 from pdlc.internal.ci_gate import resolve_ci_gate
 from pdlc.internal.invalidation import bounce_stage
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
-from pdlc.internal.vcs import has_tracked_changes, head_commit
 from pdlc.internal.stack import stack_gaps
-from pdlc.internal.verification import context, reports
+from pdlc.config import get_config
+from pdlc.internal.verification import context, current_heads, dirty_repositories, reports
 from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.verification import build_report, ledger, render, render_decisions
@@ -218,9 +220,11 @@ def post_verify(issue: str, report: str, attachment_inputs: list[dict] | None = 
     except ValueError as error:
         raise PdlcError(str(error)) from None
 
-    if has_tracked_changes():
-        raise PdlcError("tracked files differ from HEAD; verification must run against a clean checkout so HEAD is what was checked")
     tasks = task_tree(issue)
+    dirty = dirty_repositories(tasks)
+    if dirty:
+        where = "" if dirty == [get_config().pull_request_repository()] else f" in {', '.join(dirty)}"
+        raise PdlcError(f"tracked files differ from HEAD{where}; verification must run against a clean checkout so HEAD is what was checked")
     pull_requests = record_pull_requests(issue, record=record, tasks=tasks)
     gaps = stack_gaps(pull_requests)
     if gaps:
@@ -231,7 +235,7 @@ def post_verify(issue: str, report: str, attachment_inputs: list[dict] | None = 
     open_comments = record_open_review_comments(issue, record=record, tasks=tasks)
     all_reports, _ = reports(issue, comments_for_issue(issue))
     known = ledger(all_reports)
-    built = build_report(data, context(head_commit(), tasks, record.get("issueBody") or "", open_comments, known))
+    built = build_report(data, context(current_heads(tasks), tasks, record.get("issueBody") or "", open_comments, known))
     recommendation = built.report.recommendation
 
     try:

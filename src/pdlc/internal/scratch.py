@@ -9,7 +9,7 @@ import secrets
 import tempfile
 from pathlib import Path
 
-from pdlc.config import get_config, repository_root
+from pdlc.config import get_config, project_root
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.internal.workitem import ref_label
 
@@ -33,14 +33,14 @@ def cache_directory(work_item: str) -> Path:
     """Resolve `.pdlc/cache/<workitem>` from the configured location."""
     setting = get_config().cache_root
     if setting == "repository_default":
-        base = repository_root()
+        base = project_root()
     elif setting == "global_default":
         base = Path.home()
     else:
         if not setting.strip():
             raise PdlcError("[cache] root must be a directory or a named default")
         configured = Path(setting).expanduser()
-        base = configured if configured.is_absolute() else repository_root() / configured
+        base = configured if configured.is_absolute() else project_root() / configured
     return base / ".pdlc" / "cache" / _safe_component(str(work_item))
 
 

@@ -40,7 +40,8 @@ class StackEntryPointTests(unittest.TestCase):
             self._task(2, "TASK-002"),
         ]
         self.assertEqual(stack_entry_pr(delivery, delivery[1]), 40)
-        self.assertIsNone(stack_pr([PullRef(90, "acme/web")]))
+        self.assertIsNone(stack_pr([PullRef(90, "acme/web")], ""))
+        self.assertEqual(stack_pr([PullRef(40), PullRef(90, "acme/web")], "acme/web"), 90)
 
     def test_branch_name_is_derived_from_the_task_identity(self):
         self.assertEqual(task_branch_name("record-9", "TASK-003"), "pdlc/record-9/task-003")
@@ -678,12 +679,30 @@ class PublishMarksTheStackReadyTests(FileBackendTest):
         patcher = patch("pdlc.commands.post_implement.check_out", return_value="checked out")
         self.check_out = patcher.start()
         self.addCleanup(patcher.stop)
+        dirty = patch("pdlc.commands.post_implement.working_tree_dirty", return_value=False)
+        dirty.start()
+        self.addCleanup(dirty.stop)
 
     def _host(self, prs: list[dict]) -> Mock:
         host = Mock()
         by_ref = {PullRef(pr["number"]): pr for pr in prs}
         host.pull_requests.side_effect = lambda refs: [by_ref[ref] for ref in refs]
         return host
+
+    def test_a_repository_without_a_checkout_fails_before_any_stack_is_pushed(self):
+        self.seed_record(70, "Implementation", "Pending", slug="record-70")
+        self.seed_task(70, 701, "TASK-001", "CLOSED", "WORK-70-TASK-001 [CORE] Core")
+        self.seed_task(70, 702, "TASK-002", "CLOSED", "WORK-70-TASK-002 [CORE] Web", body="**Repository:** acme/web\n")
+        self.register_prs(701, [148])
+        self.register_prs(702, [149])
+        host = self._host([])
+        with patch("pdlc.commands.post_implement.get_code_host", return_value=host):
+            result = self.invoke("post_implement", 70, self.evidence_file("implemented\n"))
+        self.assertNotEqual(result.code, 0)
+        self.assertIn("no local checkout is configured for acme/web", result.stderr)
+        host.submit_task_stack.assert_not_called()
+        self.check_out.assert_not_called()
+        self.assertEqual(self.state(70), ("Implementation", "Pending"))
 
     def test_only_open_registered_prs_are_marked_ready(self):
         self.seed_record(70, "Implementation", "Pending", slug="record-70")

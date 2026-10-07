@@ -1,6 +1,6 @@
 # Multi-repository projects
 
-Status: phases 1 and 2 implemented; phases 3 and 4 planned. The background investigation is in `multi-repo-implement-investigation.md` at the repository root.
+Status: phases 1, 2 and 3 implemented; phases 4 and 5 planned, with phase 4 superseding parts of phase 3. The background investigation is in `multi-repo-implement-investigation.md` at the repository root.
 
 ## Goal
 
@@ -47,16 +47,42 @@ The PR registry on a work item and its delivery tasks stores `owner/name#N` refs
 
 Not yet multi-repository: `gh stack` still acts on the current checkout, so stack checkout and submission only make sense for PRs in the configured code repository (phase 3).
 
-## Phase 3 — tasks that name their repository (planned)
+## Phase 3 — tasks that name their repository (implemented)
 
-- A delivery task body gains a `Repository: owner/name` field; omitted means the configured code repository.
-- One `gh stack` per (work item, repository): checkout, submit, and `--after` linking run in that repository's checkout, and `stack.py` picks entry PRs only from refs in the task's repository.
-- `pdlc inspect implement` and the briefs route each task to its repository's checkout; verification records a HEAD per repository (`{repository: HEAD}`) and claims use `repository:path`.
-- `[code.github] repositories = [...]` lists the repositories a project spans, so planning can validate a task's `Repository:` and `pdlc doctor` can check access to each.
+- A delivery task body gains a `Repository: owner/name` field; omitted means the configured code repository. Only the full `owner/name` form is accepted; short aliases may come later.
+- One task is strictly one repository. Work that spans repositories is split into one task per repository joined by a dependency edge.
+- `[code.github] repositories = [...]` lists the repositories a project spans, so planning can validate a task's `Repository:` and `pdlc doctor` can check access to each. It is optional, and the code repository is always included.
+- Folder routing: a code-repository task is worked in the current checkout; any other task in the clone the home-only `[code.github.checkouts]` table maps its repository to (an absolute or `~` path), else it is refused. Git and `gh stack` run with that folder as cwd. Config anchors at the Git root's `.pdlc/config.toml`, or above it at a non-repository folder whose file sets `[code.github] repositories`. Checkout, `pdlc inspect implement`, and the briefs surface `repository:` and `path:` so the agent works in that folder.
+- One `gh stack` per (work item, repository): checkout and submit run in that repository's checkout, and `stack.py` picks entry PRs only from refs in the task's repository.
+- `pdlc prepare --after` is refused when `[code.github] repositories` lists more than one repository.
+- Capability routing gains a per-repository layer: a skill or agent set for the task's repository overrides the global `[skills]` / `[agents]` slot, which still falls back to `general-purpose` or inline.
+- Verification records a HEAD per repository (`{repository: HEAD}`) and claims use `repository:path`.
+- Known limit: Testing still runs in the code repository only. `pdlc inspect test`, `pdlc post test`, and the test writer read and commit on the current checkout, so acceptance coverage for another repository's tasks is not committed there.
 
 ## Phase 4 — multi-repository workspaces (planned)
 
-- A new `--repos` flag on `pdlc prepare` (for example `--repos api,web`) creates `<root>/<WORKITEM>/<repo>/`, one worktree per repository, plus a `.pdlc-workspace.toml` manifest naming each repository and its worktree.
-- The home-only `[code.github.checkouts]` table maps `owner/name` to the local clone each worktree is created from.
-- `--from` and `--after` are refused when several repositories are given; re-running with more repositories adds worktrees without touching existing ones; `pdlc cleanup` reads the manifest to tear every worktree down.
-- Without `--repos`, `prepare` behaves exactly as today.
+A work item spanning several repositories is worked in one workspace folder holding a worktree per repository. A single-repository work item keeps working exactly as it does today.
+
+- `pdlc prepare WORKITEM --repos owner/a,owner/b` creates `<worktree.root>/<WORKITEM>/<repo-name>/`, one worktree per repository on a `pdlc/record-<WORKITEM>` branch, plus a `.pdlc-workspace.toml` manifest at the workspace root naming each repository and its worktree. It runs from any folder, since the repositories are passed in. Only the full `owner/name` form is accepted; short aliases may come later.
+- Each worktree is created from the clone the home-only `[code.github.checkouts]` table maps its repository to. That table is the one list of repositories a developer can work in; `[code.github] repositories` is removed.
+- `pdlc prepare WORKITEM` without `--repos` is unchanged: run from the repository's folder, it creates `<worktree.root>/<repo-name>/<WORKITEM>` from that repository.
+- The agent runs from the workspace root. Config follows the existing hierarchy: the current folder's `.pdlc/config.toml` when there is one, else the home config alone, so a workspace root reads `~/.pdlc/config.toml`.
+- In a workspace, every delivery task must carry a `**Repository:** owner/name` line naming one of the workspace's repositories; `pdlc post tasks` refuses a missing line or a repository outside the workspace, naming `pdlc prepare --repos` with that repository added as the fix. In a single repository the line stays optional and omitted means that repository.
+- Folder routing reads the manifest: a task's Git and `gh stack` calls run in its repository's worktree, never in the developer's own clone, so two work items touching one repository never share a working tree.
+- Capabilities stay per repository, set in the repository's config or the home config's `[repository."owner/name"]` section, as today.
+- `--from` and `--after` are refused with `--repos`; re-running with more repositories adds worktrees without touching existing ones; `pdlc cleanup` reads the manifest to tear every worktree down.
+
+Phase 3 pieces this supersedes: `[code.github] repositories` (the workspace's repositories replace it for task validation and `pdlc doctor`), config anchoring at a non-repository parent folder (the manifest marks the workspace), and routing tasks into the `[code.github.checkouts]` clone itself.
+
+## Phase 5 — Testing per repository (planned)
+
+Testing still runs in the code repository only (see phase 3's known limit). A workspace has no code repository at its root, so `pdlc inspect test`, `pdlc post test`, and the test writer need to run per repository, each committing coverage in that repository's worktree. Design to follow.
+
+## Future
+
+- A task naming a repository outside its workspace creates a worktree for that repository in the workspace, instead of being refused.
+- Short repository aliases for `--repos` and `**Repository:**`.
+
+## Open questions
+
+- Repository-file capability sections: phase 3 lets a repository's own `.pdlc/config.toml` hold `[repository."owner/name".agents]` and `.skills` sections, where before only the home config could. Keep that, or revert to home-only? Undecided.

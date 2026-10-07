@@ -56,6 +56,13 @@ the stage last published, the resolution is printed under `#### Decisions` so a
 thread that was escalated is settled per the answer on this pass instead of
 escalated again.
 
+A task in another repository than the code repository also carries
+`repository:` and `path:` lines in `## Next Task` and `## Next Fix`: the
+`owner/name` it belongs to and the local folder it is worked in. Its branch,
+commits, and stack live in that folder; `pdlc checkout` and `pdlc post
+implement-task` already act there. `#### Stack` marks the top task of each
+repository's stack.
+
 `## Next Task` names the task with its `branch:`; `pdlc checkout` puts the
 working tree on it, so no stack setup is printed here. A `blocked:` line
 replaces the handoff when the worktree stacks after another work item that has
@@ -129,6 +136,7 @@ from pdlc.internal.ci_gate import check_state
 from pdlc.internal.inputs import print_help, wants_help
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.scratch import cache_file, write_scratch
+from pdlc.internal.repositories import is_code_repository, repository_lines, task_repository
 from pdlc.internal.stack import after_predecessor, task_branch_name
 from pdlc.internal.workitem import due_next, item_branch_slug, pipeline_for_item, record_snapshot
 from pdlc.internal.failure import report_failure
@@ -235,6 +243,7 @@ def _next_task_section(item: dict, delivery: list[dict], chosen: dict, comments:
         f"number: {chosen['number']}",
         f"taskId: {chosen['taskId']}",
         f"isUI: {'true' if chosen['isUI'] else 'false'}",
+        *repository_lines(chosen),
         f"branch: {branch}",
     ]
     if predecessor and not predecessor.complete and predecessor.pr is None:
@@ -274,6 +283,7 @@ def _next_fix_section(item: dict, fix: _Fix, decisions: list[ChangeRequest]) -> 
         f"number: {number}",
         f"taskId: {task['taskId']}",
         f"pr: {prs_json([fix.pr])[0]}",
+        *repository_lines(task),
         f"branch: {task_branch_name(item_branch_slug(item), task['taskId'])}",
         f"state: {task['state']}",
         "",
@@ -336,9 +346,12 @@ def _open_requests_section(item: dict, delivery: list[dict], requests: list[Chan
         lines += ["", f"### {SOURCE_LABELS[request.source]}", "", f"<{tag} {attributes}>",
                   _nested(evidence_comment_text(comment)), f"</{tag}>"]
     lines += ["", "#### Stack"]
-    for index, task in enumerate(implemented):
-        top = ", top" if index == len(implemented) - 1 else ""
-        lines.append(f"- {task['title']} (number {task['number']}, PR {pr_label(max(task['prs']))}{top})")
+    tops = {task_repository(task): task["number"] for task in implemented}
+    for task in implemented:
+        repository = task_repository(task)
+        where = "" if is_code_repository(repository) else f", repository {repository}"
+        top = ", top" if tops[repository] == task["number"] else ""
+        lines.append(f"- {task['title']} (number {task['number']}, PR {pr_label(max(task['prs']))}{where}{top})")
     if not implemented:
         lines.append("- no implemented task has a registered pull request")
     lines += [
