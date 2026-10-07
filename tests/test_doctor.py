@@ -95,6 +95,38 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("missing required setting: code.github.repository", output)
         self.assertEqual(output.count("- FAIL:"), 4)
 
+    def test_failures_and_warnings_omit_the_empty_placeholders(self) -> None:
+        self.repo_config.write_text('[tracker]\nprovider = "github"\n')
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            output, _ = run()
+        self.assertIn("- WARNING:", output)
+        self.assertNotIn("- None", output)
+        self.assertNotIn("- PASS: all validations", output)
+
+    def test_clean_run_prints_the_empty_placeholders(self) -> None:
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n[code]\nprovider = "none"\n')
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            output, code = run()
+        self.assertEqual(code, 0)
+        self.assertIn("## Warnings\n\n- None", output)
+        self.assertIn("## Validations\n\n- PASS: all validations", output)
+
+    def test_unparsable_config_warns_and_skips_validations(self) -> None:
+        self.home_path.parent.mkdir(parents=True)
+        self.home_path.write_text('[tracker.azure]\narea_path = "Vocus\\Flex Mission"\n')
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            output, code = run()
+        self.assertEqual(code, 1)
+        self.assertIn(f"~/.pdlc/config.toml: unparsable ({self.home_path})", output)
+        self.assertIn(f"- WARNING: {self.home_path} is not valid TOML", output)
+        self.assertIn(f"- FAIL: Could not read {self.home_path}", output)
+        self.assertNotIn("missing required setting", output)
+        self.assertNotIn("tracker is defaulted", output)
+        self.tracker_access.assert_not_called()
+
     def test_prints_sources_and_derivations(self) -> None:
         self.home_path.parent.mkdir(parents=True)
         self.home_path.write_text('[tracker.github]\nrepository = "acme/widgets"\n')
