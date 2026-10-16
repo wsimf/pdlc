@@ -120,6 +120,7 @@ If the workflow stopped early, report only the exact blocking condition. The rep
 - Do not edit, commit, or push production source or tests; every fix bounces to its owning stage.
 - Do not edit the parent's requirements, UI, Decisions, or Open Questions yourself — evidence, deferrals, and decision blocks go through `pdlc post verify` only.
 - Do not edit task scope, criteria, or Results; a wrong Result is a finding, not something to correct here.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, `pdlc post decision`, or `pdlc post complete`; those are driver actions.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post decision`, or `pdlc post complete`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated review, build, or runtime validation that did not happen, and never settle a row whose check did not run against this pass's HEAD.

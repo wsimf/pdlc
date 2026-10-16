@@ -102,6 +102,7 @@ If the workflow stopped early, report only the exact blocking condition. The rep
 - Do not run or author tests yourself; `pdlc-test-writer` owns both.
 - Do not create or push branches, and switch only with the `pdlc checkout` `## Source` names; coverage is committed on the current branch by `pdlc-test-writer` and published by `pdlc post test`.
 - Use the CLI as the only work-item interface, and never write lifecycle state into any work item body.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. Never set `Approved`, and never claim the record is done from coverage alone.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions. Never set `Approved`, and never claim the record is done from coverage alone.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated coverage, traceability, or test-run validation unless `pdlc-test-writer` actually reported it.

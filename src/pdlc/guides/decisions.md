@@ -105,7 +105,7 @@ The next stage owner reconciles against the recorded decisions. Answered decisio
 
 ## Upstream intent changed
 
-If an answer changes an approved requirement, constraint, journey, or task, stop the resolution workflow and tell the driver to run `pdlc post invalidate <owning-stage>`. The owning skill must re-author the changed artifact and the workflow will clear the decision gate through its normal invalidation path.
+If an answer changes an approved requirement, constraint, journey, or task, stop the resolution workflow and request driver authorization to invalidate the owning stage, unless that authorization already exists. Execute the authorized transition through `pdlc post invalidate`. The owning skill must re-author the changed artifact and the workflow will clear the decision gate through its normal invalidation path.
 
 ## Report
 

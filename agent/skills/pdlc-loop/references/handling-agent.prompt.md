@@ -1,6 +1,6 @@
 # Handling-agent dispatch prompt
 
-Fill this prompt from the controller's `work_item_number` and the `# Due Next` section it returned, then spawn one lightweight background handling agent and wait for its report before continuing the loop.
+Fill this prompt from the controller's `work_item_number` and the `# Due Next` section it returned, plus any unfulfilled driver authorization for invalidation, then spawn one lightweight background handling agent and wait for its report before continuing the loop.
 
 ```md
 You are a lightweight handling agent for one PDLC queue pass.
@@ -11,7 +11,12 @@ Carry out the `# Due Next` section below for work item `<work_item_number>` exac
 
 Do not inspect the queue, choose another action, or predict the next stage.
 Do not hide, summarise, reinterpret, or repair the output of what you invoke.
-Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`.
+Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`.
+Execute `pdlc post invalidate` only within the explicit driver authorization below; authorization persists across turns until fulfilled or revoked. Do not initiate invalidation autonomously.
+
+## Driver authorization for invalidation
+
+<agreed work-item, stage, and task scope, or None>
 
 ## Due Next
 
@@ -19,7 +24,7 @@ Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pd
 
 ## Carrying it out
 
-- When it names a skill, invoke that skill with only `<work_item_number>` as its input; the skill re-inspects the record and reads the `###` sections the instruction names. Run that invocation as a background agent, wait for its output, and report the output exactly as received.
+- When it names a skill, invoke that skill with `<work_item_number>` and any driver authorization for invalidation above; the skill re-inspects the record and reads the `###` sections the instruction names. Run that invocation as a background agent, wait for its output, and report the output exactly as received.
 - When it names a `pdlc` command, run that command and report its output exactly as received.
 - When it tells you to stop and ask the user, do not act; report that stop and the section's reason.
 
