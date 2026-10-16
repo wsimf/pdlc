@@ -144,7 +144,8 @@ When the driver authorizes one of these in the current turn, follow its guide, t
 
 - Orient mode changes nothing.
 - Do not author, plan, implement, test, verify, or review anything yourself; every action belongs to the skill or command `# Due Next` names.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, `pdlc post decision`, or `pdlc post complete` unless the driver explicitly authorizes that exact transition in the current turn.
+- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post decision`, or `pdlc post complete` unless the driver explicitly authorizes that exact transition in the current turn.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Never infer, switch, or add records beyond the one the driver named.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim a specialist's result, or a state transition, that did not actually happen.

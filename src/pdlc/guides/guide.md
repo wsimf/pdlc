@@ -62,6 +62,8 @@ Each stage owner changes only its own artifact and preserves approved upstream i
 
 Human actions remain explicit: Product authoring, approvals, skips, decision resolution, invalidation, and final completion. Do not run a mutating command merely because a record appears ready.
 
+Execute a driver-authorized invalidation through `pdlc post invalidate`; that authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked.
+
 Commands stamp evidence markers. Agents provide the evidence body without a marker. A work-item body is current intent, not a history log; durable events belong in evidence comments.
 
 ## Autonomous routing

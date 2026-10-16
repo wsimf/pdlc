@@ -14,6 +14,6 @@ This step is complete when every red check has a cause and a log excerpt.
 
 - **Code**: this task's change breaks a build, test, lint, or type check. It is a finding for the task prompt: the check name, its log excerpt, and the command that reproduces it. Validation for the fix includes that command passing locally.
 - **Flake**: it fails with no code cause, such as a runner outage, a timeout, a cancellation, or a test that passes on rerun. Rerun the failed jobs (`gh run rerun RUN_ID --failed`). Green needs no commit; red again on the same error is a code cause.
-- **Upstream**: it fails on the base branch too, or the fix would change approved intent. Report the check, its log excerpt, and the reason to the driver, name `pdlc post invalidate` against the owning stage for an intent change, and stop.
+- **Upstream**: it fails on the base branch too, or the fix would change approved intent. Report the check, its log excerpt, and the reason to the driver. For an intent change, execute `pdlc post invalidate` against the owning stage when authorized; otherwise request that authorization. Stop this fix path.
 
 This step is complete when every cause is a finding in the brief, green on rerun, or reported to the driver.

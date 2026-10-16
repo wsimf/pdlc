@@ -94,7 +94,7 @@ Relay the command's JSON output, plus:
 - for UI, applicability and journey count;
 - for Tasks, created/updated/retitled/removed IDs and dependency order;
 - that the stage is now `Approval Required` and needs driver approval;
-- whether an earlier plan or result is now stale, without invalidating it yourself.
+- whether an earlier plan or result is now stale; request driver authorization before invalidating it unless already authorized.
 
 If authoring shows a landed upstream artifact is wrong, follow `pdlc guide patch`; when the patch returns the record to an earlier stage, report that and stop. The report is complete when it contains the command output, reviewer result, final gate, requested human action, and every unresolved failure or risk.
 
@@ -104,5 +104,6 @@ If authoring shows a landed upstream artifact is wrong, follow `pdlc guide patch
 - Use the CLI as the only work-item interface; lifecycle state and evidence markers are command-owned. Change a landed upstream artifact only through `pdlc guide patch`.
 - Do not edit source, tests, project files, documentation, agents, or skills.
 - Do not build, test, render, run the app, push, or claim validation that did not happen.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.

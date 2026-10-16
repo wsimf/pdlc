@@ -119,7 +119,7 @@ Pull requests are read from the explicit registry on the parent and its delivery
 Commands record them; the controller never infers them from a branch name or `Closes #N` text.
 
 `Approved` and `Complete` are human boundaries.
-Only the driver may approve, skip, invalidate, resolve decisions, or complete a record, and only in response to an explicit instruction.
+The driver decides whether to approve, skip, invalidate, resolve decisions, or complete a record; agents execute an invalidation when explicitly authorized by the driver.
 Agents may request or record other workflow gates only through their owning commands.
 
 Verification approval is consumed by the completion transition rather than by a normal next-stage approval.
@@ -129,7 +129,7 @@ Verification approval is consumed by the completion transition rather than by a 
 - Product authoring requires an interactive driver and routes to `pdlc-write`.
 - Approval is recorded by `pdlc post approve` and advances through the selected workflow.
 - Skipping is pre-declared by the driver with `pdlc post skip`.
-- Invalidation is a driver action through `pdlc post invalidate`; the one exception is a patch whose independent impact report names an affected stage, which returns the record to that stage itself (see `pdlc guide patch`).
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously. A patch whose independent impact report names an affected stage may still return the record to that stage itself (see `pdlc guide patch`).
 - Decision resolution is a driver action through `pdlc post decision`.
 - Completion is a driver action through `pdlc post complete`.
 

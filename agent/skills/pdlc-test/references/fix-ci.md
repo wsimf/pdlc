@@ -13,7 +13,7 @@ This step is complete when every red check has a cause, a log excerpt, and the c
 ## Classify each cause
 
 - **Coverage**: an acceptance test, its fixture, or its harness is wrong: it asserts behaviour the requirements never promised, or fails for a reason inside the test. Fix it in the next step.
-- **Defect**: production code breaks an in-scope requirement, or a check fails on a lower task's PR. Production source belongs to Implementation. Report the check, its log excerpt, and the owning task to the driver, name `pdlc post invalidate WORK_ITEM Implementation --task TASK_NUMBER` as the route, and stop.
+- **Defect**: production code breaks an in-scope requirement, or a check fails on a lower task's PR. Production source belongs to Implementation. Report the check, its log excerpt, and the owning task to the driver. Execute `pdlc post invalidate` for Implementation scoped to that task when authorized; otherwise request that authorization. Stop this coverage-fix path.
 - **Flake**: it fails with no code cause, such as a runner outage, a timeout, a cancellation, or a test that passes on rerun. Rerun the failed jobs (`gh run rerun RUN_ID --failed`). Green needs no commit; red again on the same error is a coverage or defect cause.
 - **Upstream**: it fails on the base branch too. Report the check, its log excerpt, and the base-branch run to the driver, and stop.
 

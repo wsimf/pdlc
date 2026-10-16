@@ -32,7 +32,7 @@ A poll that exits 75 or 76 failed transiently: follow the recovery its output pr
 
 `# Due Next` says what to do; do not keep your own table of what each stage or action means.
 
-- **Autonomous `action`** (a `pdlc-*` skill name or `pdlc-post-ci`): fill [`references/handling-agent.prompt.md`](references/handling-agent.prompt.md) with `work_item_number` and the `# Due Next` section verbatim, spawn exactly one lightweight handling agent in the background, and wait for its output. Then continue to Repeat.
+- **Autonomous `action`** (a `pdlc-*` skill name or `pdlc-post-ci`): fill [`references/handling-agent.prompt.md`](references/handling-agent.prompt.md) with `work_item_number`, the `# Due Next` section verbatim, and any unfulfilled driver authorization for invalidation, spawn exactly one lightweight handling agent in the background, and wait for its output. Then continue to Repeat.
 - **`human-input`, `human-approval`, `human-decision`, or `blocked`**: **Stop**. Relay `current_status` and the `# Due Next` section to the driver as the action they must take; do not act on it yourself.
 - **`none`**: **Stop**. Report the notice, and the `attempts` count when present, and say the run should be re-invoked later.
 
@@ -63,7 +63,8 @@ A run that stopped on a failure says so plainly — do not summarise it as a com
 ## Boundaries
 
 - Do not author, plan, implement, test, verify, or review anything yourself — every action belongs to the skill or command `# Due Next` names.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Do not dispatch a non-autonomous action, and never treat a completed record as eligible.
 - Do not continue past a stop condition, and do not keep polling a record that is not progressing.
 - Do not invent work the controller did not return.

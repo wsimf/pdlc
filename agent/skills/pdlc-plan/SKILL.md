@@ -95,5 +95,6 @@ If planning shows a landed upstream artifact is wrong, follow `pdlc guide patch`
 - Use the CLI as the only work-item interface; lifecycle state, evidence markers, and the parent's Product, UI, Decisions, and Open Questions sections belong to other owners; change a landed upstream artifact only through `pdlc guide patch`.
 - Planning describes the change; leave production source and tests untouched.
 - Do not build, test, render, run the app, push, or claim validation that did not happen.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.

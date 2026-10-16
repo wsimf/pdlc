@@ -77,6 +77,7 @@ The report is complete when it contains the command output, the verdict, the fin
 - Do not edit source, tests, the parent work item body, delivery tasks, or any artifact under review. Reviewing and fixing are different jobs.
 - Do not build, test, render, run the app, or push.
 - Use the CLI as the only work-item interface, and never write lifecycle state into any work item body.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. Never set `Approved`.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions. Never set `Approved`.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated review, build, or runtime validation that did not happen.

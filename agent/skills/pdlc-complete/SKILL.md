@@ -64,6 +64,7 @@ If the workflow stopped early, report only the exact blocking condition. The rep
 - Do not re-run verification, journeys, UX review, or cumulative review; `pdlc-verify` owns all of it.
 - Do not edit the verified record yourself; a substantive change bounces to its owning stage or becomes a new parent work item.
 - Use the CLI as the only work-item interface, and never write lifecycle state into the work item body.
-- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post invalidate`; those are driver actions.
+- Do not run `pdlc post approve` or `pdlc post skip`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.
 - Do not claim delegated evidence preparation, review, or runtime validation that did not happen.

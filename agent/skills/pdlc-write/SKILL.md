@@ -120,5 +120,6 @@ The report is complete when it contains the command output, reviewer result, fin
 - Keep drafting with yourself and review judgement with `pdlc-product-reviewer`; the reviewer is the only agent this skill spawns.
 - Use the CLI as the only work-item interface; lifecycle state, evidence markers, and every section other than `Product`, `Decisions`, and `Open Questions` belong to other owners.
 - Leave production source and tests untouched.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Preserve unrelated staged, unstaged, and untracked work.

@@ -156,7 +156,7 @@ Include every remaining `Review at stack end` item from the notes, with its task
 
 ## Requirement corrections
 
-Surface a requirement, constraint, plan, or acceptance criterion that is factually wrong rather than working around it. Correct a mechanically provable error, such as a renamed type or a dead path, in place, updating every affected reference. Anything that changes approved intent goes to the driver: stop, report it, and name `pdlc post invalidate` against the owning stage. The approved specification stays as approved, even where the build differs.
+Surface a requirement, constraint, plan, or acceptance criterion that is factually wrong rather than working around it. Correct a mechanically provable error, such as a renamed type or a dead path, in place, updating every affected reference. Anything that changes approved intent requires driver authorization: request it unless already given, then execute `pdlc post invalidate` against the owning stage. The owning skill reconciles the approved specification.
 
 ## Boundaries
 
@@ -164,5 +164,6 @@ Surface a requirement, constraint, plan, or acceptance criterion that is factual
 - Use the CLI as the only work-item interface; lifecycle state, evidence markers, and the parent's Product, UI, Decisions, and Open Questions sections belong to other owners.
 - Branches come only from `pdlc checkout`, and PRs only from `pdlc post implement-task`; keep task work off the base branch and other tasks' branches, and leave pushing, rebasing, and merging to those tools and the driver.
 - Claim only implementation, build, test, PR, or check evidence that exists.
-- Do not run `pdlc post approve`, `pdlc post skip`, `pdlc post invalidate`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
+- Do not run `pdlc post approve`, `pdlc post skip`, or `pdlc post complete`; those are driver actions. The stage ends at `Review Required`, never `Approved` or Testing.
+- Execute `pdlc post invalidate` when explicitly authorized by the driver; authorization persists across turns within the agreed work-item, stage, and task scope until fulfilled or revoked. Do not initiate invalidation autonomously.
 - Do not run `pdlc post review`; verdicts belong to `pdlc-review`. The only gate this skill sets besides its own publish is `Decision Required`, through `pdlc post escalate` from Escalate, for a thread the agent skipped.
