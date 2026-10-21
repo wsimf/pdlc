@@ -24,7 +24,7 @@ import contextlib
 import fnmatch
 import re
 
-from pdlc.domain.records import PullRef, PullRequest, ReviewComment
+from pdlc.domain.records import CheckResult, PullRef, PullRequest, ReviewComment
 
 
 from pdlc.config import get_config
@@ -189,6 +189,37 @@ def _is_ignored(entry: object, patterns: tuple[str, ...]) -> bool:
     )
 
 
+def _entry_state(entry: dict) -> str | None:
+    """One rollup entry's state in the host's vocabulary: a check run's
+    conclusion once completed (else PENDING), or a status context's state.
+    None when the entry is malformed."""
+    if "status" in entry:
+        if entry.get("status") != "COMPLETED" or not entry.get("conclusion"):
+            return "PENDING"
+        return entry.get("conclusion") or None
+    if "state" in entry:
+        return entry.get("state") or None
+    return None
+
+
+def _check_results(rollup: list, ignored: tuple[str, ...]) -> list[CheckResult]:
+    """Every current check as `pdlc inspect checks` lists it, named
+    `workflow / check` when the check run belongs to a workflow."""
+    results: list[CheckResult] = []
+    for entry in _current_checks(rollup):
+        if not isinstance(entry, dict):
+            continue
+        names = _check_names(entry)
+        name = " / ".join(reversed(names)) if len(names) == 2 else (names[0] if names else "(unnamed check)")
+        results.append({
+            "name": name,
+            "state": _entry_state(entry) or "PENDING",
+            "url": entry.get("detailsUrl") or entry.get("targetUrl") or "",
+            "ignored": _is_ignored(entry, ignored),
+        })
+    return results
+
+
 def _checks_state(pull_request: dict, ignored: tuple[str, ...] = ()) -> str:
     # `gh pr view --json statusCheckRollup` exposes a union list directly on
     # the pull request: CheckRun entries use `conclusion`, StatusContext
@@ -209,16 +240,7 @@ def _checks_state(pull_request: dict, ignored: tuple[str, ...] = ()) -> str:
             if not isinstance(entry, dict):
                 malformed = True
                 continue
-            if "status" in entry:
-                if entry.get("status") != "COMPLETED" or not entry.get("conclusion"):
-                    states.append("PENDING")
-                    continue
-                state = entry.get("conclusion")
-            elif "state" in entry:
-                state = entry.get("state")
-            else:
-                malformed = True
-                continue
+            state = _entry_state(entry)
             if state:
                 states.append(state)
             else:
@@ -326,6 +348,11 @@ class GitHubCodeHost(CodeHost):
     def pull_request_files(self, pr: PullRef) -> list[str]:
         data = run_gh_json(["pr", "view", str(pr.number), *code_repo_args(pr.repository), "--json", "files"])
         return [entry["path"] for entry in data.get("files", [])]
+
+    def pull_request_checks(self, pr: PullRef) -> list[CheckResult]:
+        data = run_gh_json(["pr", "view", str(pr.number), *code_repo_args(pr.repository), "--json", "statusCheckRollup"])
+        rollup = data.get("statusCheckRollup")
+        return _check_results(rollup, get_config().ignored_checks) if isinstance(rollup, list) else []
 
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
         # `gh stack checkout` takes either a pull request or a branch and

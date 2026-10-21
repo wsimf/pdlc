@@ -817,6 +817,26 @@ class CodeHostTest(GitHubHostTest):
         self.assertIn("name status conclusion startedAt completedAt", query)
         self.assertIn("checkSuite { app { slug } workflowRun { workflow { databaseId name } } }", query)
 
+    def test_pull_request_checks_lists_current_checks_and_flags_ignored(self) -> None:
+        self.configure(ignored_checks=("nightly",))
+        self.gh.gh("pr", "view", response={"statusCheckRollup": [
+            {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "FAILURE",
+             "startedAt": "2026-09-29T08:00:00Z", "detailsUrl": "https://x/actions/runs/7/job/42"},
+            {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "SUCCESS",
+             "startedAt": "2026-09-29T07:00:00Z"},
+            {"name": "e2e", "workflowName": "Nightly", "status": "IN_PROGRESS", "conclusion": None},
+            {"context": "ci/legacy", "state": "SUCCESS", "targetUrl": "https://ci/1"},
+        ]})
+
+        checks = self.host.pull_request_checks(_refs(5)[0])
+
+        self.assertEqual(checks, [
+            {"name": "CI / unit", "state": "FAILURE", "url": "https://x/actions/runs/7/job/42", "ignored": False},
+            {"name": "Nightly / e2e", "state": "PENDING", "url": "", "ignored": True},
+            {"name": "ci/legacy", "state": "SUCCESS", "url": "https://ci/1", "ignored": False},
+        ])
+        self.assertIn("statusCheckRollup", self.gh.calls[0][0])
+
     def test_pull_requests_by_number_skips_the_host_when_none_are_registered(self) -> None:
         self.assertEqual(self.host.pull_requests([]), [])
         self.assertEqual(self.gh.calls, [])

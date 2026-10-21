@@ -11,7 +11,7 @@ rather than asserting anything.
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRef, PullRequest, ReviewComment
+from pdlc.domain.records import CheckResult, PullRef, PullRequest, ReviewComment
 
 from abc import ABC, abstractmethod
 
@@ -35,6 +35,12 @@ class CodeHost(ABC):
     @abstractmethod
     def pull_request_files(self, pr: PullRef) -> list[str]:
         """Repository-relative paths the pull request touches."""
+
+    @abstractmethod
+    def pull_request_checks(self, pr: PullRef) -> list[CheckResult]:
+        """Every current check on the pull request's head commit, superseded
+        reruns dropped, each flagged `ignored` when it matches the configured
+        ignore patterns. Empty when the PR has no checks."""
 
     @abstractmethod
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:

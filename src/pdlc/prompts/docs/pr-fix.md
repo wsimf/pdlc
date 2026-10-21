@@ -133,6 +133,8 @@ gh api graphql -f query='
 ## Failing checks
 
 {{FAILING_CHECKS_TEXT}}
+
+Run `pdlc inspect checks {{PARENT_WORK_ITEM}}` to list each pull request's individual checks. Prefer it over `gh pr checks` or other direct `gh` calls: PDLC may be filtering out checks the user intentionally marked as ignored, and any failure on those is discarded, never investigated, rerun, or fixed; `pdlc config ignored_checks` lists them.
 {{/IF}}
 {{#IF REVIEW_FINDINGS}}
 

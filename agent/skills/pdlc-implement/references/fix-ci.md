@@ -4,7 +4,7 @@ Follow this from `pdlc-implement` Implement when the unit's `#### Failing checks
 
 ## Read the failure
 
-The unit names the red pull request and its rollup state, such as `PR #149: FAILURE`, not the checks. List its failing checks and read their logs on the code host; on GitHub, `gh pr checks PR` names them and `gh run view RUN_ID --log-failed` prints the failure.
+The unit names the red pull request and its rollup state, such as `PR #149: FAILURE`, not the checks. Run `pdlc inspect checks WORK_ITEM` to list them. Prefer it over `gh pr checks` or other direct `gh` calls: PDLC may be filtering out checks the user intentionally marked as ignored, and any failure on those is discarded, never investigated, rerun, or fixed; `pdlc config ignored_checks` lists them. Read each failing check's log on the code host; on GitHub, `gh run view --job JOB_ID --log-failed` prints it, where the check's link ends in `runs/RUN_ID/job/JOB_ID`.
 
 A stacked PR's CI runs over every commit below it, so a cause in a lower task turns this PR red too. A check that fails on this task's own change is this unit's; one whose log points at a lower task's code is that task's, and `pdlc inspect implement` offers the lower task first, so report it and take the next pass instead of fixing it here.
 

@@ -8,12 +8,14 @@ work item and its tasks (see `internal.pull_requests`), not by this file.
     $PDLC_HOME/records/<n>/pull_requests.json
       [ { "number": 148, "title": "...", "url": "...", "state": "OPEN",
           "isDraft": false, "branch": "feat/x", "mergedAt": null,
-          "checks": "PENDING", "headSha": "<optional commit>" } ]
+          "checks": "PENDING", "headSha": "<optional commit>",
+          "checkRuns": [ { "name": "CI / unit", "state": "FAILURE", "url": "...",
+                           "ignored": false } ] } ]
 """
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRef, PullRequest, ReviewComment
+from pdlc.domain.records import CheckResult, PullRef, PullRequest, ReviewComment
 
 import json
 import os
@@ -61,6 +63,15 @@ class FileCodeHost(CodeHost):
         for pull_request in _all_pull_requests():
             if PullRef(int(pull_request.get("number") or 0), pull_request["repository"]) == pr:
                 return pull_request.get("files", [])
+        return []
+
+    def pull_request_checks(self, pr: PullRef) -> list[CheckResult]:
+        for pull_request in _all_pull_requests():
+            if PullRef(int(pull_request.get("number") or 0), pull_request["repository"]) == pr:
+                return [
+                    {"name": run["name"], "state": run["state"], "url": run.get("url", ""), "ignored": bool(run.get("ignored"))}
+                    for run in pull_request.get("checkRuns", [])
+                ]
         return []
 
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:

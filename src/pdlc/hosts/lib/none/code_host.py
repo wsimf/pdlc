@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from pdlc.domain.records import PullRef, PullRequest, ReviewComment
+from pdlc.domain.records import CheckResult, PullRef, PullRequest, ReviewComment
 
 from pdlc.hosts.code_host.base import CodeHost
 from pdlc.domain.lifecycle import PdlcError
@@ -21,6 +21,9 @@ class NoneCodeHost(CodeHost):
         return []
 
     def pull_request_files(self, pr: PullRef) -> list[str]:
+        return []
+
+    def pull_request_checks(self, pr: PullRef) -> list[CheckResult]:
         return []
 
     def checkout_task_branch(self, branch: str, pr: int | None, entry_pr: int | None) -> str:
