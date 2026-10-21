@@ -21,6 +21,7 @@ each PR where it lives. The `gh stack` calls act on the current checkout only.
 from __future__ import annotations
 
 import contextlib
+import fnmatch
 import re
 
 from pdlc.domain.records import PullRef, PullRequest, ReviewComment
@@ -168,16 +169,38 @@ def _current_checks(rollup: list[dict]) -> list[dict]:
     return [*current.values(), *uncertain]
 
 
-def _checks_state(pull_request: dict) -> str:
+def _check_names(entry: dict) -> list[str]:
+    """The names an `[code.github] ignored_checks` pattern may match: a check
+    run's own name and its workflow's, or a status context."""
+    if "status" in entry:
+        suite = entry.get("checkSuite") or {}
+        workflow = ((suite.get("workflowRun") or {}).get("workflow") or {}).get("name") or entry.get("workflowName")
+        return [name for name in (entry.get("name"), workflow) if name]
+    return [entry["context"]] if entry.get("context") else []
+
+
+def _is_ignored(entry: object, patterns: tuple[str, ...]) -> bool:
+    if not patterns or not isinstance(entry, dict):
+        return False
+    return any(
+        fnmatch.fnmatchcase(name.casefold(), pattern.casefold())
+        for name in _check_names(entry)
+        for pattern in patterns
+    )
+
+
+def _checks_state(pull_request: dict, ignored: tuple[str, ...] = ()) -> str:
     # `gh pr view --json statusCheckRollup` exposes a union list directly on
     # the pull request: CheckRun entries use `conclusion`, StatusContext
-    # entries use `state`.
+    # entries use `state`. Checks matching an `ignored` pattern are dropped
+    # first, so they never hold, fail, or appear in the rollup.
     rollup = pull_request.get("statusCheckRollup")
     if rollup is None:
         return "NONE"
     if isinstance(rollup, dict):
         return "PENDING"
     if isinstance(rollup, list):
+        rollup = [entry for entry in rollup if not _is_ignored(entry, ignored)]
         if not rollup:
             return "NONE"
         states = []
@@ -230,7 +253,7 @@ def _pr_dict(pr: dict, repository: str = "") -> dict:
         "isDraft": pr["isDraft"],
         "branch": pr["headRefName"],
         "mergedAt": pr["mergedAt"],
-        "checks": _checks_state(pr),
+        "checks": _checks_state(pr, get_config().ignored_checks),
         "headSha": pr.get("headRefOid") or "",
     }
 

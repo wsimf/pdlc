@@ -293,6 +293,26 @@ class ConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(ConfigurationError, message):
                     load_config(self.make_git_repo("git@github.com:acme/A.git"))
 
+    def test_ignored_checks_layer_home_section_under_repository_file(self):
+        self.write_home_config(
+            '[code.github]\nignored_checks = ["global"]\n'
+            '[repository."acme/A".code.github]\nignored_checks = ["Nightly e2e", " lint-* "]\n'
+        )
+        nested = self.make_git_repo("git@github.com:acme/A.git")
+        self.assertEqual(load_config(nested).ignored_checks, ("Nightly e2e", "lint-*"))
+        self.assertEqual(load_config(self.make_git_repo("git@github.com:acme/B.git")).ignored_checks, ("global",))
+        path = nested.parent / ".pdlc" / "config.toml"
+        path.parent.mkdir()
+        path.write_text('[code.github]\nignored_checks = []\n')
+        self.assertEqual(load_config(nested).ignored_checks, ())
+
+    def test_ignored_checks_must_be_a_list_of_non_empty_strings(self):
+        for value in ('"lint"', "[1]", '[""]'):
+            with self.subTest(value=value):
+                nested = self.make_repo(f"[code.github]\nignored_checks = {value}\n")
+                with self.assertRaisesRegex(ConfigurationError, "list of non-empty strings"):
+                    load_config(nested)
+
     def test_repository_sections_are_home_only(self):
         nested = self.make_repo('[repository."acme/A".worktree]\ninit_script = "A"\n')
         with self.assertRaisesRegex(ConfigurationError, "Unknown table"):
