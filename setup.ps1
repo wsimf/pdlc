@@ -238,6 +238,36 @@ Let's set up PDLC!
     Write-Step 9 'Installing or updating the CLI from this checkout...'
     Invoke-Tool uv @('tool', 'install', '--force', '--reinstall', '--python', $pythonPath, '--no-python-downloads', $repoRoot)
     Write-Host 'PDLC CLI installed or updated from this checkout.'
+
+    Write-Step 10 'Checking global Git ignore...'
+    # Use the ignore file Git already reads: core.excludesFile, else Git's XDG default under the user profile.
+    $ErrorActionPreference = 'Continue'
+    $ignoreFile = [string](& git config --global --path core.excludesFile 2> $null)
+    $ErrorActionPreference = 'Stop'
+    if ([string]::IsNullOrWhiteSpace($ignoreFile)) {
+        $configHome = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $(if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }) '.config' }
+        $ignoreFile = Join-Path $configHome 'git\ignore'
+    }
+    $ignoreFile = [System.IO.Path]::GetFullPath($ignoreFile.Trim())
+    if ((Test-Path -LiteralPath $ignoreFile -PathType Leaf) -and (@(Get-Content -LiteralPath $ignoreFile) -contains '.pdlc/')) {
+        Write-Host ".pdlc/ is already in $ignoreFile."
+    } else {
+        Write-Host 'PDLC keeps cached prompts and agent instructions in a .pdlc folder inside the worktrees you create. We recommend adding this folder to your global Git ignore file.'
+        if (Confirm-Setup "Add .pdlc/ to $ignoreFile now?") {
+            [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($ignoreFile)) | Out-Null
+            $prefix = ''
+            if (Test-Path -LiteralPath $ignoreFile -PathType Leaf) {
+                $bytes = [System.IO.File]::ReadAllBytes($ignoreFile)
+                if ($bytes.Length -gt 0 -and $bytes[-1] -ne 10) { $prefix = "`n" }
+            }
+            # AppendAllText writes UTF-8 without a BOM, which Git reads cleanly.
+            [System.IO.File]::AppendAllText($ignoreFile, "$prefix.pdlc/`n")
+            Write-Host "Added .pdlc/ to $ignoreFile."
+        } else {
+            Write-Host 'Skipping global Git ignore.'
+        }
+    }
+
     Write-Host "`nPDLC setup complete! If pdlc is not on PATH, run: uv tool update-shell"
     Write-Host 'Configure work item management with: pdlc setup'
 } catch {

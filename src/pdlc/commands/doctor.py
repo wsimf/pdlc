@@ -18,9 +18,9 @@ DESCRIPTION
     and CLI overrides merge in ascending priority, above environment values.
     Sources identify the repository section that supplies each effective value.
 
-    In a Git repository, best-effort add /.pdlc/ to the repository's .gitignore
-    when Git does not already ignore the directory. Failure to do so does not
-    affect the result.
+    In a Git repository, warn when Git does not ignore the .pdlc/ directory
+    through the repository's .gitignore, .git/info/exclude, or the global
+    ignore file. The command never edits any ignore file.
 
     When the tracker is github or azure, a "Tracker access" section also shows
     what its CLI reports, using read-only calls only:
@@ -64,7 +64,7 @@ from pdlc.config import (
 from pdlc.hosts.lib.access import AccessReport
 from pdlc.hosts.lib.azure import access as azure_access
 from pdlc.hosts.lib.github import access as github_access
-from pdlc.hosts.lib.gitignore import ensure_pdlc_ignored
+from pdlc.hosts.lib.gitignore import pdlc_unignored
 from pdlc.internal.inputs import print_help
 
 
@@ -174,8 +174,11 @@ def run(*, overrides: dict[str, object] | None = None) -> tuple[str, int]:
     except ConfigurationError:
         root = None
         repo_path = None
-    if root is not None:
-        ensure_pdlc_ignored(root)
+    if root is not None and pdlc_unignored(root):
+        warnings.append(
+            ".pdlc/ is not ignored by Git; add .pdlc/ to your global Git ignore file (rerun setup) "
+            "or to this repository's .gitignore"
+        )
     repo_values: dict[str, object] = {}
     repo_sources: dict[str, str] = {}
     repo_status = _read(repo_path, repo_values, repo_sources, errors) if repo_path else "missing"

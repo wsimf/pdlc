@@ -6,11 +6,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pdlc.commands.doctor import run
-from pdlc.config import load_config, repository_root, reset_config
+from pdlc.config import load_config, reset_config
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.hosts.lib.access import AccessReport
 from pdlc.hosts.lib.azure import access as azure_access
 from pdlc.hosts.lib.github import access as github_access
+
+UNIGNORED_WARNING = ".pdlc/ is not ignored by Git"
 
 
 class DoctorTests(unittest.TestCase):
@@ -24,6 +26,17 @@ class DoctorTests(unittest.TestCase):
         access = patch("pdlc.commands.doctor._tracker_access", return_value=None)
         self.tracker_access = access.start()
         self.addCleanup(access.stop)
+        # Isolate Git from the developer's global and system ignore rules.
+        self.git_config_home = self.directory / "xdg"
+        self.git_config_home.mkdir()
+        (self.directory / "gitconfig").write_text("")
+        environment = patch.dict(os.environ, {
+            "XDG_CONFIG_HOME": str(self.git_config_home),
+            "GIT_CONFIG_GLOBAL": str(self.directory / "gitconfig"),
+            "GIT_CONFIG_NOSYSTEM": "1",
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def test_repository_section_sources_and_loading_precedence_agree(self) -> None:
         self.home_path.parent.mkdir(parents=True)
@@ -164,70 +177,38 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("[code.github] repository is upstream/widgets but this checkout's origin is fork/widgets", output)
 
-    def test_adds_gitignore_entry_once_when_directory_is_not_ignored(self) -> None:
+    def _doctor(self) -> tuple[str, int]:
+        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
+             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
+            return run()
+
+    def test_warns_without_editing_when_pdlc_is_not_ignored(self) -> None:
         subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        self.repo_config.write_text('[tracker]\nprovider = "file"\n[code]\nprovider = "none"\n')
         ignore_file = self.repo_root / ".gitignore"
         ignore_file.write_text("other-entry")
-        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
-             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
-            run()
-            run()
-        self.assertEqual(ignore_file.read_text(), "other-entry\n/.pdlc/\n")
-        result = subprocess.run(
-            ["git", "-C", str(self.repo_root), "check-ignore", "-q", "--", ".pdlc/"],
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0)
-
-    def test_respects_existing_git_ignore_rule(self) -> None:
-        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
-        ignore_file = self.repo_root / ".gitignore"
-        ignore_file.write_text(".*\n")
-        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
-        subprocess.run(["git", "-C", str(self.repo_root), "add", "-f", ".pdlc/config.toml"], check=True)
-        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
-             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
-            run()
-        self.assertEqual(ignore_file.read_text(), ".*\n")
-
-    def test_gitignore_failure_does_not_fail_doctor(self) -> None:
-        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
-        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
-        (self.repo_root / ".gitignore").mkdir()
-        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
-             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
-            _, code = run()
+        output, code = self._doctor()
         self.assertEqual(code, 0)
+        self.assertIn(f"- WARNING: {UNIGNORED_WARNING}", output)
+        self.assertEqual(ignore_file.read_text(), "other-entry")
 
-    def test_non_git_directory_does_not_create_gitignore(self) -> None:
-        self.repo_config.write_text('[tracker]\nprovider = "file"\n')
-        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
-             patch("pdlc.commands.doctor.repository_root", return_value=self.repo_root):
-            _, code = run()
-        self.assertEqual(code, 0)
+    def test_repository_ignore_rule_silences_the_warning(self) -> None:
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        (self.repo_root / ".gitignore").write_text(".*\n")
+        output, _ = self._doctor()
+        self.assertNotIn(UNIGNORED_WARNING, output)
+
+    def test_global_ignore_rule_silences_the_warning(self) -> None:
+        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
+        (self.git_config_home / "git").mkdir()
+        (self.git_config_home / "git" / "ignore").write_text(".pdlc/\n")
+        output, _ = self._doctor()
+        self.assertNotIn(UNIGNORED_WARNING, output)
         self.assertFalse((self.repo_root / ".gitignore").exists())
 
-    def test_adds_gitignore_in_linked_worktree(self) -> None:
-        subprocess.run(["git", "init", "-q", str(self.repo_root)], check=True)
-        (self.repo_root / "seed").write_text("seed")
-        subprocess.run(["git", "-C", str(self.repo_root), "add", "seed"], check=True)
-        subprocess.run(
-            ["git", "-C", str(self.repo_root), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"],
-            check=True,
-        )
-        linked = self.directory / "linked"
-        subprocess.run(["git", "-C", str(self.repo_root), "worktree", "add", "-q", "-b", "linked", str(linked)], check=True)
-        (linked / ".pdlc").mkdir()
-        (linked / ".pdlc" / "config.toml").write_text('[tracker]\nprovider = "file"\n')
-        self.assertTrue((linked / ".git").is_file())
-        self.assertEqual(repository_root(linked), linked.resolve())
-
-        with patch("pdlc.commands.doctor.home_config_path", return_value=self.home_path), \
-             patch("pdlc.commands.doctor.repository_root", side_effect=lambda: repository_root(linked)):
-            _, code = run()
-
-        self.assertEqual(code, 0)
-        self.assertEqual((linked / ".gitignore").read_text(), "/.pdlc/\n")
+    def test_non_git_directory_does_not_warn(self) -> None:
+        output, _ = self._doctor()
+        self.assertNotIn(UNIGNORED_WARNING, output)
         self.assertFalse((self.repo_root / ".gitignore").exists())
 
     def test_tracker_access_section_joins_warnings_and_failures(self) -> None:

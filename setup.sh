@@ -185,5 +185,26 @@ printf 'Sub-agent setup finished.\n'
 step 9 'Installing or updating the CLI from this checkout...'
 uv tool install --force --reinstall --python "$python_path" --no-python-downloads "$repo_root"
 printf 'PDLC CLI installed or updated from this checkout.\n'
+
+step 10 'Checking global Git ignore...'
+# Use the ignore file Git already reads: core.excludesFile, else Git's XDG default.
+ignore_file=$(git config --global --path core.excludesFile || true)
+ignore_file=${ignore_file:-${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore}
+if [[ -f "$ignore_file" ]] && grep -qxF '.pdlc/' "$ignore_file"; then
+    printf '.pdlc/ is already in %s.\n' "$ignore_file"
+else
+    printf 'PDLC keeps cached prompts and agent instructions in a .pdlc folder inside the worktrees you create. We recommend adding this folder to your global Git ignore file.\n'
+    if confirm "Add .pdlc/ to $ignore_file now?"; then
+        mkdir -p "$(dirname "$ignore_file")"
+        if [[ -s "$ignore_file" && -n $(tail -c1 "$ignore_file") ]]; then
+            printf '\n' >> "$ignore_file"
+        fi
+        printf '.pdlc/\n' >> "$ignore_file"
+        printf 'Added .pdlc/ to %s.\n' "$ignore_file"
+    else
+        printf 'Skipping global Git ignore.\n'
+    fi
+fi
+
 printf '\nPDLC setup complete! If pdlc is not on PATH, run: uv tool update-shell\n'
 printf 'Configure work item management with: pdlc setup\n'
