@@ -533,13 +533,14 @@ class RecoveryLandingGateTest(FileBackendTest):
 
     def test_post_write_names_the_gate_it_lands(self) -> None:
         evidence = self.evidence_file()
-        body = self.write_file("product.md", "## Product\nx\n\n## Decisions\nd\n\n## Open Questions\nq\n")
+        text = "## Product\nx\n\n## Decisions\nd\n\n## Open Questions\nq\n"
+        body = self.product_draft(text, slug="shell")
         created = self.land("post_write", "--title", "Shell", "--slug", "shell", "--evidence", evidence, "--body", body)
         issue = created["work_item_number"]
         # Re-authored in place from the landed gate, and first-published from Stale.
-        self.land("post_write", "--work-item", issue, "--evidence", evidence, "--body", body)
+        self.land("post_write", "--work-item", issue, "--evidence", evidence, "--body", self.product_draft(text, issue))
         self.seed_record(90, "Product", "Stale")
-        self.land("post_write", "--work-item", 90, "--evidence", evidence, "--body", body)
+        self.land("post_write", "--work-item", 90, "--evidence", evidence, "--body", self.product_draft(text, 90))
 
     def test_post_tasks_ui_names_the_gate_it_lands(self) -> None:
         self.seed_record(91, "UI", "Pending")

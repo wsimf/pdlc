@@ -21,3 +21,5 @@ follow the attachment it describes:
 Descriptions are optional. Inspectors show the supplied description or fall
 back to the saved filename, followed by the resolved local path. The same
 `--attachment` option can be repeated for multiple files.
+
+`pdlc prompt product-writer` takes the same `--attachment` options before anything is posted: it records each file for the Product draft until it lands, lists it in every brief on the draft, and puts it on the land command it names. It reads the file from its path at landing, so keep it there until then.

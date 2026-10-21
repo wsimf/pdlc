@@ -140,7 +140,7 @@ class PatchPolicyTests(unittest.TestCase):
 
 class PostWritePatchTests(FileBackendTest):
     def patch(self, number: int, *extra: object):
-        body = self.write_file("product.md", PRODUCT_PATCH)
+        body = self.product_draft(PRODUCT_PATCH, number)
         return self.invoke("post_write", "--work-item", number, "--body", body, "--patch", *extra)
 
     def test_lands_product_without_moving_the_pointer(self):
@@ -169,7 +169,7 @@ class PostWritePatchTests(FileBackendTest):
 
     def test_an_affected_stage_lands_the_patch_and_returns_the_record_there(self):
         self.seed_record(69, "Technical Plan", "Approval Required")
-        body = self.write_file("product.md", PRODUCT_PATCH.replace("- FR-2: The record publishes.\n", ""))
+        body = self.product_draft(PRODUCT_PATCH.replace("- FR-2: The record publishes.\n", ""), 69)
         impact = self.write_file("impact.md", TASKS_AFFECTED)
         result = self.invoke(
             "post_write", "--work-item", 69, "--body", body, "--evidence", self.evidence_file(), "--patch", "--impact", impact,
@@ -208,7 +208,7 @@ class PostWritePatchTests(FileBackendTest):
 
     def test_refuses_changed_requirement_ids_when_intermediate_stages_exist(self):
         self.seed_record(73, "Technical Plan", "Pending")
-        body = self.write_file("product.md", PRODUCT_PATCH.replace("- FR-2: The record publishes.\n", ""))
+        body = self.product_draft(PRODUCT_PATCH.replace("- FR-2: The record publishes.\n", ""), 73)
         impact = self.write_file("impact.md", NO_IMPACT)
         result = self.invoke(
             "post_write", "--work-item", 73, "--body", body, "--evidence", self.evidence_file(), "--patch", "--impact", impact,

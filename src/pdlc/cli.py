@@ -47,7 +47,9 @@ COMMANDS = {
     ("prompt", "acceptance-test-writer"): "pdlc.commands.prompt_acceptance_test_writer",
     ("prompt", "task-planner"): "pdlc.commands.prompt_task_planner",
     ("prompt", "tech-planner"): "pdlc.commands.prompt_tech_planner",
+    ("prompt", "product-writer"): "pdlc.commands.prompt_product_writer",
     ("prompt", "product-reviewer"): "pdlc.commands.prompt_product_reviewer",
+    ("prompt", "tech-feasibility"): "pdlc.commands.prompt_tech_feasibility",
     ("prompt", "ui-planner"): "pdlc.commands.prompt_ui_planner",
     ("prompt", "tasks-reviewer"): "pdlc.commands.prompt_tasks_reviewer",
     ("prompt", "plan-reviewer"): "pdlc.commands.prompt_plan_reviewer",
@@ -112,7 +114,9 @@ def _usage() -> str:
         "  prompt acceptance-test-writer WI --traceability FILE  the brief for the test writer covering the whole implemented scope\n"
         "  prompt task-planner WI [--current-tasks-manifest-path FILE] [--follow-up FILE|text:BODY]  the delivery-task planner's brief\n"
         "  prompt tech-planner WI [--current-plan-manifest-path FILE] [--follow-up FILE|text:BODY]  the technical planner's brief\n"
-        "  prompt product-reviewer DRAFT [--work-item WI]  the brief for the reviewer of a Product draft before it lands\n"
+        "  prompt product-writer (--work-item WI [--reauthor | --patch] | --slug SLUG) [--restart] [--attachment PATH]  the Product author's brief and draft\n"
+        "  prompt product-reviewer DRAFT --pass product|technical [--findings FILE]  the brief for the reviewer of a Product draft before it lands\n"
+        "  prompt tech-feasibility DRAFT [--findings FILE]  the brief for the feasibility spike of a reviewed Product draft\n"
         "  prompt ui-planner WI [--current-journeys-path FILE] [--follow-up FILE|text:BODY]  the UI planner's brief\n"
         "  prompt tasks-reviewer WI [--manifest FILE | --fragment FILE]  the brief for the UI/Tasks reviewer\n"
         "  prompt plan-reviewer WI [--manifest FILE]  the brief for the reviewer of a pass's delivery-task plans\n"

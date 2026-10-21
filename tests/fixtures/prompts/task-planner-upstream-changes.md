@@ -37,6 +37,8 @@ UJ-1 covers the first run.
 
 Revise the task breakdown at `$CACHE_ROOT/.pdlc/cache/60/pdlc-task-planner-manifest.json`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
 
+When the work item carries a `### Technical approach`, split the work along the seams it names, its `Slicing` part first, so each task follows that reviewed approach rather than a new one.
+
 ### Changed since last publish
 
 Upstream stages changed after this stage last published. The work item already reflects them. Use them to find which parts of the existing work they affect and update those; leave the rest unchanged.

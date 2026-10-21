@@ -18,6 +18,8 @@ Revise the task breakdown at `{{MANIFEST_PATH}}`. Read its manifest and task fil
 {{#ELSE}}
 No delivery tasks exist yet. Decompose the work item above into a first breakdown.
 {{/IF}}
+
+When the work item carries a `### Technical approach`, split the work along the seams it names, its `Slicing` part first, so each task follows that reviewed approach rather than a new one.
 {{#IF STALE_REASON}}
 
 ### Invalidation reason

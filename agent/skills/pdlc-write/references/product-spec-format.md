@@ -25,7 +25,7 @@ Diagrams are optional, and never a section of their own — never write a `### D
 
 A diagram earns its place only when it is the **authoritative** statement of something prose states badly. If it restates requirements you already numbered, it is a second source of truth that goes stale the first time a requirement is edited — leave it out.
 
-Label every edge with the `FR-*` or `C-*` it encodes, so the diagram stays checkable against the text and `pdlc-tasks` can trace coverage from it.
+Label every edge with the `FR-*` or `C-*` it encodes, so the diagram stays checkable against the text and task coverage can be traced from it.
 
 **State machine** — when the feature introduces an entity that moves through states. Prose describes transitions one at a time and nobody notices the missing ones; a diagram makes an absent edge obvious. Belongs under Functional requirements.
 
@@ -49,13 +49,13 @@ flowchart TD
     D -->|No| E[Full session continues: FR-9]
 ```
 
-**Sequence** — only for multi-actor flows where *ordering itself* is the requirement, such as a watch/phone handoff or a background refresh racing a user tap. Participants must be actors or user-visible surfaces. The moment you name a component you are doing technical planning, which belongs to `pdlc-plan`.
+**Sequence** — only for multi-actor flows where *ordering itself* is the requirement, such as a watch/phone handoff or a background refresh racing a user tap. Participants must be actors or user-visible surfaces; components belong to `### Technical approach`.
 
 Never draw `erDiagram` or `classDiagram` (technical plan), `journey` (the `UI` section owns experience flows), `gantt` (the tracked fields are the lifecycle record), or a scope-boundary flowchart (that is Non-goals with boxes round it).
 
 ## Section: `## Product`
 
-Write these subsections in the order below, under their exact names. They are unnumbered on purpose: two of them are omitted whenever they have no content, and everything downstream — reviewers, `pdlc-plan`, the commands — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
+Write these subsections in the order below, under their exact names. They are unnumbered on purpose: Design considerations is omitted whenever it has no content, and everything downstream — reviewers, planners, the commands — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
 
 ### Problem statement
 Two to four sentences: who is affected, what they cannot do today, and why it matters. State the problem, not the solution — no requirement restatement, no design, no feature tour. If it runs past a short paragraph, the detail belongs in Goals, Functional requirements, or the product evidence comment.
@@ -64,7 +64,7 @@ Two to four sentences: who is affected, what they cannot do today, and why it ma
 Specific, measurable objectives (bullet list).
 
 ### Prior art & reuse
-What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Interview exploration — it is the written record of that search, and it is what saves `pdlc-plan` from repeating it.
+What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Interview exploration — it is the written record of that search, and it is what saves the spike and later planning from repeating it.
 
 Cite real file paths and type names, not descriptions:
 
@@ -118,19 +118,15 @@ Every task must cover at least one FR or C, so keep both numbered and stable —
 ### Design considerations (optional)
 Product-level experience constraints and links to supplied mockups. Do not decide UI applicability, journeys, surfaces, navigation, interaction states, accessibility behaviour, or UI tasks here — the `UI` section owns all of that, and components to reuse belong in Prior Art & Reuse.
 
-### Assumptions (omit if none)
-Things taken as true without having been verified, that would change the design if false. Each names what is assumed and what breaks if it turns out wrong.
-
-- "Assumes `PowerSession` exposes no pause/resume protocol; if it does, the later implementation work shrinks to wiring."
-
-This section is temporary, and its presence is a signal. `pdlc-plan` verifies every assumption against source during its spike and then deletes the section — no assumption may survive into implementation.
-
-**Omit the heading entirely when there is nothing to assume.** Do not write "None." — an empty section reads downstream as unverified work still outstanding and forces a spike with nothing to check. Leaving it out is the honest signal.
-
-Be strict about what qualifies. If you could have settled it by reading source during the Interview, it was never an assumption — go and check it now. If nobody has decided it yet, it is an Open Question.
-
 ### Success metrics
 How success will be measured — "route details open with no perceptible delay after tap", "multi-day plan completes in under three minutes".
+
+### Technical approach
+How the product will be built and whether it can be, from a spike against current source: always the last subsection of Product. The feasibility spike writes it after the product review, following `pdlc template technical-approach`, and the technical review checks it; leave it empty in the first draft. It is the one place in Product that names modules, boundaries, and data flow, and still names no files to edit, signatures, or task order.
+
+## Assumptions from the spike
+
+Nothing lands on an assumption. A spike may hand you assumptions it could not verify: confirm each one and fold it into the requirement or constraint it supports, or settle it with the driver. Never write an `### Assumptions` subsection into a draft that is going to land; the land command refuses one.
 
 ## Section: `## Decisions`
 
@@ -138,7 +134,7 @@ Alternatives considered and rejected, with the reason. Only the residue that has
 
 Write each one as a numbered entry: the decision in bold on the first line, the rationale on the next, the reference on the last. Rationales are prose and a table column squeezes them into something nobody reads.
 
-This section is the authored decision record. Decisions that emerge later live in task `## Implementation` notes and `PDLC-RESOLUTION` comments during delivery, and `pdlc-complete` captures them in the completion evidence — this section itself is frozen once Product is approved. Keep the three lines in this order, and write `Ref: —` for decisions made before any task existed:
+This section is the authored decision record. Decisions that emerge later live in task `## Implementation` notes and `PDLC-RESOLUTION` comments during delivery, and the completion evidence captures them — this section itself is frozen once Product is approved. Keep the three lines in this order, and write `Ref: —` for decisions made before any task existed:
 
 ```md
 1. **Shape stored per profile, not on `RouteEntity`**
@@ -156,4 +152,4 @@ Numbering is positional and may be renumbered freely — unlike `FR-*` and `C-*`
 
 ## Section: `## Open Questions`
 
-Things nobody has decided yet. Every open question must be answered or explicitly deferred before the record can reach `Complete` — see `pdlc-complete`. Open Questions are undecided; Assumptions are decided without verification. Do not mix them. Omit the section entirely when there are none; on an existing record, omitting it leaves the landed Open Questions unchanged.
+Implementation details nobody has decided yet, each one free to settle either way without changing any `FR-*` or `C-*`. A question whose answer would change a requirement or constraint is settled with the driver before landing, never left here. Every open question must be answered or explicitly deferred before the record can complete. Omit the section entirely when there are none; on an existing record, omitting it leaves the landed Open Questions unchanged.

@@ -118,6 +118,10 @@ A pass-through method forwards the same arguments to another method with the sam
 
 Remove it or move responsibility to the module that can complete the operation. Keep a forwarding boundary only when it adds policy, adaptation, or a distinct abstraction.
 
+## The parent's technical approach
+
+The parent's `### Technical approach` subsection is the reviewed account of how this feature fits the codebase. Start each plan from it rather than re-deriving it, confirm that what it cites still holds in current source, and report drift instead of quietly planning around it. If the parent still carries an `### Assumptions` subsection, verify each entry against source: state one that holds in the plan that relies on it, and report one that is false or cannot be settled from source as a blocker.
+
 ## Writing a plan
 
 Each plan covers:
@@ -129,8 +133,35 @@ Each plan covers:
 - test / validation strategy mapped to the task's acceptance criteria
 - unresolved decisions, called out explicitly
 
-Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
+A plan block might read like this, where each path is a source file the task changes:
+
+```markdown
+1. `path/to/SourceFile` — <the behavior that changes there and what it affects>.
+2. `path/to/OtherSourceFile` — <interface, call site, integration, ownership, or data-flow change>.
+3. Tests: `path/to/TestFile` — <behaviors and edge cases, mapped to the acceptance criteria>.
+
+**Validation:** <focused tests, build target, and required runtime/visual check>
+**Migration / rollback:** <data or contract migration and how to back it out, or None>
+**Dependencies / risks:** <sequencing against other tasks, concrete blockers, or driver decisions, or None>
+**Tradeoffs:** <optional: one "we accept X in exchange for Y" per choice a reader could mistake for an oversight>
+```
+
+- Name the exact existing files and modules where the change goes whenever the spike identifies them, and leave types, signatures, and line-level edits to the implementer. If a new file is required, give its proposed package/folder and responsibility. No code snippets or patches.
+- Order steps by dependency and keep requirements traceable. Include only changes necessary for that task; do not plan already-completed work.
+- Keep the plan scannable: one line per numbered step. When a plan grows long enough that a reviewer loses the thread, the task should have been split — say so rather than writing a longer plan.
+- Don't restate scope, non-goals, dependencies, coverage, or acceptance criteria. The task body already carries them.
+- Record unanswered questions explicitly. If a task cannot be planned safely without an answer, mark it blocked and report it rather than presenting a speculative plan as ready.
+- When you re-plan a task that already carries a plan, rewrite its whole plan block as a first-pass plan, not a diff. Do not write implementation notes or Result prose.
 
 ## Report back
 
-Name the tasks whose plans you wrote or changed, and those you left unchanged. A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess.
+A missing prerequisite, or a decision only the driver can make, stops the pass: report it exactly and don't guess. Return:
+
+1. Whether this was a first pass or a reconciliation.
+2. Tasks planned, tasks left unchanged, and any open task left unplanned with the reason.
+3. Dependency and sequencing order.
+4. Concrete blockers or driver decisions surfaced.
+5. How each surviving assumption resolved, or `None`.
+6. Drift between the record, its technical approach, and current source.
+7. Exploration delegated and its results.
+8. Validation intentionally not run.

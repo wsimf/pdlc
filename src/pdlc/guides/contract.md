@@ -39,7 +39,7 @@ When human-readable output cites one, quote or paraphrase the requirement beside
 
 ## Stage ownership
 
-- Product owns the problem, goals, requirements, constraints, non-goals, success measures, assumptions, decisions, and open questions.
+- Product owns the problem, goals, requirements, constraints, non-goals, success measures, technical approach, decisions, and open questions.
 - UI owns the UI specification, accessibility, states, and user journeys.
 - Tasks owns stable `WORK-NNN-TASK-NNN` delivery tasks, requirements, dependencies, and acceptance criteria.
 - Technical Plan owns source ownership, architecture, sequencing, risks, and validation planning.

@@ -9,10 +9,10 @@ from _support import FileBackendTest
 
 class PostWriteAttachmentTests(FileBackendTest):
     def test_attachments_are_stored_locally_and_kept_off_the_record(self):
-        draft = self.write_file(
-            "product.md",
+        draft = self.product_draft(
             "## Product\nShips.\n\n### 4. Functional requirements\n- FR-1: lands.\n\n"
             "### 5. Constraints\n- C-1: x.\n\n## Decisions\n- d\n\n## Open Questions\n- none\n",
+            slug="shell",
         )
         mockup = self.write_file("navigation.png", "navigation mockup bytes\n")
         unlabelled = self.write_file("empty-state.png", "empty state mockup bytes\n")

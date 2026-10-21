@@ -37,6 +37,8 @@ UJ-1 covers the first run.
 
 Revise the task breakdown at `$CACHE_ROOT/current-tasks.json`. Read its manifest and task files, then edit them in place against the work item and any inputs below.
 
+When the work item carries a `### Technical approach`, split the work along the seams it names, its `Slicing` part first, so each task follows that reviewed approach rather than a new one.
+
 ### Driver follow-up
 
 A change the driver asked for, or findings from a review of the breakdown, verbatim. Apply it to the tasks it affects; if it conflicts with the work item, stop and report it.
