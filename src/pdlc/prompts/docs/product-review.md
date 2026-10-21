@@ -45,6 +45,10 @@ These findings do not limit the review: review the whole draft as you would on a
 --- END PRIOR FINDINGS ---
 {{/IF}}
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 ## What to check
 
 - Every cited prior-art path and type exists in current source and does what the draft says.

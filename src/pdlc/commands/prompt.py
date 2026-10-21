@@ -201,7 +201,7 @@ from pdlc.commands.inspect_implement import (
     _readiness,
     _stack_order,
 )
-from pdlc.internal.attachments import attachments_for_item, attachments_list
+from pdlc.internal.attachments import attachments_for_item, attachments_list, validate_attachments
 from pdlc.internal.failure import report_failure
 
 TECH_PLAN_STAGE = "Technical Plan"
@@ -607,6 +607,7 @@ _PHASE_SUMMARIES = {
 
 def product_writer_brief(
     work_item: str | None, slug: str | None, reauthor: bool, patch: bool, restart: bool,
+    attachments: list[dict] | None = None,
 ) -> tuple[str, str]:
     """The brief for the agent authoring a Product draft with the driver, and
     the draft's cache key.
@@ -615,7 +616,9 @@ def product_writer_brief(
     the driver's conversation. It creates the draft on first use, seeded from
     the record's state, and keeps it on every later run, so re-running it after
     each step reads where the draft stands and names the next step. `restart`
-    discards the draft and its reviews first.
+    discards the draft and its reviews first. `attachments` are local files the
+    driver supplied, recorded alongside those passed on earlier runs; every
+    brief on the draft lists them, and the land command carries them.
     """
     if bool(work_item) == bool(slug):
         raise PdlcError("pass exactly one of --work-item WORK_ITEM or --slug SLUG")
@@ -625,6 +628,7 @@ def product_writer_brief(
         raise PdlcError("pass at most one of --reauthor or --patch")
     if work_item and not work_item.isdigit():
         raise PdlcError(f"--work-item must be an exact work item number: {work_item}")
+    validate_attachments(attachments or [])
     mode: dict[str, object] = {
         "FRESH": False, "UNINITIALIZED": False, "RECONCILE": False, "REVIEW_ONLY": False,
         "REAUTHOR": False, "PATCH": False,
@@ -691,6 +695,7 @@ def product_writer_brief(
         product_draft.clear(key)
     if not draft.exists():
         replace_cache_file(draft, seed)
+    recorded = product_draft.add_attachments(key, attachments or [])
 
     current = product_draft.current_phase(key)
     text = draft.read_text(encoding="utf-8")
@@ -716,6 +721,10 @@ def product_writer_brief(
         land = f"pdlc post write --work-item {work_item} --body {_quoted(draft)} --evidence <EVIDENCE_FILE>"
     else:
         land = f'pdlc post write --title "<TITLE>" --slug {slug} --body {_quoted(draft)} --evidence <EVIDENCE_FILE>'
+    for attachment in recorded:
+        land += f" --attachment {_quoted(attachment['path'])}"
+        if attachment["description"]:
+            land += f" --attachment-description {_quoted(attachment['description'])}"
     approach_written = product_draft_policy.subsection(text, product_draft_policy.TECHNICAL_APPROACH) is not None
     problems = product_draft.draft_problems(text) if approach_written else []
     brief = render(
@@ -724,6 +733,7 @@ def product_writer_brief(
             **mode,
             **context,
             "DRAFT_PATH": str(draft),
+            "ATTACHMENTS": product_draft.attachments_text(key),
             "PHASE_SUMMARY": _PHASE_SUMMARIES[current],
             "PROBLEMS": [{"PROBLEM": problem} for problem in problems],
             **{f"PHASE_{phase.name}": current == phase for phase in Phase},
@@ -786,6 +796,7 @@ def product_reviewer_brief(draft: str, review_pass: str, findings: str | None) -
             "TECHNICAL": technical,
             "DRAFT_PATH": str(path),
             "CURRENT_RECORD": current_record,
+            "ATTACHMENTS": product_draft.attachments_text(key),
             "PRIOR_FINDINGS": prior_findings,
             "FINDINGS_PATH": _findings_file(key, review),
         },
@@ -822,6 +833,7 @@ def tech_feasibility_brief(draft: str, findings: str | None) -> tuple[str, str]:
             "EXECUTION_SCOPE": "this one feasibility spike",
             "DRAFT_PATH": str(path),
             "CURRENT_RECORD": current_record,
+            "ATTACHMENTS": product_draft.attachments_text(key),
             "PRIOR_FINDINGS": _filled_text(findings, "--findings", product_draft.TECHNICAL_REVIEW),
             "APPROACH_TEMPLATE": load_template(product_draft.APPROACH_TEMPLATE).strip(),
         },

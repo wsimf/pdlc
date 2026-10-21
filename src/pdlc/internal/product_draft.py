@@ -4,8 +4,9 @@
 the work item number, or by `new-<slug>` before a record exists; every later
 command takes that path and recovers the key from it, so the reviewers, the
 spike, and `pdlc post write` all act on the one file. The stamp records what
-each step saw (see `pdlc.domain.product_draft`), and a successful landing
-deletes the draft, the stamp, and both findings files.
+each step saw (see `pdlc.domain.product_draft`), the attachments file the
+local files the driver supplied for it, and a successful landing deletes the
+draft, the stamp, the attachments file, and both findings files.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ import json
 from pathlib import Path
 
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.hosts.attachment_host import get_host
+from pdlc.internal.attachments import attachments_list, validate_attachments
 from pdlc.domain.product_draft import Phase, Stamp, land_problems, phase, review_verdict, subsection, TECHNICAL_APPROACH
 from pdlc.internal.review_stamp import findings_path
 from pdlc.internal.scratch import cache_file, replace_cache_file
@@ -47,6 +50,10 @@ def draft_path(key: str) -> Path:
 
 def _stamp_path(key: str) -> Path:
     return cache_file(key, "product-review")
+
+
+def _attachments_path(key: str) -> Path:
+    return cache_file(key, "product-attachments")
 
 
 def product_findings_path(key: str) -> Path:
@@ -92,6 +99,48 @@ def write_stamp(key: str, stamp: Stamp) -> None:
     replace_cache_file(_stamp_path(key), json.dumps(data, indent=2) + "\n")
 
 
+def read_attachments(key: str) -> list[dict]:
+    """The local files recorded for the draft, each `{path, description}`,
+    refusing when one has since moved or emptied: landing would fail on it."""
+    path = _attachments_path(key)
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PdlcError(f"cannot read the Product draft's attachments {path}: {error}; delete it and pass them again") from None
+    if not isinstance(data, list) or not all(isinstance(entry, dict) and isinstance(entry.get("path"), str) for entry in data):
+        raise PdlcError(f"the Product draft's attachments {path} are malformed; delete it and pass them again")
+    try:
+        validate_attachments(data)
+    except PdlcError as error:
+        raise PdlcError(f"{error}; restore it, or pass --restart and start the draft again") from None
+    return data
+
+
+def add_attachments(key: str, inputs: list[dict]) -> list[dict]:
+    """Record `inputs` alongside those already recorded; passing a path again
+    replaces its description. Validates every input before writing any."""
+    added = [
+        {"path": str(entry["path"].resolve()), "description": entry["description"]}
+        for entry in validate_attachments(inputs)
+    ]
+    if not added:
+        return read_attachments(key)
+    paths = {entry["path"] for entry in added}
+    recorded = [entry for entry in read_attachments(key) if entry["path"] not in paths] + added
+    replace_cache_file(_attachments_path(key), json.dumps(recorded, indent=2) + "\n")
+    return recorded
+
+
+def attachments_text(key: str) -> str:
+    """The numbered list of the draft's attachments for a brief: those already
+    on the record, then those recorded for landing; empty when there are none."""
+    work_item = work_item_of(key)
+    landed = get_host().list_for(work_item) if work_item else []
+    return attachments_list(landed + read_attachments(key))
+
+
 def findings_verdict(path: Path) -> str | None:
     return review_verdict(path.read_text(encoding="utf-8")) if path.is_file() else None
 
@@ -117,6 +166,7 @@ def draft_problems(draft: str) -> list[str]:
 
 
 def clear(key: str) -> None:
-    """Delete the draft, its stamp, and both findings files."""
-    for path in (draft_path(key), _stamp_path(key), product_findings_path(key), technical_findings_path(key)):
+    """Delete the draft, its stamp, its attachments file, and both findings files."""
+    paths = (draft_path(key), _stamp_path(key), _attachments_path(key), product_findings_path(key), technical_findings_path(key))
+    for path in paths:
         path.unlink(missing_ok=True)

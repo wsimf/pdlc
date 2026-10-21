@@ -32,6 +32,10 @@ A technical review raised these against the approach this draft carried. Address
 --- END PRIOR FINDINGS ---
 {{/IF}}
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 ## Your Task
 
 Write the draft's `### Technical approach` subsection in place: the last subsection of `## Product`, directly before `## Decisions`, replacing any approach the draft already carries. Follow this template, nesting its parts as `####` headings:

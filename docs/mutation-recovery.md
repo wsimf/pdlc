@@ -60,7 +60,7 @@ Keep the input file until success and stop after three repeats of the same trans
 
 `pdlc post write --title T --slug S --body FILE --evidence FILE`
 
-Every `post write` form except `--dry-run` first checks that `--body` is the `pdlc prompt product-writer` draft for this landing and that both reviews passed on it as it stands; that refusal writes nothing. Only after its last record write does the command delete the local draft, its review stamp, and both findings files, so a failure at any step below leaves them for the re-run. The `--work-item N` re-run below accepts the `new-<slug>` draft the create form was given, when N carries that slug.
+Every `post write` form except `--dry-run` first checks that `--body` is the `pdlc prompt product-writer` draft for this landing and that both reviews passed on it as it stands; that refusal writes nothing. Only after its last record write does the command delete the local draft, its review stamp, its recorded attachments list, and both findings files, so a failure at any step below leaves them for the re-run. The `--work-item N` re-run below accepts the `new-<slug>` draft the create form was given, when N carries that slug.
 
 Writes:
 1. Create the Issue with the whole body (Azure: `az devops invoke` with Markdown format).

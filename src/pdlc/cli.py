@@ -114,7 +114,7 @@ def _usage() -> str:
         "  prompt acceptance-test-writer WI --traceability FILE  the brief for the test writer covering the whole implemented scope\n"
         "  prompt task-planner WI [--current-tasks-manifest-path FILE] [--follow-up FILE|text:BODY]  the delivery-task planner's brief\n"
         "  prompt tech-planner WI [--current-plan-manifest-path FILE] [--follow-up FILE|text:BODY]  the technical planner's brief\n"
-        "  prompt product-writer (--work-item WI [--reauthor | --patch] | --slug SLUG) [--restart]  the Product author's brief and draft\n"
+        "  prompt product-writer (--work-item WI [--reauthor | --patch] | --slug SLUG) [--restart] [--attachment PATH]  the Product author's brief and draft\n"
         "  prompt product-reviewer DRAFT --pass product|technical [--findings FILE]  the brief for the reviewer of a Product draft before it lands\n"
         "  prompt tech-feasibility DRAFT [--findings FILE]  the brief for the feasibility spike of a reviewed Product draft\n"
         "  prompt ui-planner WI [--current-journeys-path FILE] [--follow-up FILE|text:BODY]  the UI planner's brief\n"

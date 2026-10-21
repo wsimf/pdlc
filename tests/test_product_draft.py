@@ -6,6 +6,7 @@ passed as it stands."""
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from tests._support import APPROACH_DEFAULT, FileBackendTest
 
@@ -102,6 +103,46 @@ class ProductWriterTest(FileBackendTest):
         self.assertEqual(draft.read_text(), DRAFT)
         self.assertEqual(self.writer("--slug", "kept", "--restart").code, 0)
         self.assertEqual(draft.read_text(), "## Product\n\n## Decisions\n\n## Open Questions\n")
+
+    def test_attachments_are_recorded_once_and_reach_every_brief_and_the_land_command(self):
+        mockup = self.write_file("mockup.png", "png")
+        first = self.writer("--slug", "att", "--attachment", mockup, "--attachment-description", "Route sheet")
+        self.assertEqual(first.code, 0, first.stderr)
+        self.assertIn("## Attachments", first.stdout)
+        self.assertIn(f"1. Route sheet\n  - Path: {Path(mockup).resolve()}", first.stdout)
+        self.assertIn("Route sheet", self.writer("--slug", "att").stdout)
+
+        # Passing a path again replaces its description rather than adding it twice.
+        again = self.writer("--slug", "att", "--attachment", mockup, "--attachment-description", "Route sheet v2")
+        self.assertIn("1. Route sheet v2", again.stdout)
+        self.assertNotIn("2. ", again.stdout.split("## Attachments", 1)[1].split("##", 1)[0])
+
+        draft = self.product_draft(DRAFT, slug="att")
+        ready = self.writer("--slug", "att").stdout
+        self.assertIn(f"--attachment {Path(mockup).resolve()} --attachment-description 'Route sheet v2'", ready)
+        review = self.invoke("prompt_product_reviewer", "--inline", draft, "--pass", "technical")
+        self.assertIn("Route sheet v2", review.stdout)
+        self.assertIn("Route sheet v2", self.invoke("prompt_tech_feasibility", "--inline", draft).stdout)
+
+        draft = self.product_draft(DRAFT, slug="att")
+        landed = self.invoke(
+            "post_write", "--title", "Att", "--slug", "att", "--body", draft, "--evidence", self.evidence_file(),
+            "--attachment", Path(mockup).resolve(), "--attachment-description", "Route sheet v2",
+        )
+        self.assertEqual(landed.code, 0, landed.stderr)
+        self.assertEqual(len(landed.json["attachments"]), 1)
+        self.assertEqual(product_draft.read_attachments("new-att"), [])
+
+    def test_a_moved_attachment_refuses_until_restored_or_restarted(self):
+        mockup = Path(self.write_file("gone.png", "png"))
+        self.assertEqual(self.writer("--slug", "moved", "--attachment", mockup).code, 0)
+        mockup.unlink()
+        refused = self.writer("--slug", "moved")
+        self.assertEqual(refused.code, 1)
+        self.assertIn("attachment does not exist", refused.stderr)
+        restarted = self.writer("--slug", "moved", "--restart")
+        self.assertEqual(restarted.code, 0, restarted.stderr)
+        self.assertNotIn("## Attachments", restarted.stdout)
 
     def test_refuses_a_bad_or_used_slug(self):
         self.seed_record(60, "Product", "Approval Required", slug="taken")

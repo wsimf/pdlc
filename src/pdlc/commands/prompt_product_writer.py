@@ -4,20 +4,22 @@
 
 USAGE
     - if authoring a new work item that has no record yet:
-        pdlc prompt product-writer --slug SLUG [--restart]
+        pdlc prompt product-writer --slug SLUG [--restart] [--attachment PATH [--attachment-description TEXT]]
     - if authoring or reconciling an existing record's Product, or one never authored:
-        pdlc prompt product-writer --work-item WORK_ITEM [--restart]
+        pdlc prompt product-writer --work-item WORK_ITEM [--restart] [--attachment PATH [--attachment-description TEXT]]
     - if the driver asked for a spec change while Product awaits their approval:
-        pdlc prompt product-writer --work-item WORK_ITEM --reauthor [--restart]
+        pdlc prompt product-writer --work-item WORK_ITEM --reauthor [--restart] [--attachment PATH [--attachment-description TEXT]]
     - if correcting the landed Product while the record is at a later stage:
-        pdlc prompt product-writer --work-item WORK_ITEM --patch [--restart]
+        pdlc prompt product-writer --work-item WORK_ITEM --patch [--restart] [--attachment PATH [--attachment-description TEXT]]
 
 FLAGS
     --slug SLUG               the new work item's kebab-case slug; fixed once the draft exists
     --work-item WORK_ITEM     the existing record whose Product is authored
     --reauthor                action="store_true"; revise a Product at Approval Required on the driver's request
     --patch                   action="store_true"; revise a landed Product from a later stage
-    --restart                 action="store_true"; discard the draft and its reviews, then start again
+    --restart                 action="store_true"; discard the draft, its reviews, and its attachments, then start again
+    --attachment PATH (repeatable)      a local file the driver supplied, such as a mockup; recorded for the draft
+    --attachment-description TEXT       description for the --attachment immediately before it
 
 DESCRIPTION
     Writes the brief for the agent authoring a work item's Product with the
@@ -53,6 +55,13 @@ DESCRIPTION
     back through it. The brief also lists what keeps the draft from landing as
     it stands once it carries a technical approach.
 
+    Each --attachment is recorded for the draft and kept across runs, so a file
+    is passed once; passing the same path again replaces its description. The
+    brief lists the record's existing attachments and the recorded ones, the
+    reviewer and spike briefs list the same files, and the land command the
+    brief names carries every recorded --attachment. A recorded file that has
+    since moved or emptied makes every brief on the draft refuse.
+
     It refuses, writing nothing, when the slug is not kebab-case or already
     names a record; when the record is at Product / Approval Required without
     --reauthor, or at Decision Required (see `pdlc guide decisions`); when it is
@@ -62,6 +71,7 @@ DESCRIPTION
 EXAMPLES
     pdlc prompt product-writer --slug route-shape-detection
     pdlc prompt product-writer --work-item 236
+    pdlc prompt product-writer --slug route-shape-detection --attachment mockup.png --attachment-description "Route sheet mockup"
     pdlc prompt product-writer --work-item 236 --reauthor
     pdlc prompt product-writer --work-item 236 --patch
 """
@@ -73,6 +83,7 @@ import sys
 
 from pdlc.commands import prompt
 from pdlc.domain.lifecycle import PdlcError
+from pdlc.internal.attachments import parse_attachment_arguments
 from pdlc.internal.failure import report_failure
 from pdlc.internal.inputs import print_help, wants_help
 
@@ -92,10 +103,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--patch", action="store_true")
     parser.add_argument("--restart", action="store_true")
     prompt.add_inline_argument(parser)
-    args = parser.parse_args(command_args)
 
     try:
-        brief, key = prompt.product_writer_brief(args.work_item, args.slug, args.reauthor, args.patch, args.restart)
+        command_args, attachments = parse_attachment_arguments(command_args)
+        args = parser.parse_args(command_args)
+        brief, key = prompt.product_writer_brief(
+            args.work_item, args.slug, args.reauthor, args.patch, args.restart, attachments,
+        )
         prompt.emit(brief, key, COMMAND, args.inline)
     except PdlcError as error:
         return report_failure(error)

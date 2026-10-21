@@ -53,6 +53,10 @@ Work item `{{WORK_ITEM}}` is past Product, at {{ACTIVE_STAGE}}. The draft holds 
 --- END CHANGE REQUESTS ---
 {{/IF}}
 
+{{#IF ATTACHMENTS}}
+{{INCLUDE:shared/attachments.md}}
+
+{{/IF}}
 ## Where the draft stands
 
 {{PHASE_SUMMARY}}

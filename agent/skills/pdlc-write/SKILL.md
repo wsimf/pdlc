@@ -32,7 +32,7 @@ Run the controller:
   pdlc prompt product-writer --work-item WORK_ITEM
   ```
 
-Add `--reauthor` only when the driver asked for a change to a spec awaiting their approval in this turn. When the command refuses, report its exact error and stop; a refusal at a human boundary is the driver's to resolve, and `pdlc guide decisions` covers a `Decision Required` record.
+Add `--reauthor` only when the driver asked for a change to a spec awaiting their approval in this turn. Pass each local file the driver supplies, such as a mockup, with `--attachment PATH` on the next run, once; the command keeps it for every later brief and for landing, and `pdlc guide attachments` covers the rest. When the command refuses, report its exact error and stop; a refusal at a human boundary is the driver's to resolve, and `pdlc guide decisions` covers a `Decision Required` record.
 
 The command prints only the brief's path. Read the brief and carry out its `## Next steps`, then run the same command again; repeat until the draft has landed. The brief names the draft file, the only copy of the work; every review, spike, and landing command takes that exact path.
 
@@ -71,7 +71,7 @@ Run at most three passes of either review before you put the outstanding finding
 
 ## Land
 
-Write the evidence body the brief asks for to a local file, e.g. `/tmp/pdlc-route-shape-detection-evidence.md`, with no `PDLC-*` marker, and run the land command the brief names with it. Pass any local files the artifact includes, such as mockups the driver supplied, with `--attachment PATH`; see `pdlc guide attachments`.
+Write the evidence body the brief asks for to a local file, e.g. `/tmp/pdlc-route-shape-detection-evidence.md`, with no `PDLC-*` marker, and run the land command the brief names with it, attachments included.
 
 A failed call may already have changed the record: keep the draft and evidence files, report the exact error, and inspect the work item before retrying. After a successful landing, delete the evidence file; the work-item store is now authoritative.
 
