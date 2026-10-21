@@ -817,6 +817,26 @@ class CodeHostTest(GitHubHostTest):
         self.assertIn("name status conclusion startedAt completedAt", query)
         self.assertIn("checkSuite { app { slug } workflowRun { workflow { databaseId name } } }", query)
 
+    def test_pull_request_checks_lists_current_checks_and_flags_ignored(self) -> None:
+        self.configure(ignored_checks=("nightly",))
+        self.gh.gh("pr", "view", response={"statusCheckRollup": [
+            {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "FAILURE",
+             "startedAt": "2026-09-29T08:00:00Z", "detailsUrl": "https://x/actions/runs/7/job/42"},
+            {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "SUCCESS",
+             "startedAt": "2026-09-29T07:00:00Z"},
+            {"name": "e2e", "workflowName": "Nightly", "status": "IN_PROGRESS", "conclusion": None},
+            {"context": "ci/legacy", "state": "SUCCESS", "targetUrl": "https://ci/1"},
+        ]})
+
+        checks = self.host.pull_request_checks(_refs(5)[0])
+
+        self.assertEqual(checks, [
+            {"name": "CI / unit", "state": "FAILURE", "url": "https://x/actions/runs/7/job/42", "ignored": False},
+            {"name": "Nightly / e2e", "state": "PENDING", "url": "", "ignored": True},
+            {"name": "ci/legacy", "state": "SUCCESS", "url": "https://ci/1", "ignored": False},
+        ])
+        self.assertIn("statusCheckRollup", self.gh.calls[0][0])
+
     def test_pull_requests_by_number_skips_the_host_when_none_are_registered(self) -> None:
         self.assertEqual(self.host.pull_requests([]), [])
         self.assertEqual(self.gh.calls, [])
@@ -899,6 +919,34 @@ class CodeHostTest(GitHubHostTest):
         self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "IN_PROGRESS", "conclusion": None}]}), "PENDING")
         self.assertEqual(_checks_state({"statusCheckRollup": [{"state": "SUCCESS"}]}), "SUCCESS")
         self.assertEqual(_checks_state({"statusCheckRollup": [{"status": "COMPLETED", "conclusion": "FAILURE"}]}), "FAILURE")
+
+    def test_checks_state_drops_ignored_checks_entirely(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _checks_state
+        passed = {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "SUCCESS"}
+        failed = {"name": "e2e (ios)", "workflowName": "Nightly", "status": "COMPLETED", "conclusion": "FAILURE"}
+        running = {"name": "lint", "workflowName": "CI", "status": "IN_PROGRESS", "conclusion": None}
+        status = {"context": "ci/flaky", "state": "ERROR"}
+        rollup = {"statusCheckRollup": [passed, failed, running, status]}
+        self.assertEqual(_checks_state(rollup), "FAILURE")
+        # By check name (glob, case-insensitive), workflow name, and status context.
+        self.assertEqual(_checks_state(rollup, ("E2E *", "lint", "ci/flaky")), "SUCCESS")
+        self.assertEqual(_checks_state(rollup, ("nightly", "lint", "ci/*")), "SUCCESS")
+        self.assertEqual(_checks_state(rollup, ("nightly", "ci/*")), "PENDING")
+        graphql = {"name": "e2e", "status": "COMPLETED", "conclusion": "FAILURE",
+                   "checkSuite": {"workflowRun": {"workflow": {"databaseId": 7, "name": "Nightly"}}}}
+        self.assertEqual(_checks_state({"statusCheckRollup": [passed, graphql]}, ("Nightly",)), "SUCCESS")
+        # Every check ignored reads as no checks configured.
+        self.assertEqual(_checks_state({"statusCheckRollup": [failed]}, ("Nightly",)), "NONE")
+
+    def test_pr_dict_applies_configured_ignored_checks(self) -> None:
+        from pdlc.hosts.lib.github.code_host import _pr_dict
+        install_config(Config(code_repository="acme/api", ignored_checks=("Nightly",)))
+        self.addCleanup(reset_config)
+        failed = {"name": "e2e", "workflowName": "Nightly", "status": "COMPLETED", "conclusion": "FAILURE"}
+        passed = {"name": "unit", "workflowName": "CI", "status": "COMPLETED", "conclusion": "SUCCESS"}
+        pr = {"number": 5, "title": "t", "url": "u", "state": "OPEN", "isDraft": False,
+              "headRefName": "feat", "mergedAt": None, "statusCheckRollup": [failed, passed]}
+        self.assertEqual(_pr_dict(pr)["checks"], "SUCCESS")
 
     def test_checks_state_aggregates_failures_independent_of_rollup_order(self) -> None:
         from pdlc.hosts.lib.github.code_host import _checks_state

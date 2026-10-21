@@ -4,7 +4,7 @@ Follow this when `pdlc inspect changes WORK_ITEM` lists a CI failure, or a Verif
 
 ## Read the failure
 
-A CI failure names the red pull requests and their rollup state, such as `#149 (FAILURE)`, not the checks. For each red PR, list its failing checks and read their logs on the code host; on GitHub, `gh pr checks PR` names them and `gh run view RUN_ID --log-failed` prints the failure. `pdlc inspect test WORK_ITEM` maps each PR to its task.
+A CI failure names the red pull requests and their rollup state, such as `#149 (FAILURE)`, not the checks. Run `pdlc inspect checks WORK_ITEM` to list each red PR's checks. Prefer it over `gh pr checks` or other direct `gh` calls: PDLC may be filtering out checks the user intentionally marked as ignored, and any failure on those is discarded, never investigated, rerun, or fixed; `pdlc config ignored_checks` lists them. Read each failing check's log on the code host; on GitHub, `gh run view --job JOB_ID --log-failed` prints it, where the check's link ends in `runs/RUN_ID/job/JOB_ID`. `pdlc inspect test WORK_ITEM` maps each PR to its task.
 
 A stacked PR's CI runs over every commit below it, so one cause turns its own PR and every PR above it red. Group the red checks by cause, and trace each to the commit that introduced it: an acceptance-coverage commit on the top task branch, or a task's production commit.
 
@@ -29,6 +29,6 @@ This step is complete when its report is in, its fix commits are inspected, and 
 
 ## Publish
 
-Run the skill's Publish step with the same traceability map, updated only where coverage changed, and evidence naming each red check, its cause, and its fix commit or green rerun. `pdlc post test` pushes the fix commits as part of that publish, so the checks rerun only after it; then watch the red PRs to a result (`gh pr checks PR --watch`). Green ends this path. Red again is another pass through this file, and a third red on the same cause goes to the driver.
+Run the skill's Publish step with the same traceability map, updated only where coverage changed, and evidence naming each red check, its cause, and its fix commit or green rerun. `pdlc post test` pushes the fix commits as part of that publish, so the checks rerun only after it; then wait for the red PRs' checks to settle (`gh pr checks PR --watch`) and read the result from `pdlc inspect checks WORK_ITEM`. Green ends this path. Red again is another pass through this file, and a third red on the same cause goes to the driver.
 
-This path is complete when the stage lands at `Review Required` and the watched checks are green.
+This path is complete when the stage lands at `Review Required` and `pdlc inspect checks WORK_ITEM` shows the watched checks green.

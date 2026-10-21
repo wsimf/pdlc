@@ -241,3 +241,5 @@ costs the reader more than no comment at all.
 ## Failing checks
 
 - PR #40: FAILURE (u40)
+
+Run `pdlc inspect checks 60` to list each pull request's individual checks. Prefer it over `gh pr checks` or other direct `gh` calls: PDLC may be filtering out checks the user intentionally marked as ignored, and any failure on those is discarded, never investigated, rerun, or fixed; `pdlc config ignored_checks` lists them.

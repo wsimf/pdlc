@@ -303,12 +303,15 @@ def _implement_context(
     }
 
 
-def _pr_fix_context(task: dict, pr: PullRef, red: list[dict], requests: list[ChangeRequest]) -> dict[str, object]:
+def _pr_fix_context(
+    item: dict, task: dict, pr: PullRef, red: list[dict], requests: list[ChangeRequest],
+) -> dict[str, object]:
     owner, name = _owner_repo(pr.repository)
     checks = _checks_text(red)
     return {
         "EXECUTION_SCOPE": "this one pull request",
         **_task_context(task),
+        "PARENT_WORK_ITEM": str(item["content"]["number"]),
         "PR_NUMBER": str(pr.number),
         "OWNER": owner,
         "REPO": name,
@@ -396,7 +399,7 @@ def _implementer_brief(unit: _Unit, review: str = "") -> str:
     if unit.kind == "pr-fix":
         if unit.pr is None:
             raise PdlcError("a pull-request fix unit names no pull request")
-        context = _pr_fix_context(unit.task, unit.pr, list(unit.red), list(unit.requests))
+        context = _pr_fix_context(unit.item, unit.task, unit.pr, list(unit.red), list(unit.requests))
         return render("pr-fix", {**context, **extra})
     findings = "\n\n".join(part for part in (_checks_text(list(unit.red)) if unit.red else "", review) if part)
     context = _implement_context(unit.item, unit.delivery, unit.task, unit.comments, findings)

@@ -144,6 +144,17 @@ class CreatedRecord(TypedDict):
     url: str
 
 
+class CheckResult(TypedDict):
+    """One CI check on a pull request's head commit, as `pdlc inspect checks`
+    lists it. `state` is the host's own vocabulary (`SUCCESS`, `FAILURE`,
+    `PENDING`, ...); `ignored` marks a check matching `[code.github]
+    ignored_checks`, which the PR's `checks` rollup already leaves out."""
+    name: str
+    state: str
+    url: str
+    ignored: bool
+
+
 class PullRequest(TypedDict):
     number: int
     # Casefolded `owner/name` holding the PR; "" for a code provider without

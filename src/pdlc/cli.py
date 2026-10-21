@@ -17,6 +17,7 @@ from pdlc.internal.inputs import wants_help
 
 COMMANDS = {
     ("doctor",): "pdlc.commands.doctor",
+    ("config",): "pdlc.commands.config",
     ("guide",): "pdlc.commands.guide",
     ("setup",): "pdlc.commands.setup",
     ("template",): "pdlc.commands.template",
@@ -31,6 +32,7 @@ COMMANDS = {
     ("inspect", "task", "timeline"): "pdlc.commands.inspect_task_timeline",
     ("inspect", "comments"): "pdlc.commands.inspect_comments",
     ("inspect", "changes"): "pdlc.commands.inspect_changes",
+    ("inspect", "checks"): "pdlc.commands.inspect_checks",
     ("inspect", "timeline"): "pdlc.commands.inspect_timeline",
     ("inspect", "verify"): "pdlc.commands.inspect_verify",
     ("inspect", "complete"): "pdlc.commands.inspect_complete",
@@ -87,6 +89,7 @@ def _usage() -> str:
         "\nNON-PUBLISHING COMMANDS\n"
         "  setup                       interactive config wizard; writes .pdlc/config.toml\n"
         "  doctor                      inspect config, derived values, tracker CLI access, and all validation results\n"
+        "  config [NAME]               print the configuration in effect here, or one setting's value\n"
         "  guide                       print a bundled Markdown guide for PDLC agents\n"
         "  template NAME               print a bundled evidence template a post command checks its body against\n"
         "  inspect ISSUE               work-item overview: metadata, task tree, PRs, routing decision\n"
@@ -95,6 +98,7 @@ def _usage() -> str:
         "  inspect comments WI --page N  read one page of comments (100 per page)\n"
         "  inspect timeline WI         all evidence comments as a stage-by-stage timeline\n"
         "  inspect changes WI [--stage STAGE]  change requests the stage has not addressed since it last published\n"
+        "  inspect checks WI           every CI check on the work item's PRs; names the user-ignored ones\n"
         "  inspect implement WI        whether Implementation is due, its mode, and the one unit to work next\n"
         "  inspect review WI           whether review is due; which artifact and reviewer agent\n"
         "  inspect test WI             whether testing is due; testable scope and files the PRs touched\n"
@@ -234,6 +238,7 @@ def _dispatch(raw_arguments: list[str]) -> int:
         local_only = {
             "pdlc.commands.setup",
             "pdlc.commands.doctor",
+            "pdlc.commands.config",
             "pdlc.commands.guide",
             "pdlc.commands.inspect_capability",
             "pdlc.commands.prepare",

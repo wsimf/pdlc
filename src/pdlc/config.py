@@ -42,6 +42,7 @@ CONFIG_FIELDS = {
     ("code", "pr_attachment"): "pr_attachment",
     ("code", "pr_title_format"): "pr_title_format",
     ("code.github", "repository"): "code_repository",
+    ("code.github", "ignored_checks"): "ignored_checks",
     ("attachments", "provider"): "attachments_provider",
     ("runtime", "home"): "home",
     ("runtime", "actor"): "actor",
@@ -68,6 +69,8 @@ _INT_FIELDS = {
     "max_delay_seconds": 0,
 }
 _BOOL_FIELDS = ("no_sleep", "debug")
+# Settings that take a TOML array of strings rather than a scalar.
+_LIST_FIELDS = ("ignored_checks",)
 
 # Capability slots let a project name the specialist skill or sub-agent PDLC
 # should route each seam to. They live in their own `config.toml` tables so a
@@ -167,6 +170,11 @@ class Config:
     worktree_root: str | None = None
     worktree_init_script: str | None = None
     worktree_base_ref: str | None = None
+    # `fnmatch` patterns, matched case-insensitively against a check's name,
+    # its workflow's name, or a status context. Matching checks are dropped
+    # before the PR's check rollup is computed, so PDLC never waits on, fails
+    # on, or reports them.
+    ignored_checks: tuple[str, ...] = ()
 
     @classmethod
     def from_values(cls, values: dict[str, object]) -> "Config":
@@ -207,8 +215,15 @@ class Config:
                     f"[{FIELD_LOCATIONS[name]}] must be a boolean"
                 )
             data[name] = text in {"true", "1"}
+        for name in _LIST_FIELDS:
+            if name not in data:
+                continue
+            raw = data[name]
+            if not isinstance(raw, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in raw):
+                raise ConfigurationError(f"[{FIELD_LOCATIONS[name]}] must be a list of non-empty strings")
+            data[name] = tuple(item.strip() for item in raw)
         for name, value in list(data.items()):
-            if name not in _INT_FIELDS and name not in _BOOL_FIELDS:
+            if name not in _INT_FIELDS and name not in _BOOL_FIELDS and name not in _LIST_FIELDS:
                 data[name] = str(value)
         if "cache_root" in data and not str(data["cache_root"]).strip():
             raise ConfigurationError("[cache.root] must be a directory or a named default")
@@ -405,6 +420,11 @@ def _read_file(
                 field = CONFIG_FIELDS.get((section_name, name))
                 if field is None:
                     fail(f"Unknown setting in {label}: [{section_name}] {name}")
+                elif field in _LIST_FIELDS:
+                    if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+                        fail(f"Setting [{section_name}] {name} in {label} must be a list of non-empty strings")
+                    else:
+                        flattened[field] = value
                 elif not isinstance(value, (str, int, float, bool)):
                     fail(f"Setting [{section_name}] {name} in {label} must be a TOML scalar")
                 else:

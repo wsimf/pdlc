@@ -1,6 +1,6 @@
 # PDLC configuration
 
-PDLC reads its settings from TOML files. Run `pdlc doctor` to see the resolved values and any missing or invalid setting.
+PDLC reads its settings from TOML files. Run `pdlc doctor` to see the resolved values and any missing or invalid setting, or `pdlc config [NAME]` to print the values in effect for the current directory.
 
 ## Where settings come from
 
@@ -12,7 +12,7 @@ Later sources win, per key:
 4. The repository's `.pdlc/config.toml`.
 5. Global CLI flags for one run: `--tracker-repo`, `--project-number`, `--project-owner`, `--tracker`, `--home`.
 
-The repository file is optional when `~/.pdlc/config.toml` exists. An unknown table or key, or a non-scalar value, is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
+The repository file is optional when `~/.pdlc/config.toml` exists. An unknown table or key, or a non-scalar value for a key other than `[code.github] ignored_checks`, is a configuration error. `PDLC_DEBUG` is also read from the environment, as an alternative to `[debug] enabled`; no other environment variable is read.
 
 ## Tracker and code
 
@@ -131,6 +131,7 @@ The `repository` keys are omitted above where they are derived from the checkout
 | Key | Required | Default | What it does |
 |---|---|---|---|
 | `repository` | Required when `[code] provider` is `github` | Derived from `origin`, else `[tracker.github] repository` | `owner/name` of the GitHub repository holding pull requests. Set it only when `origin` is not a github.com URL or pull requests are opened on another repository (a fork's upstream); `pdlc doctor` warns when it differs from `origin`. |
+| `ignored_checks` | Optional | `[]` | Array of check patterns PDLC disregards entirely, e.g. `["Nightly e2e", "lint-*"]`. Each is an `fnmatch` glob matched case-insensitively against a check's name, its workflow's name, or a commit status context. A matching check is never waited on, never fails a pull request, and never appears in PDLC output except under `pdlc inspect checks`' `## Ignored checks`; a pull request whose every check matches reads as having no checks. Set it per repository in the home file's `[repository."owner/name".code.github]` section or in the repository's own file. |
 
 ## `[attachments]`
 
