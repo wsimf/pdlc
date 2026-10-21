@@ -25,7 +25,7 @@ Diagrams are optional, and never a section of their own — never write a `### D
 
 A diagram earns its place only when it is the **authoritative** statement of something prose states badly. If it restates requirements you already numbered, it is a second source of truth that goes stale the first time a requirement is edited — leave it out.
 
-Label every edge with the `FR-*` or `C-*` it encodes, so the diagram stays checkable against the text and `pdlc-tasks` can trace coverage from it.
+Label every edge with the `FR-*` or `C-*` it encodes, so the diagram stays checkable against the text and task coverage can be traced from it.
 
 **State machine** — when the feature introduces an entity that moves through states. Prose describes transitions one at a time and nobody notices the missing ones; a diagram makes an absent edge obvious. Belongs under Functional requirements.
 
@@ -55,7 +55,7 @@ Never draw `erDiagram` or `classDiagram` (technical plan), `journey` (the `UI` s
 
 ## Section: `## Product`
 
-Write these subsections in the order below, under their exact names. They are unnumbered on purpose: Design considerations is omitted whenever it has no content, and everything downstream — reviewers, `pdlc-plan`, the commands — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
+Write these subsections in the order below, under their exact names. They are unnumbered on purpose: Design considerations is omitted whenever it has no content, and everything downstream — reviewers, planners, the commands — finds a subsection by its name. Numbering them would only raise the question of whether to renumber or leave a gap.
 
 ### Problem statement
 Two to four sentences: who is affected, what they cannot do today, and why it matters. State the problem, not the solution — no requirement restatement, no design, no feature tour. If it runs past a short paragraph, the detail belongs in Goals, Functional requirements, or the product evidence comment.
@@ -64,7 +64,7 @@ Two to four sentences: who is affected, what they cannot do today, and why it ma
 Specific, measurable objectives (bullet list).
 
 ### Prior art & reuse
-What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Interview exploration — it is the written record of that search, and it is what saves the spike and `pdlc-plan` from repeating it.
+What already exists in the repo that this feature builds on, extends, or must not duplicate. Fill this from the Interview exploration — it is the written record of that search, and it is what saves the spike and later planning from repeating it.
 
 Cite real file paths and type names, not descriptions:
 
@@ -134,7 +134,7 @@ Alternatives considered and rejected, with the reason. Only the residue that has
 
 Write each one as a numbered entry: the decision in bold on the first line, the rationale on the next, the reference on the last. Rationales are prose and a table column squeezes them into something nobody reads.
 
-This section is the authored decision record. Decisions that emerge later live in task `## Implementation` notes and `PDLC-RESOLUTION` comments during delivery, and `pdlc-complete` captures them in the completion evidence — this section itself is frozen once Product is approved. Keep the three lines in this order, and write `Ref: —` for decisions made before any task existed:
+This section is the authored decision record. Decisions that emerge later live in task `## Implementation` notes and `PDLC-RESOLUTION` comments during delivery, and the completion evidence captures them — this section itself is frozen once Product is approved. Keep the three lines in this order, and write `Ref: —` for decisions made before any task existed:
 
 ```md
 1. **Shape stored per profile, not on `RouteEntity`**
