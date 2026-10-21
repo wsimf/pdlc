@@ -152,4 +152,4 @@ Numbering is positional and may be renumbered freely — unlike `FR-*` and `C-*`
 
 ## Section: `## Open Questions`
 
-Implementation details nobody has decided yet, each one free to settle either way without changing any `FR-*` or `C-*`. A question whose answer would change a requirement or constraint is settled with the driver before landing, never left here. Every open question must be answered or explicitly deferred before the record can reach `Complete` — see `pdlc-complete`. Omit the section entirely when there are none; on an existing record, omitting it leaves the landed Open Questions unchanged.
+Implementation details nobody has decided yet, each one free to settle either way without changing any `FR-*` or `C-*`. A question whose answer would change a requirement or constraint is settled with the driver before landing, never left here. Every open question must be answered or explicitly deferred before the record can complete. Omit the section entirely when there are none; on an existing record, omitting it leaves the landed Open Questions unchanged.
