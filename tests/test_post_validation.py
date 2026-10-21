@@ -428,9 +428,8 @@ class PostPlanValidationTests(FileBackendTest):
 
 class PostWriteReconstructionTests(FileBackendTest):
     def _rewrite(self, number):
-        rewrite = self.write_file(
-            f"rewrite-{number}.md",
-            "## Product\nnew product\n\n## Decisions\nnew decision\n\n## Open Questions\nnew question\n",
+        rewrite = self.product_draft(
+            "## Product\nnew product\n\n## Decisions\nnew decision\n\n## Open Questions\nnew question\n", number,
         )
         return self.invoke("post_write", "--work-item", number,
                            "--evidence", self.evidence_file(), "--body", rewrite)
@@ -469,9 +468,8 @@ class PostWriteReconstructionTests(FileBackendTest):
         self.seed_record(50, "Product", "Stale", body=(
             "## Product\nold\n\n## UI\nowned later\n\n## Decisions\nold\n\n## Open Questions\nold\n"
         ))
-        rewrite = self.write_file(
-            "rewrite.md",
-            "## Product\nnew product\n\n## Decisions\nnew decision\n\n## Open Questions\nnew question\n",
+        rewrite = self.product_draft(
+            "## Product\nnew product\n\n## Decisions\nnew decision\n\n## Open Questions\nnew question\n", 50,
         )
         result = self.invoke("post_write", "--work-item", 50,
                              "--evidence", self.evidence_file(), "--body", rewrite)
@@ -485,7 +483,7 @@ class PostWriteReconstructionTests(FileBackendTest):
         self.seed_record(54, "Product", "Stale", body=(
             "## Product\nold\n\n## Decisions\nold\n\n## Open Questions\nkept question\n"
         ))
-        rewrite = self.write_file("no-questions.md", "## Product\nnew product\n\n## Decisions\nnew decision\n")
+        rewrite = self.product_draft("## Product\nnew product\n\n## Decisions\nnew decision\n", 54)
         result = self.invoke("post_write", "--work-item", 54,
                              "--evidence", self.evidence_file(), "--body", rewrite)
         self.assertEqual(result.code, 0, result.stderr)
@@ -495,9 +493,7 @@ class PostWriteReconstructionTests(FileBackendTest):
 
     def test_approval_required_record_is_reauthored_in_place(self):
         self.seed_record(51, "Product", "Approval Required")
-        reauthor = self.write_file(
-            "reauthor.md", "## Product\nrevised\n\n## Decisions\nd\n\n## Open Questions\nq\n"
-        )
+        reauthor = self.product_draft("## Product\nrevised\n\n## Decisions\nd\n\n## Open Questions\nq\n", 51)
         result = self.invoke("post_write", "--work-item", 51,
                              "--evidence", self.evidence_file(), "--body", reauthor)
         self.assertEqual(result.json["gateState"], "Approval Required")

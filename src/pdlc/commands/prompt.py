@@ -12,7 +12,9 @@ COMMANDS
     acceptance-test-writer  brief the test writer that covers the whole implemented scope
     task-planner       brief the sub-agent that decomposes a record into delivery tasks
     tech-planner       brief the sub-agent that spikes the open delivery tasks into plans
+    product-writer     brief the agent authoring a Product draft with the driver, and keep the draft
     product-reviewer   brief the reviewer that checks a Product draft before it lands
+    tech-feasibility   brief the sub-agent that spikes a reviewed Product draft into its technical approach
     ui-planner         brief the sub-agent that authors a record's UI section
     tasks-reviewer     brief the reviewer that checks a UI fragment or Tasks breakdown before it lands
     plan-reviewer      brief the reviewer that checks a pass's delivery-task plans before they land
@@ -37,10 +39,12 @@ DESCRIPTION
     four cover. `tech-planner` describes every open delivery task at once,
     ahead of any of them being built.
 
-    `product-reviewer` is the exception to `COMMAND WORK_ITEM`: it reviews a
-    Product draft that may exist only as a local scratch file, not yet on any
-    record, so it takes the draft's path as its positional argument and the
-    record as an optional `--work-item`, omitted entirely for a fresh draft.
+    `product-writer` is the exception to `COMMAND WORK_ITEM` and to briefing a
+    sub-agent: the agent already talking with the driver reads its brief, it
+    takes `--work-item` or, before a record exists, `--slug`, and it keeps the
+    Product draft at a fixed path in the work-item cache. `product-reviewer` and
+    `tech-feasibility` take that draft's path as their positional argument
+    instead of a work item, since the draft may exist before any record does.
     `cumulative-reviewer` is the same kind of exception in the other
     direction: it takes no work item at all, since nothing in its brief comes
     from the record.
@@ -69,12 +73,14 @@ DESCRIPTION
     caller never dispatches an agent against an empty unit. Every command reads
     the record and its live pull-request state; none changes the record, and
     nothing is published to the backend. `task-planner`, `tech-planner`, and
-    `ui-planner` may write editable copies to the work-item cache.
+    `ui-planner` may write editable copies to the work-item cache, and
+    `product-writer` keeps the Product draft there.
     `tasks-reviewer` and `plan-reviewer` record the files they hand
     the reviewer, so the stage lands only what was reviewed; they and the
-    matching planner briefs restore a reviewed file that changed since. They
-    and `task-reviewer` also write a fresh findings file for the reviewer to
-    fill.
+    matching planner briefs restore a reviewed file that changed since.
+    `product-reviewer` and `tech-feasibility` record what of the Product draft
+    they hand over, so it lands only as reviewed. The reviewer briefs and
+    `task-reviewer` also write a fresh findings file for the reviewer to fill.
 
     Exit 3 means the brief would hand its agent nothing to do, so none is
     written: the caller skips that dispatch and carries on. Any other non-zero
@@ -90,7 +96,9 @@ EXAMPLES
     pdlc prompt acceptance-test-writer 236 --traceability /tmp/trace.md
     pdlc prompt task-planner 236
     pdlc prompt tech-planner 236
-    pdlc prompt product-reviewer /tmp/pdlc-route-shape-detection-body.md
+    pdlc prompt product-writer --slug route-shape-detection
+    pdlc prompt product-reviewer .pdlc/cache/236/main-product-draft.md --pass product
+    pdlc prompt tech-feasibility .pdlc/cache/236/main-product-draft.md
     pdlc prompt ui-planner 236
     pdlc prompt tasks-reviewer 236 --manifest /tmp/pdlc-tasks.json
     pdlc prompt plan-reviewer 236 --manifest /tmp/pdlc-plan.json
@@ -106,9 +114,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pdlc.domain.records import PullRef, pull_request_label
@@ -136,10 +145,14 @@ from pdlc.domain.task_artifact import snapshot, stored_fields
 from pdlc.domain.implement_findings import ImplementFindings
 from pdlc.domain.implement_findings import parse as parse_implement_findings
 from pdlc.domain.lifecycle import PdlcError, TransientError
+from pdlc.domain import product_draft as product_draft_policy
+from pdlc.domain.product_draft import SLUG_PATTERN, Phase
+from pdlc.domain.workflow import decision_required_message
 from pdlc.domain.model import (
     evidence_comment_text,
     find_marked_comments,
     item_gate,
+    is_uninitialized,
     item_status,
     read_section,
     remove_section,
@@ -150,6 +163,7 @@ from pdlc.internal.vcs import diff_stat, diff_text, head_commit, touched_files, 
 from pdlc.internal.invalidation import record_patch_plan
 from pdlc.internal.pull_requests import record_open_review_comments, record_pull_requests
 from pdlc.internal.stack import task_branch_name
+from pdlc.internal import product_draft
 from pdlc.internal.review_stamp import clear_stamp, findings_path, restore_reviewed, write_stamp
 from pdlc.internal.scratch import replace_cache_file, scratch_path, write_scratch
 from pdlc.internal.workitem import (
@@ -165,6 +179,7 @@ from pdlc.commands.inspect_verify import _readiness as _verify_readiness
 from pdlc.commands.inspect_verify import _stale_rows as _verify_stale_rows
 from pdlc.internal.verification import ledger, reports as verify_reports, reusable, skeleton, ui_journeys
 from pdlc.prompts.assemble import render
+from pdlc.templates.template import load_template
 from pdlc.prompts.context import (
     FR_C_PATTERN,
     UJ_PATTERN,
@@ -205,7 +220,7 @@ class NothingToBrief(PdlcError):
 
 BRIEF_COMMANDS = (
     "task-implementer", "task-reviewer", "task-test-writer", "acceptance-test-writer", "task-planner",
-    "tech-planner", "product-reviewer", "ui-planner", "tasks-reviewer", "plan-reviewer", "cumulative-reviewer",
+    "tech-planner", "product-writer", "product-reviewer", "tech-feasibility", "ui-planner", "tasks-reviewer", "plan-reviewer", "cumulative-reviewer",
     "ui-journey-reviewer",
 )
 
@@ -543,27 +558,275 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
     )
 
 
-def product_reviewer_brief(draft: str, work_item: str | None, findings: str | None) -> str:
-    """The brief for the reviewer checking a Product draft before it lands.
+PRODUCT_DRAFT_HEADINGS = "## Product\n\n## Decisions\n\n## Open Questions\n"
 
-    Unlike the other briefs, which resolve a unit already on a record, the
-    draft this describes may exist only as a local scratch file, so it takes
-    the draft's path directly rather than resolving one from a work item, and
-    the reviewer reads that file itself instead of receiving it inlined.
-    `work_item` is the record being reconciled, when there is one; a fresh
-    draft with no record yet drops that section, as a first review drops
-    the prior findings.
+
+def _quoted(path: Path | str) -> str:
+    return shlex.quote(str(path))
+
+
+def _filled_findings(path: Path, review: str) -> str:
+    """The findings file's text when a reviewer filled it, else ""."""
+    return _filled_text(str(path), "findings", review) if path.is_file() else ""
+
+
+def _require_unused_slug(slug: str) -> None:
+    try:
+        existing = resolve_item(slug)
+    except TransientError:
+        raise
+    except PdlcError:
+        return
+    raise PdlcError(
+        f"slug {slug!r} already names work item {existing['content']['number']}; author it with --work-item"
+        f" {existing['content']['number']}, or choose another slug"
+    )
+
+
+def _product_sections(body: str) -> str:
+    """The record's Product-owned sections, as the draft holds them."""
+    blocks = []
+    for section in ("Product", "Decisions", "Open Questions"):
+        text = read_section(body, section).strip()
+        if text or section != "Open Questions":
+            blocks.append(f"## {section}\n\n{text}".rstrip())
+    return "\n\n".join(blocks) + "\n"
+
+
+_PHASE_SUMMARIES = {
+    Phase.DRAFT: "The product sections have not been reviewed yet.",
+    Phase.PRODUCT_REVIEW: "The product sections changed since their last review, or that review has not reported yet.",
+    Phase.PRODUCT_FINDINGS: "The product review found problems.",
+    Phase.SPIKE: "The product sections passed review. No technical approach was spiked against them yet.",
+    Phase.NOT_FEASIBLE: "The feasibility spike found the product, as specified, not feasible.",
+    Phase.TECHNICAL_REVIEW: "The technical approach has not been reviewed in its current form.",
+    Phase.TECHNICAL_FINDINGS: "The technical review found problems.",
+    Phase.READY: "The product and technical reviews both passed on the draft as it stands.",
+}
+
+
+def product_writer_brief(
+    work_item: str | None, slug: str | None, reauthor: bool, patch: bool, restart: bool,
+) -> tuple[str, str]:
+    """The brief for the agent authoring a Product draft with the driver, and
+    the draft's cache key.
+
+    Unlike the sub-agent briefs, this one is read by the agent already holding
+    the driver's conversation. It creates the draft on first use, seeded from
+    the record's state, and keeps it on every later run, so re-running it after
+    each step reads where the draft stands and names the next step. `restart`
+    discards the draft and its reviews first.
     """
+    if bool(work_item) == bool(slug):
+        raise PdlcError("pass exactly one of --work-item WORK_ITEM or --slug SLUG")
+    if slug and (reauthor or patch):
+        raise PdlcError("--reauthor and --patch need --work-item: they revise an existing record")
+    if reauthor and patch:
+        raise PdlcError("pass at most one of --reauthor or --patch")
+    if work_item and not work_item.isdigit():
+        raise PdlcError(f"--work-item must be an exact work item number: {work_item}")
+    mode: dict[str, object] = {
+        "FRESH": False, "UNINITIALIZED": False, "RECONCILE": False, "REVIEW_ONLY": False,
+        "REAUTHOR": False, "PATCH": False,
+    }
+    context: dict[str, object] = {
+        "WORK_ITEM": work_item or "", "SLUG": slug or "", "REQUIREMENTS": "", "GATE_STATE": "",
+        "ACTIVE_STAGE": "", "STALE_REASON": "", "UPSTREAM_CHANGES": "", "CHANGE_REQUESTS": "",
+    }
+    if slug:
+        if not SLUG_PATTERN.match(slug):
+            raise PdlcError(f"slug must be lowercase kebab-case: {slug}")
+        _require_unused_slug(slug)
+        mode["FRESH"] = True
+        seed = PRODUCT_DRAFT_HEADINGS
+    else:
+        assert work_item is not None
+        item, _, comments = record_snapshot(work_item)
+        body = _parent_body(item)
+        gate = item_gate(item)
+        if is_uninitialized(item):
+            mode["UNINITIALIZED"] = True
+            context["REQUIREMENTS"] = body.strip() or "The work item has no description."
+            seed = PRODUCT_DRAFT_HEADINGS
+        elif patch:
+            plan = record_patch_plan(item, "Product", None, dry_run=True)
+            mode["PATCH"] = True
+            context["ACTIVE_STAGE"] = f"{plan.source.stage} / {plan.source.gate.value}"
+            seed = _product_sections(body)
+        else:
+            status = item_status(item)
+            if status != "Product":
+                raise PdlcError(
+                    f"Product is not due: the record is at {status or 'an unset status'}; to correct its landed"
+                    " Product, pass --patch and follow `pdlc guide patch`"
+                )
+            if gate == "Decision Required":
+                raise PdlcError(decision_required_message("Product"))
+            if gate == "Approval Required" and not reauthor:
+                raise PdlcError(
+                    "Product is at Approval Required, waiting on the driver; pass --reauthor only when the driver"
+                    " asked for a spec change"
+                )
+            if reauthor and gate != "Approval Required":
+                raise PdlcError(f"--reauthor is for a record at Approval Required; this one is at {gate or 'an unset gate'}")
+            if gate == "Approval Required":
+                mode["REAUTHOR"] = True
+            elif gate == "Review Required":
+                mode["REVIEW_ONLY"] = True
+            elif gate in ("Pending", "Changes Required", "Stale"):
+                mode["RECONCILE"] = True
+                context["STALE_REASON"] = _stale_reason(item, comments, "Product") or ""
+                context["UPSTREAM_CHANGES"] = _upstream_text(item, comments, "Product")
+                context["CHANGE_REQUESTS"] = _requests_text(
+                    list(open_change_requests(comments, pipeline_for_item(item), "Product").requests)
+                )
+            else:
+                raise PdlcError(f"Product is at {gate or 'an unset Gate State'}; there is nothing to author")
+            context["GATE_STATE"] = gate
+            seed = _product_sections(body)
+
+    key = product_draft.key_for(work_item, slug)
+    draft = product_draft.draft_path(key)
+    if restart:
+        product_draft.clear(key)
+    if not draft.exists():
+        replace_cache_file(draft, seed)
+
+    current = product_draft.current_phase(key)
+    text = draft.read_text(encoding="utf-8")
+    product_findings = product_draft.product_findings_path(key)
+    technical_findings = product_draft.technical_findings_path(key)
+    writer = ["pdlc prompt product-writer", f"--work-item {work_item}" if work_item else f"--slug {slug}"]
+    writer += ["--reauthor"] if reauthor else []
+    writer += ["--patch"] if patch else []
+    product_review = f"pdlc prompt product-reviewer {_quoted(draft)} --pass product"
+    if _filled_findings(product_findings, product_draft.PRODUCT_REVIEW):
+        product_review += f" --findings {_quoted(product_findings)}"
+    technical_review = f"pdlc prompt product-reviewer {_quoted(draft)} --pass technical"
+    spike = f"pdlc prompt tech-feasibility {_quoted(draft)}"
+    if _filled_findings(technical_findings, product_draft.TECHNICAL_REVIEW):
+        technical_review += f" --findings {_quoted(technical_findings)}"
+        spike += f" --findings {_quoted(technical_findings)}"
+    if patch:
+        land = (
+            f"pdlc post write --work-item {work_item} --body {_quoted(draft)} --evidence <EVIDENCE_FILE> --patch"
+            " [--impact <IMPACT_FILE>]"
+        )
+    elif work_item:
+        land = f"pdlc post write --work-item {work_item} --body {_quoted(draft)} --evidence <EVIDENCE_FILE>"
+    else:
+        land = f'pdlc post write --title "<TITLE>" --slug {slug} --body {_quoted(draft)} --evidence <EVIDENCE_FILE>'
+    approach_written = product_draft_policy.subsection(text, product_draft_policy.TECHNICAL_APPROACH) is not None
+    problems = product_draft.draft_problems(text) if approach_written else []
+    brief = render(
+        "product-writer",
+        {
+            **mode,
+            **context,
+            "DRAFT_PATH": str(draft),
+            "PHASE_SUMMARY": _PHASE_SUMMARIES[current],
+            "PROBLEMS": [{"PROBLEM": problem} for problem in problems],
+            **{f"PHASE_{phase.name}": current == phase for phase in Phase},
+            "SPIKE_FRESH": product_draft.read_stamp(key).technical is None,
+            "WRITER_COMMAND": " ".join(writer),
+            "PRODUCT_REVIEW_COMMAND": product_review,
+            "TECHNICAL_REVIEW_COMMAND": technical_review,
+            "SPIKE_COMMAND": spike,
+            "LAND_COMMAND": land,
+            "PRODUCT_FINDINGS_PATH": str(product_findings),
+            "TECHNICAL_FINDINGS_PATH": str(technical_findings),
+        },
+    )
+    return brief, key
+
+
+def product_reviewer_brief(draft: str, review_pass: str, findings: str | None) -> tuple[str, str]:
+    """The brief for the reviewer checking a Product draft before it lands, and
+    the draft's cache key.
+
+    `review_pass` is `product`, which reviews everything but the technical
+    approach, or `technical`, which reviews the whole draft once the product
+    pass is clean and a spike wrote the approach. The draft is the file
+    `product_writer_brief` created; the reviewer reads it itself. A re-review's
+    `findings` must answer every prior finding with an `Author response:` line,
+    and is read before this pass's own findings file is reset.
+    """
+    key = product_draft.key_of_draft(draft)
+    technical = review_pass == "technical"
+    review = product_draft.TECHNICAL_REVIEW if technical else product_draft.PRODUCT_REVIEW
+    prior_findings = _filled_text(findings, "--findings", review)
+    missing = product_draft_policy.missing_author_responses(prior_findings) if prior_findings else []
+    if missing:
+        raise PdlcError(
+            f"answer every prior finding before the re-review: add an `Author response: Fixed — <what changed>` or"
+            f" `Author response: Rejected — <why>` line under {', '.join(missing)} in"
+            f" {'the --findings text' if findings and findings.startswith('text:') else findings}"
+        )
+    path = product_draft.draft_path(key)
+    text = path.read_text(encoding="utf-8")
+    stamp = product_draft.read_stamp(key)
+    if technical:
+        current = product_draft.current_phase(key)
+        if current not in (Phase.TECHNICAL_REVIEW, Phase.TECHNICAL_FINDINGS, Phase.READY):
+            raise PdlcError(
+                f"the technical review is not due: the draft is at {current}; run `pdlc prompt product-writer`"
+                " for its next step"
+            )
+        stamp = replace(stamp, technical=product_draft_policy.fingerprint(text))
+    else:
+        product = product_draft_policy.fingerprint(product_draft_policy.product_content(text))
+        stamp = replace(stamp, product=product, technical=None)
+    product_draft.write_stamp(key, stamp)
+    work_item = product_draft.work_item_of(key)
     current_record = (resolve_item(work_item).get("issueBody") or "").strip() if work_item else ""
-    return render(
+    brief = render(
         "product-review",
         {
             "EXECUTION_SCOPE": "this one product draft review",
-            "DRAFT_PATH": draft,
+            "TECHNICAL": technical,
+            "DRAFT_PATH": str(path),
             "CURRENT_RECORD": current_record,
-            "PRIOR_FINDINGS": resolve_text(findings, label="--findings").strip() if findings else "",
+            "PRIOR_FINDINGS": prior_findings,
+            "FINDINGS_PATH": _findings_file(key, review),
         },
     )
+    return brief, key
+
+
+def tech_feasibility_brief(draft: str, findings: str | None) -> tuple[str, str]:
+    """The brief for the sub-agent spiking a reviewed Product draft into its
+    technical approach, and the draft's cache key.
+
+    Due once the product pass is clean on the draft as it stands. It records
+    the product content it hands over, so any later change to that content
+    calls for a fresh spike, and resets the technical review, which must see
+    the new approach. `findings` carries a technical review's findings for a
+    re-spike.
+    """
+    key = product_draft.key_of_draft(draft)
+    current = product_draft.current_phase(key)
+    if current in (Phase.DRAFT, Phase.PRODUCT_REVIEW, Phase.PRODUCT_FINDINGS):
+        raise PdlcError(
+            f"the feasibility spike is not due: the draft is at {current}, and the product review must pass on the"
+            " draft as it stands first; run `pdlc prompt product-writer` for its next step"
+        )
+    path = product_draft.draft_path(key)
+    text = path.read_text(encoding="utf-8")
+    product = product_draft_policy.fingerprint(product_draft_policy.product_content(text))
+    product_draft.write_stamp(key, replace(product_draft.read_stamp(key), spiked=product, technical=None))
+    work_item = product_draft.work_item_of(key)
+    current_record = (resolve_item(work_item).get("issueBody") or "").strip() if work_item else ""
+    brief = render(
+        "tech-feasibility",
+        {
+            "EXECUTION_SCOPE": "this one feasibility spike",
+            "DRAFT_PATH": str(path),
+            "CURRENT_RECORD": current_record,
+            "PRIOR_FINDINGS": _filled_text(findings, "--findings", product_draft.TECHNICAL_REVIEW),
+            "APPROACH_TEMPLATE": load_template(product_draft.APPROACH_TEMPLATE).strip(),
+        },
+    )
+    return brief, key
 
 
 _INVALIDATED_STAGE = re.compile(r"^Invalidated stage:\s*(.+)$", re.MULTILINE)

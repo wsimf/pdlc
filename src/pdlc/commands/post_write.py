@@ -17,7 +17,7 @@ FLAGS
     --slug SLUG                         required when creating a new record
     --work-item WORK_ITEM               required when updating an existing record
     --evidence FILE|-                   required unless --dry-run; the review evidence body
-    --body FILE                         required; the Product/Decisions[/Open Questions] content
+    --body FILE                         required; the reviewed Product draft `pdlc prompt product-writer` keeps
     --patch                             action="store_true"; land the body onto the record's already-landed
                                         Product section while the record stays on its later active stage
     --impact FILE|-                     only with --patch; the impact report whose
@@ -35,6 +35,20 @@ The supplied body contains the sections owned by Product, in order:
 `Product`, `Decisions`, and optionally `Open Questions`. New records use it as
 their initial body. When `Open Questions` is omitted, a new record is created
 without it and an existing record keeps its current Open Questions untouched.
+
+--body must be the draft `pdlc prompt product-writer` keeps for this record —
+keyed by --work-item, or by `new-<slug>` for --slug, which a record created
+from that draft also accepts — and it lands only as reviewed: the product
+review must be clean on its product sections as they stand, a feasibility
+spike must have written its technical approach against those sections, and
+the technical review must be clean on the whole draft as it stands. The
+`## Product` section's last subsection is `### Technical approach`, following
+the `technical-approach` template (`pdlc template technical-approach`), with a
+feasibility verdict of `Feasible` or `Feasible with caveats`; a `Not feasible`
+draft and one still carrying `### Assumptions` are refused. A successful
+landing deletes the draft, its review stamp, and both findings files. These
+checks apply to every form, --patch included, except --dry-run, which checks
+only the body's sections.
 
 An existing record lands from `Product / Pending`, `Changes Required`, or
 `Stale`. A record at `Product / Review Required` (published without its local
@@ -112,8 +126,8 @@ from pdlc.domain.stages import Gate
 from pdlc.domain.workflow import Event, State, WorkType, decision_required_message
 from pdlc.domain.workflows.workflow_feature import FEATURE_PIPELINE
 from pdlc.internal.failure import Recovery, report_failure, set_recovery
-
-SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+from pdlc.internal import product_draft
+from pdlc.domain.product_draft import SLUG_PATTERN, Phase
 OWNED_SECTIONS = ("Product", "Decisions", "Open Questions")
 # Open Questions may be omitted: a record with none need not carry an empty section.
 REQUIRED_SECTIONS = ("Product", "Decisions")
@@ -129,6 +143,41 @@ def product_fragments(body_path: Path) -> dict[str, str]:
         actual = ", ".join(f"## {section}" for section in headings) or "none"
         raise PdlcError(f"--body must contain only {expected}, in that order; found {actual}")
     return {section: read_section(body, section).rstrip() for section in headings}
+
+
+def require_landable(body_path: Path, work_item: str | None, slug: str | None) -> str:
+    """Refuse a draft that is not the reviewed product-writer draft for this
+    landing, before anything is written; returns its cache key. A `new-<slug>`
+    draft landing on an existing record is checked against that record's slug
+    once it is resolved."""
+    key = product_draft.key_of_draft(body_path)
+    if slug is not None and key != f"new-{slug}":
+        raise PdlcError(f"--body is the Product draft for {key}, not for the new work item {slug!r}")
+    if work_item is not None and key != work_item and not key.startswith("new-"):
+        raise PdlcError(f"--body is the Product draft for work item {key}, not {work_item}")
+    problems = product_draft.draft_problems(body_path.read_text(encoding="utf-8"))
+    if problems:
+        listed = "\n".join(f"- {problem}" for problem in problems)
+        raise PdlcError(
+            f"the Product draft cannot land:\n{listed}\n`pdlc template technical-approach` prints the approach"
+            " template. Nothing was written to the record."
+        )
+    phase = product_draft.current_phase(key)
+    if phase != Phase.READY:
+        writer = f"--work-item {key}" if product_draft.work_item_of(key) else f"--slug {product_draft.slug_of(key)}"
+        raise PdlcError(
+            f"refusing to land: the Product draft is at {phase}, not ready to land; only a draft both reviews"
+            f" passed as it stands can land. Run `pdlc prompt product-writer {writer}` for its next step."
+            " Nothing was written to the record."
+        )
+    return key
+
+
+def require_record_draft(key: str, record: dict) -> None:
+    """A draft started before the record existed lands only on the record
+    created with its slug, or on one whose slug the interrupted create never set."""
+    if key.startswith("new-") and item_slug(record) and product_draft.slug_of(key) != item_slug(record):
+        raise PdlcError(f"--body is the Product draft for {key}, not for this work item's slug {item_slug(record)!r}")
 
 
 def level_two_headings(body: str) -> list[str]:
@@ -149,8 +198,11 @@ def generated_slug(record: dict) -> str:
     return slug or f"work-item-{work_item_number(record)}"
 
 
-def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, attachment_inputs: list[dict]) -> dict:
+def publish_existing(
+    issue: str, fragments: dict[str, str], evidence_body: str, attachment_inputs: list[dict], key: str,
+) -> dict:
     record = resolve_item(issue)
+    require_record_draft(key, record)
     pipeline = pipeline_for_item(record)
     uninitialized = is_uninitialized(record)
     if not uninitialized and item_status(record) != "Product":
@@ -200,6 +252,7 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, 
     update_sections(issue, fragments)
     post_comment(issue, evidence_body, "PRODUCT")
     set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
+    product_draft.clear(key)
     return {
         "created": False,
         "itemId": item_id,
@@ -212,11 +265,14 @@ def publish_existing(issue: str, fragments: dict[str, str], evidence_body: str, 
 
 def patch_existing(
     issue: str, fragments: dict[str, str], evidence_body: str | None, impact: str | None,
-    attachment_inputs: list[dict], dry_run: bool,
+    attachment_inputs: list[dict], dry_run: bool, key: str | None,
 ) -> dict:
     """Land the Product fragments while the record stays on its later active
-    stage, or returns to the stage the impact report found affected."""
+    stage, or returns to the stage the impact report found affected. `key` is
+    the reviewed draft's, or `None` on a dry run, which checks no review."""
     record = resolve_item(issue)
+    if key is not None:
+        require_record_draft(key, record)
     plan = record_patch_plan(record, "Product", impact, dry_run)
     body = record.get("issueBody") or ""
     headings = level_two_headings(body)
@@ -250,6 +306,8 @@ def patch_existing(
     update_sections(issue, fragments)
     post_comment(issue, evidence_body, "PRODUCT")
     land_patch(issue, record, plan, impact, changes)
+    assert key is not None
+    product_draft.clear(key)
     return {
         **summary, "itemId": record["id"], "status": plan.target.stage,
         "gateState": plan.target.gate.value, "attachments": attachments,
@@ -300,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
         impact = resolve_text(args.impact_file, label="--impact") if args.impact_file else None
         body_path = require_file("--body file", args.body_file)
         fragments = product_fragments(body_path)
+        key = None if args.dry_run else require_landable(body_path, args.work_item, args.slug)
         validate_attachments(attachment_inputs)
 
         if args.patch:
@@ -309,12 +368,12 @@ def main(argv: list[str] | None = None) -> int:
                 otherwise="run the same command with --dry-run and, only if it still reports the same plan, re-run: {rerun}",
                 note="If the record already moved to the returned stage, do not re-run; stop and report to the driver any task still closed, which needs `pdlc post invalidate` for that task.",
             ))
-            print(json.dumps(patch_existing(args.work_item, fragments, evidence_body, impact, attachment_inputs, args.dry_run)))
+            print(json.dumps(patch_existing(args.work_item, fragments, evidence_body, impact, attachment_inputs, args.dry_run, key)))
             return 0
-        assert evidence_body is not None
+        assert evidence_body is not None and key is not None
 
         if not is_new:
-            result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs)
+            result = publish_existing(args.work_item, fragments, evidence_body, attachment_inputs, key)
             print(json.dumps(result))
             return 0
 
@@ -344,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
         set_state(item_id, target.stage, target.gate.value, target.lifecycle.value)
         set_slug(item_id, args.slug)
         post_comment(work_item_number, evidence_body, "PRODUCT")
+        product_draft.clear(key)
     except PdlcError as error:
         return report_failure(error)
 

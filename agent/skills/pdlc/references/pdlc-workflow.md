@@ -44,7 +44,7 @@ flowchart TD
 
     Owner{"Active stage"}
 
-    Owner -->|Product| Write["pdlc-write — human only<br/>interview, draft, local review"]
+    Owner -->|Product| Write["pdlc-write — human only<br/>interview, draft, reviews, feasibility spike"]
     Owner -->|UI| UI["pdlc-tasks<br/>prepare UI section"]
     Owner -->|Tasks| Tasks["pdlc-tasks<br/>prepare delivery tasks"]
     Owner -->|Technical Plan| Plan["pdlc-plan<br/>prepare task plans"]

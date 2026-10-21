@@ -37,6 +37,8 @@ UJ-1 covers the first run.
 
 No delivery tasks exist yet. Decompose the work item above into a first breakdown.
 
+When the work item carries a `### Technical approach`, split the work along the seams it names, its `Slicing` part first, so each task follows that reviewed approach rather than a new one.
+
 ## Sequencing the tasks
 
 Tasks land in order, each on its own pull request stacked on the one before, so

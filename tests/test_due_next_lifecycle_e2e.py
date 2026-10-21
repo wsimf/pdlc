@@ -30,12 +30,12 @@ class DueNextLifecycleE2ETests(FileBackendTest):
 
     def make_product(self) -> tuple[int, str]:
         evidence = self.evidence_file()
-        product = self.write_file(
-            "product.md",
+        product = self.product_draft(
             "## Product\nThe shell ships.\n\n"
             "### 4. Functional requirements\n- FR-1: lands.\n\n"
             "### 5. Constraints\n- C-1: commands own mutations.\n\n"
             "## Decisions\n- Decided to ship.\n\n## Open Questions\n- none\n",
+            slug="shell",
         )
         result = self.invoke(
             "post_write", "--title", "Shell", "--slug", "shell",

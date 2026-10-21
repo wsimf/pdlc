@@ -29,6 +29,8 @@ from pdlc.domain.evidence import ReviewVerdict, compose_review
 from pdlc.domain.plan_file import parse as parse_plan_file
 from pdlc.domain.plan_file import render as render_plan_file
 from pdlc.hosts import attachment_host, code_host, workitem_host
+from pdlc.domain.product_draft import Stamp, fingerprint, product_content
+from pdlc.internal import product_draft
 from pdlc.internal.review_stamp import write_stamp
 
 BODY_DEFAULT = """## Product
@@ -50,6 +52,41 @@ UJ-1 covers the first run.
 ## Open Questions
 - none
 """
+
+# A technical approach that satisfies the `technical-approach` template.
+APPROACH_DEFAULT = """### Technical approach
+
+#### Feasibility
+
+Verdict: Feasible
+
+- The record store already supports this.
+
+#### Approach
+
+- Commands own every mutation through the work-item facade.
+
+#### Risks & unknowns
+
+- None.
+
+#### Verification
+
+- Command tests over the file backend.
+"""
+
+
+def with_approach(body: str) -> str:
+    """`body` with `APPROACH_DEFAULT` as the last subsection of `## Product`, unless it carries one."""
+    if "### Technical approach" in body:
+        return body
+    head, product, rest = body.partition("## Product")
+    after = product + rest
+    split = after.find("\n## ", len("## Product"))
+    if split == -1:
+        return head + after.rstrip("\n") + "\n\n" + APPROACH_DEFAULT
+    return head + after[:split].rstrip("\n") + "\n\n" + APPROACH_DEFAULT + after[split:]
+
 
 TASK_BODY_DEFAULT = "## Scope\nx\n\n## Acceptance criteria\n- ok\n"
 
@@ -343,6 +380,21 @@ class FileBackendTest(unittest.TestCase):
         path = self.work / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
+        return str(path)
+
+    def product_draft(self, body: str, work_item: int | str | None = None, slug: str | None = None) -> str:
+        """Write `body`, given a technical approach when it has none, as the
+        draft `pdlc prompt product-writer` keeps, with both reviews clean on it
+        as it stands; returns the draft's path."""
+        key = product_draft.key_for(str(work_item) if work_item is not None else None, slug)
+        path = product_draft.draft_path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = with_approach(body)
+        path.write_text(text, encoding="utf-8")
+        product = fingerprint(product_content(text))
+        product_draft.write_stamp(key, Stamp(product=product, spiked=product, technical=fingerprint(text)))
+        for findings in (product_draft.product_findings_path(key), product_draft.technical_findings_path(key)):
+            findings.write_text("Findings: None\nVerdict: Ready to Land\n", encoding="utf-8")
         return str(path)
 
     def mark_tasks_reviewed(self, record: int, manifest: str | Path) -> None:

@@ -116,7 +116,7 @@ class RouteAcceptanceE2ETests(FileBackendTest):
     def _land(self, record: int, stage: str) -> object:
         """The owning skill's publishing command for a pre-publication stage."""
         if stage == "Product":
-            body = self.write_file(f"product-{record}.md", PRODUCT_BODY)
+            body = self.product_draft(PRODUCT_BODY, record)
             return self.invoke("post_write", "--work-item", record, "--evidence", self.evidence, "--body", body)
         if stage == "UI":
             body = self.write_file(f"ui-{record}.md", "## UI\n\nUJ-1 covers the first run.\n")

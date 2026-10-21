@@ -8,17 +8,19 @@ Run `pdlc inspect <WORK_ITEM>` and confirm the record is still on your stage. Na
 
 Patch only when the corrected text follows from source or from decisions already on the record. When the correct text is a product choice nobody has made yet, raise it with `pdlc post escalate` (see `pdlc guide decisions`); when your gate does not allow that, report it to the driver and stop.
 
-The landing command's dry run confirms your stage may patch the artifact at all: `pdlc post write --work-item <WORK_ITEM> --body <FILE> --patch --dry-run` for the Product body, `pdlc post tasks --work-item <WORK_ITEM> --stage <STAGE> ... --patch --dry-run` for a UI fragment or Tasks manifest. A refusal names why; report it and stop. Otherwise its `impactRequired` says whether Step 3 applies.
+For the Product body, run `pdlc prompt product-writer --work-item <WORK_ITEM> --patch` first: it refuses when your stage may not patch Product, and otherwise writes the draft holding the landed Product sections and prints its brief. The landing command's dry run then confirms your stage may patch the artifact at all: `pdlc post write --work-item <WORK_ITEM> --body <DRAFT> --patch --dry-run` for that Product draft, `pdlc post tasks --work-item <WORK_ITEM> --stage <STAGE> ... --patch --dry-run` for a UI fragment or Tasks manifest. A refusal names why; report it and stop. Otherwise its `impactRequired` says whether Step 3 applies.
 
 ## Step 1: Draft the correction
 
-Write the corrected artifact yourself, in exactly the input form its landing command takes, starting from the landed artifact in `pdlc inspect <WORK_ITEM> --full` or `pdlc inspect task <DELIVERY_TASK>`. Change only what the defect needs. Do not dispatch another stage's planner. A Tasks manifest names every landed task by `id` and keeps each task's classification, coverage, and dependencies; call the landing command's `--help` for what else a patch may not change.
+Write the corrected artifact yourself, in exactly the input form its landing command takes, starting from the landed artifact in `pdlc inspect <WORK_ITEM> --full` or `pdlc inspect task <DELIVERY_TASK>`; for the Product body, edit the draft `pdlc prompt product-writer` wrote, the only file that can land. Change only what the defect needs. Do not dispatch another stage's planner. A Tasks manifest names every landed task by `id` and keeps each task's classification, coverage, and dependencies; call the landing command's `--help` for what else a patch may not change.
 
 ## Step 2: Review the draft
 
-Dispatch the artifact's own reviewer with its brief, exactly as that artifact's stage does: `pdlc-product-reviewer` with `pdlc prompt product-reviewer <FILE> --work-item <WORK_ITEM>` for the Product body, `pdlc-tasks-reviewer` with `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` for UI or Tasks. Run the `pdlc prompt` command afresh for every dispatch and never reuse an earlier brief; a re-review may go back to the same reviewer. The Product reviewer replies with its findings and verdict; the UI and Tasks reviewer writes its findings to a file and replies with its verdict and that file's path.
+For the Product draft, follow the `## Next steps` of the `pdlc prompt product-writer --work-item <WORK_ITEM> --patch` brief, re-running it after each step: a product review, a feasibility spike that writes the draft's technical approach, and a technical review, each with its own reviewer brief and findings file, until it names landing. A patch always lands with a technical approach, even on a record that never carried one.
 
-On `Changes Required` or `Needs Revision`, revise the draft yourself from the findings and re-review, passing the previous findings with `--findings`. After three failed passes, stop and put the defect to the driver. On `Approval Required` or `Ready to Land`, the draft lands exactly as last reviewed, so do not touch it again. The clean review is the `--evidence` body: copy it to its own file before landing, since landing deletes the findings file.
+For UI or Tasks, dispatch `pdlc-tasks-reviewer` with the brief `pdlc prompt tasks-reviewer <WORK_ITEM> --fragment <FILE>` or `--manifest <FILE>` writes, exactly as that artifact's stage does. Run the `pdlc prompt` command afresh for every dispatch and never reuse an earlier brief; a re-review may go back to the same reviewer. Each reviewer writes its findings to a file and replies with its verdict and that file's path.
+
+On `Needs Revision`, revise the draft yourself from the findings and re-review, passing the previous findings with `--findings`; a Product re-review also needs an `Author response:` line under every finding. After three failed passes, stop and put the defect to the driver. On `Ready to Land`, the draft lands exactly as last reviewed, so do not touch it again. The clean review is the `--evidence` body: copy it to its own file before landing, since landing deletes the findings file.
 
 ## Step 3: Judge the impact
 
@@ -33,7 +35,7 @@ The report opens with `Earliest affected stage: <stage|none>`. Land it in Step 4
 Run the artifact's landing command with the reviewed draft, `--evidence`, `--patch`, and `--impact` when Step 3 ran:
 
 ```bash
-pdlc post write --work-item <WORK_ITEM> --body <FILE> --evidence <FILE> --patch --impact <FILE>
+pdlc post write --work-item <WORK_ITEM> --body <DRAFT> --evidence <FILE> --patch --impact <FILE>
 ```
 
 A refusal writes nothing; report it. The printed `status` is where the record now is.
