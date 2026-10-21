@@ -16,11 +16,17 @@ import json
 from pathlib import Path
 
 from pdlc.domain.model import remove_section
+from pdlc.domain.product_draft import Stamp, fingerprint, product_content
+from pdlc.internal import product_draft
 from tests._goldens import GoldenMixin
 from tests._prompts import PromptHarness
-from tests._support import BODY_DEFAULT
+from tests._support import APPROACH_DEFAULT, BODY_DEFAULT
 
 NO_UI_BODY = remove_section(BODY_DEFAULT, "UI")
+
+DRAFT = "## Product\n\n### Functional requirements\n- FR-1: The route sheet opens at the medium detent.\n\n## Decisions\n- d\n"
+WITH_APPROACH = DRAFT.replace("## Decisions", APPROACH_DEFAULT + "\n## Decisions")
+FINDING = "- F1 [P1] FR-1 — \"medium detent\"\n  Evidence: no detent API in src/ui/Sheet\n  Recommendation: name the sheet's detent\n"
 
 
 class PromptGoldenTest(GoldenMixin, PromptHarness):
@@ -467,3 +473,151 @@ class PromptGoldenTest(GoldenMixin, PromptHarness):
             "plan-review-replace-with-findings",
             self.invoke("prompt_plan_reviewer", "--inline", 60, "--manifest", manifest, "--findings", "text:TASK-001 skips the cache"),
         )
+
+    # --- product writer ---
+
+    def _writer(self, *args: object):
+        return self.invoke("prompt_product_writer", "--inline", *args)
+
+    def _draft_at(
+        self, text: str, key: str = "new-route-sheet", *, product: bool = True, spiked: bool = False,
+        technical: bool | None = False, product_findings: str | None = None, technical_findings: str | None = None,
+    ) -> Path:
+        """Put the draft for `key` in a given phase: `text` as the draft, each
+        stamp matching it when set, a stale stamp when `technical` is None, and
+        each findings file holding the text given."""
+        path = product_draft.draft_path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        content = fingerprint(product_content(text))
+        product_draft.write_stamp(key, Stamp(
+            product=content if product else "stale",
+            spiked=content if spiked else None,
+            technical=fingerprint(text) if technical else ("stale" if technical is None else None),
+        ))
+        for findings, body in (
+            (product_draft.product_findings_path(key), product_findings),
+            (product_draft.technical_findings_path(key), technical_findings),
+        ):
+            if body is not None:
+                findings.write_text(body, encoding="utf-8")
+        return path
+
+    def test_product_writer_fresh(self):
+        self.assertGolden("product-writer-fresh", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_uninitialized(self):
+        self.seed_record(60, "", "", body="Open the route sheet faster.\n")
+        self.assertGolden("product-writer-uninitialized", self._writer("--work-item", 60))
+
+    def test_product_writer_changes_required(self):
+        self.seed_record(60, "Product", "Changes Required", slug="record-60")
+        self.add_rework_review(60, stage="Product")
+        self.assertGolden("product-writer-changes-required", self._writer("--work-item", 60))
+
+    def test_product_writer_stale(self):
+        self.seed_record(60, "Product", "Stale", slug="record-60")
+        self.seed_publication(60, "Product")
+        self.add_invalidation(60, stage="Product")
+        self.assertGolden("product-writer-stale", self._writer("--work-item", 60))
+
+    def test_product_writer_review_only(self):
+        self.seed_record(60, "Product", "Review Required", slug="record-60")
+        self.assertGolden("product-writer-review-only", self._writer("--work-item", 60))
+
+    def test_product_writer_reauthor(self):
+        self.seed_record(60, "Product", "Approval Required", slug="record-60")
+        self.assertGolden("product-writer-reauthor", self._writer("--work-item", 60, "--reauthor"))
+
+    def test_product_writer_patch(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self.assertGolden("product-writer-patch", self._writer("--work-item", 60, "--patch"))
+
+    def test_product_writer_product_review(self):
+        self._draft_at(DRAFT, product=False)
+        self.assertGolden("product-writer-product-review", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_product_findings(self):
+        self._draft_at(DRAFT, product_findings=FINDING + "Verdict: Needs Revision\n")
+        self.assertGolden("product-writer-product-findings", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_spike(self):
+        self._draft_at(DRAFT, product_findings="Verdict: Ready to Land\n")
+        self.assertGolden("product-writer-spike", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_not_feasible(self):
+        self._draft_at(
+            WITH_APPROACH.replace("Verdict: Feasible", "Verdict: Not feasible"),
+            spiked=True, product_findings="Verdict: Ready to Land\n",
+        )
+        self.assertGolden("product-writer-not-feasible", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_technical_review_after_a_fresh_spike(self):
+        with_assumptions = WITH_APPROACH.replace(
+            "### Technical approach", "### Assumptions\n- The sheet exposes detents.\n\n### Technical approach",
+        )
+        self._draft_at(with_assumptions, spiked=True, product_findings="Verdict: Ready to Land\n")
+        self.assertGolden("product-writer-technical-review-fresh-spike", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_technical_re_review(self):
+        self._draft_at(WITH_APPROACH, spiked=True, technical=None, product_findings="Verdict: Ready to Land\n")
+        self.assertGolden("product-writer-technical-re-review", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_technical_findings(self):
+        self._draft_at(
+            WITH_APPROACH, spiked=True, technical=True, product_findings="Verdict: Ready to Land\n",
+            technical_findings=FINDING + "Verdict: Needs Revision\n",
+        )
+        self.assertGolden("product-writer-technical-findings", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_ready_new(self):
+        mockup = self.write_file("sheet.png", "sheet mockup\n")
+        self._writer("--slug", "route-sheet", "--attachment", mockup, "--attachment-description", "Route sheet mockup")
+        self._draft_at(
+            WITH_APPROACH, spiked=True, technical=True,
+            product_findings="Verdict: Ready to Land\n", technical_findings="Verdict: Ready to Land\n",
+        )
+        self.assertGolden("product-writer-ready-new", self._writer("--slug", "route-sheet"))
+
+    def test_product_writer_ready_existing(self):
+        self.seed_record(60, "Product", "Changes Required", slug="record-60")
+        self.add_rework_review(60, stage="Product")
+        self._attach()
+        self._draft_at(
+            WITH_APPROACH, "60", spiked=True, technical=True,
+            product_findings="Verdict: Ready to Land\n", technical_findings="Verdict: Ready to Land\n",
+        )
+        self.assertGolden("product-writer-ready-existing", self._writer("--work-item", 60))
+
+    def test_product_writer_ready_patch(self):
+        self.seed_record(60, "Technical Plan", "Pending", slug="record-60")
+        self._draft_at(
+            WITH_APPROACH, "60", spiked=True, technical=True,
+            product_findings="Verdict: Ready to Land\n", technical_findings="Verdict: Ready to Land\n",
+        )
+        self.assertGolden("product-writer-ready-patch", self._writer("--work-item", 60, "--patch"))
+
+    # --- tech feasibility ---
+
+    def _spike(self, *args: object):
+        return self.invoke("prompt_tech_feasibility", "--inline", product_draft.draft_path("new-route-sheet"), *args)
+
+    def test_tech_feasibility_new_work_item(self):
+        self._draft_at(DRAFT, product_findings="Verdict: Ready to Land\n")
+        self.assertGolden("tech-feasibility-new", self._spike())
+
+    def test_tech_feasibility_existing_record_with_attachments(self):
+        self.seed_record(60, "Product", "Changes Required", slug="record-60")
+        self._attach()
+        draft = self._draft_at(DRAFT, "60", product_findings="Verdict: Ready to Land\n")
+        self.assertGolden(
+            "tech-feasibility-existing-attachments", self.invoke("prompt_tech_feasibility", "--inline", draft),
+        )
+
+    def test_tech_feasibility_re_spike_with_findings(self):
+        self._draft_at(
+            WITH_APPROACH, spiked=True, technical=True, product_findings="Verdict: Ready to Land\n",
+            technical_findings=FINDING + "Verdict: Needs Revision\n",
+        )
+        findings = product_draft.technical_findings_path("new-route-sheet")
+        self.assertGolden("tech-feasibility-re-spike", self._spike("--findings", findings))

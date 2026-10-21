@@ -72,9 +72,19 @@ The draft cannot land as it stands:
 ## Next steps
 
 {{#IF PHASE_DRAFT}}
+{{#IF REVIEW_ONLY}}
+1. Leave the draft as it is; the published sections get their review first.
+2. Start the product review: `{{PRODUCT_REVIEW_COMMAND}}`
+{{#ELSE}}
+{{#IF DRAFT_EMPTY}}
 1. Write the `## Product`, `## Decisions`, and `## Open Questions` sections into the draft from the settled answers, interviewing the driver on every branch that source and the conversation leave open.
 2. Leave out `### Technical approach`; the feasibility spike writes it after the product review.
+{{#ELSE}}
+1. Revise the draft in place as `## Draft` above directs.
+2. Leave any `### Technical approach` as it is; the feasibility spike rewrites it after the product review.
+{{/IF}}
 3. Start the product review: `{{PRODUCT_REVIEW_COMMAND}}`
+{{/IF}}
 {{/IF}}
 {{#IF PHASE_PRODUCT_REVIEW}}
 1. Run `{{PRODUCT_REVIEW_COMMAND}}` and dispatch the product reviewer with the brief it prints.

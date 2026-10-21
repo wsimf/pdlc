@@ -733,6 +733,7 @@ def product_writer_brief(
             **mode,
             **context,
             "DRAFT_PATH": str(draft),
+            "DRAFT_EMPTY": bool(mode["FRESH"] or mode["UNINITIALIZED"]),
             "ATTACHMENTS": product_draft.attachments_text(key),
             "PHASE_SUMMARY": _PHASE_SUMMARIES[current],
             "PROBLEMS": [{"PROBLEM": problem} for problem in problems],
