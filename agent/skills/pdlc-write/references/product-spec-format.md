@@ -122,7 +122,7 @@ Product-level experience constraints and links to supplied mockups. Do not decid
 How success will be measured — "route details open with no perceptible delay after tap", "multi-day plan completes in under three minutes".
 
 ### Technical approach
-How the product will be built and whether it can be, from a spike against current source: always the last subsection of Product. The feasibility spike writes it after the product review, following `pdlc template technical-approach`, and the technical review checks it; leave it out of the first draft. It is the one place in Product that names modules, boundaries, and data flow, and still names no files to edit, signatures, or task order.
+How the product will be built and whether it can be, from a spike against current source: always the last subsection of Product. The feasibility spike writes it after the product review, following `pdlc template technical-approach`, and the technical review checks it; leave it empty in the first draft. It is the one place in Product that names modules, boundaries, and data flow, and still names no files to edit, signatures, or task order.
 
 ## Assumptions from the spike
 

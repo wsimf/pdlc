@@ -157,7 +157,7 @@ def draft_problems(draft: str) -> list[str]:
     """Everything that keeps `draft` from landing as it stands, stamps aside."""
     problems = land_problems(draft)
     approach = subsection(draft, TECHNICAL_APPROACH)
-    if approach is not None:
+    if approach:
         problems.extend(
             f"{problem} in ### {TECHNICAL_APPROACH}"
             for problem in template_problems(load_template(APPROACH_TEMPLATE), approach)

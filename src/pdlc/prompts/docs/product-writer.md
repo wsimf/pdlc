@@ -78,7 +78,7 @@ The draft cannot land as it stands:
 {{#ELSE}}
 {{#IF DRAFT_EMPTY}}
 1. Fill every heading in the draft from the settled answers, interviewing the driver on every branch that source and the conversation leave open. Delete `### Design considerations` and `## Open Questions` when they have nothing to say.
-2. Leave out `### Technical approach`; the feasibility spike writes it after the product review.
+2. Leave `### Technical approach` empty; the feasibility spike writes it after the product review.
 {{#ELSE}}
 1. Revise the draft in place as `## Draft` above directs.
 2. Leave any `### Technical approach` as it is; the feasibility spike rewrites it after the product review.

@@ -559,7 +559,8 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
 
 
 # The blank draft: the Product subsections pdlc-write's product-spec-format
-# reference names, in its order. `### Technical approach` is left to the spike.
+# reference names, in its order. `### Technical approach` holds only a comment
+# until the spike writes it; `subsection` reads that as empty.
 PRODUCT_DRAFT_HEADINGS = "\n\n".join((
     "## Product",
     "### Problem statement",
@@ -569,6 +570,7 @@ PRODUCT_DRAFT_HEADINGS = "\n\n".join((
     "### Constraints",
     "### Design considerations",
     "### Success metrics",
+    "### Technical approach\n\n<!-- Written by the feasibility spike after the product review; leave it empty until then. -->",
     "## Decisions",
     "## Open Questions",
 )) + "\n"
@@ -738,7 +740,7 @@ def product_writer_brief(
         land += f" --attachment {_quoted(attachment['path'])}"
         if attachment["description"]:
             land += f" --attachment-description {_quoted(attachment['description'])}"
-    approach_written = product_draft_policy.subsection(text, product_draft_policy.TECHNICAL_APPROACH) is not None
+    approach_written = bool(product_draft_policy.subsection(text, product_draft_policy.TECHNICAL_APPROACH))
     problems = product_draft.draft_problems(text) if approach_written else []
     brief = render(
         "product-writer",

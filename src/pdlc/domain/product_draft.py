@@ -34,6 +34,7 @@ _REVIEW_VERDICT_RE = re.compile(r"^Verdict:\s*(Needs Revision|Ready to Land)\s*$
 _FINDING_RE = re.compile(r"^[-*]\s+(F\d+)\b")
 _AUTHOR_RESPONSE_RE = re.compile(r"^Author response:\s*(Fixed|Rejected)\s*[—–-]\s*\S", re.IGNORECASE)
 _HEADING_RE = re.compile(r"^(#{1,6})\s")
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 class Phase(StrEnum):
@@ -91,10 +92,12 @@ def _product_span(lines: list[str], name: str) -> tuple[int, int] | None:
 
 
 def subsection(draft: str, name: str) -> str | None:
-    """The content of `## Product`'s `### name` subsection, or `None` when absent."""
+    """The content of `## Product`'s `### name` subsection without its HTML
+    comments, or `None` when absent. A heading holding only a placeholder
+    comment, as the blank draft seeds `### Technical approach`, reads as ""."""
     lines = draft.splitlines()
     span = _product_span(lines, name)
-    return None if span is None else "\n".join(lines[span[0] + 1:span[1]]).strip()
+    return None if span is None else _COMMENT_RE.sub("", "\n".join(lines[span[0] + 1:span[1]])).strip()
 
 
 def product_content(draft: str) -> str:
@@ -145,6 +148,8 @@ def land_problems(draft: str) -> list[str]:
     approach = subsection(draft, TECHNICAL_APPROACH)
     if approach is None:
         problems.append(f"missing subsection: ### {TECHNICAL_APPROACH} (the last subsection of ## Product)")
+    elif not approach:
+        problems.append(f"### {TECHNICAL_APPROACH} is empty; the feasibility spike writes it")
     else:
         verdict = feasibility_verdict(approach)
         if verdict is None:
@@ -171,7 +176,7 @@ def phase(draft: str, stamp: Stamp, product_verdict: str | None, technical_verdi
     if product_verdict == NEEDS_REVISION:
         return Phase.PRODUCT_FINDINGS
     approach = subsection(draft, TECHNICAL_APPROACH)
-    if approach is None or stamp.spiked != product:
+    if not approach or stamp.spiked != product:
         return Phase.SPIKE
     if feasibility_verdict(approach) == NOT_FEASIBLE:
         return Phase.NOT_FEASIBLE

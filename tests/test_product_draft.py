@@ -35,6 +35,18 @@ class ProductDraftPolicyTest(unittest.TestCase):
         self.assertIsNone(subsection(DRAFT, "Technical approach"))
         self.assertEqual(fingerprint("a  \nb\n\n"), fingerprint("a\nb"))
 
+    def test_a_placeholder_approach_reads_as_empty(self):
+        placeholder = DRAFT.replace("## Decisions", "### Technical approach\n\n<!-- spike writes this -->\n\n## Decisions")
+        self.assertEqual(subsection(placeholder, "Technical approach"), "")
+        self.assertIn("### Technical approach is empty", land_problems(placeholder)[0])
+        reviewed = Stamp(product=fingerprint(product_content(placeholder)))
+        self.assertEqual(phase(placeholder, reviewed, "Ready to Land", None), Phase.SPIKE)
+        spiked = Stamp(reviewed.product, reviewed.product)
+        self.assertEqual(phase(placeholder, spiked, "Ready to Land", None), Phase.SPIKE)
+        commented = WITH_APPROACH.replace("Verdict: Feasible", "<!-- note -->\nVerdict: Feasible")
+        self.assertNotIn("<!--", subsection(commented, "Technical approach") or "")
+        self.assertEqual(land_problems(commented), [])
+
     def test_an_approach_outside_product_is_not_the_approach(self):
         self.assertIsNone(subsection(DRAFT + "\n### Technical approach\nx\n", "Technical approach"))
 

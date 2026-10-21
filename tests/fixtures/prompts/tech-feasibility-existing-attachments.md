@@ -51,7 +51,7 @@ Files attached to the work item, such as mockups or screenshots. Read the ones t
 
 ## Your Task
 
-Write the draft's `### Technical approach` subsection in place: the last subsection of `## Product`, directly before `## Decisions`, replacing any approach the draft already carries. Follow this template, nesting its parts as `####` headings:
+Write the draft's `### Technical approach` subsection in place: the last subsection of `## Product`, directly before `## Decisions`, replacing the placeholder comment or any approach the draft already carries. Follow this template, nesting its parts as `####` headings:
 
 --- BEGIN TEMPLATE ---
 
