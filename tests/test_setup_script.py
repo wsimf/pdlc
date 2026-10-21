@@ -20,6 +20,10 @@ with open(os.environ["SETUP_LOG"], "a") as log:
 if name == "git":
     if args == ["rev-parse", "--show-toplevel"]:
         print(os.environ.get("GIT_ROOT", os.getcwd()))
+    elif args == ["config", "--global", "--path", "core.excludesFile"]:
+        if not os.environ.get("EXCLUDES_FILE"):
+            sys.exit(1)
+        print(os.environ["EXCLUDES_FILE"])
     elif os.environ.get("PULL_FAIL"):
         print("pull failed", file=sys.stderr)
         sys.exit(1)
@@ -70,15 +74,17 @@ class SetupScriptTests(unittest.TestCase):
         self.bin.mkdir()
         # A controlled PATH lets missing-tool scenarios ignore the developer's machine.
         for name in ("bash", "dirname", "sed", "cat", "mkdir", "basename", "rm",
-                     "ln", "mktemp", "cp", "mv"):
+                     "ln", "mktemp", "cp", "mv", "grep", "tail"):
             (self.bin / name).symlink_to(shutil.which(name))
         for name in ("git", "uv", "gh", "az"):
             path = self.bin / name
             path.write_text(f"#!{sys.executable}\n" + FAKE_CLI)
             path.chmod(0o755)
         self.log = self.root / "commands.jsonl"
-        self.env = {**os.environ, "HOME": str(self.home), "PATH": str(self.bin),
-                    "SETUP_LOG": str(self.log)}
+        # Drop XDG_CONFIG_HOME so the global ignore step writes only inside the fake home.
+        self.env = {**{k: v for k, v in os.environ.items() if k != "XDG_CONFIG_HOME"},
+                    "HOME": str(self.home), "PATH": str(self.bin), "SETUP_LOG": str(self.log)}
+        self.ignore_file = self.home / ".config/git/ignore"
 
     def run_setup(self, *args, answers="", cwd=None, **env):
         return subprocess.run(
@@ -169,12 +175,36 @@ class SetupScriptTests(unittest.TestCase):
     def test_each_copy_and_link_group_requires_approval(self):
         for name in (".claude", ".codex", ".copilot"):
             (self.home / name).mkdir()
-        result = self.run_setup(answers="n\nn\nn\nn\nn\n")
+        result = self.run_setup(answers="n\nn\nn\nn\nn\nn\n")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.count("[y/N]"), 5)
+        self.assertEqual(result.stdout.count("[y/N]"), 6)
         self.assertFalse((self.home / ".agents").exists())
+        self.assertFalse((self.home / ".config").exists())
         for harness in (".claude", ".codex", ".copilot"):
             self.assertEqual(list((self.home / harness).iterdir()), [])
+
+    def test_global_ignore_is_added_once_after_a_newline(self):
+        self.ignore_file.parent.mkdir(parents=True)
+        self.ignore_file.write_text("existing")
+        for _ in range(2):
+            result = self.run_setup("-y")
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.ignore_file.read_text(), "existing\n.pdlc/\n")
+        self.assertIn(".pdlc/ is already in", result.stdout)
+
+    def test_global_ignore_uses_configured_excludes_file(self):
+        configured = self.home / "custom ignore"
+        result = self.run_setup("-y", EXCLUDES_FILE=str(configured))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(configured.read_text(), ".pdlc/\n")
+        self.assertFalse(self.ignore_file.exists())
+
+    def test_global_ignore_honors_xdg_config_home(self):
+        xdg = self.root / "xdg"
+        result = self.run_setup("-y", XDG_CONFIG_HOME=str(xdg))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((xdg / "git/ignore").read_text(), ".pdlc/\n")
+        self.assertFalse(self.ignore_file.exists())
 
     def test_real_skill_directory_is_preserved(self):
         skill = self.home / ".agents/skills/pdlc"
