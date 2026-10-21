@@ -558,7 +558,20 @@ def acceptance_test_writer_brief(work_item: str, traceability: str, findings: st
     )
 
 
-PRODUCT_DRAFT_HEADINGS = "## Product\n\n## Decisions\n\n## Open Questions\n"
+# The blank draft: the Product subsections pdlc-write's product-spec-format
+# reference names, in its order. `### Technical approach` is left to the spike.
+PRODUCT_DRAFT_HEADINGS = "\n\n".join((
+    "## Product",
+    "### Problem statement",
+    "### Goals",
+    "### Prior art & reuse",
+    "### Functional requirements",
+    "### Constraints",
+    "### Design considerations",
+    "### Success metrics",
+    "## Decisions",
+    "## Open Questions",
+)) + "\n"
 
 
 def _quoted(path: Path | str) -> str:

@@ -14,7 +14,7 @@ The product sections have not been reviewed yet.
 
 ## Next steps
 
-1. Write the `## Product`, `## Decisions`, and `## Open Questions` sections into the draft from the settled answers, interviewing the driver on every branch that source and the conversation leave open.
+1. Fill every heading in the draft from the settled answers, interviewing the driver on every branch that source and the conversation leave open. Delete `### Design considerations` and `## Open Questions` when they have nothing to say.
 2. Leave out `### Technical approach`; the feasibility spike writes it after the product review.
 3. Start the product review: `pdlc prompt product-reviewer $CACHE_ROOT/.pdlc/cache/new-route-sheet/pdlc-product-draft.md --pass product`
 

@@ -20,6 +20,7 @@ from pdlc.domain.product_draft import (
     product_content,
     subsection,
 )
+from pdlc.commands.prompt import PRODUCT_DRAFT_HEADINGS
 from pdlc.internal import product_draft
 
 PRODUCT = "## Product\n\n### Functional requirements\n- FR-1: The record lands.\n\n### Constraints\n- C-1: x.\n"
@@ -88,7 +89,7 @@ class ProductWriterTest(FileBackendTest):
         result = self.writer("--slug", "route-shape")
         self.assertEqual(result.code, 0, result.stderr)
         draft = product_draft.draft_path("new-route-shape")
-        self.assertEqual(draft.read_text(), "## Product\n\n## Decisions\n\n## Open Questions\n")
+        self.assertEqual(draft.read_text(), PRODUCT_DRAFT_HEADINGS)
         self.assertIn(f"`{draft}` is the only copy of the draft", result.stdout)
         self.assertIn("This is a new work item, `route-shape`", result.stdout)
         self.assertIn(f"pdlc prompt product-reviewer {draft} --pass product", result.stdout)
@@ -102,7 +103,7 @@ class ProductWriterTest(FileBackendTest):
         self.assertEqual(self.writer("--slug", "kept").code, 0)
         self.assertEqual(draft.read_text(), DRAFT)
         self.assertEqual(self.writer("--slug", "kept", "--restart").code, 0)
-        self.assertEqual(draft.read_text(), "## Product\n\n## Decisions\n\n## Open Questions\n")
+        self.assertEqual(draft.read_text(), PRODUCT_DRAFT_HEADINGS)
 
     def test_attachments_are_recorded_once_and_reach_every_brief_and_the_land_command(self):
         mockup = self.write_file("mockup.png", "png")
@@ -157,7 +158,7 @@ class ProductWriterTest(FileBackendTest):
         uninitialized = self.writer("--work-item", 61)
         self.assertEqual(uninitialized.code, 0, uninitialized.stderr)
         self.assertIn("--- BEGIN REQUIREMENTS ---\n\nShip offline routes.", uninitialized.stdout)
-        self.assertEqual(product_draft.draft_path("61").read_text(), "## Product\n\n## Decisions\n\n## Open Questions\n")
+        self.assertEqual(product_draft.draft_path("61").read_text(), PRODUCT_DRAFT_HEADINGS)
 
         self.seed_record(62, "Product", "Stale")
         stale = self.writer("--work-item", 62)
