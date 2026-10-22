@@ -16,6 +16,7 @@ from dataclasses import dataclass, replace
 
 from pdlc.domain.lifecycle import PdlcError
 from pdlc.domain.model import evidence_comment_text, find_marked_comments, latest_marked_comment
+from pdlc.domain.task_plan import REQUIREMENT_NUMBER, requirement_order
 from pdlc.domain.workflow import Event, Pipeline, State
 
 NO_IMPACT = "none"
@@ -25,7 +26,7 @@ _CHANGED_REQUIREMENTS = re.compile(r"^Changed requirements:[ \t]*(.+?)[ \t]*$", 
 # A requirement statement opens a line, optionally as a list item and bolded:
 # `- FR-4: ...`, `1. **C-2**: ...`. It runs until a blank line, a heading, or
 # the next list item.
-_STATEMENT_START = re.compile(r"^[ \t]*(?:[-*+][ \t]+|[0-9]+[.)][ \t]+)?\**((?:FR|C)-[0-9]+)\**[ \t]*:")
+_STATEMENT_START = re.compile(rf"^[ \t]*(?:[-*+][ \t]+|[0-9]+[.)][ \t]+)?\**((?:FR|C)-{REQUIREMENT_NUMBER})\**[ \t]*:")
 _STATEMENT_END = re.compile(r"^[ \t]*(?:$|#|[-*+][ \t]|[0-9]+[.)][ \t])")
 
 
@@ -137,12 +138,8 @@ def requirement_changes(landed: str, draft: str) -> list[dict]:
     before = requirement_statements(landed)
     after = requirement_statements(draft)
 
-    def order(key: str) -> tuple[str, int]:
-        prefix, number = key.split("-")
-        return prefix, int(number)
-
     changes = []
-    for key in sorted(before.keys() | after.keys(), key=order):
+    for key in sorted(before.keys() | after.keys(), key=requirement_order):
         if before.get(key) == after.get(key):
             continue
         kind = "added" if key not in before else "removed" if key not in after else "changed"

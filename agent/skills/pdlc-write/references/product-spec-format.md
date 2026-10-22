@@ -113,7 +113,7 @@ A quality attribute lands here when it binds the *mechanism* rather than the obs
 
 The same concern often splits across both, and that is correct rather than duplication: the `FR-*` is what a test asserts, the `C-*` is what a reviewer checks the diff against.
 
-Every task must cover at least one FR or C, so keep both numbered and stable — renumbering an approved requirement breaks that coverage.
+Every task must cover at least one FR or C, so keep both numbered and stable — renumbering an approved requirement breaks that coverage. To add one between existing requirements, give it a single lowercase letter suffix — `FR-1a`, `C-4a` — rather than renumbering; that is the only valid sub-item notation.
 
 ### Design considerations (optional)
 Product-level experience constraints and links to supplied mockups. Do not decide UI applicability, journeys, surfaces, navigation, interaction states, accessibility behaviour, or UI tasks here — the `UI` section owns all of that, and components to reuse belong in Prior Art & Reuse.
