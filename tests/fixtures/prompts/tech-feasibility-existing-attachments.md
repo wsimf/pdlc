@@ -87,7 +87,7 @@ Verdict: <Feasible | Feasible with caveats | Not feasible>
 - <Natural seams along which the work splits into independently deliverable tasks.>
 ```
 
-`Feasibility`, `Approach`, `Risks & unknowns`, and `Verification` are required and must have real content. Omit an optional heading entirely when it adds nothing; never leave a placeholder. The verdict is one of the three values exactly; a `Not feasible` draft never lands. Keep the whole subsection to about a screen: deeper spike notes belong in the evidence body.
+`Feasibility`, `Approach`, `Risks & unknowns`, and `Verification` are required and must have real content. Omit an optional heading entirely when it adds nothing; never leave a placeholder. The verdict is one of the three values exactly; a `Not feasible` draft never lands. `Feasible` means every requirement and constraint can be built as written, however much new code, migration, or refactoring that takes; that work belongs in `Approach`, never in a caveat. `Feasible with caveats` means the product is buildable only if a requirement or constraint is weakened, a quality bound may not be reachable, or it depends on something outside the codebase that is not yet settled; each caveat names the requirement or constraint it would change. Keep the whole subsection to about a screen: deeper spike notes belong in the evidence body.
 
 --- END TEMPLATE ---
 
