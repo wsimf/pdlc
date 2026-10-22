@@ -8,14 +8,25 @@ from pdlc.domain.lifecycle import PdlcError, duplicates
 from pdlc.domain.model import CORE_TAG, UI_TAG
 
 TASK_ID_FORMAT = re.compile(r"^TASK-[0-9]{3}$")
+# The number part of an `FR-*` / `C-*` id: `1`, a sub-item `1a`, or a dotted
+# sub-item `1.1` / `1.1.2`. Every reader of requirement ids builds on this.
+REQUIREMENT_NUMBER = r"[0-9]+(?:\.[0-9]+)*[a-z]?"
 # The parent identifiers a breakdown covers: requirements and constraints
 # declared in `## Product`, journeys declared in `## UI`.
-REQUIREMENT_ID_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
+REQUIREMENT_ID_PATTERN = re.compile(rf"\b(?:FR|C)-{REQUIREMENT_NUMBER}\b")
 JOURNEY_ID_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
 
 
 def declared_identifiers(text: str, pattern: re.Pattern) -> list[str]:
     return sorted(set(pattern.findall(text)))
+
+
+def requirement_order(identifier: str) -> tuple[str, tuple[int, ...], str]:
+    """Sort key placing `FR-2` before `FR-10` and sub-items after their parent."""
+    prefix, number = identifier.split("-", 1)
+    letter = number[-1] if number[-1].isalpha() else ""
+    dotted = number.removesuffix(letter)
+    return prefix, tuple(int(part) for part in dotted.split(".")), letter
 
 
 # The [UI]/[CORE] tag pdlc-implement later reads back off the title to route

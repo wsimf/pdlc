@@ -16,11 +16,12 @@ from pdlc.domain.model import (
     evidence_comment_text,
     read_section,
 )
+from pdlc.domain.task_plan import REQUIREMENT_ID_PATTERN, REQUIREMENT_NUMBER
 
-FR_C_PATTERN = re.compile(r"\b(?:FR|C)-[0-9]+\b")
+FR_C_PATTERN = REQUIREMENT_ID_PATTERN
 UJ_PATTERN = re.compile(r"\bUJ-[0-9]+\b")
 _TASK_TAG = re.compile(r"\bWORK-[0-9]+-TASK-[0-9]+\b")
-_HEADING = re.compile(r"^#{1,6}\s*(?P<id>[A-Z]+-[0-9]+)\b")
+_HEADING = re.compile(rf"^#{{1,6}}\s*(?P<id>[A-Z]+-{REQUIREMENT_NUMBER})\b")
 
 
 def identifier_blocks(text: str) -> dict[str, str]:
@@ -59,7 +60,7 @@ def covered_text(parent_body: str, section: str, task_body: str, pattern: re.Pat
     for identifier in cited:
         block = blocks.get(identifier)
         if block is None:
-            inline = [line.strip() for line in source.splitlines() if identifier in line]
+            inline = [line.strip() for line in source.splitlines() if identifier in pattern.findall(line)]
             block = "\n".join(inline) if inline else f"{identifier} — not found in the record's `## {section}`"
         rendered.append(block)
     return "\n\n".join(rendered)

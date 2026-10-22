@@ -6,9 +6,9 @@ import hashlib
 import json
 import re
 
-from pdlc.domain.task_plan import carried_title
+from pdlc.domain.task_plan import REQUIREMENT_NUMBER, carried_title
 
-_COVER = re.compile(r"\b(?:FR|C|UJ)-[0-9]+\b")
+_COVER = re.compile(rf"\b(?:(?:FR|C)-{REQUIREMENT_NUMBER}|UJ-[0-9]+)\b")
 _TASK = re.compile(r"\bTASK-[0-9]{3}\b")
 
 
