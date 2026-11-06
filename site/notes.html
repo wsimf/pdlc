@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presenter notes</title>
+<style>
+:root{--bg:#0f172a;--ink:#f8fafc;--soft:#cbd5e1;--dim:#64748b;--teal:#2dd4bf;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--size:22px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{display:flex;flex-direction:column;gap:14px;padding:20px 24px;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;justify-content:space-between;gap:16px;font:400 13px/1.5 var(--mono);color:var(--dim)}
+#title{font-size:20px;font-weight:600;color:var(--teal)}
+#notes{flex:1;overflow:auto;font-size:var(--size);line-height:1.5;color:var(--soft);white-space:pre-wrap}
+#notes:empty::before{content:"No notes for this slide.";color:var(--dim)}
+footer{display:flex;justify-content:space-between;gap:16px;font:400 12px/1.5 var(--mono);color:var(--dim)}
+</style>
+</head>
+<body>
+<!-- Presenter view for presentation.html: open both pages in the same browser from the same server, then share only the deck window. -->
+<header>
+  <span id="counter">Waiting for presentation.html...</span>
+  <span id="steps"></span>
+</header>
+<div id="title"></div>
+<div id="notes" aria-live="polite"></div>
+<footer>
+  <span id="upcoming"></span>
+  <span>← → drive deck · + − text size</span>
+</footer>
+<script>
+// Mirrors the deck's state over the channel presentation.html broadcasts on, and sends navigation back to it.
+const channel = new BroadcastChannel('presentation');
+const $ = id => document.getElementById(id);
+
+channel.addEventListener('message', ({ data }) => {
+  if (data?.type !== 'state') return;
+  $('counter').textContent = `Slide ${data.index + 1} / ${data.total}`;
+  $('steps').textContent = data.steps ? `Step ${data.revealed} / ${data.steps}` : '';
+  $('title').textContent = data.title;
+  $('notes').textContent = data.notes;
+  $('upcoming').textContent = data.nextTitle ? `Next: ${data.nextTitle}` : 'Last slide';
+});
+
+let size = 22;
+document.addEventListener('keydown', event => {
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(event.key)) {
+    event.preventDefault();
+    channel.postMessage({ type: 'forward' });
+  } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) {
+    event.preventDefault();
+    channel.postMessage({ type: 'backward' });
+  } else if (event.key === '+' || event.key === '=') {
+    size = Math.min(size + 2, 48);
+  } else if (event.key === '-') {
+    size = Math.max(size - 2, 12);
+  }
+  document.documentElement.style.setProperty('--size', `${size}px`);
+});
+
+// Ask the deck for its current state, in case it was opened first.
+channel.postMessage({ type: 'request' });
+</script>
+</body>
+</html>

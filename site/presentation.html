@@ -3,125 +3,677 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fast is easy. Confidence is harder.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<title>From prompts to process</title>
 <style>
 :root{
-  --bg:#05070d;
-  --ink:#eef2ff;
-  --dim:#8b96b4;
-  --line:rgba(140,160,220,.18);
-  --teal:#5eead4;
-  --indigo:#818cf8;
-  --pink:#f0abfc;
+  --bg:#fafaf7;
+  --paper:#ffffff;
+  --ink:#111827;
+  --soft:#374151;
+  --dim:#6b7280;
+  --line:rgba(15,23,42,.12);
+  --teal:#0d9488;
+  --indigo:#4f46e5;
+  --pink:#c026d3;
+  --amber:#d97706;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
   background:var(--bg);color:var(--ink);
-  font-family:Inter,system-ui,sans-serif;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
 body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
 body::before{
   background:
-    radial-gradient(45% 45% at 15% 10%,rgba(94,234,212,.13),transparent 60%),
-    radial-gradient(45% 45% at 85% 20%,rgba(129,140,248,.15),transparent 60%),
-    radial-gradient(60% 60% at 50% 110%,rgba(240,171,252,.10),transparent 60%);
+    radial-gradient(45% 45% at 12% 8%,rgba(13,148,136,.08),transparent 60%),
+    radial-gradient(45% 45% at 88% 15%,rgba(79,70,229,.08),transparent 60%),
+    radial-gradient(60% 60% at 50% 110%,rgba(192,38,211,.06),transparent 60%);
 }
 body::after{
-  opacity:.35;
+  opacity:.5;
   background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
   background-size:64px 64px;
-  mask-image:radial-gradient(75% 75% at 50% 50%,#000,transparent);
+  mask-image:radial-gradient(75% 75% at 50% 50%,rgba(0,0,0,.35),transparent);
 }
 #deck{position:relative;z-index:1}
 .slide{
   min-height:100svh;display:flex;align-items:center;justify-content:center;
-  padding:80px clamp(24px,6vw,96px) 100px;
+  padding:48px clamp(24px,4vw,72px) 92px;
   animation:enter .35s ease;
 }
 .slide[hidden]{display:none}
-.wrap{width:min(1180px,100%)}
+.wrap{width:100%}
 .eyebrow{
-  display:flex;align-items:center;gap:16px;margin-bottom:26px;
-  font:600 12px/1.5 'JetBrains Mono',monospace;
-  letter-spacing:.24em;text-transform:uppercase;color:var(--teal);
+  display:flex;align-items:center;gap:16px;margin-bottom:22px;
+  font:600 clamp(15px,1.3vw,19px)/1.5 var(--mono);
+  letter-spacing:.18em;text-transform:uppercase;color:var(--teal);
 }
 .eyebrow::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,var(--teal),transparent)}
 h1{font-size:clamp(42px,6.8vw,96px);line-height:1.02;font-weight:900;letter-spacing:-.045em}
-h2{font-size:clamp(32px,4.6vw,64px);line-height:1.08;font-weight:800;letter-spacing:-.035em}
-.grad{background:linear-gradient(100deg,var(--teal),var(--indigo) 45%,var(--pink));background-clip:text;-webkit-background-clip:text;color:transparent}
-.lede{margin-top:32px;max-width:52ch;font-size:clamp(18px,1.8vw,25px);line-height:1.5;color:#c3cbe4;font-weight:300}
-.detail{margin-top:24px;max-width:65ch;font-size:clamp(14px,1.25vw,18px);line-height:1.6;color:var(--dim);font-weight:300}
-.problems{display:grid;grid-template-columns:repeat(2,1fr);gap:24px 36px;margin-top:36px;list-style:none}
-.problems li{padding:8px 0 8px 20px;border-left:2px solid var(--teal)}
-.problems li:nth-child(2){border-color:var(--indigo)}
-.problems li:nth-child(3){border-color:var(--pink)}
-.problems li:nth-child(4){border-color:#fbbf24}
-.problems h3{font-size:clamp(19px,1.8vw,25px);font-weight:600;letter-spacing:-.02em}
-.problems p{margin-top:10px;max-width:42ch;font-size:clamp(15px,1.3vw,18px);line-height:1.6;color:#c3cbe4;font-weight:300}
+h2{font-size:clamp(30px,4vw,56px);line-height:1.08;font-weight:800;letter-spacing:-.035em}
+h3{font-size:clamp(18px,1.7vw,23px);font-weight:650;letter-spacing:-.02em}
+.grad{background:linear-gradient(100deg,var(--teal),var(--indigo) 50%,var(--pink));background-clip:text;-webkit-background-clip:text;color:transparent}
+.lede{margin-top:24px;max-width:58ch;font-size:clamp(18px,1.8vw,25px);line-height:1.5;color:var(--soft);font-weight:400}
+.punch{margin-top:30px;font-size:clamp(20px,2.2vw,30px);font-weight:650;letter-spacing:-.02em}
+.note{margin-top:22px;font-size:clamp(14px,1.25vw,17px);line-height:1.5;color:var(--dim)}
+code{font:500 .92em var(--mono);color:var(--teal)}
+
+/* Revealed one at a time by the arrow keys, keeping their space so the layout never jumps. */
+.step{transition:opacity .3s ease,transform .3s ease}
+.step.pending{visibility:hidden;opacity:0;transform:translateY(8px)}
+
+/* The lever quote. */
+blockquote{margin-top:28px;padding-left:24px;border-left:3px solid var(--indigo);font-size:clamp(22px,2.6vw,36px);line-height:1.25;font-weight:500;font-style:italic;letter-spacing:-.02em;color:var(--soft)}
+cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);font-style:normal}
+
+/* Bordered cards used by every list slide. */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:20px 36px;margin-top:32px;list-style:none}
+.cards li{padding:6px 0 6px 20px;border-left:3px solid var(--teal)}
+.cards li:nth-child(2){border-color:var(--indigo)}
+.cards li:nth-child(3){border-color:var(--pink)}
+.cards li:nth-child(4){border-color:var(--amber)}
+.cards p{margin-top:8px;max-width:46ch;font-size:clamp(15px,1.3vw,18px);line-height:1.55;color:var(--soft)}
+
+/* Three columns of problems, each revealed as one beat. */
+.questions{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:32px}
+.questions>div{padding-top:14px;border-top:3px solid var(--teal)}
+.questions>div:nth-child(2){border-color:var(--indigo)}
+.questions>div:nth-child(3){border-color:var(--pink)}
+.questions ul{list-style:none}
+.questions li{margin-top:16px;font-size:clamp(14px,1.25vw,17px);line-height:1.45;color:var(--soft)}
+.questions b{display:block;margin-bottom:3px;color:var(--ink);font-weight:650}
+
+/* The old loop: one 10s cycle where I think, the prompt travels, the agent processes, and the result returns. */
+.loop{display:block;width:100%;max-height:52vh;margin-top:20px}
+.loop *{animation-duration:10s;animation-iteration-count:infinite;animation-timing-function:linear}
+.loop text{text-anchor:middle;font-family:var(--mono)}
+.node{fill:var(--paper);stroke:var(--line);stroke-width:2}
+.glow{opacity:0}
+.me-node .glow{fill:rgba(79,70,229,.12);stroke:var(--indigo);stroke-width:3;opacity:1;animation-name:me-on}
+.agent-node .glow{fill:rgba(13,148,136,.12);stroke:var(--teal);stroke-width:3;animation-name:agent-on}
+.who{font:700 30px var(--mono);fill:var(--ink);font-family:inherit}
+.state{font-size:22px;font-weight:700}
+.on-state{opacity:1}
+.me-node .on-state{fill:var(--indigo);animation-name:me-on}
+.me-node .off-state{fill:var(--amber);opacity:0;animation-name:me-off}
+.agent-node .on-state{fill:var(--teal);opacity:0;animation-name:agent-on}
+.agent-node .off-state{fill:var(--amber);opacity:1;animation-name:agent-off}
+.arc{fill:none;stroke:rgba(15,23,42,.25);stroke-width:3}
+.comet{fill:none;stroke-width:7;stroke-linecap:round;stroke-dasharray:.14 2;stroke-dashoffset:.14;opacity:0}
+.comet-out{stroke:var(--indigo);animation-name:send}
+.comet-back{stroke:var(--teal);animation-name:reply}
+.arc-label{font-size:20px;fill:var(--soft);opacity:.45}
+.label-out{animation-name:label-out}
+.label-back{animation-name:label-back}
+@keyframes me-on{0%,33%{opacity:1}36%,100%{opacity:0}}
+@keyframes me-off{0%,33%{opacity:0}36%,100%{opacity:1}}
+@keyframes agent-on{0%,49%{opacity:0}52%,83%{opacity:1}86%,100%{opacity:0}}
+@keyframes agent-off{0%,49%{opacity:1}52%,83%{opacity:0}86%,100%{opacity:1}}
+@keyframes send{0%,35%{opacity:0;stroke-dashoffset:.14}36%{opacity:1}50%{opacity:1;stroke-dashoffset:-1}51%,100%{opacity:0;stroke-dashoffset:-1}}
+@keyframes reply{0%,85%{opacity:0;stroke-dashoffset:.14}86%{opacity:1}99%{opacity:1;stroke-dashoffset:-1}100%{opacity:0;stroke-dashoffset:-1}}
+@keyframes label-out{0%,35%{opacity:.45}37%,49%{opacity:1}51%,100%{opacity:.45}}
+@keyframes label-back{0%,85%{opacity:.45}87%,98%{opacity:1}100%{opacity:.45}}
+
+/* Swimlane timelines: each block sets --from and --to as a percentage of the track. */
+.timeline{margin-top:32px}
+.lane{display:grid;grid-template-columns:84px 1fr;align-items:center;gap:14px;margin-bottom:10px}
+.lane>span{font:600 12px/1.3 var(--mono);color:var(--soft)}
+.track{position:relative;height:clamp(38px,6vh,54px);border-radius:6px;background:rgba(15,23,42,.05)}
+.block{
+  position:absolute;top:0;bottom:0;left:calc(var(--from)*1%);width:calc((var(--to) - var(--from))*1%);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;
+  font:600 11px/1 var(--mono);white-space:nowrap;color:#fff;
+}
+.work{background:var(--teal)}
+.me{background:var(--indigo)}
+.gate{background:var(--pink)}
+.free{background:rgba(79,70,229,.1);color:var(--soft);font-weight:500}
+.wait{color:var(--ink);font-weight:500;background:repeating-linear-gradient(135deg,rgba(217,119,6,.3) 0 5px,transparent 5px 11px)}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 0 98px;font:400 12px/1 var(--mono);color:var(--dim)}
+.legend i{display:inline-block;width:14px;height:14px;margin-right:7px;border-radius:3px;vertical-align:-2px}
+
+/* Down the rabbit hole: each stair sits lower than the last. */
+.stairs{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:28px;list-style:none;counter-reset:stair}
+.stairs li{
+  margin-top:calc(var(--depth)*34px);padding:16px;border:1px solid var(--line);border-top:3px solid var(--teal);
+  border-radius:8px;background:var(--paper);counter-increment:stair;
+}
+.stairs li::before{content:"0" counter(stair);display:block;margin-bottom:6px;font:600 11px var(--mono);color:var(--dim)}
+.stairs p{margin-top:8px;font-size:clamp(13px,1.15vw,16px);line-height:1.45;color:var(--soft)}
+
+/* The do-it versus build-it comparison. */
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px}
+.versus>div{padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.versus .to{border:2px solid var(--teal)}
+.versus ul{margin-top:14px;list-style:none}
+.versus li{padding:7px 0;font-size:clamp(15px,1.4vw,19px);line-height:1.45;color:var(--soft)}
+.versus pre{margin-top:14px;padding:14px 16px;border-radius:8px;background:#0f172a;color:#e2e8f0;font:500 clamp(13px,1.2vw,16px)/1.5 var(--mono);white-space:pre-wrap}
+.versus pre span{color:#5eead4}
+.versus .result{margin-top:10px;padding:12px 16px;border-left:3px solid var(--teal);background:rgba(13,148,136,.06);font:500 clamp(12px,1.1vw,15px)/1.6 var(--mono);color:var(--soft)}
+
+/* A long instruction file, faded out to suggest it keeps going. */
+.skillfile{
+  margin-top:14px;max-height:clamp(150px,30vh,240px);overflow:hidden;
+  font:400 clamp(11px,1vw,14px)/1.65 var(--mono);color:var(--soft);
+  mask-image:linear-gradient(#000 55%,transparent);
+}
+.skillfile b{color:var(--ink);font-weight:600}
+
+/* A Markdown skill file that slowly scrolls, to show how long it runs; the script below drives the scroll and hands it to the presenter on wheel or touch. */
+.mdfile{--md-height:max(200px,calc(100svh - 480px));position:relative;margin-top:14px;height:var(--md-height);overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;border-radius:8px;background:#f8fafc;border:1px solid var(--line);mask-image:linear-gradient(#000 80%,transparent)}
+.mdfile .filename{position:sticky;top:0;display:block;z-index:1;padding:6px 12px;background:#eef2f7;border-bottom:1px solid var(--line);font:600 12px var(--mono);color:var(--dim)}
+.mdfile pre{margin:0;border-radius:0;background:none;padding:10px 14px calc(var(--md-height) * .2);font:400 clamp(12px,1.15vw,16px)/1.6 var(--mono);color:var(--soft);white-space:pre-wrap}
+.mdfile .h{color:var(--ink);font-weight:700}
+.mdfile .c{color:var(--teal)}
+.mdfile .m{color:var(--dim)}
+.mdfile.output{--md-height:max(130px,calc(100svh - 560px));margin-top:0}
+.mdfile.mini{height:auto;overflow:hidden;mask-image:none}
+.mdfile.mini pre{padding:14px 18px 16px;font-size:clamp(15px,1.5vw,21px)}
+/* The command's output lands on top of its skill, offset down and right like a stacked card. */
+.stack{display:grid;margin-top:14px}
+.stack>*{grid-area:1/1}
+.stack .mdfile.mini{margin-top:0;align-self:start}
+.stack .layer{position:relative;z-index:1;margin:84px 0 0 48px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 18px 40px -12px rgba(17,24,39,.28)}
+.stack .layer .note{margin-top:10px}
+.versus .note{color:#000;font-size:clamp(16px,1.5vw,21px);font-weight:600}
+
+/* Speaker notes, toggled with N and only ever shown on demand. */
+.notes{display:none}
+#notes{
+  position:fixed;left:0;right:0;bottom:73px;z-index:2;max-height:34vh;overflow:auto;
+  padding:16px 26px;background:#f1f5f9;border-top:2px solid var(--teal);
+  font-size:16px;line-height:1.5;color:var(--soft);
+}
 #navigation{
   position:fixed;bottom:0;left:0;right:0;z-index:2;
   display:flex;align-items:center;justify-content:space-between;gap:16px;
   padding:18px 26px;background:var(--bg);border-top:1px solid var(--line);
-  font:400 11px/1.5 'JetBrains Mono',monospace;color:var(--dim);
+  font:400 11px/1.5 var(--mono);color:var(--dim);
 }
 .controls{display:flex;align-items:center;gap:16px}
-button{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--ink);font-size:18px;cursor:pointer}
+button{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:var(--paper);color:var(--ink);font-size:18px;cursor:pointer}
 button:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
 button:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
 button:disabled{opacity:.3;cursor:default}
 @keyframes enter{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.slide{animation:none}}
-@media(max-width:700px){.problems{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.slide,.loop *{animation:none}.step{transition:none}}
+@media(max-width:800px){
+  .cards,.versus,.questions{grid-template-columns:1fr}
+  .stairs{grid-template-columns:1fr}
+  .stairs li{margin-top:0}
+  .block{font-size:0}
+  .legend{margin-left:0}
+}
 </style>
 </head>
 <body>
-<main id="deck" aria-label="Building with agents presentation">
-  <!-- Add future slides as sibling sections with class="slide" and hidden. -->
+<main id="deck" aria-label="From prompts to process presentation">
+  <!-- Add slides as sibling sections with class="slide" and hidden. Mark anything revealed in sequence with class="step", and put speaker notes in an aside with class="notes". -->
+
   <section class="slide" aria-labelledby="title">
     <div class="wrap">
-      <div class="eyebrow">What I learned building with agents</div>
-      <h1 id="title">Fast is easy.<br><span class="grad">Confidence is harder.</span></h1>
-      <p class="lede">We set the direction. We define how we’ll know it’s right.</p>
-      <p class="detail">Agents carry that direction through planning, implementation, testing, and review, bringing decisions back to you and recording progress and evidence in your Azure (or GitHub) board.</p>
+      <div class="eyebrow">Notes from down the rabbit hole</div>
+      <h1 id="title">From prompts<br><span class="grad">to process.</span></h1>
+      <p class="lede">Building the lever: things I learnt building with coding agents.</p>
     </div>
+    <aside class="notes">Set expectations: this isn't a product pitch. It's what I learnt, including what I got wrong, and you can use all of it with whatever tools you have.</aside>
   </section>
-  <section class="slide" aria-labelledby="problems-title" hidden>
+
+  <section class="slide" aria-labelledby="lever-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">The friction</div>
-      <h2 id="problems-title">The code comes fast.<br><span class="grad">The follow-through takes work.</span></h2>
-      <p class="lede">These are the gaps I’m trying to close.</p>
-      <ul class="problems">
-        <li>
-          <h3>“We already agreed on this.”</h3>
-          <p>Context gets lost between sessions and agents. I end up repeating requirements, constraints, and decisions.</p>
-        </li>
-        <li>
-          <h3>“That’s not what we needed.”</h3>
-          <p>An agent starts coding before the problem is clear, fills in the gaps, and delivers against its own assumptions.</p>
-        </li>
-        <li>
-          <h3>“Done — but does it work?”</h3>
-          <p>Passing tests can miss the requirement. Integration, edge cases, and the real user journey still need verification.</p>
-        </li>
-        <li>
-          <h3>“Why am I still chasing this?”</h3>
-          <p>I’m prompting the next step, checking what was actually done, and carrying progress from the chat back to the board.</p>
-        </li>
+      <div class="eyebrow">The idea</div>
+      <h2 id="lever-title">What’s <span class="grad">the lever?</span></h2>
+      <blockquote class="step">“Give me a lever long enough and a place to stand, and I will move the world.”<cite>Attributed to Archimedes</cite></blockquote>
+      <p class="lede step">How I’ve come to think about it: the agent is the force, and the lever is what you build around it. The tools, checks, and records that let a little effort go a long way.</p>
+      <p class="punch step">For me, building levers helped more <span class="grad">than writing better prompts.</span></p>
+    </div>
+    <aside class="notes">Draft definition: put this in your own words. The point is that pushing harder on the agent (more prompts, more agents) gives less than making each push go further.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="questions-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What changed</div>
+      <h2 id="questions-title">Faster code <span class="grad">raised harder questions.</span></h2>
+      <div class="questions">
+        <div class="step"><h3>Can I trust it?</h3><ul>
+          <li><b>It marks its own homework</b>The author also says it’s fine.</li>
+          <li><b>Hidden assumptions</b>Decisions get buried in the diff.</li>
+          <li><b>“Done” is a guess</b>Nothing proves it’s finished.</li>
+        </ul></div>
+        <div class="step"><h3>Can I keep up?</h3><ul>
+          <li><b>Too much to review</b>Diffs arrive faster than anyone can read them.</li>
+          <li><b>Agents collide</b>Parallel work in one checkout gets in the way.</li>
+          <li><b>Specs drift</b>Requirements change and the plan and code don’t follow.</li>
+        </ul></div>
+        <div class="step"><h3>Can the team rely on it?</h3><ul>
+          <li><b>Invisible work</b>Progress is stuck in one person’s terminal.</li>
+          <li><b>No memory</b>“Why did we build it this way?” dies with the chat.</li>
+          <li><b>Tool lock-in</b>The way of working is tied to one agent or tracker.</li>
+        </ul></div>
+      </div>
+    </div>
+    <aside class="notes">About 60 to 90 seconds. Reveal one column at a time, and give each a sentence and an example rather than reading all nine. Close with: I felt all of these, but it started with something simpler.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="loop-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">How it started</div>
+      <h2 id="loop-title">We kept taking turns <span class="grad">waiting.</span></h2>
+      <svg class="loop" viewBox="0 0 1000 380" role="img" aria-label="A repeating loop between me and an agent. I think while the agent waits, I send a prompt, the agent processes while I wait, then it sends a result back.">
+        <defs>
+          <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="rgba(15,23,42,.4)"/></marker>
+        </defs>
+        <path class="arc" d="M240 120C380 20 620 20 760 120" marker-end="url(#arrowhead)"/>
+        <path class="arc" d="M760 240C620 340 380 340 240 240" marker-end="url(#arrowhead)"/>
+        <path class="comet comet-out" pathLength="1" d="M240 120C380 20 620 20 760 120"/>
+        <path class="comet comet-back" pathLength="1" d="M760 240C620 340 380 340 240 240"/>
+        <text class="arc-label label-out" x="500" y="34">prompt</text>
+        <text class="arc-label label-back" x="500" y="358">result</text>
+        <g class="me-node">
+          <circle class="node" cx="170" cy="170" r="88"/><circle class="glow" cx="170" cy="170" r="88"/>
+          <text class="who" x="170" y="181">Me</text>
+          <text class="state on-state" x="170" y="300">thinking…</text><text class="state off-state" x="170" y="300">waiting</text>
+        </g>
+        <g class="agent-node">
+          <circle class="node" cx="830" cy="170" r="88"/><circle class="glow" cx="830" cy="170" r="88"/>
+          <text class="who" x="830" y="181">Agent</text>
+          <text class="state on-state" x="830" y="300">processing…</text><text class="state off-state" x="830" y="300">waiting</text>
+        </g>
+      </svg>
+      <p class="punch step">The agent got faster. The loop didn’t, because I was in the middle of it.</p>
+    </div>
+    <aside class="notes">Let the loop run through once or twice without talking. Ask the room who recognises this.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="more-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">The obvious fix</div>
+      <h2 id="more-title">So I ran more agents. <span class="grad">It got worse.</span></h2>
+      <div class="timeline" role="img" aria-label="Illustrative timeline: I switch between three agents every few minutes. Each agent works briefly, then waits for me to come back to it.">
+        <div class="lane"><span>Me</span><div class="track">
+          <div class="block gate" style="--from:0.3;--to:5">A</div><div class="block gate" style="--from:5.3;--to:10">B</div><div class="block gate" style="--from:10.3;--to:15">C</div><div class="block gate" style="--from:15.3;--to:20">A</div><div class="block gate" style="--from:20.3;--to:25">B</div><div class="block gate" style="--from:25.3;--to:30">C</div><div class="block gate" style="--from:30.3;--to:35">A</div><div class="block gate" style="--from:35.3;--to:40">B</div><div class="block gate" style="--from:40.3;--to:45">C</div><div class="block gate" style="--from:45.3;--to:50">A</div><div class="block gate" style="--from:50.3;--to:55">B</div><div class="block gate" style="--from:55.3;--to:60">C</div><div class="block gate" style="--from:60.3;--to:65">A</div><div class="block gate" style="--from:65.3;--to:70">B</div><div class="block gate" style="--from:70.3;--to:75">C</div><div class="block gate" style="--from:75.3;--to:80">A</div><div class="block gate" style="--from:80.3;--to:85">B</div><div class="block gate" style="--from:85.3;--to:90">C</div><div class="block gate" style="--from:90.3;--to:95">A</div><div class="block gate" style="--from:95.3;--to:100">B</div>
+        </div></div>
+        <div class="lane"><span>Agent A</span><div class="track">
+          <div class="block gate" style="--from:0.3;--to:5"></div><div class="block work" style="--from:5;--to:12"></div><div class="block wait" style="--from:12;--to:15"></div><div class="block gate" style="--from:15.3;--to:20"></div><div class="block work" style="--from:20;--to:27"></div><div class="block wait" style="--from:27;--to:30"></div><div class="block gate" style="--from:30.3;--to:35"></div><div class="block work" style="--from:35;--to:42"></div><div class="block wait" style="--from:42;--to:45"></div><div class="block gate" style="--from:45.3;--to:50"></div><div class="block work" style="--from:50;--to:57"></div><div class="block wait" style="--from:57;--to:60"></div><div class="block gate" style="--from:60.3;--to:65"></div><div class="block work" style="--from:65;--to:72"></div><div class="block wait" style="--from:72;--to:75"></div><div class="block gate" style="--from:75.3;--to:80"></div><div class="block work" style="--from:80;--to:87"></div><div class="block wait" style="--from:87;--to:90"></div><div class="block gate" style="--from:90.3;--to:95"></div><div class="block work" style="--from:95;--to:100"></div>
+        </div></div>
+        <div class="lane"><span>Agent B</span><div class="track">
+          <div class="block wait" style="--from:0;--to:5"></div><div class="block gate" style="--from:5.3;--to:10"></div><div class="block work" style="--from:10;--to:17"></div><div class="block wait" style="--from:17;--to:20"></div><div class="block gate" style="--from:20.3;--to:25"></div><div class="block work" style="--from:25;--to:32"></div><div class="block wait" style="--from:32;--to:35"></div><div class="block gate" style="--from:35.3;--to:40"></div><div class="block work" style="--from:40;--to:47"></div><div class="block wait" style="--from:47;--to:50"></div><div class="block gate" style="--from:50.3;--to:55"></div><div class="block work" style="--from:55;--to:62"></div><div class="block wait" style="--from:62;--to:65"></div><div class="block gate" style="--from:65.3;--to:70"></div><div class="block work" style="--from:70;--to:77"></div><div class="block wait" style="--from:77;--to:80"></div><div class="block gate" style="--from:80.3;--to:85"></div><div class="block work" style="--from:85;--to:92"></div><div class="block wait" style="--from:92;--to:95"></div><div class="block gate" style="--from:95.3;--to:100"></div>
+        </div></div>
+        <div class="lane"><span>Agent C</span><div class="track">
+          <div class="block wait" style="--from:0;--to:10"></div><div class="block gate" style="--from:10.3;--to:15"></div><div class="block work" style="--from:15;--to:22"></div><div class="block wait" style="--from:22;--to:25"></div><div class="block gate" style="--from:25.3;--to:30"></div><div class="block work" style="--from:30;--to:37"></div><div class="block wait" style="--from:37;--to:40"></div><div class="block gate" style="--from:40.3;--to:45"></div><div class="block work" style="--from:45;--to:52"></div><div class="block wait" style="--from:52;--to:55"></div><div class="block gate" style="--from:55.3;--to:60"></div><div class="block work" style="--from:60;--to:67"></div><div class="block wait" style="--from:67;--to:70"></div><div class="block gate" style="--from:70.3;--to:75"></div><div class="block work" style="--from:75;--to:82"></div><div class="block wait" style="--from:82;--to:85"></div><div class="block gate" style="--from:85.3;--to:90"></div><div class="block work" style="--from:90;--to:97"></div><div class="block wait" style="--from:97;--to:100"></div>
+        </div></div>
+      </div>
+      <div class="legend">
+        <span><i class="gate"></i>me, switched to that agent</span><span><i class="work"></i>agent working</span><span><i class="wait"></i>agent waiting on me</span><span><b>20</b> context switches</span>
+      </div>
+      <p class="punch step">More force, same me. <span class="grad">I needed a lever.</span></p>
+      <p class="note step">Every few minutes another agent needed me, so I never held one problem in my head for long. I couldn’t trust them to go further without checking. (Illustrative, not measured.)</p>
+    </div>
+    <aside class="notes">This is the turn of the talk, and it answers "just run agents in the background" before anyone asks. Point at the Me lane: no block is longer than a few minutes. Tell your own story of when this happened.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="hole-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole</div>
+      <h2 id="hole-title">Each fix <span class="grad">led one level deeper.</span></h2>
+      <ol class="stairs">
+        <li class="step" style="--depth:0"><h3>Better prompts</h3><p>Re-explaining the same context every session.</p></li>
+        <li class="step" style="--depth:1"><h3>Written skills</h3><p>Reusable instructions. Agents followed them… mostly.</p></li>
+        <li class="step" style="--depth:2"><h3>A tool</h3><p>I asked the agent to build a CLI that checks the facts instead of guessing them.</p></li>
+        <li class="step" style="--depth:3"><h3>A workflow</h3><p>Stages, reviews, and approvals, recorded on the board.</p></li>
+        <li class="step" style="--depth:4"><h3>Tools for the tool</h3><p>Tests, retries, and recovery, so it holds up when nobody’s watching.</p></li>
+      </ol>
+    </div>
+    <aside class="notes">Draft staircase: replace with your real path and the moment each step stopped being enough. The key beat is step 3, which is the next slide.</aside>
+  </section>
+
+  <!-- One slide per step of the journey, each framed "I noticed X, so I built Y". Drafts to fill in as we go. -->
+  <section class="slide" aria-labelledby="step1-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 01 · Guardrails</div>
+      <h2 id="step1-title">The agent made mistakes. <span class="grad">So I added guardrails.</span></h2>
+      <p class="lede step">TODO: tests, lint, type checks, CLAUDE.md rules.</p>
+    </div>
+    <aside class="notes">TODO: the first mistake that made you add a check.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step2-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 02 · Skills</div>
+      <h2 id="step2-title">I kept repeating prompts. <span class="grad">So I wrote skills.</span></h2>
+      <p class="lede step">TODO: stage skills such as pdlc-write, pdlc-plan, pdlc-implement.</p>
+    </div>
+    <aside class="notes">TODO: the prompt you were tired of typing.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step3-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 03 · A skill of skills</div>
+      <h2 id="step3-title">I called skills in the same order. <span class="grad">So one skill calls them.</span></h2>
+      <p class="lede step">TODO: pdlc-loop.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step4-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 04 · Skills became a tool</div>
+      <h2 id="step4-title">Agents read skills differently each run. <span class="grad">So the procedure became a CLI.</span></h2>
+      <p class="lede step">TODO: the skill shrank to “run pdlc inspect, do what Due Next says”.</p>
+    </div>
+    <aside class="notes">Where my path leaves the usual one: instead of more skills, a tool. Leads into the “build a tool” slides.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step5-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 05 · State routes the work</div>
+      <h2 id="step5-title">Skills guessed what came next. <span class="grad">So state decides.</span></h2>
+      <p class="lede step">TODO: workflow definition plus gate state picks the next stage.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step6-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 06 · A record outside the chat</div>
+      <h2 id="step6-title">Context died with the session. <span class="grad">So the board holds it.</span></h2>
+      <p class="lede step">TODO: requirements, decisions, evidence on the work item; GitHub, Azure, or file.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step7-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 07 · An independent reviewer</div>
+      <h2 id="step7-title">It marked its own homework. <span class="grad">So someone else reviews it.</span></h2>
+      <p class="lede step">TODO: reviewer agents and gates.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step8-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 08 · Interrupt me only for decisions</div>
+      <h2 id="step8-title">Agents pinged me for everything. <span class="grad">So they stop only when it matters.</span></h2>
+      <p class="lede step">TODO: approvals and real decisions are the only human stops.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step9-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 09 · Watching PRs</div>
+      <h2 id="step9-title">I was watching PRs for comments. <span class="grad">So the loop handles them.</span></h2>
+      <p class="lede step">TODO: CI failures and review comments fixed inside implementation.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step10-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 10 · Surviving failure</div>
+      <h2 id="step10-title">Nobody was watching when it failed. <span class="grad">So it knows how to recover.</span></h2>
+      <p class="lede step">TODO: safe-retry and check-first exit codes, recovery catalog.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step11-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 11 · Parallel without collisions</div>
+      <h2 id="step11-title">Agents collided in one checkout. <span class="grad">So each gets its own.</span></h2>
+      <p class="lede step">TODO: worktrees and stacked PRs.</p>
+    </div>
+    <aside class="notes">TODO</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="step12-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Step 12 · Not yet</div>
+      <h2 id="step12-title">Where it goes <span class="grad">next.</span></h2>
+      <p class="lede step">TODO: start from the ticket automatically, release on merge, logs become bugs, learn from failures.</p>
+    </div>
+    <aside class="notes">Be honest about the gap. Good place to open discussion.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="build-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What helped me most</div>
+      <h2 id="build-title">Instead of asking the agent to do it, <span class="grad">I asked it to build a tool.</span></h2>
+      <ul class="cards">
+        <li class="step"><h3>Same answer every time</h3><p>A script runs the same way each time. My prompts never quite did.</p></li>
+        <li class="step"><h3>Testable</h3><p>I could write tests for a tool. I couldn’t test “please remember to”.</p></li>
+        <li class="step"><h3>Saves context</h3><p>The agent could spend its context on the actual problem instead of rediscovering the routine.</p></li>
+        <li class="step"><h3>Reviewed once</h3><p>I review the tool once, rather than checking every run.</p></li>
+      </ul>
+      <p class="punch step">My rough rule now: if I’ve asked for it twice, it might be worth a tool.</p>
+    </div>
+    <aside class="notes">This is the core of the talk. The agent is great at writing small, boring tools, and those tools are where the leverage is.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="example-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">An example</div>
+      <h2 id="example-title">“What’s next on this <span class="grad">work item?”</span></h2>
+      <div class="versus">
+        <div><h3>Asking the agent</h3>
+          <div class="mdfile" aria-label="An example skill file of step-by-step instructions for reading a PBI from Azure Boards and its pull requests from GitHub">
+            <span class="filename">skills/work-on-pbi/SKILL.md</span>
+<pre><span class="m">---
+name: work-on-pbi
+description: Use when asked to continue a PBI
+---</span>
+<span class="h"># Work on a PBI</span>
+
+<span class="h">## 1. Authenticate</span>
+Export the PAT so az can reach the board:
+<span class="c">export AZURE_DEVOPS_EXT_PAT=…</span>
+<span class="c">az devops configure --defaults \
+  organization=… project=…</span>
+If this fails, ask the user to sign in and stop.
+
+<span class="h">## 2. Find the PBI</span>
+<span class="c">az boards work-item show --id 3054301</span>
+Check it’s a Product Backlog Item. If it’s a
+Bug or a Task, find its parent first, unless…
+
+<span class="h">## 3. Read the description and comments</span>
+Read <span class="c">System.Description</span> and the acceptance
+criteria. Then fetch every comment:
+<span class="c">az devops invoke --area wit \
+  --resource comments …</span>
+Ignore bot comments, unless they mention CI.
+Newer comments override older ones.
+
+<span class="h">## 4. Check GitHub</span>
+<span class="c">gh pr list --search "AB#3054301" --state all</span>
+For each PR:
+<span class="c">gh pr checks &lt;number&gt;</span>
+<span class="c">gh pr view &lt;number&gt; --comments</span>
+If CI is failing, fix that first, unless the
+failure is unrelated, in which case…
+
+<span class="h">## 5. Work out what’s next</span>
+If the description changed since the plan was
+written, re-plan before coding, unless…
+If a reviewer asked for changes, do those first.
+If everything is merged, update the PBI state
+and remember to add a comment saying…
+
+<span class="h">## 6. Before you finish</span>
+Don’t forget to move the card on the board.
+Don’t forget to link the PR to the PBI.
+…</pre>
+          </div>
+          <p class="note">Every session, the agent reads all of this, runs each step, and decides a little differently.</p>
+        </div>
+        <div class="to step"><h3>The tool it built</h3>
+          <div class="stack">
+          <div class="mdfile mini" aria-label="The whole skill file: run pdlc inspect for the PBI to get your context, then do what Due Next says">
+            <span class="filename">skills/work-on-pbi/SKILL.md</span>
+<pre><span class="h"># Work on a PBI</span>
+Run <span class="c">pdlc inspect &lt;pbi&gt;</span> to get your context.
+Then do what <span class="h"># Due Next</span> says.</pre>
+          </div>
+          <div class="layer step">
+          <div class="mdfile output" aria-label="An outline of what the command prints: the work item's state, its tasks, and what is due next">
+            <span class="filename">$ pdlc inspect 3054301 (output shortened)</span>
+<pre><span class="m">---
+Status: "Technical Plan"
+Gate State: "Pending"
+Lifecycle: "Planning"
+---</span>
+<span class="h"># Work Item</span>
+Full inspection in .pdlc/cache/3054301/pdlc-3054301.md
+
+<span class="h">## Attachments</span>
+None
+
+<span class="h">## User Comments</span>
+None
+
+<span class="h"># Tasks</span>
+<span class="m">---
+number: 3054302
+title: "WORK-3054301-TASK-001 [CORE] CSV writer"
+completed: true
+---
+number: 3054303
+title: "WORK-3054301-TASK-002 [UI] Export button"
+needsPlan: true
+---</span>
+
+<span class="h"># Due Next</span>
+<span class="c">Due next: TechnicalPlan.Pending</span> → This work
+item is due for the Technical Plan stage.
+Invoke pdlc-plan skill and continue with
+instructions specified there.
+
+<span class="h">### Next Pending Task</span>
+The next task pending a Technical Plan is 3054303.</pre>
+          </div>
+          <p class="note">Already gathered and checked. The agent just reads the answer, and gets the same one every time.</p>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">My own tool, used as an example only. The pattern matters, not this tool: find the question your agent keeps re-answering, and turn it into a command.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="skill-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Same idea, applied to instructions</div>
+      <h2 id="skill-title">A huge skill file became <span class="grad">a single command.</span></h2>
+      <div class="versus">
+        <div><h3>One massive skill file</h3>
+          <div class="skillfile" aria-label="An example of a long instruction file">
+            <b>## Before you start</b><br>
+            1. Read the issue and all of its comments<br>
+            2. Find the linked PRs and check their CI<br>
+            3. If CI is failing, fix that first, unless…<br>
+            4. If the plan changed since last time, then…<br>
+            5. Work out which task is next. Skip any that…<br>
+            6. Remember to check for open review comments<br>
+            7. Don’t forget to update the board when…<br>
+            8. If a decision is needed, stop and…<br>
+            9. …
+          </div>
+          <p class="note">The agent reads it all, interprets it, and still gets it slightly different each run.</p>
+        </div>
+        <div class="to step"><h3>One command</h3>
+          <pre><span>$</span> pdlc inspect implement 3054301</pre>
+          <div class="result">whether work is due<br>which mode it’s in<br>the one task to work on next</div>
+          <p class="note">The skill shrank to: run this, then do what it says. The tool gathers the context, so the agent’s context stays free for the work.</p>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">Same lesson as the last two slides, applied to agent instructions. The long file was me hoping the agent would follow a procedure; the command just does the procedure and hands over the result.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="needs-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What trust took, for me</div>
+      <h2 id="needs-title">I could only walk away from <span class="grad">work I could trust.</span></h2>
+      <ul class="cards">
+        <li class="step"><h3>A record outside the chat</h3><p>Requirements, decisions, and progress survive any session and any agent.</p></li>
+        <li class="step"><h3>A known next step</h3><p>Work is routed by state, so nobody has to prompt the next move.</p></li>
+        <li class="step"><h3>“Done” you can trust</h3><p>An independent reviewer checks the work against the requirement, with evidence.</p></li>
+        <li class="step"><h3>A rule for interrupting me</h3><p>Agents stop for real decisions and approvals, and for nothing else.</p></li>
       </ul>
     </div>
+    <aside class="notes">Each of these is a lever. None of them needs a particular tool: a doc, a script, or a second agent can do it.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="after-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">With the levers in place</div>
+      <h2 id="after-title">Same day, <span class="grad">different shape.</span></h2>
+      <div class="timeline" role="img" aria-label="Illustrative timeline: three agents work for long stretches on their own. I hand off once, then get two short pings, one when Agent C needs a decision and one when Agent A needs approval. The rest of the time is mine.">
+        <div class="lane"><span>Me</span><div class="track">
+          <div class="block me" style="--from:0;--to:4"></div><div class="block free" style="--from:4.3;--to:40">my own work</div>
+          <div class="block gate" style="--from:40.3;--to:45">C</div><div class="block free" style="--from:45.3;--to:75">my own work</div>
+          <div class="block gate" style="--from:75.3;--to:80">A</div><div class="block free" style="--from:80.3;--to:100">my own work</div>
+        </div></div>
+        <div class="lane step"><span>Agent A</span><div class="track">
+          <div class="block work" style="--from:4;--to:72">working on its own</div><div class="block wait" style="--from:72;--to:75"></div>
+          <div class="block gate" style="--from:75.3;--to:80"></div><div class="block work" style="--from:80;--to:100">working</div>
+        </div></div>
+        <div class="lane step"><span>Agent B</span><div class="track">
+          <div class="block work" style="--from:4;--to:100">working on its own, never needed me</div>
+        </div></div>
+        <div class="lane step"><span>Agent C</span><div class="track">
+          <div class="block work" style="--from:4;--to:37">working on its own</div><div class="block wait" style="--from:37;--to:40"></div>
+          <div class="block gate" style="--from:40.3;--to:45"></div><div class="block work" style="--from:45;--to:100">working on its own</div>
+        </div></div>
+      </div>
+      <div class="legend">
+        <span><i class="me"></i>hand off</span><span><i class="gate"></i>pinged: a decision or approval</span><span><i class="work"></i>agent working</span><span><i class="wait"></i>agent waiting on me</span><span><b>2</b> context switches</span>
+      </div>
+      <p class="punch step">Agents run longer on their own, and only ping me when they actually need something.</p>
+    </div>
+    <aside class="notes">Mirror of the "ran more agents" slide: same day, same three agents, but 2 context switches instead of 20. Reveal the agents one at a time. The pings are real waits (a decision or an approval), not "are you still there?". Also illustrative.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="lessons-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Other things I learnt</div>
+      <h2 id="lessons-title">A few things <span class="grad">I learnt the hard way.</span></h2>
+      <ul class="cards">
+        <li class="step"><h3>Prose drifts. State doesn’t.</h3><p>I ended up turning anything a later step depends on into checked data, rather than a sentence for an agent to interpret.</p></li>
+        <li class="step"><h3>Handing over the context</h3><p>Agents gathering their own context gave me different results each time. Building their brief made every run start from the same scope.</p></li>
+        <li class="step"><h3>Nobody’s watching when it fails</h3><p>Unattended work needed safe retries and clear recovery steps, not a stack trace.</p></li>
+        <li class="step"><h3>One source of truth</h3><p>Copying a tool’s <code>--help</code> into instructions went stale fast. Pointing at it worked better.</p></li>
+      </ul>
+    </div>
+    <aside class="notes">Draft from the repo history: replace with your own "I thought X, then learned Y" stories.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="takeaway-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">If any of this resonates</div>
+      <h2 id="takeaway-title">Some things <span class="grad">you might try.</span></h2>
+      <ul class="cards">
+        <li class="step"><h3>Turning repeats into tools</h3><p>Next time you ask for the same thing twice, see whether a small tool could do it.</p></li>
+        <li class="step"><h3>Keeping context out of the chat</h3><p>Somewhere that outlives the session, so you’re not repeating yourself.</p></li>
+        <li class="step"><h3>Agreeing on “done” first</h3><p>Deciding how you’ll know it’s right before an agent starts.</p></li>
+        <li class="step"><h3>A separate reviewer</h3><p>A fresh agent checking the work against the requirement, rather than its own summary.</p></li>
+      </ul>
+      <p class="punch step">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
+    </div>
+    <aside class="notes">End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.</aside>
   </section>
 </main>
+<aside id="notes" aria-live="polite" hidden></aside>
 <nav id="navigation" aria-label="Slide navigation">
-  <span>← → to navigate</span>
+  <span>← → navigate · N notes</span>
   <div class="controls">
-    <button id="previous" type="button" aria-label="Previous slide" disabled>←</button>
-    <span id="counter" aria-live="polite" aria-atomic="true">1 / 2</span>
-    <button id="next" type="button" aria-label="Next slide" disabled>→</button>
+    <button id="previous" type="button" aria-label="Previous slide">←</button>
+    <span id="counter" aria-live="polite" aria-atomic="true"></span>
+    <button id="next" type="button" aria-label="Next slide">→</button>
   </div>
 </nav>
 <script>
@@ -129,33 +681,118 @@ const slides = [...document.querySelectorAll('#deck .slide')];
 const previous = document.getElementById('previous');
 const next = document.getElementById('next');
 const counter = document.getElementById('counter');
+const notes = document.getElementById('notes');
 let current = 0;
+let revealed = 0;
 
-function goToSlide(index) {
-  current = Math.max(0, Math.min(slides.length - 1, index));
+const stepsOf = index => [...slides[index].querySelectorAll('.step')];
+
+// Shows a slide with its first `steps` reveals visible, and keeps the URL hash in sync so a reload stays put.
+function show(index, steps) {
+  current = index;
+  revealed = steps;
   slides.forEach((slide, position) => {
     slide.hidden = position !== current;
   });
-  previous.disabled = current === 0;
-  next.disabled = current === slides.length - 1;
+  stepsOf(current).forEach((step, position) => {
+    step.classList.toggle('pending', position >= revealed);
+  });
+  previous.disabled = current === 0 && revealed === 0;
+  next.disabled = current === slides.length - 1 && revealed === stepsOf(current).length;
   counter.textContent = `${current + 1} / ${slides.length}`;
+  notes.textContent = notesOf(current);
+  history.replaceState(null, '', `#${current + 1}`);
+  broadcast();
 }
 
-previous.addEventListener('click', () => goToSlide(current - 1));
-next.addEventListener('click', () => goToSlide(current + 1));
+// Presenter sync with notes.html, open in another window of the same browser on the same origin.
+// The deck sends its state on every change; notes.html asks for it on load and can drive the deck with forward/backward.
+const channel = new BroadcastChannel('presentation');
+const notesOf = index => slides[index].querySelector('.notes')?.textContent.trim() ?? '';
+const titleOf = index => slides[index]?.querySelector('h1, h2')?.textContent.trim() ?? '';
+function broadcast() {
+  channel.postMessage({
+    type: 'state',
+    index: current,
+    total: slides.length,
+    revealed,
+    steps: stepsOf(current).length,
+    title: titleOf(current),
+    notes: notesOf(current),
+    nextTitle: titleOf(current + 1),
+  });
+}
+channel.addEventListener('message', ({ data }) => {
+  if (data?.type === 'forward') forward();
+  else if (data?.type === 'backward') backward();
+  else if (data?.type === 'request') broadcast();
+});
+
+// Auto-scrolls each long Markdown box down and back up, pausing at both ends.
+// Wheel, touch, or pointer input hands the scroll to the presenter; auto-scroll resumes 3s after their last input.
+const autoScroll = [...document.querySelectorAll('.mdfile:not(.mini)')].map(box => {
+  const state = { box, position: 0, direction: 1, pausedUntil: 0, visible: false };
+  const takeOver = () => { state.pausedUntil = performance.now() + 3000; };
+  ['wheel', 'touchstart', 'touchmove', 'pointerdown'].forEach(type => box.addEventListener(type, takeOver, { passive: true }));
+  return state;
+});
+let lastFrame = performance.now();
+function scrollFrame(now) {
+  const elapsed = Math.min(now - lastFrame, 100) / 1000;
+  lastFrame = now;
+  autoScroll.forEach(state => {
+    const { box } = state;
+    const range = box.scrollHeight - box.clientHeight;
+    const visible = box.clientHeight > 0;
+    // Restart from the top whenever the box comes back on screen.
+    if (visible && !state.visible) Object.assign(state, { position: 0, direction: 1, pausedUntil: now + 2000 }), box.scrollTop = 0;
+    state.visible = visible;
+    if (!visible || range <= 0 || now < state.pausedUntil) {
+      state.position = box.scrollTop;
+      return;
+    }
+    // Cross the whole box in about 24 seconds, then hold for 2 seconds before turning around.
+    state.position += state.direction * Math.max(range / 24, 12) * elapsed;
+    if (state.position >= range || state.position <= 0) {
+      state.position = Math.min(Math.max(state.position, 0), range);
+      state.direction = state.position >= range ? -1 : 1;
+      state.pausedUntil = now + 2000;
+    }
+    box.scrollTop = state.position;
+  });
+  requestAnimationFrame(scrollFrame);
+}
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(scrollFrame);
+
+// Reveals the next step, or moves to the next slide once all are showing.
+function forward() {
+  if (revealed < stepsOf(current).length) show(current, revealed + 1);
+  else if (current < slides.length - 1) show(current + 1, 0);
+}
+
+// Hides the last step, or returns to the previous slide fully revealed.
+function backward() {
+  if (revealed > 0) show(current, revealed - 1);
+  else if (current > 0) show(current - 1, stepsOf(current - 1).length);
+}
+
+previous.addEventListener('click', backward);
+next.addEventListener('click', forward);
 document.addEventListener('keydown', event => {
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  if (event.target.closest('input, textarea, select, [contenteditable]')) return;
-  if (['ArrowRight', 'ArrowDown'].includes(event.key)) {
+  if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(event.key)) {
     event.preventDefault();
-    goToSlide(current + 1);
-  } else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) {
+    forward();
+  } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) {
     event.preventDefault();
-    goToSlide(current - 1);
+    backward();
+  } else if (event.key.toLowerCase() === 'n') {
+    notes.hidden = !notes.hidden;
   }
 });
 
-goToSlide(0);
+const start = Number(location.hash.slice(1)) - 1;
+show(start >= 0 && start < slides.length ? start : 0, 0);
 </script>
 </body>
 </html>
