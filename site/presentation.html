@@ -693,41 +693,6 @@ My rough rule now. If I've asked for it twice, it might be worth a tool. And a s
 [Chart and lists appear on load. The script on the left stands in for any small tool.]</aside>
   </section>
 
-  <section class="slide" aria-labelledby="loops-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Down the rabbit hole · then it could loop</div>
-      <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
-      <div class="level wide">
-        <div class="how"><p class="words"><b>↻</b> runs until it needs me</p>
-          <div class="art tool"><div class="file term"><span>a run, shortened</span><pre>plan    dry-run ✕ → fix → ✓
-plan    review: revise → ✓
-impl    CI red → fix → green
-verify  gap → bounce → impl
-→ Approval Required. Needs me.</pre></div></div></div>
-        <div class="chart"><svg class="flow tool" viewBox="0 0 200 156" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The whole workflow: I write the spec; UI and tasks, plan, implement, test and verify each loop on their own checks until clean; verify can bounce work back to implement; I approve between stages and say when it is done"><g class="n me" style="--t:0.00s"><rect x="40" y="4" width="70" height="16" rx="3"/><text x="75" y="12">write the spec</text></g><path class="e" pathLength="1" d="M75 20 V26" style="--t:0.10s"/><g class="n me tiny" style="--t:0.20s"><circle cx="75" cy="23" r="2.2"/></g><g class="n" style="--t:0.30s"><rect x="40" y="26" width="70" height="16" rx="3"/><text x="75" y="34">UI + tasks</text></g><path class="e loop" pathLength="1" d="M110 31 H120 V37 H110" style="--t:0.40s"/><text class="side lbl" x="124" y="34" style="--t:0.50s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 42 V48" style="--t:0.60s"/><g class="n me tiny" style="--t:0.70s"><circle cx="75" cy="45" r="2.2"/></g><g class="n" style="--t:0.80s"><rect x="40" y="48" width="70" height="16" rx="3"/><text x="75" y="56">plan</text></g><path class="e loop" pathLength="1" d="M110 53 H120 V59 H110" style="--t:0.90s"/><text class="side lbl" x="124" y="56" style="--t:1.00s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 64 V70" style="--t:1.10s"/><g class="n me tiny" style="--t:1.20s"><circle cx="75" cy="67" r="2.2"/></g><g class="n" style="--t:1.30s"><rect x="40" y="70" width="70" height="16" rx="3"/><text x="75" y="78">implement</text></g><path class="e loop" pathLength="1" d="M110 75 H120 V81 H110" style="--t:1.40s"/><text class="side lbl" x="124" y="78" style="--t:1.50s">task by task · CI</text><path class="e" pathLength="1" d="M75 86 V92" style="--t:1.60s"/><g class="n me tiny" style="--t:1.70s"><circle cx="75" cy="89" r="2.2"/></g><g class="n" style="--t:1.80s"><rect x="40" y="92" width="70" height="16" rx="3"/><text x="75" y="100">test</text></g><path class="e loop" pathLength="1" d="M110 97 H120 V103 H110" style="--t:1.90s"/><text class="side lbl" x="124" y="100" style="--t:2.00s">review · CI</text><path class="e" pathLength="1" d="M75 108 V114" style="--t:2.10s"/><g class="n me tiny" style="--t:2.20s"><circle cx="75" cy="111" r="2.2"/></g><g class="n" style="--t:2.30s"><rect x="40" y="114" width="70" height="16" rx="3"/><text x="75" y="122">verify</text></g><path class="e loop" pathLength="1" d="M110 119 H120 V125 H110" style="--t:2.40s"/><text class="side lbl" x="124" y="122" style="--t:2.50s">fix until clean</text><path class="e" pathLength="1" d="M75 130 V136" style="--t:2.60s"/><g class="n me tiny" style="--t:2.70s"><circle cx="75" cy="133" r="2.2"/></g><g class="n me" style="--t:2.80s"><rect x="40" y="136" width="70" height="16" rx="3"/><text x="75" y="144">done</text></g><path class="e loop back" pathLength="1" d="M40 122 H28 V78 H40" style="--t:2.90s"/><text class="side lbl" x="2" y="100" style="--t:3.00s">bounce</text></svg><p class="flow-label"><i class="code"></i>loops <i class="agent"></i>agent <i class="me"></i>me</p></div>
-        <div class="verdict">
-          <h3 class="liked">🔁 Loops on its own</h3><ul class="liked"><li style="--d:0.40s"><b>Doesn’t validate? Fix, re-run.</b><span>Tasks and plans are checked as data. Problems go straight back to the agent.</span></li><li style="--d:0.52s"><b>Reviewer wants changes? Revise.</b><span>Up to three passes before anything reaches me.</span></li><li style="--d:0.64s"><b>CI red? Fix it.</b><span>Failed checks go back to the stage that owns them.</span></li><li style="--d:0.76s"><b>Verify found a gap? Bounce it.</b><span>Back to implementation, rework, re-check. Up to three times.</span></li><li style="--d:0.88s"><b>Next task? Take it.</b><span>Implementation goes task by task until none are open.</span></li></ul>
-          <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
-        </div>
-      </div>
-    </div>
-    <aside class="notes">Here's the thing I didn't see coming. Once the workflow gave the same answer every time, I could trust it to go round again.
-
-[Point at the chart.] This is the whole workflow. Spec, tasks, plan, implement, test, verify. And look at all the little green loops.
-
-Tasks or plan don't validate? Back to the agent, fix it, run it again. Reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? It bounces back to implementation, and round it goes.
-
-None of that needs me. Before, every one of those was me. Checking, re-prompting, reminding.
-
-So what does need me? The indigo. I write the spec. I approve each stage. I make the calls, product, scope, anything risky. And I say when it's done.
-
-That's it. Everything in between just loops, until it needs me.
-
-[Your story: the first time it ran on its own and you came back to a stage waiting for your approval.]
-
-[Chart and lists appear on load. The run output on the left is illustrative.]</aside>
-  </section>
-
   <section class="slide" aria-labelledby="example-title" hidden>
     <div class="wrap">
       <div class="eyebrow">An example</div>
@@ -858,6 +823,41 @@ And all the context it used to burn on the routine? It spends that on the actual
 And once I had that, I could finally start handing those three jobs over.
 
 [My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="loops-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · then it could loop</div>
+      <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
+      <div class="level wide">
+        <div class="how"><p class="words"><b>↻</b> runs until it needs me</p>
+          <div class="art tool"><div class="file term"><span>a run, shortened</span><pre>plan    dry-run ✕ → fix → ✓
+plan    review: revise → ✓
+impl    CI red → fix → green
+verify  gap → bounce → impl
+→ Approval Required. Needs me.</pre></div></div></div>
+        <div class="chart"><svg class="flow tool" viewBox="0 0 200 156" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The whole workflow: I write the spec; UI and tasks, plan, implement, test and verify each loop on their own checks until clean; verify can bounce work back to implement; I approve between stages and say when it is done"><g class="n me" style="--t:0.00s"><rect x="40" y="4" width="70" height="16" rx="3"/><text x="75" y="12">write the spec</text></g><path class="e" pathLength="1" d="M75 20 V26" style="--t:0.10s"/><g class="n me tiny" style="--t:0.20s"><circle cx="75" cy="23" r="2.2"/></g><g class="n" style="--t:0.30s"><rect x="40" y="26" width="70" height="16" rx="3"/><text x="75" y="34">UI + tasks</text></g><path class="e loop" pathLength="1" d="M110 31 H120 V37 H110" style="--t:0.40s"/><text class="side lbl" x="124" y="34" style="--t:0.50s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 42 V48" style="--t:0.60s"/><g class="n me tiny" style="--t:0.70s"><circle cx="75" cy="45" r="2.2"/></g><g class="n" style="--t:0.80s"><rect x="40" y="48" width="70" height="16" rx="3"/><text x="75" y="56">plan</text></g><path class="e loop" pathLength="1" d="M110 53 H120 V59 H110" style="--t:0.90s"/><text class="side lbl" x="124" y="56" style="--t:1.00s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 64 V70" style="--t:1.10s"/><g class="n me tiny" style="--t:1.20s"><circle cx="75" cy="67" r="2.2"/></g><g class="n" style="--t:1.30s"><rect x="40" y="70" width="70" height="16" rx="3"/><text x="75" y="78">implement</text></g><path class="e loop" pathLength="1" d="M110 75 H120 V81 H110" style="--t:1.40s"/><text class="side lbl" x="124" y="78" style="--t:1.50s">task by task · CI</text><path class="e" pathLength="1" d="M75 86 V92" style="--t:1.60s"/><g class="n me tiny" style="--t:1.70s"><circle cx="75" cy="89" r="2.2"/></g><g class="n" style="--t:1.80s"><rect x="40" y="92" width="70" height="16" rx="3"/><text x="75" y="100">test</text></g><path class="e loop" pathLength="1" d="M110 97 H120 V103 H110" style="--t:1.90s"/><text class="side lbl" x="124" y="100" style="--t:2.00s">review · CI</text><path class="e" pathLength="1" d="M75 108 V114" style="--t:2.10s"/><g class="n me tiny" style="--t:2.20s"><circle cx="75" cy="111" r="2.2"/></g><g class="n" style="--t:2.30s"><rect x="40" y="114" width="70" height="16" rx="3"/><text x="75" y="122">verify</text></g><path class="e loop" pathLength="1" d="M110 119 H120 V125 H110" style="--t:2.40s"/><text class="side lbl" x="124" y="122" style="--t:2.50s">fix until clean</text><path class="e" pathLength="1" d="M75 130 V136" style="--t:2.60s"/><g class="n me tiny" style="--t:2.70s"><circle cx="75" cy="133" r="2.2"/></g><g class="n me" style="--t:2.80s"><rect x="40" y="136" width="70" height="16" rx="3"/><text x="75" y="144">done</text></g><path class="e loop back" pathLength="1" d="M40 122 H28 V78 H40" style="--t:2.90s"/><text class="side lbl" x="2" y="100" style="--t:3.00s">bounce</text></svg><p class="flow-label"><i class="code"></i>loops <i class="agent"></i>agent <i class="me"></i>me</p></div>
+        <div class="verdict">
+          <h3 class="liked">🔁 Loops on its own</h3><ul class="liked"><li style="--d:0.40s"><b>Doesn’t validate? Fix, re-run.</b><span>Tasks and plans are checked as data. Problems go straight back to the agent.</span></li><li style="--d:0.52s"><b>Reviewer wants changes? Revise.</b><span>Up to three passes before anything reaches me.</span></li><li style="--d:0.64s"><b>CI red? Fix it.</b><span>Failed checks go back to the stage that owns them.</span></li><li style="--d:0.76s"><b>Verify found a gap? Bounce it.</b><span>Back to implementation, rework, re-check. Up to three times.</span></li><li style="--d:0.88s"><b>Next task? Take it.</b><span>Implementation goes task by task until none are open.</span></li></ul>
+          <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">Here's the thing I didn't see coming. Once the workflow gave the same answer every time, I could trust it to go round again.
+
+[Point at the chart.] This is the whole workflow. Spec, tasks, plan, implement, test, verify. And look at all the little green loops.
+
+Tasks or plan don't validate? Back to the agent, fix it, run it again. Reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? It bounces back to implementation, and round it goes.
+
+None of that needs me. Before, every one of those was me. Checking, re-prompting, reminding.
+
+So what does need me? The indigo. I write the spec. I approve each stage. I make the calls, product, scope, anything risky. And I say when it's done.
+
+That's it. Everything in between just loops, until it needs me.
+
+[Your story: the first time it ran on its own and you came back to a stage waiting for your approval.]
+
+[Chart and lists appear on load. The run output on the left is illustrative.]</aside>
   </section>
 
   <section class="slide answer" aria-labelledby="checking-title" hidden>
