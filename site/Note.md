@@ -70,13 +70,14 @@ Reference example: slide 1's notes.
 | 7 | Rabbit hole 2 of 3: Then the workflow became a skill of skills. (same 1/4 · 1/4 · 2/4 layout as slide 6: left ~1,500 words, `loop/SKILL.md`; middle skills-starting-skills chart; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted; `[Your story]` open |
 | 8 | Rabbit hole 3 of 3: Then the workflow became a tool. (same 1/4 · 1/4 · 2/4 layout: left 1 command, 50/50 bar, `pdlc-loop/SKILL.md` + `pdlc next loop` output; middle loop chart in green code / purple agent / indigo me; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted from the repo |
 | 9 | Rabbit hole, what stuck: Don't fish bare-handed. Build a rod, and a skill to use it. (slide 8's 1/4 · 1/4 · 2/4 layout: left `2×` rule, sample `check-ci.sh` tool and its skill; middle bare-handed vs with-a-rod chart; right 🎣 What stuck two-up + 📏 My rule now) | Draft. Merges the old lever and fishing-rod slides; Archimedes dropped |
-| 10 | Example: "What's next on this work item?" (skill file vs `pdlc inspect`; right side still on steps) | Draft. Spoken-voice notes absorb the old "huge skill file" slide and bridge to the questions |
-| 11 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
-| 12 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
-| 13 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
-| 14 | Same day, same three agents. A different shape. (Me + 3 agent lanes in slide 3/4 style, 2 badges, takeaways on load) | Draft. Spoken-voice notes |
-| 15 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
-| 16 | Some things you might try + closing question | Draft, guidance notes only |
+| 10 | Rabbit hole, then it could loop: Same result every time. So it could loop until it needed me. (slide 8's layout: left ↻ and an illustrative shortened run; middle the whole Feature workflow with green self-loops per stage, a verify→implement bounce, indigo approval dots between stages; right 🔁 Loops on its own two-up + ✋ Stops for me in indigo) | Draft. Drawn from `pdlc-workflow.md`; `[Your story]` open |
+| 11 | Example: "What's next on this work item?" (skill file vs `pdlc inspect`; right side still on steps) | Draft. Spoken-voice notes absorb the old "huge skill file" slide and bridge to the questions |
+| 12 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
+| 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
+| 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
+| 15 | Same day, same three agents. A different shape. (Me + 3 agent lanes in slide 3/4 style, 2 badges, takeaways on load) | Draft. Spoken-voice notes |
+| 16 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
+| 17 | Some things you might try + closing question | Draft, guidance notes only |
 
 ## Presenter tooling
 
@@ -87,8 +88,8 @@ Reference example: slide 1's notes.
 
 ## Open items
 
-- Fill the `[Your story]` / `[Your example]` placeholders on slides 4, 7, 11, 13.
-- Lessons (slide 15): replace drafts with real "I thought X, then learned Y" stories.
+- Fill the `[Your story]` / `[Your example]` placeholders on slides 4, 7, 10, 12, 14.
+- Lessons (slide 16): replace drafts with real "I thought X, then learned Y" stories.
 - Parked: the old "Step 12 · Not yet" idea (start from the ticket, release on merge, logs become bugs); add back as an honest-gap slide if the talk needs it.
 - Rehearse timing; slide 5 (three jobs) targets about 45s.
 - Worktrees/stacked PRs and failure recovery dropped from the job slides; mention verbally or add back if needed.
@@ -156,3 +157,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 8 Disliked: dropped "The work is still skills." and "Setup per repo." (3 items now); matching line cut from the notes.
 - **2026-11-08** — Notes for slides 6 and 8 match their lists: slide 6 drops the drift line; slide 8 adds focused skills, stopping when it needs me, and new failure modes.
 - **2026-11-08** — Slides 9 (lever) and 10 (fishing rod) merged into one slide in slide 8's style (17 → 16): "Don't fish bare-handed. Build a rod, and a skill to use it."; bare-handed vs with-a-rod chart; What stuck list (rods over prompts, a skill to use it, saves context, code for process / skills for judgement) plus the asked-twice rule. Archimedes dropped; notes merge both. Later slides shift by one. Checked at 2000×1023 and 1440×900.
+- **2026-11-08** — New slide 10 after the rod slide (16 → 17): once the workflow was deterministic, the whole workflow could loop until it needed me. Chart follows `pdlc-workflow.md` (dry-run + local review ×3 for UI/tasks and plan, task by task + CI for implement, review + CI for test, verify fix loop and bounce ×3); lists split what loops on its own from what stops for me (spec, stage approvals, decisions, completion). Later slides shift by one. Checked at 2000×1023 and 1440×900.
