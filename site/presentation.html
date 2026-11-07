@@ -654,52 +654,39 @@ But that trade was worth it. That's where it changed for me.
 [On load the old tangle shrinks into the loop; green is code, purple the agent, indigo me. Word counts, flowcharts and bar splits are illustrative, not measured.]</aside>
   </section>
 
-  <section class="slide" aria-labelledby="lever-title" hidden>
+  <section class="slide" aria-labelledby="rod-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">The idea</div>
-      <h2 id="lever-title">What’s <span class="grad">the lever?</span></h2>
-      <blockquote class="reveal" style="--d:.3s">“Give me a lever long enough and a place to stand, and I will move the world.”<cite>Attributed to Archimedes</cite></blockquote>
-      <p class="lede reveal" style="--d:1s">The agent is the force. The lever is what you build around it: the tools, checks, and records that make every push go further.</p>
-      <p class="punch reveal" style="--d:1.7s">For me, building levers helped more <span class="grad">than writing better prompts.</span></p>
+      <div class="eyebrow">Down the rabbit hole · what stuck</div>
+      <h2 id="rod-title">Don’t fish bare-handed. <span class="grad">Build a rod, and a skill to use it.</span></h2>
+      <div class="level wide">
+        <div class="how"><p class="words"><b>2×</b> asked twice? build a rod</p>
+          <div class="art tool"><div class="file term"><span>the rod · a tool</span><pre>$ ./check-ci.sh
+✓ same answer, every time</pre></div><div class="file"><span>check-ci/SKILL.md · when to cast</span><pre>Before opening a PR, run check-ci.sh.
+If it fails, read its log and fix.</pre></div></div></div>
+        <div class="chart"><svg class="flow tool" viewBox="0 0 200 92" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Bare-handed: I ask, the agent works it out, and gets a new answer every session. With a rod: I ask, the agent picks the rod, and the rod does it the same way every time"><text class="title lbl" x="4" y="5" style="--t:0.00s">bare-handed</text><g class="n me" style="--t:0.10s"><rect x="4" y="10" width="58" height="16" rx="3"/><text x="33" y="18">ask</text></g><path class="e" pathLength="1" d="M62 18 H71" style="--t:0.25s"/><g class="n" style="--t:0.35s"><rect x="71" y="10" width="58" height="16" rx="3"/><text x="100" y="18">work it out</text></g><path class="e" pathLength="1" d="M129 18 H138" style="--t:0.50s"/><g class="n" style="--t:0.60s"><rect x="138" y="10" width="58" height="16" rx="3"/><text x="167" y="18">new answer</text></g><path class="e back" pathLength="1" d="M167 26 V34 H33 V26" style="--t:0.75s"/><text class="lbl" x="100" y="39" style="--t:0.90s">every session</text><text class="title lbl" x="4" y="53" style="--t:1.10s">with a rod</text><g class="n me" style="--t:1.20s"><rect x="4" y="58" width="58" height="16" rx="3"/><text x="33" y="66">ask</text></g><path class="e" pathLength="1" d="M62 66 H71" style="--t:1.35s"/><g class="n" style="--t:1.45s"><rect x="71" y="58" width="58" height="16" rx="3"/><text x="100" y="66">pick the rod</text></g><path class="e" pathLength="1" d="M129 66 H138" style="--t:1.60s"/><g class="n code" style="--t:1.70s"><rect x="138" y="58" width="58" height="16" rx="3"/><text x="167" y="66">rod does it</text></g><text class="lbl" x="167" y="82" style="--t:1.90s">same every time</text></svg><p class="flow-label"><i class="code"></i>code <i class="agent"></i>agent <i class="me"></i>me</p></div>
+        <div class="verdict">
+          <h3 class="liked">🎣 What stuck</h3><ul class="liked"><li style="--d:0.40s"><b>Rods over prompts.</b><span>Building tools helped more than writing better prompts.</span></li><li style="--d:0.52s"><b>A skill to use it.</b><span>The rod does the same thing every time. The skill knows when to cast.</span></li><li style="--d:0.64s"><b>Saves context.</b><span>The agent spends it on the problem, not rediscovering the routine.</span></li><li style="--d:0.76s"><b>Code for the process.</b><span>Skills for the judgement.</span></li></ul>
+          <h3 class="liked">📏 My rule now</h3><ul class="liked"><li style="--d:1.08s;grid-column:1/-1"><b>Asked for it twice?</b><span>It might be worth a tool, and a skill to use it.</span></li></ul>
+        </div>
+      </div>
     </div>
-    <aside class="notes">There's a line usually put down to Archimedes. Give me a lever long enough, and a place to stand, and I'll move the world.
+    <aside class="notes">So what stuck with me from all of that?
 
-That's how I think about it now.
+I saw a video a while back, and one line stayed with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
 
-The agent is the force. It's strong. It doesn't get tired.
+I'd take it one step further. Get it to build the rod. Then get it to write a skill on how to use it.
 
-But I kept pushing harder on it. More prompts. More agents. And I got less and less back.
+[Point at the chart.] Bare-handed, I ask, the agent works it out, and I get a slightly different answer. Every session. With a rod, the skill picks the tool, and the tool does it the same way every time.
 
-The lever is what you build around it. The tools, the checks, the record of what's been done. The stuff that makes every push go further.
+I kept pushing harder on the agent. More prompts. More agents. And I got less back. Building rods helped way more than writing better prompts.
 
-For me, building levers helped way more than writing better prompts.
+And it saves context. The agent spends it on the actual problem, not rediscovering the routine.
 
-[Put the definition in your own words if this doesn't sound like you; keep it to one sentence.]</aside>
-  </section>
+The agent's still the one fishing. It's just not doing it with its bare hands anymore. Code for the process, skills for the judgement. That's the mix from the start.
 
-  <section class="slide" aria-labelledby="build-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">What helped me most</div>
-      <h2 id="build-title">Don’t let the agent fish bare-handed. <span class="grad">Have it build a rod, and a skill to use it.</span></h2>
-      <ul class="cards">
-        <li class="reveal" style="--d:.3s"><h3>Same answer every time</h3><p>A script runs the same way each time. My prompts never quite did.</p></li>
-        <li class="reveal" style="--d:.8s"><h3>Testable, reviewed once</h3><p>I could test and review a tool once. I couldn’t test “please remember to”.</p></li>
-        <li class="reveal" style="--d:1.3s"><h3>Saves context</h3><p>The agent could spend its context on the actual problem instead of rediscovering the routine.</p></li>
-        <li class="reveal" style="--d:1.8s"><h3>A skill to use it</h3><p>The tool does the same thing every time. The skill tells the agent when to reach for it, and how.</p></li>
-      </ul>
-      <p class="punch reveal" style="--d:2.4s">My rough rule now: if I’ve asked for it twice, it might be worth a tool, <span class="grad">and a skill to use it.</span></p>
-    </div>
-    <aside class="notes">I saw a video a while back, and this line stuck with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
+My rough rule now. If I've asked for it twice, it might be worth a tool. And a skill to use it.
 
-I'd take it one step further.
-
-Get it to build the rod. Then get it to write a skill on how to use it.
-
-The rod does the same thing every time. The skill knows when to cast, and where.
-
-The agent's still the one fishing. It's just not doing it with its bare hands anymore.
-
-And yeah, that's the mix from the start. Code for the process, skills for the judgement.</aside>
+[Chart and lists appear on load. The script on the left stands in for any small tool.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="example-title" hidden>
