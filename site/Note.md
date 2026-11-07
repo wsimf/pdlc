@@ -154,3 +154,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 6 only: columns 1/4 skill, 1/4 flowchart, 2/4 Liked/Disliked; each list is two-up with a one-line detail under every headline (shortened from Sudara’s full text, which the notes keep). Slides 7–8 keep the equal three columns with headlines only. Checked at 2000×1023 and 1440×900.
 - **2026-11-08** — Liked / Disliked headings prefixed 👍 / 👎; slides 7–8 now use slide 6’s layout (1/4 skill, 1/4 flowchart, 2/4 two-up lists with a one-line detail under each headline). Checked at 2000×1023 and 1440×900.
 - **2026-11-08** — Slide 6 Disliked: dropped "It drifts between copies." (7 items now).
+- **2026-11-08** — Slide 8 Disliked: dropped "The work is still skills." and "Setup per repo." (3 items now); matching line cut from the notes.
