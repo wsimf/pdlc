@@ -13,6 +13,8 @@ header{display:flex;justify-content:space-between;gap:16px;font:400 13px/1.5 var
 #title{font-size:20px;font-weight:600;color:var(--teal)}
 #notes{flex:1;overflow:auto;font-size:var(--size);line-height:1.5;color:var(--soft);white-space:pre-wrap}
 #notes:empty::before{content:"No notes for this slide.";color:var(--dim)}
+/* Guidance for the presenter, not meant to be said: written as [text] in a slide's notes. */
+.cue{font-size:.72em;font-style:italic;color:#8b97ab}
 footer{display:flex;justify-content:space-between;gap:16px;font:400 12px/1.5 var(--mono);color:var(--dim)}
 </style>
 </head>
@@ -38,9 +40,26 @@ channel.addEventListener('message', ({ data }) => {
   $('counter').textContent = `Slide ${data.index + 1} / ${data.total}`;
   $('steps').textContent = data.steps ? `Step ${data.revealed} / ${data.steps}` : '';
   $('title').textContent = data.title;
-  $('notes').textContent = data.notes;
+  renderNotes(data.notes);
   $('upcoming').textContent = data.nextTitle ? `Next: ${data.nextTitle}` : 'Last slide';
 });
+
+// Renders notes as text, with each [bracketed] cue de-emphasised so it reads as guidance rather than lines to say.
+function renderNotes(text) {
+  const notes = $('notes');
+  notes.replaceChildren();
+  text.split(/(\[[^\]]*\])/).forEach(part => {
+    if (!part) return;
+    if (part.startsWith('[') && part.endsWith(']')) {
+      const cue = document.createElement('span');
+      cue.className = 'cue';
+      cue.textContent = part.slice(1, -1);
+      notes.append(cue);
+    } else {
+      notes.append(part);
+    }
+  });
+}
 
 let size = 22;
 document.addEventListener('keydown', event => {

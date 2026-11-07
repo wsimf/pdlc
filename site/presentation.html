@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>From prompts to process</title>
+<title>From taking turns to working apart</title>
 <style>
 :root{
   --bg:#fafaf7;
@@ -13,6 +13,7 @@
   --dim:#6b7280;
   --line:rgba(15,23,42,.12);
   --teal:#0d9488;
+  --green:#16a34a;
   --indigo:#4f46e5;
   --pink:#c026d3;
   --amber:#d97706;
@@ -69,22 +70,35 @@ code{font:500 .92em var(--mono);color:var(--teal)}
 blockquote{margin-top:28px;padding-left:24px;border-left:3px solid var(--indigo);font-size:clamp(22px,2.6vw,36px);line-height:1.25;font-weight:500;font-style:italic;letter-spacing:-.02em;color:var(--soft)}
 cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);font-style:normal}
 
-/* Bordered cards used by every list slide. */
-.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:20px 36px;margin-top:32px;list-style:none}
-.cards li{padding:6px 0 6px 20px;border-left:3px solid var(--teal)}
+/* Bordered cards used by every list slide, sized large so a few points fill the screen without more text. */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(24px,4.5vh,48px) 48px;margin-top:clamp(28px,5vh,52px);list-style:none}
+.cards li{padding:8px 0 8px 28px;border-left:5px solid var(--teal)}
 .cards li:nth-child(2){border-color:var(--indigo)}
 .cards li:nth-child(3){border-color:var(--pink)}
 .cards li:nth-child(4){border-color:var(--amber)}
-.cards p{margin-top:8px;max-width:46ch;font-size:clamp(15px,1.3vw,18px);line-height:1.55;color:var(--soft)}
+.cards h3{font-size:clamp(28px,3.4vw,60px);font-weight:750;letter-spacing:-.03em;line-height:1.15}
+.cards p{margin-top:12px;max-width:56ch;font-size:clamp(19px,2.1vw,34px);line-height:1.45;color:var(--soft)}
+/* A single column whose items fade in one after another when the slide opens, without arrow-key steps. */
+.cards.cascade{grid-template-columns:1fr}
+.cards.cascade li{animation:enter .5s ease both}
+.cards.cascade li:nth-child(2){animation-delay:.6s}
+.cards.cascade li:nth-child(3){animation-delay:1.2s}
+.cards.cascade li:nth-child(4){animation-delay:1.8s}
 
-/* Three columns of problems, each revealed as one beat. */
+/* Three columns that fade in one after another on load. */
 .questions{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:32px}
 .questions>div{padding-top:14px;border-top:3px solid var(--teal)}
 .questions>div:nth-child(2){border-color:var(--indigo)}
 .questions>div:nth-child(3){border-color:var(--pink)}
 .questions ul{list-style:none}
-.questions li{margin-top:16px;font-size:clamp(14px,1.25vw,17px);line-height:1.45;color:var(--soft)}
-.questions b{display:block;margin-bottom:3px;color:var(--ink);font-weight:650}
+.questions h3{font-size:clamp(22px,2.3vw,36px)}
+.questions>div{animation:enter .5s ease both}
+.questions>div:nth-child(2){animation-delay:.6s}
+.questions>div:nth-child(3){animation-delay:1.2s}
+/* The three jobs: each column lists the switches from the attention chart, as pink chips like its stints. */
+.jobs>div>p{margin-top:6px;font-size:clamp(17px,1.6vw,24px);color:var(--soft)}
+.jobs ul{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.jobs li{margin:0;padding:8px 12px;border-radius:4px;background:rgba(192,38,211,.16);color:var(--ink);font:600 clamp(14px,1.4vw,21px)/1.2 var(--mono)}
 
 /* The old loop: one 10s cycle where I think, the prompt travels, the agent processes, and the result returns. */
 .loop{display:block;width:100%;max-height:52vh;margin-top:20px}
@@ -134,15 +148,130 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .wait{color:var(--ink);font-weight:500;background:repeating-linear-gradient(135deg,rgba(217,119,6,.3) 0 5px,transparent 5px 11px)}
 .legend{display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 0 98px;font:400 12px/1 var(--mono);color:var(--dim)}
 .legend i{display:inline-block;width:14px;height:14px;margin-right:7px;border-radius:3px;vertical-align:-2px}
+/* The context-switching timeline: lanes stack edge to edge so an SVG line can trace my attention across them, with a numbered badge at each switch. */
+.switching{--lane:clamp(64px,11vh,112px);display:grid;grid-template-columns:84px 1fr;gap:14px}
+.switching .labels{display:grid;grid-auto-rows:var(--lane);align-items:center;font:600 clamp(12px,1.1vw,15px)/1.3 var(--mono);color:var(--soft)}
+.switching .tracks{position:relative;display:grid;grid-auto-rows:var(--lane)}
+.switching .track{height:auto;border-radius:0;background:linear-gradient(rgba(15,23,42,.05),rgba(15,23,42,.05)) 0 50%/100% calc(100% - 20px) no-repeat}
+.switching .block{top:10px;bottom:10px}
+.switching .gate{background:rgba(192,38,211,.22)}
+.switching .blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
+.switching .idle{background:none}
+/* The one-agent "taking turns" chart: no attention line, so labels sit centred; my waiting time is grey stripes. */
+.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free{align-items:center;padding:0 4px}
+.switching.after{--lane:clamp(46px,7.5vh,80px)}
+.after .switches{--lanes:4}
+.after .free,.after .work{font-size:clamp(10px,.9vw,13px)}
+.turns .waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.32) 0 5px,rgba(100,116,139,.06) 5px 11px);color:var(--dim);font:500 clamp(10px,.9vw,13px) var(--mono)}
+.turns .work{font-size:clamp(10px,.9vw,13px)}
+/* The two takeaways under the switching chart, each keyed to the chart by its swatch, sized to match the TL;DR body text. */
+.impacts{display:grid;gap:14px;margin-top:28px;list-style:none}
+.impacts li{display:flex;align-items:center;gap:18px;font-size:clamp(19px,2.1vw,34px);line-height:1.45;color:var(--soft)}
+.impacts b{color:var(--ink);font-weight:650}
+.impacts i{flex:none;display:grid;place-items:center;width:2.8em;height:1.65em;border-radius:4px;font:700 .5em var(--mono);font-style:normal;color:#fff}
+.impacts i.blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
+.impacts i.work{background:var(--teal)}
+.impacts i.switch{background:var(--pink);border-radius:999px}
+.impacts i.waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.45) 0 5px,rgba(100,116,139,.08) 5px 11px)}
+/* Each pink stint names what I did there, below the attention line so the two never overlap. */
+.switching .gate{z-index:1;overflow:visible;align-items:flex-end;padding:0 3px 4px;letter-spacing:-.02em;color:var(--ink);font:600 clamp(9px,.85vw,12px)/1.15 var(--mono);white-space:normal;text-align:center}
+/* The line runs left to right, so a left-to-right wipe draws it; badges pop in as the wipe reaches them. */
+.attention{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;clip-path:inset(-10px 100% -10px 0);animation:trace 8s .4s linear forwards}
+.attention path{fill:none;stroke:var(--ink);stroke-width:3;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.switches{position:absolute;inset:0;pointer-events:none}
+.switches b{position:absolute;left:calc(var(--x)*1%);top:calc(var(--y)/var(--lanes,3)*100%);display:grid;place-items:center;width:22px;height:22px;transform:translate(-50%,-50%);border-radius:50%;background:var(--pink);color:#fff;font:700 11px var(--mono);opacity:0;animation:pop .25s var(--at) ease-out forwards}
+@keyframes trace{to{clip-path:inset(-10px 0 -10px 0)}}
+@keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%)}}
+@media(prefers-reduced-motion:reduce){.flow .e{stroke-dashoffset:0}.flow .n,.flow .lbl{opacity:1}.flow .ghost{display:none}.attention{animation:none;clip-path:none}.switches b{animation:none;opacity:1}}
 
-/* Down the rabbit hole: each stair sits lower than the last. */
-.stairs{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:28px;list-style:none;counter-reset:stair}
-.stairs li{
-  margin-top:calc(var(--depth)*34px);padding:16px;border:1px solid var(--line);border-top:3px solid var(--teal);
-  border-radius:8px;background:var(--paper);counter-increment:stair;
-}
-.stairs li::before{content:"0" counter(stair);display:block;margin-bottom:6px;font:600 11px var(--mono);color:var(--dim)}
-.stairs p{margin-top:8px;font-size:clamp(13px,1.15vw,16px);line-height:1.45;color:var(--soft)}
+/* Down the rabbit hole, as a waterfall: each level starts lower than the last, every level is the same height so the last one lands at the bottom, and each overlaps the one before it, so the levels read as one evolving stack. Each level shows its real artifact, how many words the agent had to read, and how much of it the agent interprets versus code that just runs. */
+/* Rabbit-hole level slides: the skill and its rough flowchart on the left, what I liked and disliked on the right. */
+.level{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);align-items:start;gap:clamp(28px,3.5vw,64px);margin-top:clamp(16px,2.6vh,30px)}
+.level .how{display:flex;flex-direction:column;gap:12px;min-width:0}
+.level .words{display:flex;align-items:baseline;gap:10px;font:500 clamp(12px,1vw,16px)/1.3 var(--mono);color:var(--dim)}
+.level .words b{flex:none;font:750 clamp(30px,3.2vw,52px)/1 Inter,system-ui,sans-serif;letter-spacing:-.03em;color:var(--ink)}
+.level .art{flex:none;max-height:clamp(110px,17vh,180px)}
+.level .art.tool{flex-direction:row}
+.level .art.tool .file{flex:1}
+.level .flow{flex:none;height:clamp(200px,31vh,330px)}
+.verdict h3{font:600 clamp(12px,1vw,15px) var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--teal)}
+.verdict h3.disliked{color:var(--pink)}
+.verdict ul{display:grid;gap:clamp(5px,.9vh,10px);margin:8px 0 clamp(14px,2.2vh,26px);list-style:none}
+.verdict li{position:relative;padding-left:22px;font-size:clamp(13px,1.02vw,17px);line-height:1.4;color:var(--soft);animation:enter .5s var(--d,0s) ease both}
+.verdict li::before{content:"✓";position:absolute;left:0;font-weight:700;color:var(--teal)}
+.verdict ul.disliked li::before{content:"✕";color:var(--pink)}
+.verdict li b{font-weight:650;color:var(--ink)}
+.verdict code{font:500 .9em var(--mono)}
+.art{display:flex;flex:1;flex-direction:column;gap:6px;min-height:0;overflow:hidden;padding:8px;border:1px solid var(--line);border-radius:6px;background:#f8fafc;mask-image:linear-gradient(#000 72%,transparent)}
+.art.tool{mask-image:none}
+.bubble{align-self:flex-start;max-width:94%;padding:6px 9px;border-radius:10px 10px 10px 2px;background:rgba(79,70,229,.1);font-size:clamp(11px,.95vw,14px);line-height:1.35;color:var(--soft)}
+.art .file{flex:none;overflow:hidden;border:1px solid var(--line);border-radius:5px;background:var(--paper)}
+.art .file span{display:block;padding:3px 7px;background:#eef2f7;font:600 clamp(9px,.75vw,11px) var(--mono);color:var(--dim)}
+.art .file pre{margin:0;padding:5px 7px;background:none;font:400 clamp(9px,.78vw,12px)/1.45 var(--mono);color:var(--soft);white-space:pre-wrap}
+.art .term{background:#0f172a}
+.art .term span{background:#1e293b;color:#94a3b8}
+.art .term pre{color:#e2e8f0}
+.kids{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.kids .lines{display:block;height:160px;margin:5px 6px;background:repeating-linear-gradient(rgba(15,23,42,.14) 0 3px,transparent 3px 8px)}
+.split{display:flex;height:12px;overflow:hidden;border-radius:999px;background:var(--line)}
+.split i{width:calc(var(--w)*1%);transform-origin:left;animation:grow .8s calc(var(--d,0s) + .4s) ease both}
+.split .said{background:var(--pink)}
+.split .code{background:var(--green)}
+.meter{display:flex;align-items:center;gap:10px}
+.meter .split{flex:1;min-width:40px}
+.split-label{flex:none;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+@keyframes grow{from{transform:scaleX(0)}}
+/* Each level's flowchart sits below its card and grows row by row: --t staggers nodes and edges. Indigo is me deciding and checking by hand, pink is branching the agent interprets, teal and dark are code. */
+.flow{display:block;flex:1;width:100%;min-height:0;overflow:visible;--fc:var(--pink);--fill:rgba(192,38,211,.12)}
+.flow.tool .e{stroke:var(--dim)}
+.flow .e{fill:none;stroke:var(--fc);stroke-width:1;stroke-dasharray:1;stroke-dashoffset:1;animation:draw .3s linear calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow .e.back{stroke-opacity:.7}
+.flow .e.starts{stroke:var(--ink);stroke-width:1.2}
+.flow .n{fill:var(--fill);stroke:var(--fc);stroke-width:1;opacity:0;transform-box:fill-box;transform-origin:center;animation:node .3s calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow .n.me{--fc:var(--indigo);--fill:rgba(79,70,229,.14)}
+.flow .n.faint{opacity:0;stroke-dasharray:2 2;fill:none}
+.flow .n.frame{fill:rgba(192,38,211,.04);stroke-dasharray:3 2}
+.flow .n.code{--fc:var(--green);--fill:rgba(22,163,74,.14)}
+.flow .n.code text{fill:#166534}
+.flow text{stroke:none;fill:var(--ink);font:600 7.2px var(--mono);text-anchor:middle;dominant-baseline:central}
+.flow text.side,.flow text.title{text-anchor:start;fill:var(--dim)}
+.flow text.title{font-size:6.5px}
+.flow .lbl{font-size:6px;fill:var(--dim);opacity:0;animation:fade .3s calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow.tool text{font-size:7.5px}
+.flow .ghost{transform-box:view-box;transform-origin:108px 44px;animation:collapse .9s calc(var(--d,0s) + .2s) ease-in forwards}
+.flow .ghost .n,.flow .ghost .e{--fc:var(--pink);--fill:rgba(192,38,211,.14);animation:none;opacity:.55;stroke-dashoffset:0}
+.flow-label i{display:inline-block;width:10px;height:10px;margin:0 5px 0 0;border-radius:2px;vertical-align:-1px}
+.flow-label i.me{background:var(--indigo)}
+.flow-label i.agent{margin-left:6px;background:var(--pink)}
+.flow-label i.code{background:var(--green)}
+.flow-label i.code+i,.flow-label i.agent+i.me{margin-left:6px}
+.flow-label{flex:none;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes node{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+@keyframes fade{to{opacity:1}}
+@keyframes collapse{to{opacity:0;transform:scale(.08)}}
+
+
+/* Content that shows on load, one piece after another: set --d for each piece's delay. */
+.reveal{animation:enter .5s var(--d,0s) ease both}
+
+/* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
+.qtabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px;list-style:none}
+.qtabs li{padding:5px 14px;border:1px solid var(--line);border-radius:999px;font:600 clamp(11px,1vw,14px) var(--mono);color:var(--dim)}
+.qtabs li.on{border-color:transparent;color:#fff;background:var(--teal)}
+.qtabs li:nth-child(2).on{background:var(--indigo)}
+.qtabs li:nth-child(3).on{background:var(--pink)}
+.fixes{display:grid;gap:clamp(12px,2.4vh,24px);margin-top:clamp(22px,4vh,40px);list-style:none}
+.fixes li{display:grid;grid-template-columns:minmax(0,.85fr) auto minmax(0,1.15fr);align-items:baseline;gap:22px;font-size:clamp(18px,1.9vw,30px);line-height:1.35;animation:enter .5s ease both}
+.fixes li:nth-child(2){animation-delay:.3s}
+.fixes li:nth-child(3){animation-delay:.8s}
+.fixes li:nth-child(4){animation-delay:1.3s}
+.fixes li:nth-child(5){animation-delay:1.8s}
+.fixes li.head{font:600 clamp(11px,1vw,14px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.fixes .was,.fixes .arrow{color:var(--dim)}
+.fixes .now{color:var(--ink);font-weight:650}
+.fixes .now small{display:block;margin-top:2px;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+.answer .punch{animation:enter .5s 2.4s ease both}
 
 /* The do-it versus build-it comparison. */
 .versus{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px}
@@ -199,11 +328,13 @@ button:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
 button:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
 button:disabled{opacity:.3;cursor:default}
 @keyframes enter{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.slide,.loop *{animation:none}.step{transition:none}}
+@media(prefers-reduced-motion:reduce){.slide,.loop *,.cards.cascade li,.questions>div,.verdict li,.split i,.flow *,.reveal,.fixes li,.answer .punch{animation:none}.step{transition:none}}
 @media(max-width:800px){
   .cards,.versus,.questions{grid-template-columns:1fr}
-  .stairs{grid-template-columns:1fr}
-  .stairs li{margin-top:0}
+  .fixes li{grid-template-columns:1fr}
+  .fixes .arrow,.fixes li.head{display:none}
+  .level{grid-template-columns:1fr}
+  .level .flow{height:220px}
   .block{font-size:0}
   .legend{margin-left:0}
 }
@@ -216,242 +347,345 @@ button:disabled{opacity:.3;cursor:default}
   <section class="slide" aria-labelledby="title">
     <div class="wrap">
       <div class="eyebrow">Notes from down the rabbit hole</div>
-      <h1 id="title">From prompts<br><span class="grad">to process.</span></h1>
-      <p class="lede">Building the lever: things I learnt building with coding agents.</p>
+      <h1 id="title">From taking turns<br><span class="grad">to working apart.</span></h1>
+      <p class="lede">How I got my agents working on their own, safely, with the right mix of skills and code. What I tried, what stuck, and what didn't.</p>
     </div>
-    <aside class="notes">Set expectations: this isn't a product pitch. It's what I learnt, including what I got wrong, and you can use all of it with whatever tools you have.</aside>
+    <aside class="notes">Hi everyone, thanks for coming. If we haven't worked together, I'm Sudara, I'm on the Flex team.
+
+So, like most of you, I use coding agents every day.
+
+And for a long time I used them the same way. I'd write a prompt. It'd do something. I'd read it, then prompt again.
+
+It's basically taking turns. It's working, I'm waiting. I'm thinking, it's waiting.
+
+And that's fine, it works. But the agent only goes as fast as I do. And honestly, two of those at once is about my limit.
+
+So I tried to get out of that loop.
+
+Plan mode first. Agree the plan, let it run. Less back and forth, which was great. But it'd tell me it was done, and it wasn't. Or it was done, just not what I wanted.
+
+Then cloud agents. Now it's running without me, nice. But I couldn't really see what it was doing. And I wasn't comfortable putting my name on that.
+
+To be clear, I still use all of these. Every day.
+
+But it got me wondering. What would it actually take to trust an agent with work I'm not watching?</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="tldr-title" hidden>
+    <div class="wrap">
+      <h2 id="tldr-title"><span class="grad">TL;DR</span></h2>
+      <ul class="cards cascade">
+        <li><h3>Prompting alone keeps work synchronous</h3><p>Each step waits on a new prompt, so the agent progresses only as fast as I respond.</p></li>
+        <li><h3>Combining skills and code works best</h3><p>Skills provide judgement and code enforces the process. Together they let agents work independently and safely.</p></li>
+        <li><h3>How I arrived here</h3><p>The steps I took, the problems each one solved, and the mistakes along the way.</p></li>
+      </ul>
+    </div>
+    <aside class="notes">So, short version first.
+
+If I want to leave an agent alone, two things have to be true. It can't be waiting on me for every step. And by the time it comes back to me, it's already been checked.
+
+Tested. Reviewed by other agents. The small stuff already caught and fixed.
+
+So when it lands on my desk, I'm not starting the review from scratch. I'm fairly confident it's already close to what I actually wanted.
+
+Getting there took a while.
+
+Prompts on their own left too much to the agent. Same instructions, different run, slightly different result. It'd skip a step. Or tell me it was done when it wasn't.
+
+Scripts on their own went the other way. Too little. They're great at doing the same steps every time. But they can't make a judgement call. They can't read a requirement and work out what someone actually meant.
+
+What worked was the mix. Code for the process. Skills for the judgement.
+
+The rest of this is how I got there. What I tried, what broke, and what I'd do differently.</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="turns-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Where I started</div>
+      <h2 id="turns-title">One agent, and me. <span class="grad">We took turns waiting.</span></h2>
+      <div class="timeline switching turns" role="img" aria-label="Illustrative timeline: one agent and me take turns. While I break down the task, verify in the browser, ask a reviewer, run the tests, or re-prompt, the agent sits blocked. While the agent works, the task is on hold for me. Only one of us is working at any time.">
+        <div class="labels"><span>Me</span><span>Agent</span></div>
+        <div class="tracks">
+          <div class="track">
+          <div class="block gate" style="--from:0;--to:9"><span>break down task</span></div><div class="block waiting" style="--from:9;--to:24"><span>on hold</span></div><div class="block gate" style="--from:24;--to:31"><span>verify in the browser</span></div><div class="block waiting" style="--from:31;--to:41"><span>on hold</span></div><div class="block gate" style="--from:41;--to:47"><span>ask a reviewer</span></div><div class="block waiting" style="--from:47;--to:56"><span>on hold</span></div><div class="block gate" style="--from:56;--to:63"><span>run the tests</span></div><div class="block waiting" style="--from:63;--to:74"><span>on hold</span></div><div class="block gate" style="--from:74;--to:80"><span>re-prompt</span></div><div class="block waiting" style="--from:80;--to:94"><span>on hold</span></div><div class="block gate" style="--from:94;--to:100"><span>check the diff</span></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:9"></div><div class="block work" style="--from:9;--to:24"><span>working</span></div><div class="block blocked" style="--from:24;--to:31"></div><div class="block work" style="--from:31;--to:41"><span>working</span></div><div class="block blocked" style="--from:41;--to:47"></div><div class="block work" style="--from:47;--to:56"><span>working</span></div><div class="block blocked" style="--from:56;--to:63"></div><div class="block work" style="--from:63;--to:74"><span>working</span></div><div class="block blocked" style="--from:74;--to:80"></div><div class="block work" style="--from:80;--to:94"><span>working</span></div><div class="block blocked" style="--from:94;--to:100"></div>
+          </div>
+        </div>
+      </div>
+      <ul class="impacts">
+        <li><i class="waiting" aria-hidden="true"></i><span><b>I waited on the agent.</b> Until it came back, I couldn’t move that task forward.</span></li>
+        <li><i class="blocked" aria-hidden="true"></i><span><b>The agent waited on me.</b> Every time I checked its work, it stopped.</span></li>
+      </ul>
+      <p class="punch">Only one of us was ever working. <span class="grad">I wanted that waiting time back.</span></p>
+    </div>
+    <aside class="notes">Here's where I started. One agent.
+
+Top row is me. Bottom row is the agent.
+
+I break the task down, write the prompt. It goes off and works. And I wait.
+
+It comes back. I verify it in the browser, ask for a review, run the tests. And now it's waiting. On me.
+
+Back and forth. All day. Like I said, we take turns.
+
+Look at it. Only one of us is ever working at a time.
+
+And all that grey? That's this task, on hold, until the agent came back.
+
+So I thought, I could be using that time.
+
+[Everything shows on load; no steps. Point at the grey, then the red. Timeline is illustrative, not measured.]</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="more-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What I did</div>
+      <h2 id="more-title">I tried running more agents at once. <span class="grad">Each one still needed me.</span></h2>
+      <div class="timeline switching" role="img" aria-label="Illustrative timeline: my attention, drawn as a line, jumps between three agents 16 times. Each time I break down the task, check the diff, verify in the browser, ask a reviewer, run the tests, fix lint, check it covers the requirements, check for new tests, ask for a Storybook story, or ask it to reuse an existing component. Each agent works briefly, then sits blocked until I come back to it.">
+        <div class="labels"><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
+        <div class="tracks">
+          <div class="track">
+          <div class="block gate" style="--from:0.3;--to:6.25"><span>break down task</span></div><div class="block work" style="--from:6.25;--to:15.25"></div><div class="block blocked" style="--from:15.25;--to:18.75"></div><div class="block gate" style="--from:19.05;--to:25"><span>check the diff</span></div><div class="block work" style="--from:25;--to:34"></div><div class="block blocked" style="--from:34;--to:37.5"></div><div class="block gate" style="--from:37.8;--to:43.75"><span>run the tests</span></div><div class="block work" style="--from:43.75;--to:52.75"></div><div class="block blocked" style="--from:52.75;--to:56.25"></div><div class="block gate" style="--from:56.55;--to:62.5"><span>new tests written?</span></div><div class="block work" style="--from:62.5;--to:71.5"></div><div class="block blocked" style="--from:71.5;--to:75"></div><div class="block gate" style="--from:75.3;--to:81.25"><span>reuse an existing component</span></div><div class="block work" style="--from:81.25;--to:90.25"></div><div class="block blocked" style="--from:90.25;--to:93.75"></div><div class="block gate" style="--from:94.05;--to:100"><span>re-prompt</span></div><div class="block work" style="--from:100;--to:100"></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:6.25"></div><div class="block gate" style="--from:6.55;--to:12.5"><span>break down task</span></div><div class="block work" style="--from:12.5;--to:21.5"></div><div class="block blocked" style="--from:21.5;--to:25"></div><div class="block gate" style="--from:25.3;--to:31.25"><span>verify in the browser</span></div><div class="block work" style="--from:31.25;--to:40.25"></div><div class="block blocked" style="--from:40.25;--to:43.75"></div><div class="block gate" style="--from:44.05;--to:50"><span>fix lint</span></div><div class="block work" style="--from:50;--to:59"></div><div class="block blocked" style="--from:59;--to:62.5"></div><div class="block gate" style="--from:62.8;--to:68.75"><span>add a Storybook story</span></div><div class="block work" style="--from:68.75;--to:77.75"></div><div class="block blocked" style="--from:77.75;--to:81.25"></div><div class="block gate" style="--from:81.55;--to:87.5"><span>ask a reviewer</span></div><div class="block work" style="--from:87.5;--to:96.5"></div><div class="block blocked" style="--from:96.5;--to:100"></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:12.5"></div><div class="block gate" style="--from:12.8;--to:18.75"><span>break down task</span></div><div class="block work" style="--from:18.75;--to:27.75"></div><div class="block blocked" style="--from:27.75;--to:31.25"></div><div class="block gate" style="--from:31.55;--to:37.5"><span>ask a reviewer</span></div><div class="block work" style="--from:37.5;--to:46.5"></div><div class="block blocked" style="--from:46.5;--to:50"></div><div class="block gate" style="--from:50.3;--to:56.25"><span>covered by requirements?</span></div><div class="block work" style="--from:56.25;--to:65.25"></div><div class="block blocked" style="--from:65.25;--to:68.75"></div><div class="block gate" style="--from:69.05;--to:75"><span>verify in the browser</span></div><div class="block work" style="--from:75;--to:84"></div><div class="block blocked" style="--from:84;--to:87.5"></div><div class="block gate" style="--from:87.8;--to:93.75"><span>run the tests</span></div><div class="block work" style="--from:93.75;--to:100"></div>
+          </div>
+          <svg class="attention" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M0.3 0.3 L6.25 0.3 L6.55 1.3 L12.3 1.3 L12.8 2.3 L18.75 2.3 L19.05 0.3 L25 0.3 L25.3 1.3 L31.25 1.3 L31.55 2.3 L37.3 2.3 L37.8 0.3 L43.75 0.3 L44.05 1.3 L50 1.3 L50.3 2.3 L56.25 2.3 L56.55 0.3 L62.3 0.3 L62.8 1.3 L68.75 1.3 L69.05 2.3 L75 2.3 L75.3 0.3 L81.25 0.3 L81.55 1.3 L87.3 1.3 L87.8 2.3 L93.75 2.3 L94.05 0.3 L100 0.3"/></svg>
+          <div class="switches" aria-hidden="true"><b style="--x:0.3;--y:0.3;--at:0.42s">1</b><b style="--x:6.55;--y:1.3;--at:0.92s">2</b><b style="--x:12.8;--y:2.3;--at:1.42s">3</b><b style="--x:19.05;--y:0.3;--at:1.92s">4</b><b style="--x:25.3;--y:1.3;--at:2.42s">5</b><b style="--x:31.55;--y:2.3;--at:2.92s">6</b><b style="--x:37.8;--y:0.3;--at:3.42s">7</b><b style="--x:44.05;--y:1.3;--at:3.92s">8</b><b style="--x:50.3;--y:2.3;--at:4.42s">9</b><b style="--x:56.55;--y:0.3;--at:4.92s">10</b><b style="--x:62.8;--y:1.3;--at:5.42s">11</b><b style="--x:69.05;--y:2.3;--at:5.92s">12</b><b style="--x:75.3;--y:0.3;--at:6.42s">13</b><b style="--x:81.55;--y:1.3;--at:6.92s">14</b><b style="--x:87.8;--y:2.3;--at:7.42s">15</b><b style="--x:94.05;--y:0.3;--at:7.92s">16</b></div>
+        </div>
+      </div>
+      <ul class="impacts">
+        <li><i class="blocked" aria-hidden="true"></i><span><b>The agents sat waiting on me.</b> Each one stayed blocked until I got back to it.</span></li>
+        <li><i class="switch" aria-hidden="true">16</i><span><b>I never stopped switching.</b> A different problem every few minutes. It got really hard to keep up.</span></li>
+      </ul>
+      <p class="punch">The hardest part was the switching. <span class="grad">I needed a way to switch far less.</span></p>
+    </div>
+    <aside class="notes">So I did the obvious thing. I broke the task into smaller pieces, and ran an agent on each.
+
+[Your story: the day you had three agent tabs going, and what it felt like.]
+
+And at first glance, this looks way better. Much less on hold. Something's always moving. Less time wasted.
+
+But looks can be deceiving.
+
+That dark line is me. Every jump is me switching to another agent.
+
+Every time one finished, I was checking its work, then jumping straight to the next one.
+
+Meanwhile, look at the agents. A bit of work, then red. Blocked. On me.
+
+It looked parallel. But I was the mutex. Only one of them could have me at a time.
+
+Before, I was waiting on the agent. Now they were all waiting on me.
+
+And the toll was on me. Honestly, the switching was the hardest part. Two agents was my max. Maybe three, if I was really in the flow. Any more, and I was wasting time. Just working with one agent, back and forth, was better.
+
+This didn't stick for me.
+
+So more agents wasn't the fix. I needed a way to switch far less. And all that stuff in between? That needed to happen without me.
+
+[Let the line draw and the counter run before talking over it. Point at a few pink blocks as you name them. Everything shows on load; no steps. Timeline is illustrative, not measured.]</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="jobs-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Looking back at the switches</div>
+      <h2 id="jobs-title">Every switch was <span class="grad">one of three jobs.</span></h2>
+      <div class="questions jobs">
+        <div><h3>Checking</h3><p>Is it right?</p><ul><li>check the diff</li><li>verify in the browser</li><li>ask a reviewer</li><li>run the tests</li><li>fix lint</li><li>covered by requirements?</li><li>new tests written?</li></ul></div>
+        <div><h3>Directing</h3><p>What’s next?</p><ul><li>break down the task</li><li>what’s next?</li></ul></div>
+        <div><h3>Reminding</h3><p>How do we do things here?</p><ul><li>CI failing?</li><li>what did we decide?</li><li>update the board</li></ul></div>
+      </div>
+      <p class="punch reveal" style="--d:1.9s">None of these needed to be me. <span class="grad">So I started handing them over.</span></p>
+    </div>
+    <aside class="notes">So I looked back at all that pink. Every one of those switches.
+
+And honestly? They weren't sixteen different problems. They were three jobs.
+
+Checking. Is it right? The diff, the browser, the tests, the review. That's most of it.
+
+Directing. What's next? Breaking the task down. Then working out what comes after it, every single time.
+
+And reminding. How do we do things here? CI's failing, go and fix it. What did we decide last week? Go and update the board.
+
+None of that needed to be me. It just needed to happen.
+
+So I started handing them over. One level at a time.
+
+[Columns fade in on load. Mostly the same labels as the last slide. Point out how much of it is checking.]</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="skills-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 1 of 3</div>
+      <h2 id="skills-title">To hand them over, I wrote down the workflow. <span class="grad">In a skill.</span></h2>
+      <div class="level">
+        <div class="how"><p class="words"><b>~400</b> words, read every run</p>
+          <div class="meter"><div class="split" role="img" aria-label="all interpreted"><i class="said" style="--w:100"></i><i class="code" style="--w:0"></i></div><p class="split-label">the agent interprets it all</p></div>
+          <div class="art"><div class="file"><span>implement/SKILL.md</span><pre># Implement a task
+1. Read the task and its acceptance criteria.
+2. Check the requirements doc covers it.
+3. Look for an existing component first.
+   Don't build a new Button if…
+4. Write the code. Follow the style guide.
+5. Add unit tests for every new…
+6. Run lint. Fix every warning unless…
+7. UI change? Add a Storybook story.
+8. Run the tests. If one fails…
+9. Open a PR. Link the ticket.
+10. If CI fails, read the log and…
+11. Ask a reviewer agent to check…
+12. If it asks for changes, then…</pre></div></div>
+          <svg class="flow" viewBox="0 0 200 150" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Flowchart written into the skill: if it is a UI change, add a Storybook story; if a component exists, reuse it; write code and tests; if tests fail, read the log and fix; then open a PR and ask a reviewer; and more unless clauses"><g class="n" style="--t:0.00s"><circle cx="60" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M60 10.5 V18" style="--t:0.17s"/><g class="n" style="--t:0.28s"><polygon points="26.0,27 35.0,18.0 85.0,18.0 94.0,27 85.0,36.0 35.0,36.0"/><text x="60" y="27">UI change?</text></g><g class="n" style="--t:0.50s"><rect x="102.3" y="19.5" width="97.4" height="15" rx="3"/><text x="151" y="27">add Storybook story</text></g><path class="e" pathLength="1" d="M94 27 H102" style="--t:0.39s"/><text class="lbl" x="98" y="22" style="--t:0.54s">yes</text><path class="e" pathLength="1" d="M60 36 V43" style="--t:0.45s"/><text class="lbl" x="68" y="40" style="--t:0.60s">no</text><g class="n" style="--t:0.56s"><polygon points="9.9,52 18.9,43.0 101.1,43.0 110.1,52 101.1,61.0 18.9,61.0"/><text x="60" y="52">component exists?</text></g><g class="n" style="--t:0.78s"><rect x="138.6" y="44.5" width="46.8" height="15" rx="3"/><text x="162" y="52">reuse it</text></g><path class="e" pathLength="1" d="M110 52 H139" style="--t:0.67s"/><text class="lbl" x="124" y="47" style="--t:0.82s">yes</text><path class="e" pathLength="1" d="M60 61 V69.5" style="--t:0.73s"/><text class="lbl" x="68" y="66" style="--t:0.88s">no</text><g class="n" style="--t:0.84s"><rect x="9.0" y="69.5" width="102.0" height="15" rx="3"/><text x="60" y="77">write code and tests</text></g><path class="e" pathLength="1" d="M60 84.5 V93" style="--t:1.01s"/><g class="n" style="--t:1.12s"><polygon points="23.7,102 32.7,93.0 87.3,93.0 96.3,102 87.3,111.0 32.7,111.0"/><text x="60" y="102">tests pass?</text></g><g class="n" style="--t:1.34s"><rect x="107.9" y="94.5" width="88.2" height="15" rx="3"/><text x="152" y="102">read the log, fix</text></g><path class="e" pathLength="1" d="M96 102 H108" style="--t:1.23s"/><text class="lbl" x="102" y="97" style="--t:1.38s">no</text><path class="e back" pathLength="1" d="M152 94.5 V77 H111" style="--t:1.46s"/><path class="e" pathLength="1" d="M60 111 V120" style="--t:1.29s"/><text class="lbl" x="68" y="116" style="--t:1.44s">yes</text><g class="n" style="--t:1.40s"><rect x="2.1" y="120.5" width="115.8" height="15" rx="3"/><text x="60" y="128">open a PR, get a review</text></g><path class="e" pathLength="1" d="M60 135.5 V143" style="--t:1.57s"/><g class="n faint" style="--t:1.68s"><rect x="40.0" y="142.5" width="40.0" height="7" rx="3"/><text x="60" y="146">unless…</text></g></svg><p class="flow-label">the workflow, written in a skill, growing</p></div>
+        <div class="verdict">
+          <h3 class="liked">Liked</h3><ul class="liked"><li style="--d:0.40s"><b>Written once.</b> No more retyping. Every session starts from the same instructions.</li><li style="--d:0.52s"><b>The agent does the checks.</b> Tests, diff and review happen without me asking.</li><li style="--d:0.64s"><b>Shareable.</b> Teammates and other agents get the same playbook.</li><li style="--d:0.76s"><b>Cheap to start.</b> It’s just Markdown. Nothing to build.</li></ul>
+          <h3 class="disliked">Disliked</h3><ul class="disliked"><li style="--d:1.08s"><b>“Mostly” followed.</b> The agent reads the skill and decides what it means every run, so it skips a step, reorders steps, or calls something done when it isn’t. Same skill, different result.</li><li style="--d:1.20s"><b>It only grows.</b> Every failure adds another “if… unless…”. The 400 words become 1,000, and the important lines get buried.</li><li style="--d:1.32s"><b>There’s no state.</b> The skill says how to work but not where things stand. Each new session asks “which task am I on? did the tests pass? was it reviewed?”, and someone, usually you, has to answer.</li><li style="--d:1.44s"><b>“What’s next?” is still on you.</b> One skill covers one job. Deciding when to run it, and which one comes after, is still you re-prompting.</li><li style="--d:1.56s"><b>You can’t prove it did it.</b> There’s no evidence trail, just the agent saying “I ran the tests”. So you check anyway, and the checking job comes back.</li><li style="--d:1.68s"><b>It costs context.</b> Every word is read on every run, which crowds out the actual code and task, and long skills get skimmed.</li><li style="--d:1.80s"><b>It’s hard to test.</b> You can’t unit-test prose. You find out it broke when a run goes wrong.</li><li style="--d:1.92s"><b>It drifts between copies.</b> Repos, teammates and harnesses each tweak their own version, so you’re back to “never quite the same way twice”, just slower.</li></ul>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">So how do you hand a job over? You write down the workflow. The steps, the checks, what to do when something fails. And I put it in a skill. Instructions the agent reads every single run.
+
+[Point at the file.] About four hundred words. Read the task, check the requirements, run the tests, open a PR, fix CI.
+
+And look underneath. These are the calls I used to make, now written into the skill. If it's a UI change, add a story. Tests fail? Read the log and fix it. And there's always another unless.
+
+What did I like? I wrote it once. No more retyping. The agent did the checks without me asking. And anyone on the team could use it.
+
+But. It's followed. Mostly. The agent reads it and decides what it means, every run. Same skill, different result.
+
+It only grows. Every time something goes wrong, I add another if, another unless.
+
+There's no state. Every new session asks, which task am I on? Did the tests pass? And someone has to answer that. Usually me.
+
+What's next is still on me. One skill, one job.
+
+And I can't prove it did any of it. The agent says, I ran the tests. So I check anyway. And the checking job comes right back.
+
+[The rest of the list, context, testing, drift, is on the slide. Pick the ones that land with this room. The list appears on load.]</aside>
+  </section>
+  <section class="slide" aria-labelledby="loop-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 2 of 3</div>
+      <h2 id="loop-title">Then the workflow <span class="grad">became a skill of skills.</span></h2>
+      <div class="level">
+        <div class="how"><p class="words"><b>~1,500</b> words, across four files</p>
+          <div class="meter"><div class="split" role="img" aria-label="all interpreted"><i class="said" style="--w:100"></i><i class="code" style="--w:0"></i></div><p class="split-label">the agent interprets it all</p></div>
+          <div class="art"><div class="file"><span>loop/SKILL.md</span><pre>1. Run the write skill.
+2. Then the plan skill.
+3. Then implement each task.
+4. Then review. If it fails…</pre></div><div class="kids"><div class="file"><span>write/</span><i class="lines"></i></div><div class="file"><span>plan/</span><i class="lines"></i></div><div class="file"><span>implement/</span><i class="lines"></i></div></div></div>
+          <svg class="flow" viewBox="0 0 200 148" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Flowcharts that start each other: the write skill starts the plan skill, which starts the review skill, which can send work back to plan"><g class="n frame" style="--t:0.00s"><rect x="4" y="2" width="88" height="62" rx="5"/><text class="title" x="9" y="10">write/SKILL.md</text></g><g class="n tiny" style="--t:0.15s"><circle cx="48" cy="19" r="4.5"/></g><path class="e" pathLength="1" d="M48 23 V31" style="--t:0.25s"/><g class="n" style="--t:0.35s"><polygon points="48,31 55,37 48,43 41,37"/></g><path class="e" pathLength="1" d="M48 43 V47 H34 V52" style="--t:0.45s"/><g class="n" style="--t:0.55s"><rect x="26" y="52" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M48 43 V47 H62 V52" style="--t:0.45s"/><g class="n" style="--t:0.55s"><rect x="54" y="52" width="16" height="7" rx="2"/></g><g class="n frame" style="--t:0.62s"><rect x="108" y="42" width="88" height="62" rx="5"/><text class="title" x="113" y="50">plan/SKILL.md</text></g><g class="n tiny" style="--t:0.77s"><circle cx="152" cy="59" r="4.5"/></g><path class="e" pathLength="1" d="M152 63 V71" style="--t:0.87s"/><g class="n" style="--t:0.97s"><polygon points="152,71 159,77 152,83 145,77"/></g><path class="e" pathLength="1" d="M152 83 V87 H138 V92" style="--t:1.07s"/><g class="n" style="--t:1.17s"><rect x="130" y="92" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M152 83 V87 H166 V92" style="--t:1.07s"/><g class="n" style="--t:1.17s"><rect x="158" y="92" width="16" height="7" rx="2"/></g><g class="n frame" style="--t:1.23s"><rect x="4" y="84" width="88" height="62" rx="5"/><text class="title" x="9" y="92">review/SKILL.md</text></g><g class="n tiny" style="--t:1.38s"><circle cx="48" cy="101" r="4.5"/></g><path class="e" pathLength="1" d="M48 105 V113" style="--t:1.48s"/><g class="n" style="--t:1.58s"><polygon points="48,113 55,119 48,125 41,119"/></g><path class="e" pathLength="1" d="M48 125 V129 H34 V134" style="--t:1.68s"/><g class="n" style="--t:1.78s"><rect x="26" y="134" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M48 125 V129 H62 V134" style="--t:1.68s"/><g class="n" style="--t:1.78s"><rect x="54" y="134" width="16" height="7" rx="2"/></g><path class="e starts" pathLength="1" d="M92 22 H170 V42" style="--t:0.50s"/><text class="lbl" x="131" y="18" style="--t:0.65s">starts</text><path class="e starts" pathLength="1" d="M108 90 H100 V115 H92" style="--t:1.12s"/><text class="lbl" x="120" y="113" style="--t:1.27s">starts</text><path class="e back" pathLength="1" d="M92 136 H176 V104" style="--t:1.74s"/><text class="lbl" x="138" y="131" style="--t:1.89s">changes? re-plan</text></svg><p class="flow-label">one workflow, split across skills</p></div>
+        <div class="verdict">
+          <h3 class="liked">Liked</h3><ul class="liked"><li style="--d:0.40s"><b>One prompt, the whole workflow.</b> Write, plan, implement, review, chained together.</li><li style="--d:0.52s"><b>I stopped re-prompting.</b> “What’s next?” moved into the skill.</li><li style="--d:0.64s"><b>Small skills, wired together.</b> Each one stays focused on its own job.</li><li style="--d:0.76s"><b>Work gets sent back.</b> Review can return it to planning before it reaches me.</li></ul>
+          <h3 class="disliked">Disliked</h3><ul class="disliked"><li style="--d:1.08s"><b>The order is interpreted too.</b> Now the agent decides what each skill means and which one comes next. About 1,500 words across four files.</li><li style="--d:1.20s"><b>Mistakes compound.</b> A step skipped early quietly breaks everything after it.</li><li style="--d:1.32s"><b>Still no state.</b> If the session dies halfway, nothing knows where it got to. Start again, or explain it.</li><li style="--d:1.44s"><b>One long session.</b> The whole flow lives in one context. Hard to pause, hand over, or run side by side.</li><li style="--d:1.56s"><b>Context runs out.</b> Four skills loaded at once leaves less room for the code.</li><li style="--d:1.68s"><b>Debugging is archaeology.</b> Which skill, which line, which run?</li></ul>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">Then I noticed I was calling the same skills in the same order. Every time. So the workflow itself became a skill. A skill that calls the other skills.
+
+[Point at the flowchart.] Write starts plan. Plan starts review. And review can send it back. Flowcharts starting flowcharts.
+
+And I loved it at first. One prompt, and the whole thing runs. I stopped re-prompting between steps. Each skill stayed small. And if review didn't like it, the work went back before it ever got to me.
+
+But look at the numbers. Fifteen hundred words now, across four files. And the agent isn't just interpreting each skill. It's interpreting the order too.
+
+So mistakes compound. Skip one step early, and everything after it is quietly wrong.
+
+And there's still no state. If the session dies halfway through, nothing knows where it got to.
+
+It all lives in one long session. Hard to pause. Hard to hand over. And when it goes wrong, good luck finding which skill, which line, which run.
+
+[Your story: the moment the skill of skills went sideways.]
+
+[The list appears on load.]</aside>
+  </section>
+  <section class="slide" aria-labelledby="tool-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 3 of 3</div>
+      <h2 id="tool-title">Then the workflow <span class="grad">became a tool.</span></h2>
+      <div class="level">
+        <div class="how"><p class="words"><b>1</b> command decides what’s next</p>
+          <div class="meter"><div class="split" role="img" aria-label="routing is code, the work is still skills"><i class="said" style="--w:50"></i><i class="code" style="--w:50"></i></div><p class="split-label">routing is code, work is skills</p></div>
+          <div class="art tool"><div class="file"><span>pdlc-loop/SKILL.md</span><pre>Run pdlc next loop.
+Do what # Due Next says.
+Decide nothing yourself.</pre></div><div class="file term"><span>terminal</span><pre>$ pdlc next loop
+action: pdlc-plan
+# Due Next …</pre></div></div>
+          <svg class="flow tool" viewBox="0 0 200 86" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The old tangle collapses into a loop: code runs pdlc next loop, the agent runs the skill, code publishes with pdlc post and checks if it needs me; if not, back to next; if so, it hands to me"><g class="ghost"><g class="n tiny" style="--t:0.00s"><circle cx="60" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M60 10 V18" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="60,18 67,24 60,30 53,24"/></g><path class="e" pathLength="1" d="M60 30 V34 H46 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="38" y="39" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M60 30 V34 H74 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="66" y="39" width="16" height="7" rx="2"/></g><g class="n tiny" style="--t:0.00s"><circle cx="100" cy="30" r="4.5"/></g><path class="e" pathLength="1" d="M100 34 V42" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="100,42 107,48 100,54 93,48"/></g><path class="e" pathLength="1" d="M100 54 V58 H86 V63" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="78" y="63" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M100 54 V58 H114 V63" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="106" y="63" width="16" height="7" rx="2"/></g><g class="n tiny" style="--t:0.00s"><circle cx="140" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M140 10 V18" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="140,18 147,24 140,30 133,24"/></g><path class="e" pathLength="1" d="M140 30 V34 H126 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="118" y="39" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M140 30 V34 H154 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="146" y="39" width="16" height="7" rx="2"/></g></g><g class="n" style="--t:1.00s"><circle cx="8" cy="14" r="4.5"/></g><path class="e" pathLength="1" d="M12.5 14 H22" style="--t:1.10s"/><g class="n code" style="--t:1.20s"><rect x="22" y="6" width="80" height="16" rx="3"/><text x="62" y="14">$ pdlc next loop</text></g><path class="e" pathLength="1" d="M102 14 H114" style="--t:1.35s"/><g class="n" style="--t:1.45s"><rect x="114" y="6" width="80" height="16" rx="3"/><text x="154" y="14">run the skill</text></g><path class="e" pathLength="1" d="M154 22 V36" style="--t:1.60s"/><g class="n code" style="--t:1.70s"><rect x="114" y="36" width="80" height="16" rx="3"/><text x="154" y="44">$ pdlc post …</text></g><path class="e" pathLength="1" d="M114 44 H90" style="--t:1.85s"/><g class="n code" style="--t:1.95s"><polygon points="34,44 42,35 82,35 90,44 82,53 42,53"/><text x="62" y="44">needs me?</text></g><path class="e back" pathLength="1" d="M62 35 V22" style="--t:2.10s"/><text class="lbl" x="70" y="29" style="--t:2.20s">no</text><path class="e" pathLength="1" d="M62 53 V66" style="--t:2.10s"/><text class="lbl" x="71" y="60" style="--t:2.20s">yes</text><g class="n me" style="--t:2.25s"><rect x="22" y="66" width="80" height="16" rx="3"/><text x="62" y="74">hand it to me</text></g></svg><p class="flow-label"><i class="code"></i>code <i class="agent"></i>agent <i class="me"></i>me</p></div>
+        <div class="verdict">
+          <h3 class="liked">Liked</h3><ul class="liked"><li style="--d:0.40s"><b>Same answer every time.</b> <code>pdlc next loop</code> reads the record and decides what’s next. In code, not prose.</li><li style="--d:0.52s"><b>State lives on the record.</b> Stage, gate and evidence sit on the work item, so any session or teammate can pick up.</li><li style="--d:0.64s"><b>Proof, not promises.</b> Evidence is checked against a template before a stage moves on.</li><li style="--d:0.76s"><b>It’s tested.</b> The routing is code with unit tests, not a paragraph I hope gets read.</li><li style="--d:0.88s"><b>Skills got focused.</b> Each one does its job. None of them decides what comes next.</li><li style="--d:1.00s"><b>It stops when it needs me.</b> Approvals, decisions and blockers come to me. Nothing else does.</li></ul>
+          <h3 class="disliked">Disliked</h3><ul class="disliked"><li style="--d:1.32s"><b>More to build.</b> A CLI, its tests, and tracker backends to maintain.</li><li style="--d:1.44s"><b>Less flexible.</b> Changing the workflow means changing code, not a sentence.</li><li style="--d:1.56s"><b>The work is still skills.</b> Implementing, testing and reviewing are still the agent interpreting prose.</li><li style="--d:1.68s"><b>Setup per repo.</b> Config, a tracker and conventions to adopt before it pays off.</li><li style="--d:1.80s"><b>New failure modes.</b> Network errors and half-finished writes need retries and recovery paths.</li></ul>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">So I tried something different. I took the workflow out of the prose, and put it in a tool. Instead of telling the agent how to do it, I had it build something that does it.
+
+One command decides what's next. The loop skill just asks it, and does what it says.
+
+All that branching about what comes next? The workflow? It went into code. And look what's left. It's a loop. The green is code: ask what's next, publish the result, check if it needs me. The purple is the agent, doing the actual skill. Doesn't need me? Go round again. Needs me? It comes to me.
+
+And look at the bar. Half of it's green now. The routing is code, same answer every time. The work itself is still skills, still judgement. That's the part I actually want the agent thinking about.
+
+What I liked. Same answer every time. Where things stand lives on the record, not in a chat. Before a stage moves on, the evidence has to be there. And it's code, so I can test it.
+
+What I didn't. It's more to build, and more to maintain. Changing the workflow means changing code. And the work itself is still skills, still interpreted.
+
+But that trade was worth it. That's where it changed for me.
+
+[On load the old tangle shrinks into the loop; green is code, purple the agent, indigo me. Word counts, flowcharts and bar splits are illustrative, not measured.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="lever-title" hidden>
     <div class="wrap">
       <div class="eyebrow">The idea</div>
       <h2 id="lever-title">What’s <span class="grad">the lever?</span></h2>
-      <blockquote class="step">“Give me a lever long enough and a place to stand, and I will move the world.”<cite>Attributed to Archimedes</cite></blockquote>
-      <p class="lede step">How I’ve come to think about it: the agent is the force, and the lever is what you build around it. The tools, checks, and records that let a little effort go a long way.</p>
-      <p class="punch step">For me, building levers helped more <span class="grad">than writing better prompts.</span></p>
+      <blockquote class="reveal" style="--d:.3s">“Give me a lever long enough and a place to stand, and I will move the world.”<cite>Attributed to Archimedes</cite></blockquote>
+      <p class="lede reveal" style="--d:1s">The agent is the force. The lever is what you build around it: the tools, checks, and records that make every push go further.</p>
+      <p class="punch reveal" style="--d:1.7s">For me, building levers helped more <span class="grad">than writing better prompts.</span></p>
     </div>
-    <aside class="notes">Draft definition: put this in your own words. The point is that pushing harder on the agent (more prompts, more agents) gives less than making each push go further.</aside>
-  </section>
+    <aside class="notes">There's a line usually put down to Archimedes. Give me a lever long enough, and a place to stand, and I'll move the world.
 
-  <section class="slide" aria-labelledby="questions-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">What changed</div>
-      <h2 id="questions-title">Faster code <span class="grad">raised harder questions.</span></h2>
-      <div class="questions">
-        <div class="step"><h3>Can I trust it?</h3><ul>
-          <li><b>It marks its own homework</b>The author also says it’s fine.</li>
-          <li><b>Hidden assumptions</b>Decisions get buried in the diff.</li>
-          <li><b>“Done” is a guess</b>Nothing proves it’s finished.</li>
-        </ul></div>
-        <div class="step"><h3>Can I keep up?</h3><ul>
-          <li><b>Too much to review</b>Diffs arrive faster than anyone can read them.</li>
-          <li><b>Agents collide</b>Parallel work in one checkout gets in the way.</li>
-          <li><b>Specs drift</b>Requirements change and the plan and code don’t follow.</li>
-        </ul></div>
-        <div class="step"><h3>Can the team rely on it?</h3><ul>
-          <li><b>Invisible work</b>Progress is stuck in one person’s terminal.</li>
-          <li><b>No memory</b>“Why did we build it this way?” dies with the chat.</li>
-          <li><b>Tool lock-in</b>The way of working is tied to one agent or tracker.</li>
-        </ul></div>
-      </div>
-    </div>
-    <aside class="notes">About 60 to 90 seconds. Reveal one column at a time, and give each a sentence and an example rather than reading all nine. Close with: I felt all of these, but it started with something simpler.</aside>
-  </section>
+That's how I think about it now.
 
-  <section class="slide" aria-labelledby="loop-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">How it started</div>
-      <h2 id="loop-title">We kept taking turns <span class="grad">waiting.</span></h2>
-      <svg class="loop" viewBox="0 0 1000 380" role="img" aria-label="A repeating loop between me and an agent. I think while the agent waits, I send a prompt, the agent processes while I wait, then it sends a result back.">
-        <defs>
-          <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="rgba(15,23,42,.4)"/></marker>
-        </defs>
-        <path class="arc" d="M240 120C380 20 620 20 760 120" marker-end="url(#arrowhead)"/>
-        <path class="arc" d="M760 240C620 340 380 340 240 240" marker-end="url(#arrowhead)"/>
-        <path class="comet comet-out" pathLength="1" d="M240 120C380 20 620 20 760 120"/>
-        <path class="comet comet-back" pathLength="1" d="M760 240C620 340 380 340 240 240"/>
-        <text class="arc-label label-out" x="500" y="34">prompt</text>
-        <text class="arc-label label-back" x="500" y="358">result</text>
-        <g class="me-node">
-          <circle class="node" cx="170" cy="170" r="88"/><circle class="glow" cx="170" cy="170" r="88"/>
-          <text class="who" x="170" y="181">Me</text>
-          <text class="state on-state" x="170" y="300">thinking…</text><text class="state off-state" x="170" y="300">waiting</text>
-        </g>
-        <g class="agent-node">
-          <circle class="node" cx="830" cy="170" r="88"/><circle class="glow" cx="830" cy="170" r="88"/>
-          <text class="who" x="830" y="181">Agent</text>
-          <text class="state on-state" x="830" y="300">processing…</text><text class="state off-state" x="830" y="300">waiting</text>
-        </g>
-      </svg>
-      <p class="punch step">The agent got faster. The loop didn’t, because I was in the middle of it.</p>
-    </div>
-    <aside class="notes">Let the loop run through once or twice without talking. Ask the room who recognises this.</aside>
-  </section>
+The agent is the force. It's strong. It doesn't get tired.
 
-  <section class="slide" aria-labelledby="more-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">The obvious fix</div>
-      <h2 id="more-title">So I ran more agents. <span class="grad">It got worse.</span></h2>
-      <div class="timeline" role="img" aria-label="Illustrative timeline: I switch between three agents every few minutes. Each agent works briefly, then waits for me to come back to it.">
-        <div class="lane"><span>Me</span><div class="track">
-          <div class="block gate" style="--from:0.3;--to:5">A</div><div class="block gate" style="--from:5.3;--to:10">B</div><div class="block gate" style="--from:10.3;--to:15">C</div><div class="block gate" style="--from:15.3;--to:20">A</div><div class="block gate" style="--from:20.3;--to:25">B</div><div class="block gate" style="--from:25.3;--to:30">C</div><div class="block gate" style="--from:30.3;--to:35">A</div><div class="block gate" style="--from:35.3;--to:40">B</div><div class="block gate" style="--from:40.3;--to:45">C</div><div class="block gate" style="--from:45.3;--to:50">A</div><div class="block gate" style="--from:50.3;--to:55">B</div><div class="block gate" style="--from:55.3;--to:60">C</div><div class="block gate" style="--from:60.3;--to:65">A</div><div class="block gate" style="--from:65.3;--to:70">B</div><div class="block gate" style="--from:70.3;--to:75">C</div><div class="block gate" style="--from:75.3;--to:80">A</div><div class="block gate" style="--from:80.3;--to:85">B</div><div class="block gate" style="--from:85.3;--to:90">C</div><div class="block gate" style="--from:90.3;--to:95">A</div><div class="block gate" style="--from:95.3;--to:100">B</div>
-        </div></div>
-        <div class="lane"><span>Agent A</span><div class="track">
-          <div class="block gate" style="--from:0.3;--to:5"></div><div class="block work" style="--from:5;--to:12"></div><div class="block wait" style="--from:12;--to:15"></div><div class="block gate" style="--from:15.3;--to:20"></div><div class="block work" style="--from:20;--to:27"></div><div class="block wait" style="--from:27;--to:30"></div><div class="block gate" style="--from:30.3;--to:35"></div><div class="block work" style="--from:35;--to:42"></div><div class="block wait" style="--from:42;--to:45"></div><div class="block gate" style="--from:45.3;--to:50"></div><div class="block work" style="--from:50;--to:57"></div><div class="block wait" style="--from:57;--to:60"></div><div class="block gate" style="--from:60.3;--to:65"></div><div class="block work" style="--from:65;--to:72"></div><div class="block wait" style="--from:72;--to:75"></div><div class="block gate" style="--from:75.3;--to:80"></div><div class="block work" style="--from:80;--to:87"></div><div class="block wait" style="--from:87;--to:90"></div><div class="block gate" style="--from:90.3;--to:95"></div><div class="block work" style="--from:95;--to:100"></div>
-        </div></div>
-        <div class="lane"><span>Agent B</span><div class="track">
-          <div class="block wait" style="--from:0;--to:5"></div><div class="block gate" style="--from:5.3;--to:10"></div><div class="block work" style="--from:10;--to:17"></div><div class="block wait" style="--from:17;--to:20"></div><div class="block gate" style="--from:20.3;--to:25"></div><div class="block work" style="--from:25;--to:32"></div><div class="block wait" style="--from:32;--to:35"></div><div class="block gate" style="--from:35.3;--to:40"></div><div class="block work" style="--from:40;--to:47"></div><div class="block wait" style="--from:47;--to:50"></div><div class="block gate" style="--from:50.3;--to:55"></div><div class="block work" style="--from:55;--to:62"></div><div class="block wait" style="--from:62;--to:65"></div><div class="block gate" style="--from:65.3;--to:70"></div><div class="block work" style="--from:70;--to:77"></div><div class="block wait" style="--from:77;--to:80"></div><div class="block gate" style="--from:80.3;--to:85"></div><div class="block work" style="--from:85;--to:92"></div><div class="block wait" style="--from:92;--to:95"></div><div class="block gate" style="--from:95.3;--to:100"></div>
-        </div></div>
-        <div class="lane"><span>Agent C</span><div class="track">
-          <div class="block wait" style="--from:0;--to:10"></div><div class="block gate" style="--from:10.3;--to:15"></div><div class="block work" style="--from:15;--to:22"></div><div class="block wait" style="--from:22;--to:25"></div><div class="block gate" style="--from:25.3;--to:30"></div><div class="block work" style="--from:30;--to:37"></div><div class="block wait" style="--from:37;--to:40"></div><div class="block gate" style="--from:40.3;--to:45"></div><div class="block work" style="--from:45;--to:52"></div><div class="block wait" style="--from:52;--to:55"></div><div class="block gate" style="--from:55.3;--to:60"></div><div class="block work" style="--from:60;--to:67"></div><div class="block wait" style="--from:67;--to:70"></div><div class="block gate" style="--from:70.3;--to:75"></div><div class="block work" style="--from:75;--to:82"></div><div class="block wait" style="--from:82;--to:85"></div><div class="block gate" style="--from:85.3;--to:90"></div><div class="block work" style="--from:90;--to:97"></div><div class="block wait" style="--from:97;--to:100"></div>
-        </div></div>
-      </div>
-      <div class="legend">
-        <span><i class="gate"></i>me, switched to that agent</span><span><i class="work"></i>agent working</span><span><i class="wait"></i>agent waiting on me</span><span><b>20</b> context switches</span>
-      </div>
-      <p class="punch step">More force, same me. <span class="grad">I needed a lever.</span></p>
-      <p class="note step">Every few minutes another agent needed me, so I never held one problem in my head for long. I couldn’t trust them to go further without checking. (Illustrative, not measured.)</p>
-    </div>
-    <aside class="notes">This is the turn of the talk, and it answers "just run agents in the background" before anyone asks. Point at the Me lane: no block is longer than a few minutes. Tell your own story of when this happened.</aside>
-  </section>
+But I kept pushing harder on it. More prompts. More agents. And I got less and less back.
 
-  <section class="slide" aria-labelledby="hole-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Down the rabbit hole</div>
-      <h2 id="hole-title">Each fix <span class="grad">led one level deeper.</span></h2>
-      <ol class="stairs">
-        <li class="step" style="--depth:0"><h3>Better prompts</h3><p>Re-explaining the same context every session.</p></li>
-        <li class="step" style="--depth:1"><h3>Written skills</h3><p>Reusable instructions. Agents followed them… mostly.</p></li>
-        <li class="step" style="--depth:2"><h3>A tool</h3><p>I asked the agent to build a CLI that checks the facts instead of guessing them.</p></li>
-        <li class="step" style="--depth:3"><h3>A workflow</h3><p>Stages, reviews, and approvals, recorded on the board.</p></li>
-        <li class="step" style="--depth:4"><h3>Tools for the tool</h3><p>Tests, retries, and recovery, so it holds up when nobody’s watching.</p></li>
-      </ol>
-    </div>
-    <aside class="notes">Draft staircase: replace with your real path and the moment each step stopped being enough. The key beat is step 3, which is the next slide.</aside>
-  </section>
+The lever is what you build around it. The tools, the checks, the record of what's been done. The stuff that makes every push go further.
 
-  <!-- One slide per step of the journey, each framed "I noticed X, so I built Y". Drafts to fill in as we go. -->
-  <section class="slide" aria-labelledby="step1-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 01 · Guardrails</div>
-      <h2 id="step1-title">The agent made mistakes. <span class="grad">So I added guardrails.</span></h2>
-      <p class="lede step">TODO: tests, lint, type checks, CLAUDE.md rules.</p>
-    </div>
-    <aside class="notes">TODO: the first mistake that made you add a check.</aside>
-  </section>
+For me, building levers helped way more than writing better prompts.
 
-  <section class="slide" aria-labelledby="step2-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 02 · Skills</div>
-      <h2 id="step2-title">I kept repeating prompts. <span class="grad">So I wrote skills.</span></h2>
-      <p class="lede step">TODO: stage skills such as pdlc-write, pdlc-plan, pdlc-implement.</p>
-    </div>
-    <aside class="notes">TODO: the prompt you were tired of typing.</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step3-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 03 · A skill of skills</div>
-      <h2 id="step3-title">I called skills in the same order. <span class="grad">So one skill calls them.</span></h2>
-      <p class="lede step">TODO: pdlc-loop.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step4-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 04 · Skills became a tool</div>
-      <h2 id="step4-title">Agents read skills differently each run. <span class="grad">So the procedure became a CLI.</span></h2>
-      <p class="lede step">TODO: the skill shrank to “run pdlc inspect, do what Due Next says”.</p>
-    </div>
-    <aside class="notes">Where my path leaves the usual one: instead of more skills, a tool. Leads into the “build a tool” slides.</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step5-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 05 · State routes the work</div>
-      <h2 id="step5-title">Skills guessed what came next. <span class="grad">So state decides.</span></h2>
-      <p class="lede step">TODO: workflow definition plus gate state picks the next stage.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step6-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 06 · A record outside the chat</div>
-      <h2 id="step6-title">Context died with the session. <span class="grad">So the board holds it.</span></h2>
-      <p class="lede step">TODO: requirements, decisions, evidence on the work item; GitHub, Azure, or file.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step7-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 07 · An independent reviewer</div>
-      <h2 id="step7-title">It marked its own homework. <span class="grad">So someone else reviews it.</span></h2>
-      <p class="lede step">TODO: reviewer agents and gates.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step8-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 08 · Interrupt me only for decisions</div>
-      <h2 id="step8-title">Agents pinged me for everything. <span class="grad">So they stop only when it matters.</span></h2>
-      <p class="lede step">TODO: approvals and real decisions are the only human stops.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step9-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 09 · Watching PRs</div>
-      <h2 id="step9-title">I was watching PRs for comments. <span class="grad">So the loop handles them.</span></h2>
-      <p class="lede step">TODO: CI failures and review comments fixed inside implementation.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step10-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 10 · Surviving failure</div>
-      <h2 id="step10-title">Nobody was watching when it failed. <span class="grad">So it knows how to recover.</span></h2>
-      <p class="lede step">TODO: safe-retry and check-first exit codes, recovery catalog.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step11-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 11 · Parallel without collisions</div>
-      <h2 id="step11-title">Agents collided in one checkout. <span class="grad">So each gets its own.</span></h2>
-      <p class="lede step">TODO: worktrees and stacked PRs.</p>
-    </div>
-    <aside class="notes">TODO</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="step12-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">Step 12 · Not yet</div>
-      <h2 id="step12-title">Where it goes <span class="grad">next.</span></h2>
-      <p class="lede step">TODO: start from the ticket automatically, release on merge, logs become bugs, learn from failures.</p>
-    </div>
-    <aside class="notes">Be honest about the gap. Good place to open discussion.</aside>
+[Put the definition in your own words if this doesn't sound like you; keep it to one sentence.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="build-title" hidden>
     <div class="wrap">
       <div class="eyebrow">What helped me most</div>
-      <h2 id="build-title">Instead of asking the agent to do it, <span class="grad">I asked it to build a tool.</span></h2>
+      <h2 id="build-title">Don’t let the agent fish bare-handed. <span class="grad">Have it build a rod, and a skill to use it.</span></h2>
       <ul class="cards">
-        <li class="step"><h3>Same answer every time</h3><p>A script runs the same way each time. My prompts never quite did.</p></li>
-        <li class="step"><h3>Testable</h3><p>I could write tests for a tool. I couldn’t test “please remember to”.</p></li>
-        <li class="step"><h3>Saves context</h3><p>The agent could spend its context on the actual problem instead of rediscovering the routine.</p></li>
-        <li class="step"><h3>Reviewed once</h3><p>I review the tool once, rather than checking every run.</p></li>
+        <li class="reveal" style="--d:.3s"><h3>Same answer every time</h3><p>A script runs the same way each time. My prompts never quite did.</p></li>
+        <li class="reveal" style="--d:.8s"><h3>Testable, reviewed once</h3><p>I could test and review a tool once. I couldn’t test “please remember to”.</p></li>
+        <li class="reveal" style="--d:1.3s"><h3>Saves context</h3><p>The agent could spend its context on the actual problem instead of rediscovering the routine.</p></li>
+        <li class="reveal" style="--d:1.8s"><h3>A skill to use it</h3><p>The tool does the same thing every time. The skill tells the agent when to reach for it, and how.</p></li>
       </ul>
-      <p class="punch step">My rough rule now: if I’ve asked for it twice, it might be worth a tool.</p>
+      <p class="punch reveal" style="--d:2.4s">My rough rule now: if I’ve asked for it twice, it might be worth a tool, <span class="grad">and a skill to use it.</span></p>
     </div>
-    <aside class="notes">This is the core of the talk. The agent is great at writing small, boring tools, and those tools are where the leverage is.</aside>
+    <aside class="notes">I saw a video a while back, and this line stuck with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
+
+I'd take it one step further.
+
+Get it to build the rod. Then get it to write a skill on how to use it.
+
+The rod does the same thing every time. The skill knows when to cast, and where.
+
+The agent's still the one fishing. It's just not doing it with its bare hands anymore.
+
+And yeah, that's the mix from the start. Code for the process, skills for the judgement.</aside>
   </section>
 
   <section class="slide" aria-labelledby="example-title" hidden>
@@ -561,81 +795,158 @@ The next task pending a Technical Plan is 3054303.</pre>
         </div>
       </div>
     </div>
-    <aside class="notes">My own tool, used as an example only. The pattern matters, not this tool: find the question your agent keeps re-answering, and turn it into a command.</aside>
+    <aside class="notes">Here's what that looked like for me.
+
+I'd ask the agent, what's next on this work item?
+
+On the left, that's the skill it had to follow. Authenticate. Find the item. Read every comment. Check the PRs. Check CI. Work out what's next, unless, unless, unless.
+
+Every session, it read all of that. Ran every step. And came out with a slightly different answer.
+
+[Next step: reveal the tool.]
+
+So I had it build a tool instead.
+
+Now the whole skill is two lines. Run this. Do what it says.
+
+[Next step: reveal the output.]
+
+The tool does the gathering and the checking. The agent just reads the answer. Same answer, every time.
+
+And all the context it used to burn on the routine? It spends that on the actual work now.
+
+And once I had that, I could finally start handing those three jobs over.
+
+[My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
   </section>
 
-  <section class="slide" aria-labelledby="skill-title" hidden>
+  <section class="slide answer" aria-labelledby="checking-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">Same idea, applied to instructions</div>
-      <h2 id="skill-title">A huge skill file became <span class="grad">a single command.</span></h2>
-      <div class="versus">
-        <div><h3>One massive skill file</h3>
-          <div class="skillfile" aria-label="An example of a long instruction file">
-            <b>## Before you start</b><br>
-            1. Read the issue and all of its comments<br>
-            2. Find the linked PRs and check their CI<br>
-            3. If CI is failing, fix that first, unless…<br>
-            4. If the plan changed since last time, then…<br>
-            5. Work out which task is next. Skip any that…<br>
-            6. Remember to check for open review comments<br>
-            7. Don’t forget to update the board when…<br>
-            8. If a decision is needed, stop and…<br>
-            9. …
-          </div>
-          <p class="note">The agent reads it all, interprets it, and still gets it slightly different each run.</p>
-        </div>
-        <div class="to step"><h3>One command</h3>
-          <pre><span>$</span> pdlc inspect implement 3054301</pre>
-          <div class="result">whether work is due<br>which mode it’s in<br>the one task to work on next</div>
-          <p class="note">The skill shrank to: run this, then do what it says. The tool gathers the context, so the agent’s context stays free for the work.</p>
-        </div>
-      </div>
-    </div>
-    <aside class="notes">Same lesson as the last two slides, applied to agent instructions. The long file was me hoping the agent would follow a procedure; the command just does the procedure and hands over the result.</aside>
-  </section>
-
-  <section class="slide" aria-labelledby="needs-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">What trust took, for me</div>
-      <h2 id="needs-title">I could only walk away from <span class="grad">work I could trust.</span></h2>
-      <ul class="cards">
-        <li class="step"><h3>A record outside the chat</h3><p>Requirements, decisions, and progress survive any session and any agent.</p></li>
-        <li class="step"><h3>A known next step</h3><p>Work is routed by state, so nobody has to prompt the next move.</p></li>
-        <li class="step"><h3>“Done” you can trust</h3><p>An independent reviewer checks the work against the requirement, with evidence.</p></li>
-        <li class="step"><h3>A rule for interrupting me</h3><p>Agents stop for real decisions and approvals, and for nothing else.</p></li>
+      <ol class="qtabs" aria-label="The three jobs"><li class="on">Checking</li><li>Directing</li><li>Reminding</li></ol>
+      <h2 id="checking-title">Checking. <span class="grad">Not me, and not the agent that wrote it.</span></h2>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">Run the tests, fix lint</span><span class="arrow" aria-hidden="true">→</span><span class="now">It fixes failing CI and review comments itself<small>pdlc-implement</small></span></li>
+        <li><span class="was">Ask another agent to review</span><span class="arrow" aria-hidden="true">→</span><span class="now">A separate reviewer signs off every stage<small>reviewer agents</small></span></li>
+        <li><span class="was">Covered by requirements? New tests?</span><span class="arrow" aria-hidden="true">→</span><span class="now">Every requirement is traced to a test<small>pdlc-test · FR-* traceability</small></span></li>
+        <li><span class="was">Verify in the browser</span><span class="arrow" aria-hidden="true">→</span><span class="now">Verification walks the user journeys<small>pdlc-verify</small></span></li>
       </ul>
+      <p class="punch">When it reaches me, <span class="grad">it’s already been checked.</span></p>
     </div>
-    <aside class="notes">Each of these is a lever. None of them needs a particular tool: a doc, a script, or a second agent can do it.</aside>
+    <aside class="notes">So, checking. The biggest one.
+
+Tests and lint? The agent runs them, and when CI fails or a reviewer leaves a comment on the PR, it fixes it. I'm not watching for that anymore.
+
+The review doesn't come from the agent that wrote it. Every stage has its own reviewer. The plan, the code, the tests.
+
+Every requirement gets an ID. And the testing stage has to show which test covers which requirement. So "did it write tests for this?" isn't a question I ask anymore.
+
+And before anything's done, a verification stage actually walks through the user journeys.
+
+[Your example: the first time a reviewer caught something you'd have missed.]
+
+So by the time it gets to me, it's already been checked.
+
+[Rows come in on load. The small grey labels are the PDLC piece doing the job; name one or two, don't read them all.]</aside>
+  </section>
+
+  <section class="slide answer" aria-labelledby="directing-title" hidden>
+    <div class="wrap">
+      <ol class="qtabs" aria-label="The three jobs"><li>Checking</li><li class="on">Directing</li><li>Reminding</li></ol>
+      <h2 id="directing-title">Directing. <span class="grad">The state decides what’s next, not me.</span></h2>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">Break down every task</span><span class="arrow" aria-hidden="true">→</span><span class="now">A planner splits it into tasks, with acceptance criteria<small>pdlc-tasks</small></span></li>
+        <li><span class="was">Re-prompt after every step</span><span class="arrow" aria-hidden="true">→</span><span class="now">The record says what’s due next<small>pdlc inspect → Due Next</small></span></li>
+        <li><span class="was">Keep every agent moving</span><span class="arrow" aria-hidden="true">→</span><span class="now">One loop works through the queue<small>pdlc-loop</small></span></li>
+        <li><span class="was">Get pinged for everything</span><span class="arrow" aria-hidden="true">→</span><span class="now">It stops only for approvals and decisions<small>gates</small></span></li>
+      </ul>
+      <p class="punch">I stopped switching. <span class="grad">I started deciding.</span></p>
+    </div>
+    <aside class="notes">Next, directing.
+
+I used to break every task down myself. Now a planner does it. Tasks, dependencies, acceptance criteria. I review it, I don't write it.
+
+I used to re-prompt after every step. Now the agent asks the record. pdlc inspect. It says what's due next, and that's what it does.
+
+And one loop works through the whole queue. I'm not the one nudging each agent along.
+
+It still stops for me. But only for two things. An approval, or a decision only I can make.
+
+So I stopped switching all day. Now I mostly just decide.</aside>
+  </section>
+
+  <section class="slide answer" aria-labelledby="reminding-title" hidden>
+    <div class="wrap">
+      <ol class="qtabs" aria-label="The three jobs"><li>Checking</li><li>Directing</li><li class="on">Reminding</li></ol>
+      <h2 id="reminding-title">Reminding. <span class="grad">Written down once, not said every time.</span></h2>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">“Reuse the existing component”</span><span class="arrow" aria-hidden="true">→</span><span class="now">Plans start from a spike of the current code<small>pdlc-plan</small></span></li>
+        <li><span class="was">“Add a Storybook story”</span><span class="arrow" aria-hidden="true">→</span><span class="now">My repo’s own skills plug into each step<small>.pdlc/config.toml</small></span></li>
+        <li><span class="was">Re-explain why we built it that way</span><span class="arrow" aria-hidden="true">→</span><span class="now">Requirements and decisions live on the work item<small>the board</small></span></li>
+        <li><span class="was">Carry it on in my own session</span><span class="arrow" aria-hidden="true">→</span><span class="now">Any agent, or teammate, picks up from the record<small>pdlc inspect</small></span></li>
+      </ul>
+      <p class="punch">The chat became disposable. <span class="grad">The record didn’t.</span></p>
+    </div>
+    <aside class="notes">And the last one. Reminding.
+
+"We've already got a component for that." I said that a lot. Now the plan starts from a spike of the actual code, so it finds that stuff before anyone writes a line.
+
+"Add a Storybook story." That's how my repo works, not how every repo works. So each repo plugs its own skills into each step.
+
+And the reasons don't die with the chat anymore. Requirements and decisions live on the work item, on the board.
+
+Which means anyone can pick it up. Another agent. A teammate. Me, next week, having forgotten all of it.
+
+[Your story: someone picking up a work item you started.]
+
+The chat's disposable now. The record isn't.</aside>
   </section>
 
   <section class="slide" aria-labelledby="after-title" hidden>
     <div class="wrap">
       <div class="eyebrow">With the levers in place</div>
-      <h2 id="after-title">Same day, <span class="grad">different shape.</span></h2>
-      <div class="timeline" role="img" aria-label="Illustrative timeline: three agents work for long stretches on their own. I hand off once, then get two short pings, one when Agent C needs a decision and one when Agent A needs approval. The rest of the time is mine.">
-        <div class="lane"><span>Me</span><div class="track">
-          <div class="block me" style="--from:0;--to:4"></div><div class="block free" style="--from:4.3;--to:40">my own work</div>
-          <div class="block gate" style="--from:40.3;--to:45">C</div><div class="block free" style="--from:45.3;--to:75">my own work</div>
-          <div class="block gate" style="--from:75.3;--to:80">A</div><div class="block free" style="--from:80.3;--to:100">my own work</div>
-        </div></div>
-        <div class="lane step"><span>Agent A</span><div class="track">
-          <div class="block work" style="--from:4;--to:72">working on its own</div><div class="block wait" style="--from:72;--to:75"></div>
-          <div class="block gate" style="--from:75.3;--to:80"></div><div class="block work" style="--from:80;--to:100">working</div>
-        </div></div>
-        <div class="lane step"><span>Agent B</span><div class="track">
-          <div class="block work" style="--from:4;--to:100">working on its own, never needed me</div>
-        </div></div>
-        <div class="lane step"><span>Agent C</span><div class="track">
-          <div class="block work" style="--from:4;--to:37">working on its own</div><div class="block wait" style="--from:37;--to:40"></div>
-          <div class="block gate" style="--from:40.3;--to:45"></div><div class="block work" style="--from:45;--to:100">working on its own</div>
-        </div></div>
+      <h2 id="after-title">Same day, same three agents. <span class="grad">A different shape.</span></h2>
+      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do my own work. The agents work on their own for long stretches. I switch twice: once when Agent C needs a decision, once when Agent A needs an approval. Agent B never needs me.">
+        <div class="labels"><span>Me</span><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
+        <div class="tracks">
+          <div class="track">
+          <div class="block gate" style="--from:0;--to:6"><span>hand off</span></div><div class="block free" style="--from:6;--to:40"><span>my own work</span></div><div class="block gate" style="--from:40;--to:47"><span>decide for C</span></div><div class="block free" style="--from:47;--to:74"><span>my own work</span></div><div class="block gate" style="--from:74;--to:81"><span>approve A</span></div><div class="block free" style="--from:81;--to:100"><span>my own work</span></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:6"></div><div class="block work" style="--from:6;--to:68"><span>working on its own</span></div><div class="block blocked" style="--from:68;--to:81"></div><div class="block work" style="--from:81;--to:100"><span>next task</span></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:6"></div><div class="block work" style="--from:6;--to:100"><span>working on its own, never needed me</span></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:6"></div><div class="block work" style="--from:6;--to:34"><span>working on its own</span></div><div class="block blocked" style="--from:34;--to:47"></div><div class="block work" style="--from:47;--to:100"><span>working on its own</span></div>
+          </div>
+          <div class="switches" aria-hidden="true"><b style="--x:40;--y:0.12;--at:.6s">1</b><b style="--x:74;--y:0.12;--at:1.1s">2</b></div>
+        </div>
       </div>
-      <div class="legend">
-        <span><i class="me"></i>hand off</span><span><i class="gate"></i>pinged: a decision or approval</span><span><i class="work"></i>agent working</span><span><i class="wait"></i>agent waiting on me</span><span><b>2</b> context switches</span>
-      </div>
-      <p class="punch step">Agents run longer on their own, and only ping me when they actually need something.</p>
+      <ul class="impacts">
+        <li><i class="work" aria-hidden="true"></i><span><b>The agents ran on their own.</b> They only stopped for a decision or an approval.</span></li>
+        <li><i class="switch" aria-hidden="true">2</i><span><b>I switched twice.</b> The rest of the day was my own work.</span></li>
+      </ul>
+      <p class="punch">Two switches instead of sixteen. <span class="grad">That’s the shift.</span></p>
     </div>
-    <aside class="notes">Mirror of the "ran more agents" slide: same day, same three agents, but 2 context switches instead of 20. Reveal the agents one at a time. The pings are real waits (a decision or an approval), not "are you still there?". Also illustrative.</aside>
+    <aside class="notes">So, same day as before. Same three agents.
+
+I hand off at the start. And then they just go.
+
+Agent C hits a real decision. It pings me. I make the call, and it carries on.
+
+Agent A needs an approval. Same thing.
+
+Agent B never needed me at all.
+
+Two switches. Down from sixteen.
+
+And the rest of that time? It's mine.
+
+[Mirror of slide 4: pause and let people compare. Everything shows on load. Illustrative, not measured.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="lessons-title" hidden>
@@ -643,13 +954,12 @@ The next task pending a Technical Plan is 3054303.</pre>
       <div class="eyebrow">Other things I learnt</div>
       <h2 id="lessons-title">A few things <span class="grad">I learnt the hard way.</span></h2>
       <ul class="cards">
-        <li class="step"><h3>Prose drifts. State doesn’t.</h3><p>I ended up turning anything a later step depends on into checked data, rather than a sentence for an agent to interpret.</p></li>
-        <li class="step"><h3>Handing over the context</h3><p>Agents gathering their own context gave me different results each time. Building their brief made every run start from the same scope.</p></li>
-        <li class="step"><h3>Nobody’s watching when it fails</h3><p>Unattended work needed safe retries and clear recovery steps, not a stack trace.</p></li>
-        <li class="step"><h3>One source of truth</h3><p>Copying a tool’s <code>--help</code> into instructions went stale fast. Pointing at it worked better.</p></li>
+        <li class="reveal" style="--d:.3s"><h3>Prose drifts. State doesn’t.</h3><p>I ended up turning anything a later step depends on into checked data, rather than a sentence for an agent to interpret.</p></li>
+        <li class="reveal" style="--d:.8s"><h3>Handing over the context</h3><p>Agents gathering their own context gave me different results each time. Building their brief made every run start from the same scope.</p></li>
+        <li class="reveal" style="--d:1.3s"><h3>One source of truth</h3><p>Copying a tool’s <code>--help</code> into instructions went stale fast. Pointing at it worked better.</p></li>
       </ul>
     </div>
-    <aside class="notes">Draft from the repo history: replace with your own "I thought X, then learned Y" stories.</aside>
+    <aside class="notes">[Draft from the repo history: replace with your own "I thought X, then learned Y" stories.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="takeaway-title" hidden>
@@ -657,14 +967,14 @@ The next task pending a Technical Plan is 3054303.</pre>
       <div class="eyebrow">If any of this resonates</div>
       <h2 id="takeaway-title">Some things <span class="grad">you might try.</span></h2>
       <ul class="cards">
-        <li class="step"><h3>Turning repeats into tools</h3><p>Next time you ask for the same thing twice, see whether a small tool could do it.</p></li>
-        <li class="step"><h3>Keeping context out of the chat</h3><p>Somewhere that outlives the session, so you’re not repeating yourself.</p></li>
-        <li class="step"><h3>Agreeing on “done” first</h3><p>Deciding how you’ll know it’s right before an agent starts.</p></li>
-        <li class="step"><h3>A separate reviewer</h3><p>A fresh agent checking the work against the requirement, rather than its own summary.</p></li>
+        <li class="reveal" style="--d:.3s"><h3>Turning repeats into tools</h3><p>Next time you ask for the same thing twice, see whether a small tool could do it.</p></li>
+        <li class="reveal" style="--d:.8s"><h3>Keeping context out of the chat</h3><p>Somewhere that outlives the session, so you’re not repeating yourself.</p></li>
+        <li class="reveal" style="--d:1.3s"><h3>Agreeing on “done” first</h3><p>Deciding how you’ll know it’s right before an agent starts.</p></li>
+        <li class="reveal" style="--d:1.8s"><h3>A separate reviewer</h3><p>A fresh agent checking the work against the requirement, rather than its own summary.</p></li>
       </ul>
-      <p class="punch step">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
+      <p class="punch reveal" style="--d:2.4s">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
     </div>
-    <aside class="notes">End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.</aside>
+    <aside class="notes">[End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
   </section>
 </main>
 <aside id="notes" aria-live="polite" hidden></aside>
