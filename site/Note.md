@@ -240,3 +240,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 18 sources: bigger type in a wider right column (46%), plus a fourth source: Addy Osmani, "Your coding agents made you a manager" (x.com/addyosmani/status/2119332146485891501), the origin of slide 15's delegate/ratification framing.
 - **2026-11-09** — Slide 18 notes: credit line for the sources (they shaped how I design my workflows; some pdlc principles came from them).
 - **2026-11-09** — Slide 18: Addy Osmani's source now reads "· Anthropic".
+- **2026-11-09** — Slide 15 "One by one" bullet: now "I go through each PR myself, as if I wrote it."
