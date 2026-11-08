@@ -214,3 +214,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 17 card 3 "From ticket to release" → "Work that starts itself": observations and external events (logs, feedback, outside changes) start workflows, proactive rather than waiting for a ticket. Notes matched.
 - **2026-11-09** — Slide 17 card 3 retitled "Proactive, not reactive"; notes use the same words.
 - **2026-11-09** — Slide 17 card 3: "not when I open a ticket" → "not when I prompt" (card and notes).
+- **2026-11-09** — Slide 11: the ring no longer starts on its own. It waits at Product (nothing lit) until the first arrow-key step, then loops as before; stepping back returns it to the wait. The code sheets are now steps 2 and 3. Notes add the "[Next step: the loop starts.]" cue.
