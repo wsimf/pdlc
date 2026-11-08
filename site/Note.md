@@ -211,3 +211,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — New last slide 17 "What's next: Where I'm taking it next." (draft): cheaper decision agents like Jev for structured answers (replacing today's lightweight LLM calls), starting agents from code via a GitHub SDK integration (the CLI can't start one), ticket to release with logs feeding back as bugs, more workflows than Feature. It sits after the closing question; notes in spoken voice.
 - **2026-11-09** — Slide 17 retitled "Where it could go next."; notes opening matched.
 - **2026-11-09** — Slide 17: "GitHub SDK" → "GitHub Copilot SDK" on the card and in the notes.
+- **2026-11-09** — Slide 17 card 3 "From ticket to release" → "Work that starts itself": observations and external events (logs, feedback, outside changes) start workflows, proactive rather than waiting for a ticket. Notes matched.
