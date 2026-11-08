@@ -75,8 +75,8 @@ Reference example: slide 1's notes.
 | 12 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
 | 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
 | 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
-| 15 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
-| 16 | Some things you might try + closing question | Draft, guidance notes only |
+| 15 | What stuck, and what didn't (7 paired rows on load: ✕ didn't stick · ✓ stuck) | Draft |
+| 16 | Where it could go next (4 cards) + closing question and thanks | Draft |
 
 ## Presenter tooling
 
@@ -222,3 +222,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 14 config sheet: `ux-design = "flex-design-system-v2"` and `ui-implementer = "frontend-vue-expert"` are now set; the notes name both.
 
 - **2026-11-09** — Slide 14 config.toml sheet now drops in between the title and the rows, right-aligned, two columns ([skills] | [agents]), pushing the rows down instead of covering the Now column.
+- **2026-11-09** — Slides 15 and 16 merged (17 → 16): "What stuck, and what didn't." Seven rows on load, ✕ didn't stick (dimmed, with why) beside ✓ stuck: checked state, building the brief, a fresh reviewer, context on the work item, only what each step needs, a checked template, recovery printed on failure. The `--help` lesson was dropped (never explained). The closing question and thanks moved to the end of "What's next" (now slide 16).

@@ -362,6 +362,19 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 
 
 /* Content that shows on load, one piece after another: set --d for each piece's delay. */
+/* Slide 15: what didn't stick (dimmed, ✕) beside what stuck (bold, ✓), one row per lesson. */
+.stuck{display:grid;margin-top:clamp(22px,4vh,40px);list-style:none}
+.stuck li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:baseline;padding:clamp(10px,1.6vh,16px) 0;border-top:1px solid var(--line)}
+.stuck li.head{border:0;padding-top:0;font:600 clamp(11px,1vw,14px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.stuck li.head p{font:inherit;color:inherit}
+.stuck li:not(.head) p{position:relative;padding-left:1.4em;line-height:1.3}
+.stuck li:not(.head) p::before{position:absolute;left:0;font-weight:700}
+.stuck .no{font-size:clamp(17px,1.7vw,30px);color:var(--dim)}
+.stuck li:not(.head) .no::before{content:"✕";color:var(--pink)}
+.stuck .no span{margin-left:.5em;font-size:.8em;font-style:italic}
+.stuck .no span::before{content:"· "}
+.stuck .yes{font-size:clamp(19px,2vw,36px);font-weight:650}
+.stuck li:not(.head) .yes::before{content:"✓";color:var(--teal)}
 .reveal{animation:enter .5s var(--d,0s) ease both}
 
 /* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
@@ -1098,50 +1111,36 @@ So the chat's disposable now. The record isn't.
 
   <section class="slide" aria-labelledby="lessons-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">Other things I learnt</div>
-      <h2 id="lessons-title">A few things <span class="grad">I learnt the hard way.</span></h2>
-      <ul class="cards">
-        <li class="reveal" style="--d:.3s"><h3>Prose drifts. State doesn’t.</h3><p>I ended up turning anything a later step depends on into checked data, rather than a sentence for an agent to interpret.</p></li>
-        <li class="reveal" style="--d:.8s"><h3>Handing over the context</h3><p>Agents gathering their own context gave me different results each time. Building their brief made every run start from the same scope.</p></li>
-        <li class="reveal" style="--d:1.3s"><h3>One source of truth</h3><p>Copying a tool’s <code>--help</code> into instructions went stale fast. Pointing at it worked better.</p></li>
+      <div class="eyebrow">Looking back</div>
+      <h2 id="lessons-title">What stuck, <span class="grad">and what didn’t.</span></h2>
+      <ul class="stuck">
+        <li class="head"><p class="no">Didn’t stick</p><p class="yes">Stuck</p></li>
+        <li class="reveal" style="--d:0.30s"><p class="no">Rules written in a skill<span>drifted, run to run</span></p><p class="yes">Checked state, in code</p></li>
+        <li class="reveal" style="--d:0.55s"><p class="no">Agents gathering their own context<span>different every run</span></p><p class="yes">Building the brief for them</p></li>
+        <li class="reveal" style="--d:0.80s"><p class="no">An agent reviewing its own work<span>checked its own summary</span></p><p class="yes">A fresh reviewer, against the requirement</p></li>
+        <li class="reveal" style="--d:1.05s"><p class="no">Context living in the chat<span>gone with the session</span></p><p class="yes">Context on the work item</p></li>
+        <li class="reveal" style="--d:1.30s"><p class="no">Explaining the whole process to every agent<span>more to misread</span></p><p class="yes">Telling each agent only what its step needs</p></li>
+        <li class="reveal" style="--d:1.55s"><p class="no">Free-form write-ups<span>a section missing every time</span></p><p class="yes">A template the tool checks</p></li>
+        <li class="reveal" style="--d:1.80s"><p class="no">Agents improvising when a command failed<span>retried blindly</span></p><p class="yes">The command says how to recover</p></li>
       </ul>
     </div>
-    <aside class="notes">Before I finish, a few things I had to learn the hard way.
+    <aside class="notes">Before I finish, looking back. What stuck, and what didn't.
 
-First, prose drifts. State doesn't. Anything a later step depends on, I ended up turning into data the tool can check. Not a sentence an agent has to interpret.
+Writing rules into a skill. That drifted. What stuck was turning anything a later step depends on into state the tool can check.
 
-Second, hand over the context. When agents went and gathered their own, I got different results every time. When I built the brief for them, every run started from the same place.
+Letting agents gather their own context. I got different results every time. What stuck was building the brief for them, so every run starts from the same place.
 
-And third, keep one source of truth. I used to copy a tool's help text into my instructions, and it went stale really fast. Just pointing at the help worked much better.
+An agent reviewing its own work. It mostly checked its own summary. What stuck was a fresh reviewer, checking against the requirement.
 
-[Cards appear on load. Swap in your own "I thought X, then learned Y" if you have a sharper one.]</aside>
-  </section>
+Keeping context in the chat. It's gone when the session ends. What stuck was putting it on the work item.
 
-  <section class="slide" aria-labelledby="takeaway-title" hidden>
-    <div class="wrap">
-      <div class="eyebrow">If any of this resonates</div>
-      <h2 id="takeaway-title">Some things <span class="grad">you might try.</span></h2>
-      <ul class="cards">
-        <li class="reveal" style="--d:.3s"><h3>Turning repeats into tools</h3><p>When a step needs the same answer every time, see whether a small tool could give it.</p></li>
-        <li class="reveal" style="--d:.8s"><h3>Keeping context out of the chat</h3><p>Somewhere that outlives the session, so you’re not repeating yourself.</p></li>
-        <li class="reveal" style="--d:1.3s"><h3>Agreeing on “done” first</h3><p>Deciding how you’ll know it’s right before an agent starts.</p></li>
-        <li class="reveal" style="--d:1.8s"><h3>A separate reviewer</h3><p>A fresh agent checking the work against the requirement, rather than its own summary.</p></li>
-      </ul>
-      <p class="punch reveal" style="--d:2.4s">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
-    </div>
-    <aside class="notes">So, if any of this resonates, here are a few things you could try.
+Explaining the whole process to every agent. That just gave it more to misread. Now each agent only gets what its step needs.
 
-If a step needs the same answer every time, see if a small tool could give it to you.
+Free-form write-ups. There was always a section missing. What stuck was a template the tool checks before it accepts it.
 
-Keep your context out of the chat. Put it somewhere that outlives the session, so you're not repeating yourself.
+And agents improvising when a command failed. They'd retry blindly, or half fix it. Now the command itself says how to recover. Retry, check something first, or stop.
 
-Agree on what done looks like, before the agent starts.
-
-And get a separate reviewer. A fresh agent that checks the work against the requirement, not against its own summary.
-
-That's it from me. Thanks for listening. And I'd really love to hear from you. What do you keep asking your agent to do?
-
-[End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
+[Rows come in on load. Read the left side quickly and land on the right. Swap in your own story for any row if you have a sharper one.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="next-title" hidden>
@@ -1154,6 +1153,7 @@ That's it from me. Thanks for listening. And I'd really love to hear from you. W
         <li class="reveal" style="--d:1.3s"><h3>Proactive, not reactive</h3><p>Feed in what’s happening, like production logs, user feedback and outside events, so workflows start on their own, not when I prompt.</p></li>
         <li class="reveal" style="--d:1.8s"><h3>More workflows</h3><p>Features are the only workflow today. Bugs and spikes need their own stages and gates.</p></li>
       </ul>
+      <p class="punch reveal" style="--d:2.4s">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
     </div>
     <aside class="notes">One last thing. Where this could go next.
 
@@ -1173,7 +1173,9 @@ So it's not just reacting to me. It's proactive. It notices things first.
 
 And last, more workflows. Features are the only one today. Bugs and spikes don't need every stage, so they'll get their own.
 
-[Cards appear on load. Optional: go back to the previous slide's question for discussion.]</aside>
+That's it from me. Thanks for listening. And I'd really love to hear from you. What do you keep asking your agent to do?
+
+[Cards and the closing question appear on load. End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
   </section>
 </main>
 <aside id="notes" aria-live="polite" hidden></aside>
