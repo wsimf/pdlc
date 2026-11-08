@@ -69,15 +69,16 @@ Reference example: slide 1's notes.
 | 6 | Rabbit hole 1 of 3: To hand them over, I wrote down the workflow. In a skill. (three columns: skill | flowchart | headline-only Liked/Disliked; left ~400 words, all-pink bar, `implement/SKILL.md`, if/then flowchart; right 👍 Liked / 👎 Disliked two-up with detail lines, on load) | Draft. Disliked list is Sudara’s; Liked and notes drafted |
 | 7 | Rabbit hole 2 of 3: Then the workflow became a skill of skills. (same 1/4 · 1/4 · 2/4 layout as slide 6: left ~1,500 words, `loop/SKILL.md`; middle skills-starting-skills chart; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted; `[Your story]` open |
 | 8 | Rabbit hole 3 of 3: Then the workflow became a tool. (same 1/4 · 1/4 · 2/4 layout: left 1 command, 50/50 bar, `pdlc-loop/SKILL.md` + `pdlc next loop` output; middle loop chart in green code / purple agent / indigo me; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted from the repo |
-| 9 | Rabbit hole, what stuck: Don't fish bare-handed. Build a rod, and a skill to use it. (slide 8's 1/4 · 1/4 · 2/4 layout: left `2×` rule, sample `check-ci.sh` tool and its skill; middle bare-handed vs with-a-rod chart; right 🎣 What stuck two-up + 📏 My rule now) | Draft. Merges the old lever and fishing-rod slides; Archimedes dropped |
-| 10 | Example: "What's next on this work item?" (skill file vs `pdlc inspect`; right side still on steps) | Draft. Spoken-voice notes absorb the old "huge skill file" slide and bridge to the questions |
-| 11 | Rabbit hole, then it could loop: Same result every time. So it could loop until it needed me. (slide 8's layout: left ↻ and an illustrative shortened run; middle the whole Feature workflow with green self-loops per stage, a verify→implement bounce, indigo approval dots between stages; right 🔁 Loops on its own two-up + ✋ Stops for me in indigo) | Draft. Drawn from `pdlc-workflow.md`; `[Your story]` open |
-| 12 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
-| 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
-| 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
-| 15 | Same day, same three agents. A different shape. (Me + 3 agent lanes in slide 3/4 style, 2 badges, takeaways on load) | Draft. Spoken-voice notes |
-| 16 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
-| 17 | Some things you might try + closing question | Draft, guidance notes only |
+| 9 | Rabbit hole, so what changed? It still needs my review. Twice, not sixteen times. (slide 4's timeline as a dark outline labelled "before", slide 16's timeline in colour labelled "now", both compact; punch: reviewed to find out if it worked → review to decide if it's what I want) | Draft. Answers "slide 4 needed review too"; overlaps slide 16 |
+| 10 | Rabbit hole, what stuck: Don't fish bare-handed. Build a rod, and a skill to use it. (slide 8's 1/4 · 1/4 · 2/4 layout: left `2×` rule, sample `check-ci.sh` tool and its skill; middle bare-handed vs with-a-rod chart; right 🎣 What stuck two-up + 📏 My rule now) | Draft. Merges the old lever and fishing-rod slides; Archimedes dropped |
+| 11 | Example: "What's next on this work item?" (skill file vs `pdlc inspect`; right side still on steps) | Draft. Spoken-voice notes absorb the old "huge skill file" slide and bridge to the questions |
+| 12 | Rabbit hole, then it could loop: Same result every time. So it could loop until it needed me. (slide 8's layout: left ↻ and an illustrative shortened run; middle the whole Feature workflow with green self-loops per stage, a verify→implement bounce, indigo approval dots between stages; right 🔁 Loops on its own two-up + ✋ Stops for me in indigo) | Draft. Drawn from `pdlc-workflow.md`; `[Your story]` open |
+| 13 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
+| 14 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
+| 15 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
+| 16 | Same day, same three agents. A different shape. (Me + 3 agent lanes in slide 3/4 style, 2 badges, takeaways on load) | Draft. Spoken-voice notes |
+| 17 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
+| 18 | Some things you might try + closing question | Draft, guidance notes only |
 
 ## Presenter tooling
 
@@ -88,8 +89,8 @@ Reference example: slide 1's notes.
 
 ## Open items
 
-- Fill the `[Your story]` / `[Your example]` placeholders on slides 4, 7, 11, 12, 14.
-- Lessons (slide 16): replace drafts with real "I thought X, then learned Y" stories.
+- Fill the `[Your story]` / `[Your example]` placeholders on slides 4, 7, 12, 13, 15.
+- Lessons (slide 17): replace drafts with real "I thought X, then learned Y" stories.
 - Parked: the old "Step 12 · Not yet" idea (start from the ticket, release on merge, logs become bugs); add back as an honest-gap slide if the talk needs it.
 - Rehearse timing; slide 5 (three jobs) targets about 45s.
 - Worktrees/stacked PRs and failure recovery dropped from the job slides; mention verbally or add back if needed.
@@ -161,3 +162,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 8 loop chart: `$ pdlc inspect …` → run the skill → `$ pdlc post …` → "next autonomous?"; yes back to inspect, no "wait for my review". Notes and aria label match. Left column and Liked item still say `pdlc next loop`.
 - **2026-11-08** — Slide 8 diamond now reads "needs Sudara’s review?" (no → back to inspect, yes → wait for my review); diamond widened; notes match.
 - **2026-11-08** — Swapped slides 10 and 11: the example ("What's next on this work item?") now comes before the workflow-loop slide, so the story goes rod → example → loop.
+- **2026-11-08** — New slide 9 after the tool slide (17 → 18): "It still needs my review. Twice, not sixteen times." Slide 4's timeline returns as a dark outline (before) above the after-timeline in colour (now), answering why review in pdlc differs from slide 4 (when, what arrives, what my job is, in the notes). Later slides shift by one; slide 16 (after) now repeats this timeline. Checked at 2000×1023 and 1440×900.
