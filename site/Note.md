@@ -234,3 +234,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 15 rebuilt: chip columns became two bullet groups (Agents/Me; stacked by default, one by one as if paged, behaviour not conventions) beside a larger PR stack. Step line is now "Passing tests is the agent’s job. Deciding it’s worth shipping is mine." Notes add "not really code review anymore… I'm testing the implementation" and "I check out and test the ones that matter".
 - **2026-11-09** — Slide 15 "One by one" bullet: "as if I’ll get paged for it" became "like I’ll be the one fixing it at 2am" (slide and notes).
 - **2026-11-09** — Slide 15 notes: cut the repeated "I go through every one like I’ll be the one fixing it at 2am." (the slide bullet keeps it).
+- **2026-11-09** — Slide 15 notes: the "not really code review anymore" paragraph became "Less like proofreading, more like an architect walking the site" (modules, dependencies, unneeded changes; naming and style left to agents).
