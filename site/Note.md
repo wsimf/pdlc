@@ -253,3 +253,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 14 notes: dropped "I must have said that a hundred times" and "I used to say that a lot too"; component and Storybook lines shortened, component quote now matches the slide.
 - **2026-11-09** — Slide 15 notes opener: "But there's one thing I don't feel comfortable handing over. The actual judgment part."
 - **2026-11-09** — Slide 16 notes rewritten as short stories per row (lint rule skipped, two agents reading different context, self-review agreeing with itself, weekend context loss, over-explaining, missing handover sections, blind re-run) instead of reading the slide.
+- **2026-11-09** — Slide 18 notes: special thanks to the Flex team after the sources, "Especially Ewerton, Yue, and the rest of the team." Notes only, not on the slide.
