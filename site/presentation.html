@@ -255,9 +255,7 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .ring .back.on{opacity:1}
 .ring .back-lbl{font-size:9px;fill:var(--green);text-anchor:middle;font-weight:700}
 .ring .back.talk{stroke:var(--indigo);animation-direction:normal}.ring .back-lbl.talk{fill:var(--indigo)}
-.ring .head{stroke:none}.ring .head.green{fill:var(--green)}.ring .head.amber{fill:var(--amber)}.ring .head.indigo{fill:var(--indigo)}
-.ring .goback{fill:none;stroke-width:2.5;stroke-dasharray:6 5;opacity:0;transition:opacity .3s;animation:ring-march .9s linear infinite reverse}
-.ring .goback.on{opacity:1}.ring .goback.green{stroke:var(--green)}.ring .goback.amber{stroke:var(--amber)}
+.ring .head{stroke:none}.ring .head.green{fill:var(--green)}.ring .head.indigo{fill:var(--indigo)}
 .ring .doc{opacity:0;transition:opacity .3s}.ring .doc.show{opacity:1}
 .ring .doc .page{fill:var(--paper);stroke:var(--indigo);stroke-width:1.5;stroke-linejoin:round}
 .ring .doc .ln{stroke:#cbd5e1;stroke-width:2;stroke-linecap:round}
@@ -1124,13 +1122,12 @@ const ring = (() => {
   const back = make('path', { class: 'back' });
   const backLabel = make('text', { class: 'back-lbl', y: 121 });
   const chips = make('g', {});
-  // Arrowheads for the loops back, one per colour.
+  // Arrowheads for the chip loops, one per colour.
   const defs = make('defs', {});
-  for (const c of ['green', 'amber', 'indigo']) {
+  for (const c of ['green', 'indigo']) {
     const m = make('marker', { id: `ring-${c}`, viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' }, defs);
     make('path', { class: `head ${c}`, d: 'M0 0L10 5L0 10Z' }, m);
   }
-  const goback = make('path', { class: 'goback' });
   // My review: a page that gets read, then stamped approved or sent back.
   const doc = make('g', { class: 'doc' });
   const docBody = make('g', { transform: `translate(${CX} 201) scale(1.35) translate(${-CX} -201)` }, doc);
@@ -1190,21 +1187,6 @@ const ring = (() => {
     backLabel.textContent = label;
   }
 
-  // Goes back round the ring from stage i to stage to, along an arrowed arc just inside the track.
-  async function goBack(i, to, color) {
-    const pts = [];
-    for (let k = 0; k <= 40; k++) {
-      const a = angle(i) + (angle(to) - angle(i)) * k / 40;
-      pts.push(`${CX + (RX - 24) * Math.cos(a)} ${CY + (RY - 22) * Math.sin(a)}`);
-    }
-    goback.setAttribute('d', 'M' + pts.join('L'));
-    goback.setAttribute('class', `goback on ${color}`);
-    goback.setAttribute('marker-end', `url(#ring-${color})`);
-    await wait(900);
-    await travel(angle(i), angle(to), 1400);
-    goback.setAttribute('class', 'goback');
-  }
-
   // I read the document, then it is stamped: approved (✓) or changes needed (↺).
   async function review(ok, verdict) {
     tint('me');
@@ -1260,7 +1242,7 @@ const ring = (() => {
           }
         }
         if (sentBack) {
-          await goBack(i, IMPLEMENT, 'green');
+          await travel(angle(i), angle(IMPLEMENT), 1400);
           i = IMPLEMENT - 1;
           continue;
         }
@@ -1275,7 +1257,7 @@ const ring = (() => {
         } else if (stage.reject && !rejected) {
           rejected = true;
           await review(false, 'changes needed · back to Product');
-          await goBack(i, 0, 'amber');
+          await travel(angle(i), angle(0), 1400);
           i = -1;
           continue;
         } else {
