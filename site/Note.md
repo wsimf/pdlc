@@ -198,3 +198,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 11 ring: person icon's body now meets the head (no gap).
 - **2026-11-08** — Slide 11 ring: code steps (CI) carry a green gear silhouette at bottom-left, so robot = inferred, gear = deterministic, person = me.
 - **2026-11-08** — Slide 11 ring: all three icons (robot, gear, person) sit on the chip's bottom-left corner.
+- **2026-11-08** — Slide 11: new step drops a slanted dark code sheet (real `stages.py` excerpt: PRODUCT_STAGE and UI_STAGE) over the right-hand lists, to land "this is all configured in code". Notes add that line.
