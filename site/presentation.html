@@ -1124,6 +1124,34 @@ That's it from me. Thanks for listening. And I'd really love to hear from you. W
 
 [End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
   </section>
+
+  <section class="slide" aria-labelledby="next-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What’s next</div>
+      <h2 id="next-title">Where I’m <span class="grad">taking it next.</span></h2>
+      <ul class="cards">
+        <li class="reveal" style="--d:.3s"><h3>Cheaper agents for decisions</h3><p>When a step needs a structured answer, hand it to an agent built for deciding, like Jev, instead of a lightweight LLM call.</p></li>
+        <li class="reveal" style="--d:.8s"><h3>Starting agents from code</h3><p>The CLI can say what’s next, but can’t start an agent. A GitHub SDK integration could run that step the same way every time.</p></li>
+        <li class="reveal" style="--d:1.3s"><h3>From ticket to release</h3><p>Start from the ticket, release on merge, and turn production logs into new bugs.</p></li>
+        <li class="reveal" style="--d:1.8s"><h3>More workflows</h3><p>Features are the only workflow today. Bugs and spikes need their own stages and gates.</p></li>
+      </ul>
+    </div>
+    <aside class="notes">One last thing. Where I'm taking this next.
+
+First, decisions. A lot of steps just need a structured answer. Is this approved? Which option? Today I use a lightweight LLM for those.
+
+But there are agents built for exactly that now. Like Jev. Cheaper, and made for deciding. So I'd like to hand those steps over.
+
+Second, starting agents. The CLI can tell an agent what's next. It can't start one.
+
+So something still has to read that and kick off the next agent. If I integrate with the GitHub SDK, the code can start it. Same way, every time.
+
+Third, closing the loop. Start from the ticket, release when it merges, and let the production logs come back in as new bugs.
+
+And last, more workflows. Features are the only one today. Bugs and spikes don't need every stage, so they'll get their own.
+
+[Cards appear on load. Optional: go back to the previous slide's question for discussion.]</aside>
+  </section>
 </main>
 <aside id="notes" aria-live="polite" hidden></aside>
 <nav id="navigation" aria-label="Slide navigation">
