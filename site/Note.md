@@ -241,3 +241,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 18 notes: credit line for the sources (they shaped how I design my workflows; some pdlc principles came from them).
 - **2026-11-09** — Slide 18: Addy Osmani's source now reads "· Anthropic".
 - **2026-11-09** — Slide 15 "One by one" bullet: now "I go through each PR myself, as if I wrote it."
+- **2026-11-09** — Slide 15 "Me" bullet: product calls, security boundaries, scope, trade-offs, user experience, catching over-engineering, and what ships (compliance and competing requests dropped). Notes match.
