@@ -374,7 +374,17 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .stuck .no span{margin-left:.5em;font-size:.8em;font-style:italic}
 .stuck .no span::before{content:"· "}
 .stuck .yes{font-size:clamp(19px,2vw,36px);font-weight:650}
+.stuck .yes small{display:block;margin-top:4px;font-size:.65em;font-weight:400;color:var(--soft)}
 .stuck li:not(.head) .yes::before{content:"✓";color:var(--teal)}
+/* Slide 15 step: a real pdlc recovery message rises above the last row; the other rows dim. */
+.stuck li{position:relative}
+.stuck .codepaper.rec{position:absolute;bottom:calc(100% + 14px);left:-1vw;width:49%;transform:rotate(-1.5deg)}
+.stuck .codepaper.rec.pending{transform:rotate(-5deg) translateY(40px) scale(1.04)}
+.codepaper.rec .ln{grid-template-columns:1fr}
+.codepaper.rec pre{padding:16px 24px 20px;font-size:clamp(14px,1vw,19px);line-height:1.55}
+.codepaper .err{color:#f48771}
+.stuck li:not(.head):not(:last-child) p{transition:opacity .4s ease}
+.stuck:has(.rec:not(.pending)) li:not(.head):not(:last-child) p{opacity:.25}
 .reveal{animation:enter .5s var(--d,0s) ease both}
 
 /* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
@@ -1119,9 +1129,9 @@ So the chat's disposable now. The record isn't.
         <li class="reveal" style="--d:0.55s"><p class="no">Agents gathering their own context<span>different every run</span></p><p class="yes">Building the brief for them</p></li>
         <li class="reveal" style="--d:0.80s"><p class="no">An agent reviewing its own work<span>checked its own summary</span></p><p class="yes">A fresh reviewer, against the requirement</p></li>
         <li class="reveal" style="--d:1.05s"><p class="no">Context living in the chat<span>gone with the session</span></p><p class="yes">Context written on the PBI itself</p></li>
-        <li class="reveal" style="--d:1.30s"><p class="no">Explaining the whole process to every agent<span>more to misread</span></p><p class="yes">Telling each agent only what its step needs</p></li>
+        <li class="reveal" style="--d:1.30s"><p class="no">Explaining the whole process to every agent<span>more to misread</span></p><p class="yes">Telling each agent only what its step needs<small>Like least privilege: it only hears what it needs to know, so there’s less noise.</small></p></li>
         <li class="reveal" style="--d:1.55s"><p class="no">Free-form write-ups<span>a section missing every time</span></p><p class="yes">A template the tool checks</p></li>
-        <li class="reveal" style="--d:1.80s"><p class="no">Agents improvising when a command failed<span>retried blindly</span></p><p class="yes">The command says how to recover</p></li>
+        <li class="reveal" style="--d:1.80s"><p class="no">Agents improvising when a command failed<span>retried blindly</span></p><p class="yes">The command says how to recover</p><div class="step codepaper rec" aria-label="Example: pdlc post ci 304564 fails with a transient HTTP 502. pdlc says it may have partly applied and was not retried, then lists how to recover: run pdlc inspect 304564; if the gate has left CI Pending it landed, continue; otherwise re-run the same command; if it fails three times, stop and report."><div class="codebar">terminal · exit 76</div><pre><span class="ln"><code><span class="cm">$</span> <span class="call">pdlc post ci 304564</span></code></span><span class="ln"><code><span class="err">pdlc: transient: gh: HTTP 502: Bad Gateway</span></code></span><span class="ln"><code><span class="err">pdlc: this command may have partly applied, so it was not retried.</span></code></span><span class="ln"><code><span class="key">To recover:</span></code></span><span class="ln"><code>  1. Run <span class="str">`pdlc inspect 304564`</span>.</code></span><span class="ln"><code>  2. If the gate has left CI Pending, it landed. Continue.</code></span><span class="ln"><code>  3. Otherwise re-run: <span class="str">pdlc post ci 304564</span></code></span><span class="ln"><code>  4. If the same failure repeats 3 times, stop and report it.</code></span></pre></div></li>
       </ul>
     </div>
     <aside class="notes">Before I finish, looking back. What stuck, and what didn't.
@@ -1134,13 +1144,17 @@ An agent reviewing its own work. It mostly checked its own summary. What stuck w
 
 Keeping context in the chat. It's gone when the session ends. What stuck was writing it on the PBI itself.
 
-Explaining the whole process to every agent. That just gave it more to misread. Now each agent only gets what its step needs.
+Explaining the whole process to every agent. That just gave it more to misread. Now each agent only gets what its step needs. A bit like least privilege. It only hears what it needs to know, so there's less noise.
 
 Free-form write-ups. There was always a section missing. What stuck was a template the tool checks before it accepts it.
 
 And agents improvising when a command failed. They'd retry blindly, or half fix it. Now the command itself says how to recover. Retry, check something first, or stop.
 
-[Rows come in on load. Read the left side quickly and land on the right. Swap in your own story for any row if you have a sharper one.]</aside>
+[Next step: an example of what it prints.]
+
+Like this. Say GitHub has a blip in the middle of a write. pdlc doesn't guess, and it doesn't retry on its own. It tells the agent exactly how to check whether the change landed, and what to do either way. And if it keeps failing, stop and tell me.
+
+[Rows come in on load. One step: the recovery example. Read the left side quickly and land on the right. Swap in your own story for any row if you have a sharper one.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="next-title" hidden>
