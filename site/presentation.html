@@ -232,9 +232,43 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .level.wide{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
 /* Loops slide: no left column; the workflow chart takes half the width. */
 .level.wide.flowfirst{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-.level.flowfirst .flow{max-height:62vh}
-.level.flowfirst .flow .lbl{font-size:5.6px}
-.level.flowfirst .flow text.title{font-size:6px}
+/* Slide 11 ring: JS in ring() moves the token and sets .on/.fail/.ok classes; sizes are viewBox units. */
+.ring{display:block;width:100%;max-height:66vh;overflow:visible;font-family:var(--mono)}
+.ring .k-agent{--k:var(--pink)}.ring .k-code{--k:var(--green)}.ring .k-me{--k:var(--indigo)}
+.ring .track{fill:none;stroke:#cbd5e1;stroke-width:2;stroke-dasharray:7 6;animation:ring-march 1.4s linear infinite}
+@keyframes ring-march{to{stroke-dashoffset:-13}}
+.ring .dot circle{fill:var(--paper);stroke:#cbd5e1;stroke-width:1.5;transition:r .3s,fill .3s,stroke .3s}
+.ring .dot text{font:700 12px Inter,system-ui,sans-serif;fill:var(--ink);opacity:0;transition:opacity .3s}
+.ring .dot.on circle{opacity:0}
+.ring .dot.on text{opacity:1}
+.ring .token{fill:var(--k,var(--pink));transition:fill .3s;filter:drop-shadow(0 0 5px var(--k,var(--pink)))}
+.ring .title{font:800 26px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;letter-spacing:-.02em}
+.ring .item{font-size:9px;fill:var(--dim);text-anchor:middle;letter-spacing:.08em}
+.ring .chip rect{fill:var(--paper);stroke:#cbd5e1;stroke-width:1.5;transition:fill .25s,stroke .25s}
+.ring .chip text,.ring .btn text{font-size:10px;text-anchor:middle;dominant-baseline:central}
+.ring .chip text{fill:var(--dim)}
+.ring .chip.on rect{stroke:var(--k);fill:color-mix(in srgb,var(--k) 14%,white)}
+.ring .chip.on text{fill:var(--k);font-weight:700}
+.ring .chip.fail rect{stroke:#dc2626;fill:#fef2f2}.ring .chip.fail text{fill:#dc2626}
+.ring .arrow{stroke:#cbd5e1;stroke-width:1.5;fill:none}
+.ring .back{fill:none;stroke:var(--green);stroke-width:2;stroke-dasharray:5 4;opacity:0;transition:opacity .25s;animation:ring-march .9s linear infinite reverse}
+.ring .back.on{opacity:1}
+.ring .back-lbl{font-size:9px;fill:var(--green);text-anchor:middle;font-weight:700}
+.ring .btn{transform-box:fill-box;transform-origin:center;transition:opacity .3s,transform .12s}
+.ring .btn.hidden{opacity:0}
+.ring .btn rect{fill:var(--paper);stroke:var(--indigo);stroke-width:2;transition:fill .25s,stroke .25s}
+.ring .btn text{fill:var(--indigo);font-weight:700;font-size:11px}
+.ring .btn.press{transform:scale(.9)}
+.ring .btn.ok rect{fill:var(--green);stroke:var(--green)}.ring .btn.ok text{fill:#fff}
+.ring .btn.reject rect{stroke:var(--amber)}.ring .btn.reject text{fill:var(--amber)}
+.ring .btn.reject.ok rect{fill:var(--amber);stroke:var(--amber)}.ring .btn.reject.ok text{fill:#fff}
+.ring .status.back{fill:var(--amber)}
+.ring .status{font-size:10px;text-anchor:middle;font-weight:700;fill:var(--dim)}
+.ring .status.wait{fill:var(--indigo);animation:ring-blink 1s ease-in-out infinite}
+.ring .status.go{fill:var(--green)}
+@keyframes ring-blink{50%{opacity:.35}}
+.ring .cursor{fill:var(--ink);stroke:#fff;stroke-width:1.2;opacity:0;transform:translate(330px,290px);transition:transform .8s cubic-bezier(.3,.7,.4,1),opacity .3s}
+.ring .cursor.in{opacity:1;transform:translate(214px,206px)}
 .level.wide .verdict ul{grid-template-columns:1fr 1fr;gap:clamp(8px,1.5vh,16px) clamp(20px,2vw,40px)}
 .level.wide .verdict li{font-size:clamp(17px,1.25vw,24px)}
 .verdict li b{font-weight:650}
@@ -859,7 +893,7 @@ And once the whole workflow was a rod, I got something I didn't see coming.
       <div class="eyebrow">Down the rabbit hole · then it could loop</div>
       <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
       <div class="level wide flowfirst">
-        <div class="chart"><svg class="flow tool" viewBox="0 0 300 218" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The whole workflow, simplified from pdlc-workflow.md. I write the spec. pdlc next reads the record and sends the active stage (UI and tasks, plan, implement, test or verify) to its skill. The result is checked by a dry-run, a reviewer agent and CI; each failure loops back to the stage on its own, reviews up to three times, and verify can bounce work back to implement. Then pdlc next asks whether it needs me: if not, it auto-advances; if so, I approve or decide, and it goes round again. After verify, I say it is done."><g class="n me" style="--t:0.00s"><rect x="150" y="2" width="80" height="15" rx="3"/><text x="190.0" y="9.5">write the spec</text></g><path class="e" pathLength="1" d="M190 17 V24" style="--t:0.10s"/><g class="n code" style="--t:0.16s"><rect x="145" y="24" width="90" height="15" rx="3"/><text x="190.0" y="31.5">pdlc next</text></g><g class="n frame" style="--t:0.26s"><rect x="2" y="24" width="76" height="128" rx="4"/></g><text class="title lbl" x="7" y="31" style="--t:0.36s">active stage</text><g class="n " style="--t:0.36s"><rect x="8" y="37" width="64" height="15" rx="3"/><text x="40.0" y="44.5">UI + tasks</text></g><g class="n " style="--t:0.46s"><rect x="8" y="58" width="64" height="15" rx="3"/><text x="40.0" y="65.5">plan</text></g><g class="n " style="--t:0.56s"><rect x="8" y="79" width="64" height="15" rx="3"/><text x="40.0" y="86.5">implement</text></g><g class="n " style="--t:0.66s"><rect x="8" y="100" width="64" height="15" rx="3"/><text x="40.0" y="107.5">test</text></g><g class="n " style="--t:0.76s"><rect x="8" y="121" width="64" height="15" rx="3"/><text x="40.0" y="128.5">verify</text></g><path class="e loop back" pathLength="1" d="M72 128.5 H75 V86.5 H72" style="--t:0.86s"/><text class="side lbl" x="4" y="158" style="--t:0.92s">verify can bounce work back</text><path class="e" pathLength="1" d="M145 31.5 H78" style="--t:0.92s"/><text class="side lbl" x="84" y="27.5" style="--t:0.98s">pending · changes</text><path class="e" pathLength="1" d="M78 52 H190 V56" style="--t:0.98s"/><text class="side lbl" x="84" y="48" style="--t:1.04s">skill finishes</text><g class="n code" style="--t:1.04s"><polygon points="144,65 152,56 228,56 236,65 228,74 152,74"/><text x="190" y="65">dry-run valid?</text></g><path class="e loop" pathLength="1" d="M144 65 H78" style="--t:1.14s"/><text class="side lbl" x="84" y="61" style="--t:1.20s">no: fix, re-run</text><path class="e" pathLength="1" d="M190 74 V82" style="--t:1.20s"/><g class="n " style="--t:1.26s"><rect x="150" y="82" width="80" height="15" rx="3"/><text x="190.0" y="89.5">reviewer agent</text></g><path class="e" pathLength="1" d="M190 97 V104" style="--t:1.36s"/><g class="n " style="--t:1.42s"><polygon points="154,113 162,104 218,104 226,113 218,122 162,122"/><text x="190" y="113">findings?</text></g><path class="e loop" pathLength="1" d="M154 113 H78" style="--t:1.52s"/><text class="side lbl" x="84" y="109" style="--t:1.58s">changes, up to ×3</text><path class="e" pathLength="1" d="M190 122 V130" style="--t:1.58s"/><text class="side lbl" x="194" y="126.5" style="--t:1.64s">clean</text><g class="n code" style="--t:1.64s"><polygon points="156,139 164,130 216,130 224,139 216,148 164,148"/><text x="190" y="139">CI green?</text></g><path class="e loop" pathLength="1" d="M156 139 H78" style="--t:1.74s"/><text class="side lbl" x="84" y="135" style="--t:1.80s">red: back to the stage</text><path class="e" pathLength="1" d="M190 148 V156" style="--t:1.80s"/><g class="n code" style="--t:1.86s"><polygon points="156,165 164,156 216,156 224,165 216,174 164,174"/><text x="190" y="165">needs me?</text></g><path class="e loop" pathLength="1" d="M224 165 H289 V31.5 H235" style="--t:1.96s"/><text class="side lbl" x="228" y="161" style="--t:2.02s">no: auto-advance</text><path class="e" pathLength="1" d="M190 174 V182" style="--t:2.02s"/><text class="side lbl" x="194" y="178.5" style="--t:2.08s">yes</text><g class="n me" style="--t:2.08s"><rect x="145" y="182" width="90" height="15" rx="3"/><text x="190.0" y="189.5">approve · decide</text></g><path class="e back" pathLength="1" d="M235 189.5 H296 V31.5 H235" style="--t:2.18s"/><path class="e" pathLength="1" d="M190 197 V203" style="--t:2.24s"/><text class="side lbl" x="194" y="200.5" style="--t:2.30s">after verify</text><g class="n me" style="--t:2.30s"><rect x="165" y="203" width="50" height="13" rx="3"/><text x="190.0" y="209.5">done</text></g></svg><p class="flow-label"><i class="code"></i>code · loops <i class="agent"></i>agent <i class="me"></i>me</p></div>
+        <div class="chart"><svg id="ring" class="ring" viewBox="-50 -6 490 296" role="img" aria-label="One work item going round the workflow forever. Only the active stage is shown. Its checks run in the middle; failures loop back without me. At the human gates it waits until I approve, then carries on."></svg><p class="flow-label"><i class="agent"></i>agent <i class="code"></i>code checks <i class="me"></i>me</p></div>
         <div class="verdict">
           <h3 class="liked">🔁 Loops on its own</h3><ul class="liked"><li style="--d:0.40s"><b>Doesn’t validate? Fix, re-run.</b><span>Tasks and plans are checked as data. Problems go straight back to the agent.</span></li><li style="--d:0.52s"><b>Reviewer wants changes? Revise.</b><span>Up to three passes before anything reaches me.</span></li><li style="--d:0.64s"><b>CI red? Fix it.</b><span>Failed checks go back to the stage that owns them.</span></li><li style="--d:0.76s"><b>Verify found a gap? Bounce it.</b><span>Back to implementation, rework, re-check. Up to three times.</span></li><li style="--d:0.88s"><b>Next task? Take it.</b><span>Implementation goes task by task until none are open.</span></li></ul>
           <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
@@ -869,7 +903,7 @@ And once the whole workflow was a rod, I got something I didn't see coming.
     </div>
     <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
-[Point at the chart.] This is the whole workflow, roughly as it lives in the repo. I write the spec. pdlc next reads the record and hands the active stage to its skill. Then the checks. A dry-run, a reviewer agent, CI. And look at all the green lines. Every one of them is a way back, without me.
+[Point at the ring.] This is one work item going round the workflow. You only see the stage it's in. The agent does the work, then the checks. A dry-run, a reviewer, CI. When one fails, it goes back and fixes it, without me. And when it reaches a gate, it waits. For me. I approve, and it carries on. [At Plan.] Or I don't. Here I ask for changes, and it goes all the way back to Product, and round again.
 
 Tasks or plan don't validate? Back to the agent, fix it, run it again. A reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
@@ -885,7 +919,7 @@ And when it does need me, it's a different kind of review. Before, I reviewed to
 
 So, remember those three jobs? Here's where each one went.
 
-[Chart, lists and the closing line appear on load. The chart is simplified from pdlc-workflow.md.]</aside>
+[Ring, lists and the closing line appear on load. The ring loops forever while this slide is up: once per lap I request changes at Plan (back to Product) and verify sends the item back to Implement.]</aside>
   </section>
 
   <section class="slide answer" aria-labelledby="checking-title" hidden>
@@ -1041,6 +1075,187 @@ let revealed = 0;
 const stepsOf = index => [...slides[index].querySelectorAll('.step')];
 
 // Shows a slide with its first `steps` reveals visible, and keeps the URL hash in sync so a reload stays put.
+// Slide 11: one work item going round the workflow forever. Only the active stage is labelled;
+// its checks run in the middle, failures loop back on green, and human gates wait for an animated approval.
+// show() calls ring.run(true) while slide 11 is on screen and ring.run(false) otherwise.
+const ring = (() => {
+  const svg = document.getElementById('ring');
+  if (!svg) return { run() {} };
+  const NS = 'http://www.w3.org/2000/svg';
+  const CX = 200, CY = 145, RX = 190, RY = 132;
+  // steps: [kind, label]; fail: step that fails once then re-runs; bounce: step that sends the item back to Implement once;
+  // reject: I request changes at this gate once, sending the item back to Product. Each happens once per lap.
+  const STAGES = [
+    { name: 'Product', steps: [['me', 'I write it'], ['agent', 'reviewer']], gate: 'me' },
+    { name: 'UI + tasks', steps: [['agent', 'draft'], ['code', 'dry-run'], ['agent', 'reviewer']], fail: 1, gate: 'me' },
+    { name: 'Plan', steps: [['agent', 'spike + plan'], ['code', 'dry-run'], ['agent', 'reviewer']], fail: 2, gate: 'me', reject: true },
+    { name: 'Implement', steps: [['agent', 'code'], ['agent', 'reviewer'], ['code', 'CI']], fail: 2, gate: 'auto' },
+    { name: 'Test', steps: [['agent', 'tests'], ['agent', 'reviewer'], ['code', 'CI']], gate: 'auto' },
+    { name: 'Verify', steps: [['agent', 'journeys'], ['agent', 'findings']], bounce: 1, gate: 'me' },
+    { name: 'Done', steps: [], gate: 'done' },
+  ];
+  const IMPLEMENT = 3, N = STAGES.length;
+  const angle = i => -Math.PI / 2 + i * 2 * Math.PI / N;
+  const at = a => [CX + RX * Math.cos(a), CY + RY * Math.sin(a)];
+  const make = (tag, attrs, parent = svg, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.append(e);
+    return e;
+  };
+
+  make('ellipse', { class: 'track', cx: CX, cy: CY, rx: RX, ry: RY });
+  const dots = STAGES.map((stage, i) => {
+    const a = angle(i), [x, y] = at(a), c = Math.cos(a), sn = Math.sin(a);
+    const g = make('g', { class: 'dot' });
+    make('circle', { cx: x, cy: y, r: 3.5 }, g);
+    make('text', { x: x + c * 14, y: y + sn * 16 + 4, 'text-anchor': c > .3 ? 'start' : c < -.3 ? 'end' : 'middle' }, g, stage.name);
+    return g;
+  });
+  const token = make('circle', { class: 'token', r: 7 });
+  const title = make('text', { class: 'title', x: CX, y: 92 });
+  const item = make('text', { class: 'item', x: CX, y: 108 });
+  const back = make('path', { class: 'back' });
+  const backLabel = make('text', { class: 'back-lbl', y: 121 });
+  const chips = make('g', {});
+  const btn = make('g', { class: 'btn hidden' });
+  make('rect', { x: CX - 58, y: 188, width: 116, height: 28, rx: 14 }, btn);
+  const btnText = make('text', { x: CX, y: 202 }, btn);
+  const status = make('text', { class: 'status', x: CX, y: 234 });
+  const cursor = make('path', { class: 'cursor', d: 'M0 0V17L4.6 12.8L7.8 20L10.6 18.8L7.4 11.8H13Z' });
+
+  let gen = 0, running = false;
+  // Each await rejects once the slide is left, which unwinds play().
+  const wait = ms => new Promise((ok, stop) => { const g = gen; setTimeout(() => g === gen ? ok() : stop(), ms); });
+  const place = a => { const [x, y] = at(a); token.setAttribute('cx', x); token.setAttribute('cy', y); };
+  const tint = kind => token.setAttribute('class', `token k-${kind}`);
+  const say = (text, cls = '') => { status.textContent = text; status.setAttribute('class', `status ${cls}`); };
+  function travel(from, to, ms = 1000) {
+    const g = gen, t0 = performance.now();
+    return new Promise((ok, stop) => (function step(now) {
+      if (g !== gen) return stop();
+      const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      place(from + (to - from) * e);
+      t < 1 ? requestAnimationFrame(step) : ok();
+    })(t0));
+  }
+
+  // Shows stage i alone: its dot and name, and its steps as chips in the middle.
+  function enter(i) {
+    const stage = STAGES[i];
+    dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    title.textContent = stage.name;
+    chips.replaceChildren();
+    back.classList.remove('on'); backLabel.textContent = '';
+    btn.setAttribute('class', 'btn hidden'); say('');
+    const w = 76, gap = 20, x0 = CX - (stage.steps.length * (w + gap) - gap) / 2;
+    return stage.steps.map(([kind, label], j) => {
+      const x = x0 + j * (w + gap);
+      if (j) make('path', { class: 'arrow', d: `M${x - gap + 3} 155H${x - 4}M${x - 8} 151.5L${x - 4} 155L${x - 8} 158.5` }, chips);
+      const g = make('g', { class: `chip k-${kind}` }, chips);
+      make('rect', { x, y: 143, width: w, height: 24, rx: 6 }, g);
+      make('text', { x: x + w / 2, y: 155 }, g, label);
+      g.mid = x + w / 2;
+      g.kind = kind;
+      return g;
+    });
+  }
+  const light = (list, j) => list.forEach((c, n) => { c.classList.toggle('on', n === j); c.classList.remove('fail'); });
+
+  async function approve(label, done, kind = '') {
+    btnText.textContent = label;
+    btn.setAttribute('class', `btn ${kind}`);
+    tint('me');
+    say('waiting for me', 'wait');
+    await wait(1400);
+    cursor.classList.add('in');
+    await wait(900);
+    btn.classList.add('press');
+    await wait(160);
+    btn.setAttribute('class', `btn ${kind} ok`);
+    btnText.textContent = done;
+    say('');
+    await wait(700);
+    cursor.classList.remove('in');
+    await wait(250);
+  }
+
+  async function play() {
+    gen++;
+    let pbi = 304564;
+    for (;;) {
+      item.textContent = `PBI ${pbi}`;
+      place(angle(0));
+      let bounced = false, rejected = false;
+      const failedOnce = new Set();
+      for (let i = 0; i < N; i++) {
+        const stage = STAGES[i], list = enter(i);
+        let sentBack = false;
+        for (let j = 0; j < list.length; j++) {
+          light(list, j);
+          tint(list[j].kind);
+          await wait(900);
+          if (stage.fail === j && !failedOnce.has(i)) {
+            failedOnce.add(i);
+            list[j].classList.add('fail');
+            back.setAttribute('d', `M${list[j].mid} 141Q${(list[j].mid + list[0].mid) / 2} 112 ${list[0].mid + 4} 140`);
+            back.classList.add('on');
+            backLabel.setAttribute('x', (list[j].mid + list[0].mid) / 2);
+            backLabel.textContent = 'fix, re-run';
+            tint('code');
+            await wait(1400);
+            back.classList.remove('on'); backLabel.textContent = '';
+            j = -1;
+          } else if (stage.bounce === j && !bounced) {
+            bounced = sentBack = true;
+            list[j].classList.add('fail');
+            say('gap found · back to Implement', 'go');
+            tint('code');
+            await wait(1400);
+            break;
+          }
+        }
+        if (sentBack) {
+          await travel(angle(i), angle(IMPLEMENT), 1300);
+          i = IMPLEMENT - 1;
+          continue;
+        }
+        if (stage.gate === 'auto') {
+          tint('code');
+          say('checks pass · moves on', 'go');
+          await wait(1200);
+        } else if (stage.gate === 'done') {
+          await approve('Mark complete', 'Complete ✓');
+          say('next work item ↻', 'go');
+          await wait(1000);
+        } else if (stage.reject && !rejected) {
+          rejected = true;
+          await approve('Request changes', 'Changes requested', 'reject');
+          say('back to Product', 'back');
+          await wait(900);
+          await travel(angle(i), angle(0), 1300);
+          i = -1;
+          continue;
+        } else {
+          await approve('Approve', 'Approved ✓');
+        }
+        tint('agent');
+        if (i < N - 1) await travel(angle(i), angle(i + 1));
+      }
+      await travel(angle(N - 1), angle(N));
+      pbi++;
+    }
+  }
+
+  return {
+    run(on) {
+      if (on && !running) { running = true; play().catch(() => {}); }
+      if (!on && running) { running = false; gen++; }
+    },
+  };
+})();
+
 function show(index, steps) {
   current = index;
   revealed = steps;
@@ -1055,6 +1270,7 @@ function show(index, steps) {
   counter.textContent = `${current + 1} / ${slides.length}`;
   notes.textContent = notesOf(current);
   history.replaceState(null, '', `#${current + 1}`);
+  ring.run(!slides[current].hidden && slides[current].contains(document.getElementById('ring')));
   broadcast();
 }
 
