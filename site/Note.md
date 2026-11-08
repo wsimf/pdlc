@@ -76,7 +76,8 @@ Reference example: slide 1's notes.
 | 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
 | 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
 | 15 | What stuck, and what didn't (7 paired rows on load: ✕ didn't stick · ✓ stuck) | Draft |
-| 16 | Where it could go next (4 cards) + closing question and thanks | Draft |
+| 16 | Where it could go next (4 cards) | Draft |
+| 17 | Thank you. Questions? (title style) | Draft |
 
 ## Presenter tooling
 
@@ -225,3 +226,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slides 15 and 16 merged (17 → 16): "What stuck, and what didn't." Seven rows on load, ✕ didn't stick (dimmed, with why) beside ✓ stuck: checked state, building the brief, a fresh reviewer, context on the work item, only what each step needs, a checked template, recovery printed on failure. The `--help` lesson was dropped (never explained). The closing question and thanks moved to the end of "What's next" (now slide 16).
 - **2026-11-09** — Slide 15 row: "Context on the work item" became "Context written on the PBI itself" (slide and notes).
 - **2026-11-09** — Slide 15: one step raises a real pdlc recovery message (`pdlc post ci 304564`, transient HTTP 502, exit 76, the four recovery steps from `internal/failure.py`) above the last row while the other rows dim. "Telling each agent only what its step needs" gets a subtitle: "Like least privilege: it only hears what it needs to know, so there’s less noise." Notes updated for both.
+- **2026-11-09** — Slide 16 lost the "I’d love to hear…" line (slide and notes). New slide 17: "Thank you. Questions?" in the title-slide style; notes thank the room and open Q&A.
