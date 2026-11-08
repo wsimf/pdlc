@@ -199,3 +199,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 11 ring: code steps (CI) carry a green gear silhouette at bottom-left, so robot = inferred, gear = deterministic, person = me.
 - **2026-11-08** — Slide 11 ring: all three icons (robot, gear, person) sit on the chip's bottom-left corner.
 - **2026-11-08** — Slide 11: new step drops a slanted dark code sheet (real `stages.py` excerpt: PRODUCT_STAGE and UI_STAGE) over the right-hand lists, to land "this is all configured in code". Notes add that line.
+- **2026-11-08** — Slide 11 code sheet: now shows the imports, PRODUCT_STAGE, UI/Tasks/Plan folded like an editor, and IMPLEMENTATION_STAGE (ci_gated, publishes PRs); wider, smaller type so it still clears the closing line.
