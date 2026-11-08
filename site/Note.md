@@ -227,3 +227,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 15 row: "Context on the work item" became "Context written on the PBI itself" (slide and notes).
 - **2026-11-09** — Slide 15: one step raises a real pdlc recovery message (`pdlc post ci 304564`, transient HTTP 502, exit 76, the four recovery steps from `internal/failure.py`) above the last row while the other rows dim. "Telling each agent only what its step needs" gets a subtitle: "Like least privilege: it only hears what it needs to know, so there’s less noise." Notes updated for both.
 - **2026-11-09** — Slide 16 lost the "I’d love to hear…" line (slide and notes). New slide 17: "Thank you. Questions?" in the title-slide style; notes thank the room and open Q&A.
+- **2026-11-09** — Slide 5: removed the "…/Yours might sort differently." column; back to three equal columns. The spoken "not the only buckets" line stays in the notes.
