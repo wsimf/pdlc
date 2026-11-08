@@ -401,7 +401,11 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .prstack .checks{grid-column:1/-1;font:500 .7em var(--mono);color:var(--dim)}
 .prstack .checks em{font-style:normal;font-weight:700;color:var(--pink)}
 /* Slide 18: the closing title, with the sources I drew on to its right. */
-.thanks{display:grid;grid-template-columns:1fr minmax(0,46%);align-items:center;gap:64px}
+.thanks{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,40%);align-items:center;gap:56px}
+.tryit{padding-left:28px;border-left:3px solid var(--teal)}
+.tryit h3{font:600 clamp(13px,1.1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.tryit .repo{margin-top:14px;font:600 clamp(16px,1.35vw,24px) var(--mono);color:var(--teal);overflow-wrap:anywhere}
+.tryit p:not(.repo){margin-top:12px;font-size:clamp(17px,1.4vw,25px);line-height:1.4;color:var(--soft)}
 .sources{padding-left:28px;border-left:3px solid var(--line)}
 .sources h3{font:600 clamp(13px,1.1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .sources ul{margin-top:14px;list-style:none;display:grid;gap:10px}
@@ -1255,6 +1259,11 @@ And last, more workflows. Features are the only one today. Bugs and spikes don't
       <div class="eyebrow">That’s it from me</div>
       <div class="thanks">
         <h1 id="thanks-title">Thank you.<br><span class="grad">Questions?</span></h1>
+        <aside class="tryit reveal" style="--d:.4s" aria-label="Try it">
+          <h3>Try it</h3>
+          <p class="repo">github.com/t3i-tahi-bss/adlc</p>
+          <p>Have a look. Or point your agent at it and ask it what it is.</p>
+        </aside>
         <aside class="sources reveal" style="--d:.6s" aria-label="Sources">
           <h3>Sources</h3>
           <ul><li><b>pstack</b><span class="by">Lauren Tan (@poteto)</span><span class="url">github.com/cursor/plugins/tree/main/pstack</span></li><li><b>T3 Code and tstack</b><span class="by">Theo Browne (@t3dotgg)</span><span class="url">t3.codes · github.com/t3dotgg/tstack</span></li><li><b>How the Claude Code team does code review</b><span class="by">Addy Osmani, Morgan Westlee Lunt, Qing Wang · claude.dev blog</span><span class="url">claude.dev/blog/solving-code-review-at-anthropic</span></li><li><b>Your coding agents made you a manager</b><span class="by">Addy Osmani (@addyosmani) · Anthropic</span><span class="url">x.com/addyosmani/status/2119332146485891501</span></li></ul>
@@ -1262,6 +1271,8 @@ And last, more workflows. Features are the only one today. Bugs and spikes don't
       </div>
     </div>
     <aside class="notes">That's it from me. Thanks for listening.
+
+[Point at the link.] If you're curious, the link's right there. Have a look, or just point your agent at it and ask it what it is.
 
 [Point at the sources.] And these are the sources that shaped how I think about designing my workflows. Some of the principles in pdlc came straight from them, so I wanted to give them credit. They're all worth a read.
 
