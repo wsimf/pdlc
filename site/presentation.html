@@ -249,6 +249,7 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .ring .chip text{fill:var(--dim)}
 .ring .chip.on rect{stroke:var(--k);fill:color-mix(in srgb,var(--k) 14%,white)}
 .ring .chip.on text{fill:var(--k);font-weight:700}
+.ring .who{fill:var(--k)}.ring .chip .who rect,.ring .chip.on .who rect,.ring .chip.fail .who rect{fill:var(--k);stroke:none}.ring .who .eye{fill:var(--paper)}
 .ring .chip.fail rect{stroke:#dc2626;fill:#fef2f2}.ring .chip.fail text{fill:#dc2626}
 .ring .arrow{stroke:#cbd5e1;stroke-width:1.5;fill:none}
 .ring .back{fill:none;stroke:var(--green);stroke-width:2;stroke-dasharray:5 4;opacity:0;transition:opacity .25s;animation:ring-march .9s linear infinite reverse}
@@ -1169,11 +1170,18 @@ const ring = (() => {
       const g = make('g', { class: `chip k-${kind}` }, chips);
       make('rect', { x, y: 143, width: w, height: 24, rx: 6 }, g);
       make('text', { x: x + w / 2, y: 155 }, g, label);
+      // Who does the step: a robot silhouette bottom-left on agent chips, a person bottom-right on mine.
+      if (kind === 'agent') icon(g, ROBOT, x - 7, 158);
+      if (kind === 'me') icon(g, PERSON, x + w - 9, 158);
       g.mid = x + w / 2;
       g.kind = kind;
       return g;
     });
   }
+  // 12×12 silhouettes (drawn at 1.3×) in the chip's colour.
+  const PERSON = '<circle cx="6" cy="3.2" r="3.2"/><path d="M0 12.5C0 7.6 12 7.6 12 12.5Z"/>';
+  const ROBOT = '<path d="M5.4 0h1.2v2.6H5.4Z"/><circle cx="6" cy="0.8" r="1.1"/><rect x="1" y="2.6" width="10" height="8.4" rx="2.2"/><circle class="eye" cx="4" cy="6.6" r="1.2"/><circle class="eye" cx="8" cy="6.6" r="1.2"/><path d="M0 5.5h1v3H0ZM11 5.5h1v3h-1Z"/>';
+  const icon = (parent, shape, x, y) => { const g = make('g', { class: 'who', transform: `translate(${x} ${y}) scale(1.3)` }, parent); g.innerHTML = shape; };
   const light = (list, j) => list.forEach((c, n) => { c.classList.toggle('on', n === j); c.classList.remove('fail'); });
 
   // Draws (or, with no arguments, hides) the arc from chip `from` back to chip `to`, with an arrowhead and a label.
