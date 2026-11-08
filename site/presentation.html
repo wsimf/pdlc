@@ -1243,7 +1243,7 @@ Like this. GitHub had a blip mid-write. pdlc doesn't guess or retry. It says how
         </div>
         <ul class="cards">
           <li class="reveal" style="--d:1.6s"><h3>Small agents, cached prompts</h3><p>Each agent does one job and finishes. Small context, almost always cached.</p></li>
-          <li class="reveal" style="--d:2.1s"><h3>The right model for the job</h3><p>Cheap models run the orchestration. Opus and Sol get the judgment.</p></li>
+          <li class="reveal" style="--d:2.1s"><h3>The right model for the job</h3><p>Small models run the trivial stuff, like writing tests. Opus and Sol get the judgment.</p></li>
         </ul>
       </div>
     </div>
@@ -1259,7 +1259,7 @@ So say you have one long session going. You go out for lunch, come back, and the
 
 With pdlc, each agent does one small job, and then it finishes. The context stays small, and its prompt is almost always cached. And the next step starts fresh, so we're not dragging a big expired context around.
 
-The second thing is using the right model at the right time. Most of the small orchestration work goes to cheap models. The steps that need real judgment go to the bigger ones, like Opus or Sol.
+The second thing is using the right model at the right time. Small models run the trivial stuff, like the orchestration and writing tests. The steps that need real judgment go to the bigger ones, like Opus or Sol.
 
 [Bars and cards come in on load. No steps. Keep it short, about a minute.]</aside>
   </section>
