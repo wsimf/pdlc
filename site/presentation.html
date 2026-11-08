@@ -183,13 +183,14 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .switches b{position:absolute;left:calc(var(--x)*1%);top:calc(var(--y)/var(--lanes,3)*100%);display:grid;place-items:center;width:22px;height:22px;transform:translate(-50%,-50%);border-radius:50%;background:var(--pink);color:#fff;font:700 11px var(--mono);opacity:0;animation:pop .25s var(--at) ease-out forwards}
 @keyframes trace{to{clip-path:inset(-10px 0 -10px 0)}}
 @keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%)}}
-/* Slide 8 only: larger type so its content fills the slide like the example slide does. */
+/* Rabbit-hole slides 6–8: larger type so their content fills the slide like the example slide does. */
 .level.wide.big{grid-template-columns:minmax(0,.95fr) minmax(0,1.3fr) minmax(0,1.75fr);margin-top:clamp(20px,3.5vh,44px)}
 .level.big .words{font-size:clamp(14px,1.25vw,26px)}
 .level.big .words b{font-size:clamp(48px,5vw,104px)}
 .level.big .split-label,.level.big .flow-label{font-size:clamp(14px,1.25vw,26px)}
 .level.big .split{height:18px}
-.level.big .art{max-height:none}
+.level.big .art{max-height:clamp(170px,34vh,400px)}
+.level.big .art.tool{max-height:none}
 .level.big .art .file span{font-size:clamp(12px,1.05vw,21px)}
 .level.big .art .file pre{font-size:clamp(14px,1.3vw,27px)}
 .level.big .flow{max-height:none}
@@ -197,6 +198,9 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .level.big .verdict ul{gap:clamp(12px,2.4vh,30px) clamp(20px,2vw,40px);margin-bottom:clamp(20px,3.6vh,44px)}
 .level.big .verdict li{font-size:clamp(19px,1.6vw,32px)}
 .level.big .verdict li span{margin-top:4px;font-size:clamp(14px,1.1vw,22px)}
+/* Slide 6 has the longest lists: give them more width and tighter rows. */
+.level.wide.big.long{grid-template-columns:minmax(0,.9fr) minmax(0,1fr) minmax(0,2.1fr)}
+.level.big.long .verdict ul{gap:clamp(8px,1.5vh,18px) clamp(20px,2vw,40px);margin-bottom:clamp(14px,2.4vh,30px)}
 /* Before/now slide: slide 4's timeline as a dark outline, slide 15's in colour, both compact. */
 .compare .tl-label{margin-top:clamp(10px,1.8vh,22px);font:600 clamp(12px,1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .compare .tl-label.now{color:var(--teal)}
@@ -570,7 +574,7 @@ So I started handing them over. One level at a time.
     <div class="wrap">
       <div class="eyebrow">Down the rabbit hole · 1 of 3</div>
       <h2 id="skills-title">To hand them over, I wrote down the workflow. <span class="grad">In a skill.</span></h2>
-      <div class="level wide">
+      <div class="level wide big long">
         <div class="how"><p class="words"><b>~400</b> words, read every run</p>
           <div class="meter"><div class="split" role="img" aria-label="all interpreted"><i class="said" style="--w:100"></i><i class="code" style="--w:0"></i></div><p class="split-label">the agent interprets it all</p></div>
           <div class="art"><div class="file"><span>implement/SKILL.md</span><pre># Implement a task
@@ -620,7 +624,7 @@ And the rest? Every word gets read on every run, so it eats the context the actu
     <div class="wrap">
       <div class="eyebrow">Down the rabbit hole · 2 of 3</div>
       <h2 id="loop-title">Then the workflow <span class="grad">became a skill of skills.</span></h2>
-      <div class="level wide">
+      <div class="level wide big">
         <div class="how"><p class="words"><b>~1,500</b> words, across four files</p>
           <div class="meter"><div class="split" role="img" aria-label="all interpreted"><i class="said" style="--w:100"></i><i class="code" style="--w:0"></i></div><p class="split-label">the agent interprets it all</p></div>
           <div class="art"><div class="file"><span>loop/SKILL.md</span><pre>1. Run the write skill.
