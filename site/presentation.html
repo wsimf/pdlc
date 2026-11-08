@@ -945,7 +945,7 @@ Once the whole workflow became a rod, a deterministic CLI which works the same w
     <div class="wrap">
       <div class="eyebrow">Down the rabbit hole · then it could loop</div>
       <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
-      <i class="step ring-go" aria-hidden="true" style="position:absolute"></i>
+      <i class="step ring-go" aria-hidden="true" style="position:absolute"></i><i class="step ring-reject" aria-hidden="true" style="position:absolute"></i>
       <div class="level wide flowfirst">
         <div class="chart"><svg id="ring" class="ring" viewBox="-50 -6 490 296" role="img" aria-label="One work item going round the workflow forever. Only the active stage is shown. Its checks run in the middle; failures loop back without me. At the human gates it waits until I approve, then carries on."></svg><p class="flow-label"><i class="agent"></i>agent <i class="code"></i>code checks <i class="me"></i>me</p></div>
         <div class="step codepaper" aria-label="Excerpt of src/pdlc/domain/workflows/stages.py: imports, the Product stage, the UI, Tasks and Plan stages folded, and the Implementation stage, all declared as data."><div class="codebar">src/pdlc/domain/workflows/stages.py</div><pre><span class="ln"><i>8</i><code><span class="imp">from</span> __future__ <span class="imp">import</span> annotations</code></span><span class="ln"><i>9</i><code> </code></span><span class="ln"><i>10</i><code><span class="imp">from</span> pdlc.domain.stages <span class="imp">import</span> Action, Gate, ReviewerTarget, ReviewPolicy, Stage</code></span><span class="ln"><i>11</i><code> </code></span><span class="ln"><i>12</i><code>PRODUCT_STAGE = <span class="call">Stage</span>(</code></span><span class="ln"><i>13</i><code>    <span class="key">name</span>=<span class="str">&quot;Product&quot;</span>,</code></span><span class="ln"><i>14</i><code>    <span class="key">marker</span>=<span class="str">&quot;PRODUCT&quot;</span>,</code></span><span class="ln"><i>15</i><code>    <span class="key">action</span>=Action.HUMAN_INPUT,</code></span><span class="ln"><i>16</i><code>    <span class="key">autonomous</span>=<span class="kw">False</span>,</code></span><span class="ln"><i>17</i><code>    <span class="key">result_gate</span>=Gate.APPROVAL_REQUIRED,</code></span><span class="ln"><i>18</i><code>    <span class="key">reason</span>=<span class="str">&quot;product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously&quot;</span>,</code></span><span class="ln"><i>19</i><code>    <span class="key">review</span>=<span class="call">ReviewPolicy</span>(</code></span><span class="ln"><i>20</i><code>        <span class="call">ReviewerTarget</span>(<span class="str">&quot;The Product artifact&quot;</span>, <span class="str">&quot;pdlc-product-reviewer&quot;</span>),</code></span><span class="ln"><i>21</i><code>    ),</code></span><span class="ln"><i>22</i><code>    <span class="key">skippable</span>=<span class="kw">False</span>,</code></span><span class="ln"><i>23</i><code>    <span class="key">reauthor_in_place</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>24</i><code>    <span class="key">skill</span>=<span class="str">&quot;pdlc-write&quot;</span>,</code></span><span class="ln"><i>25</i><code>)</code></span><span class="ln"><i>26</i><code> </code></span><span class="ln folded"><i>27</i><code>UI_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln folded"><i>41</i><code>TASKS_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln folded"><i>55</i><code>TECHNICAL_PLAN_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln"><i>68</i><code> </code></span><span class="ln"><i>69</i><code>IMPLEMENTATION_STAGE = <span class="call">Stage</span>(</code></span><span class="ln"><i>70</i><code>    <span class="key">name</span>=<span class="str">&quot;Implementation&quot;</span>,</code></span><span class="ln"><i>71</i><code>    <span class="key">marker</span>=<span class="str">&quot;IMPLEMENTATION&quot;</span>,</code></span><span class="ln"><i>72</i><code>    <span class="key">action</span>=Action.IMPLEMENT,</code></span><span class="ln"><i>73</i><code>    <span class="key">autonomous</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>74</i><code>    <span class="key">result_gate</span>=Gate.REVIEW_REQUIRED,</code></span><span class="ln"><i>75</i><code>    <span class="key">reason</span>=<span class="str">&quot;next eligible delivery task is due&quot;</span>,</code></span><span class="ln"><i>76</i><code>    <span class="key">review</span>=<span class="call">ReviewPolicy</span>(</code></span><span class="ln"><i>77</i><code>        <span class="call">ReviewerTarget</span>(<span class="str">&quot;Production PRs and each task&#x27;s implementation&quot;</span>, <span class="str">&quot;pdlc-implementation-reviewer&quot;</span>),</code></span><span class="ln"><i>78</i><code>    ),</code></span><span class="ln"><i>79</i><code>    <span class="key">ci_gated</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>80</i><code>    <span class="key">publishes_pull_requests</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>81</i><code>    <span class="key">skill</span>=<span class="str">&quot;pdlc-implement&quot;</span>,</code></span><span class="ln"><i>82</i><code>)</code></span></pre></div>
@@ -967,7 +967,7 @@ After that, the agent does the work, and then the checks run. A reviewer, CI. If
 
 And when it reaches a gate, it stops. And waits for me. I read it, I approve it, and off it goes again.
 
-[At Plan.] Or I don't. Here I'm asking for changes, so it goes all the way back to Product, and round again.
+[At Plan, it holds on the review while you talk. Next step: changes needed.] Or I don't. Here I'm asking for changes, so it goes all the way back to Product, and round again.
 
 [Point at the left list.] And there's a lot of looping I never even see. Tasks or plan don't validate? Back to the agent. A reviewer wants changes? It revises, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
@@ -987,7 +987,7 @@ So when it does come to me, it's a different kind of review. Before, I reviewed 
 
 So what happened to all those jobs I used to do between the agents? Here's who does them now.
 
-[Ring, lists and the closing line appear on load; the ring waits at Product. Three steps: the first starts the loop, then the stages.py excerpt falls over the lists, then the Feature and Bug pipelines drop on top of it (the Bug stage list is illustrative; BUG_PIPELINE is registered but has no stages yet). The ring loops forever while this slide is up: once per lap I request changes at Plan (back to Product) and verify sends the item back to Implement.]</aside>
+[Ring, lists and the closing line appear on load; the ring waits at Product. Four steps: the first starts the loop, the second stamps changes needed at Plan (the ring holds on the review until then), then the stages.py excerpt falls over the lists, then the Feature and Bug pipelines drop on top of it (the Bug stage list is illustrative; BUG_PIPELINE is registered but has no stages yet). The ring loops forever while this slide is up: once per lap I request changes at Plan (back to Product) and verify sends the item back to Implement.]</aside>
   </section>
 
   <section class="slide answer" aria-labelledby="checking-title" hidden>
@@ -1297,7 +1297,9 @@ const ring = (() => {
   }
 
   // I read the document, then it is stamped: approved (✓) or changes needed (↺).
-  async function review(ok, verdict) {
+  // The slide's second step (.ring-reject) releases the Plan review, so I can talk over it before the stamp.
+  const rejectReleased = () => !svg.closest('.slide').querySelector('.ring-reject.pending');
+  async function review(ok, verdict, hold) {
     tint('me');
     doc.setAttribute('class', 'doc show');
     say('waiting for approval', 'wait');
@@ -1305,6 +1307,7 @@ const ring = (() => {
     doc.setAttribute('class', 'doc show reading');
     say('');
     await wait(1600);
+    if (hold) while (!hold()) await wait(150);
     stampText.textContent = ok ? '✓' : '↺';
     doc.setAttribute('class', `doc show ${ok ? 'ok' : 'no'}`);
     say(verdict, ok ? 'go' : 'undo');
@@ -1365,7 +1368,7 @@ const ring = (() => {
           await wait(1000);
         } else if (stage.reject && !rejected) {
           rejected = true;
-          await review(false, 'changes needed · back to Product');
+          await review(false, 'changes needed · back to Product', rejectReleased);
           await travel(angle(i), angle(0), 1400);
           i = -1;
           continue;
