@@ -96,8 +96,13 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .questions>div:nth-child(2){animation-delay:.6s}
 .questions>div:nth-child(3){animation-delay:1.2s}
 /* The three jobs: each column lists the switches from the attention chart, as pink chips like its stints. */
+.jobs{grid-template-columns:repeat(3,1fr) .55fr}
+.jobs>div{display:flex;flex-direction:column}
+.jobs .needs{margin-top:auto;padding-top:18px;font-size:clamp(15px,1.3vw,20px);line-height:1.4;color:var(--ink)}
+.questions.jobs>div.open{border-top:3px dashed var(--line);animation-delay:1.8s}
+.jobs .open h3,.jobs .open p{color:var(--dim)}
 .jobs>div>p{margin-top:6px;font-size:clamp(17px,1.6vw,24px);color:var(--soft)}
-.jobs ul{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.jobs ul{display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;margin-top:18px}
 .jobs li{margin:0;padding:8px 12px;border-radius:4px;background:rgba(192,38,211,.16);color:var(--ink);font:600 clamp(14px,1.4vw,21px)/1.2 var(--mono)}
 
 /* The old loop: one 10s cycle where I think, the prompt travels, the agent processes, and the result returns. */
@@ -592,32 +597,35 @@ So more agents wasn't the fix. I needed a way to switch far less. And all that p
 
   <section class="slide" aria-labelledby="jobs-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">Looking back at the switches</div>
-      <h2 id="jobs-title">Every switch was <span class="grad">one of three jobs.</span></h2>
+      <div class="eyebrow">How I sorted the switches</div>
+      <h2 id="jobs-title">Mine fell into <span class="grad">three jobs.</span></h2>
       <div class="questions jobs">
-        <div><h3>Checking</h3><p>Is it right?</p><ul><li>check the diff</li><li>verify in the browser</li><li>ask a reviewer</li><li>run the tests</li><li>fix lint</li><li>covered by requirements?</li><li>new tests written?</li></ul></div>
-        <div><h3>Directing</h3><p>What’s next?</p><ul><li>break down the task</li><li>what’s next?</li></ul></div>
-        <div><h3>Reminding</h3><p>How do we do things here?</p><ul><li>CI failing?</li><li>what did we decide?</li><li>update the board</li></ul></div>
+        <div><h3>Checking</h3><p>Is it right?</p><ul><li>check the diff</li><li>verify in the browser</li><li>ask a reviewer</li><li>run the tests</li><li>fix lint</li><li>covered by requirements?</li><li>new tests written?</li></ul><p class="needs">To hand it over, it needs <b>proof</b>, not “I ran the tests”.</p></div>
+        <div><h3>Directing</h3><p>What’s next?</p><ul><li>break down the task</li><li>what’s next?</li></ul><p class="needs">To hand it over, it needs to <b>know where things stand</b>.</p></div>
+        <div><h3>Reminding</h3><p>How do we do things here?</p><ul><li>CI failing?</li><li>what did we decide?</li><li>update the board</li></ul><p class="needs">To hand it over, it needs <b>writing down once</b>, somewhere that lasts.</p></div>
+        <div class="open"><h3>…</h3><p>Yours might sort differently.</p></div>
       </div>
-      <p class="punch reveal" style="--d:1.9s">None of these needed to be me. <span class="grad">So I started handing them over.</span></p>
+      <p class="punch step">My first try, for all three? <span class="grad">Write it down in a skill.</span></p>
     </div>
-    <aside class="notes">So I went back through all that pink. Every one of those switches.
+    <aside class="notes">So I went back through all that pink, every one of those switches, and tried to sort them.
 
-[Not really happy with this slide. I think it is better to rewrite, maybe use 3 buckets, categorised into…]
+They weren't a pile of different problems. Just a few, over and over. And for me, they fell into three jobs.
 
-And they weren't a pile of different problems. Just a few, over and over. Three jobs, really.
+Checking. Is it right? The diff, the browser, the tests, the review. That's most of it. And to hand that over, it needs proof. Not just the agent telling me "I ran the tests".
 
-Checking. Is it right? The diff, the browser, the tests, the review. That's most of it.
+Directing. What's next? Breaking the task down, then working out what comes after it. For that, it needs to know where things stand.
 
-Directing. What's next? Breaking the task down, then working out what comes after it. Every single time.
+And reminding. How do we do things here? CI's failing, go fix it. What did we decide last week? Go update the board. That needs writing down once, somewhere that lasts.
 
-And reminding. How do we do things here? CI's failing, go fix it. What did we decide last week? Go update the board.
+These are just how I sorted mine. They're not the only buckets. Yours might look different.
 
 None of that needed to be me. It just needed to happen.
 
-So I started handing them over. And the first thing I tried was the obvious one.
+[Next step: the closing line appears.]
 
-[Columns fade in on load. Mostly the same labels as the last slide. Point out how much of it is checking.]</aside>
+So I started handing them over. And my first try, for all three, was the obvious one. Write it down in a skill.
+
+[Columns fade in on load, then the open bucket. Point out how much of it is checking. One arrow-key step: the closing line.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="skills-title" hidden>
