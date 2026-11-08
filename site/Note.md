@@ -250,3 +250,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 11 notes: removed "You only see the stage it's in right now."
 - **2026-11-09** — Slide 11 notes: "the agent does the work, then the checks run…" now comes after the Plan changes-needed beat.
 - **2026-11-09** — Slide 12 notes: "I used to keep prompting the agent to run the tests and fix the lint. Now it just does it." (I never ran them myself.)
+- **2026-11-09** — Slide 14 notes: dropped "I must have said that a hundred times" and "I used to say that a lot too"; component and Storybook lines shortened, component quote now matches the slide.
