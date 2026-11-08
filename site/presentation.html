@@ -252,11 +252,12 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .level.flowfirst .codepaper.pipes{top:auto;bottom:.5vh;right:12vw;width:50%;z-index:3;transform:rotate(1.5deg)}
 .level.flowfirst .codepaper.pipes.pending{transform:rotate(8deg) translate(-30px,-80px) scale(1.05)}
 .codepaper.pipes .ln,.codepaper.cfg .ln{grid-template-columns:1fr}
-/* Slide 14: the repo's config.toml falls over the rows. */
-.answer .wrap{position:relative}
-.answer .codepaper.cfg{position:absolute;top:24%;right:-1vw;width:40%;transform:rotate(-2deg)}
-.answer .codepaper.cfg.pending{transform:rotate(-8deg) translate(40px,-70px) scale(1.05)}
-.codepaper.cfg pre{padding:18px 22px 22px;font-size:clamp(14px,.95vw,18px);line-height:1.55}
+/* Slide 14: the repo's config.toml drops in between the title and the rows, pushing them down. */
+.answer .codepaper.cfg{width:min(1180px,72%);margin-left:auto;max-height:420px;margin-top:clamp(18px,3vh,32px);transform:rotate(-1.2deg);transition:opacity .35s ease,transform .6s cubic-bezier(.2,.9,.3,1.15),max-height .5s ease,margin .5s ease}
+.answer .codepaper.cfg.pending{max-height:0;margin-top:0;transform:rotate(-6deg) translateY(-40px)}
+.codepaper.cfg pre{display:grid;grid-template-columns:auto auto;column-gap:72px;justify-content:start;padding:16px 24px 20px;font-size:clamp(14px,1vw,19px);line-height:1.55}
+.codepaper.cfg .all{grid-column:1/-1}
+.codepaper.cfg .col{display:block}
 .codepaper .cm{color:#6b7280;font-style:italic}
 .codepaper .str{color:#98c379}.codepaper .kw{color:#56b6c2}.codepaper .key{color:#e5a46a}.codepaper .call{color:#61afef}
 /* Slide 11 ring: JS in ring() moves the token and sets .on/.fail/.ok classes; sizes are viewBox units. */
@@ -1058,6 +1059,7 @@ So I stopped switching all day. Now I mostly just decide.
     <div class="wrap">
       <ol class="qtabs" aria-label="The three jobs"><li>Checking</li><li>Directing</li><li class="on">Reminding</li></ol>
       <h2 id="reminding-title">Reminding. <span class="grad">Written down once, not said every time.</span></h2>
+      <div class="step codepaper cfg" aria-label="flex.2degrees.nz .pdlc/config.toml: build-run uses the flex-feedback-loop skill, ux-design the flex-design-system-v2 skill, and ui-implementer the frontend-vue-expert agent; the other slots are left unset, so the agent does those steps itself."><div class="codebar">flex.2degrees.nz/.pdlc/config.toml</div><pre><span class="ln all"><code><span class="cm"># Plug this repo&#x27;s own skills into the workflow.</span></code></span><span class="col"><span class="ln"><code><span class="call">[skills]</span></code></span><span class="ln"><code><span class="key">build-run</span> = <span class="str">"flex-feedback-loop"</span></code></span><span class="ln"><code><span class="key">ux-design</span> = <span class="str">"flex-design-system-v2"</span></code></span><span class="ln"><code><span class="cm"># test-authoring    = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># cumulative-review = &quot;…&quot;</span></code></span></span><span class="col"><span class="ln"><code><span class="call">[agents]</span></code></span><span class="ln"><code><span class="key">ui-implementer</span> = <span class="str">"frontend-vue-expert"</span></code></span><span class="ln"><code><span class="cm"># core-implementer = &quot;…&quot;</span></code></span></span><span class="ln all"><code><span class="cm"># Left unset? The agent does that step itself.</span></code></span></pre></div>
       <ul class="fixes">
         <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
         <li><span class="was">“Reuse the existing component”</span><span class="arrow" aria-hidden="true">→</span><span class="now">Plans start from a spike of the current code<small>pdlc-plan</small></span></li>
@@ -1065,7 +1067,6 @@ So I stopped switching all day. Now I mostly just decide.
         <li><span class="was">Re-explain why we built it that way</span><span class="arrow" aria-hidden="true">→</span><span class="now">Requirements and decisions live on the work item<small>the board</small></span></li>
         <li><span class="was">Carry it on in my own session</span><span class="arrow" aria-hidden="true">→</span><span class="now">Any agent, or teammate, picks up from the record<small>pdlc inspect</small></span></li>
       </ul>
-      <div class="step codepaper cfg" aria-label="flex.2degrees.nz .pdlc/config.toml: build-run uses the flex-feedback-loop skill, ux-design the flex-design-system-v2 skill, and ui-implementer the frontend-vue-expert agent; the other slots are left unset, so the agent does those steps itself."><div class="codebar">flex.2degrees.nz/.pdlc/config.toml</div><pre><span class="ln"><code><span class="cm"># Plug this repo&#x27;s own skills into the workflow.</span></code></span><span class="ln"><code><span class="call">[skills]</span></code></span><span class="ln"><code><span class="key">build-run</span> = <span class="str">"flex-feedback-loop"</span></code></span><span class="ln"><code><span class="key">ux-design</span> = <span class="str">"flex-design-system-v2"</span></code></span><span class="ln"><code><span class="cm"># test-authoring    = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># cumulative-review = &quot;…&quot;</span></code></span><span class="ln"><code> </code></span><span class="ln"><code><span class="call">[agents]</span></code></span><span class="ln"><code><span class="key">ui-implementer</span> = <span class="str">"frontend-vue-expert"</span></code></span><span class="ln"><code><span class="cm"># core-implementer = &quot;…&quot;</span></code></span><span class="ln"><code> </code></span><span class="ln"><code><span class="cm"># Left unset? The agent does that step itself.</span></code></span></pre></div>
       <p class="punch">The chat became disposable. <span class="grad">The record didn’t.</span></p>
     </div>
     <aside class="notes">And the last one. Reminding.
@@ -1092,7 +1093,7 @@ Which means anyone can pick it up. Another agent. A teammate. Or me, next week, 
 
 So the chat's disposable now. The record isn't.
 
-[Rows come in on load. One step: the flex.2degrees.nz config.toml falls over the rows.]</aside>
+[Rows come in on load. One step: the flex.2degrees.nz config.toml drops in under the title and pushes the rows down.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="lessons-title" hidden>
