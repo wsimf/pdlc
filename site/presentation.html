@@ -559,19 +559,19 @@ So more agents wasn't the fix. I needed a way to switch far less. And all that s
       </div>
       <p class="punch reveal" style="--d:1.9s">None of these needed to be me. <span class="grad">So I started handing them over.</span></p>
     </div>
-    <aside class="notes">So I looked back at all that pink. Every one of those switches.
+    <aside class="notes">So I went back through all that pink. Every one of those switches.
 
-And honestly? They weren't sixteen different problems. They were three jobs.
+And they weren't a pile of different problems. Just a few, over and over. Three jobs, really.
 
 Checking. Is it right? The diff, the browser, the tests, the review. That's most of it.
 
-Directing. What's next? Breaking the task down. Then working out what comes after it, every single time.
+Directing. What's next? Breaking the task down, then working out what comes after it. Every single time.
 
-And reminding. How do we do things here? CI's failing, go and fix it. What did we decide last week? Go and update the board.
+And reminding. How do we do things here? CI's failing, go fix it. What did we decide last week? Go update the board.
 
 None of that needed to be me. It just needed to happen.
 
-So I started handing them over. One level at a time.
+So I started handing them over. And the first thing I tried was the obvious one.
 
 [Columns fade in on load. Mostly the same labels as the last slide. Point out how much of it is checking.]</aside>
   </section>
@@ -603,25 +603,25 @@ So I started handing them over. One level at a time.
         </div>
       </div>
     </div>
-    <aside class="notes">So how do you hand a job over? You write down the workflow. The steps, the checks, what to do when something fails. And I put it in a skill. Instructions the agent reads every single run.
+    <aside class="notes">I wrote it down. The whole workflow. The steps, the checks, what to do when something fails. And I put it in a skill, so the agent reads it every single run.
 
 [Point at the file.] About four hundred words. Read the task, check the requirements, run the tests, open a PR, fix CI.
 
-And look underneath. These are the calls I used to make, now written into the skill. If it's a UI change, add a story. Tests fail? Read the log and fix it. And there's always another unless.
+And look at all the ifs. If it's a UI change, add a story. If the tests fail, read the log and fix it. Those were the calls I used to make. Now they're written down.
 
-What did I like? I wrote it once. No more retyping. The agent did the checks without me asking. And anyone on the team could use it.
+And I liked it. I wrote it once, so no more retyping. The agent did the checks without me asking. And anyone on the team could use it.
 
-But. It's followed. Mostly. The agent reads it and decides what it means, every run. Same skill, different result.
+But it's only followed, mostly. The agent reads it and decides what it means, every run. Same skill, different result.
 
 It only grows. Every time something goes wrong, I add another if, another unless.
 
-There's no state. Every new session asks, which task am I on? Did the tests pass? And someone has to answer that. Usually me.
+It doesn't know where things stand. Every new session asks, which task am I on? Did the tests pass? And someone has to answer. Usually me.
 
-What's next is still on me. One skill, one job.
+It does one job. Deciding what comes next is still on me.
 
-And I can't prove it did any of it. The agent says, I ran the tests. So I check anyway. And the checking job comes right back.
+And I can't prove it did any of it. The agent says it ran the tests, so I check anyway. And there's the checking job again.
 
-And the rest? Every word gets read on every run, so it eats the context the actual code needs. And I can't unit-test prose. I find out it broke when a run goes wrong.
+On top of that, every word gets read on every run, so it eats the context the code needs. And I can't unit-test prose. I only find out it broke when a run goes wrong.
 
 [The slide shows only the headlines; the detail lives here. Lists appear on load.]</aside>
   </section>
@@ -642,21 +642,23 @@ And the rest? Every word gets read on every run, so it eats the context the actu
         </div>
       </div>
     </div>
-    <aside class="notes">Then I noticed I was calling the same skills in the same order. Every time. So the workflow itself became a skill. A skill that calls the other skills.
+    <aside class="notes">Then I noticed I was running the same skills, in the same order, every time. So the workflow itself became a skill. One skill that calls the others.
 
 [Point at the flowchart.] Write starts plan. Plan starts review. And review can send it back. Flowcharts starting flowcharts.
 
-And I loved it at first. One prompt, and the whole thing runs. I stopped re-prompting between steps. Each skill stayed small. And if review didn't like it, the work went back before it ever got to me.
+At first I loved it. One prompt, and the whole thing runs. No re-prompting between steps. Each skill stayed small. And if review didn't like something, the work went back before it ever reached me.
 
-But look at the numbers. Fifteen hundred words now, across four files. And the agent isn't just interpreting each skill. It's interpreting the order too.
+But look at the count. Around fifteen hundred words now, across four files. And the agent isn't just interpreting each skill anymore. It's interpreting the order too.
 
 So mistakes compound. Skip one step early, and everything after it is quietly wrong.
 
-And there's still no state. If the session dies halfway through, nothing knows where it got to.
+It still doesn't know where things stand. If the session dies halfway, nothing knows where it got to.
 
-It all lives in one long session. Hard to pause. Hard to hand over. And when it goes wrong, good luck finding which skill, which line, which run.
+And it all lives in one long session. Hard to pause, hard to hand over. When it goes wrong, good luck finding which skill, which line, which run.
 
 [Your story: the moment the skill of skills went sideways.]
+
+So the problem wasn't the skills. It was asking the agent to interpret the workflow at all.
 
 [The slide shows only the headlines; the detail lives here. Lists appear on load.]</aside>
   </section>
@@ -678,19 +680,19 @@ action: pdlc-plan
         </div>
       </div>
     </div>
-    <aside class="notes">So I tried something different. I took the workflow out of the prose, and put it in a tool. Instead of telling the agent how to do it, I had it build something that does it.
+    <aside class="notes">So I took the workflow out of the prose and put it in a tool. Instead of telling the agent how to run the workflow, I had it build something that runs it.
 
 One command decides what's next. The loop skill just asks it, and does what it says.
 
-All that branching about what comes next? The workflow? It went into code. And look what's left. It's a loop. The green is code: inspect the work item, publish the result, check if it needs my review. The purple is the agent, doing the actual skill. Doesn't need me? Back to inspect, go round again. Needs me? It waits for my review.
+[Point at the chart.] All that branching shrinks into a loop. The green is code. Inspect the work item, publish the result, check if it needs a human review. The purple is the agent, doing the actual skill. No review needed? Back to inspect, round again. Review needed? It waits for me.
 
-And look at the colours. The workflow is green now. It's code, same answer every time. The work itself is still skills, still judgement. That's the part I actually want the agent thinking about.
+So the workflow is code now, and it behaves the same way every run. The work itself is still skills, still judgement. And that's the part I actually want the agent thinking about.
 
-What I liked. Same answer every time. Where things stand lives on the record, not in a chat. Before a stage moves on, the evidence has to be there. And it's code, so I can test it. The skills got focused, none of them decides what comes next. And it only stops when it needs me. Approvals, decisions, blockers.
+What I liked. Same answer every time. Where things stand lives on the record, not in a chat. A stage can't move on until its evidence is there. It's code, so I can test it. The skills got focused, and none of them decides what comes next. And it only stops when it needs me. Approvals, decisions, blockers.
 
-What I didn't. It's more to build, and more to maintain. Changing the workflow means changing code, not a sentence. And there are new ways to fail. A network error halfway through a write, and now it needs a way to recover.
+What I didn't. It's more to build and maintain. Changing the workflow means changing code, not a sentence. And there are new ways to fail. A network error halfway through a write, and now it needs a way to recover.
 
-But that trade was worth it. That's where it changed for me.
+But that trade was worth it. Let me show you what it looks like in practice.
 
 [On load the old tangle shrinks into the loop; green is code, purple the agent, indigo me. Word counts and flowcharts are illustrative, not measured.]</aside>
   </section>
@@ -802,27 +804,21 @@ The next task pending a Technical Plan is 3054303.</pre>
         </div>
       </div>
     </div>
-    <aside class="notes">Here's what that looked like for me.
+    <aside class="notes">Here's a question I asked all the time. What's next on this work item?
 
-I'd ask the agent, what's next on this work item?
+On the left is the skill it used to follow. Authenticate. Find the item. Read every comment. Check the PRs. Check CI. Work out what's next, unless, unless, unless.
 
-On the left, that's the skill it had to follow. Authenticate. Find the item. Read every comment. Check the PRs. Check CI. Work out what's next, unless, unless, unless.
-
-Every session, it read all of that. Ran every step. And came out with a slightly different answer.
+Every session, it read all of that, ran every step, and came out with a slightly different answer.
 
 [Next step: reveal the tool.]
 
-So I had it build a tool instead.
-
-Now the whole skill is two lines. Run this. Do what it says.
+So I had it build a tool instead. Now the whole skill is two lines. Run this. Do what it says.
 
 [Next step: reveal the output.]
 
 The tool does the gathering and the checking. The agent just reads the answer. Same answer, every time.
 
-And all the context it used to burn on the routine? It spends that on the actual work now.
-
-And once I had that, I could finally start handing those three jobs over.
+And all the context it used to burn on the routine goes into the actual work now.
 
 [My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
   </section>
@@ -869,19 +865,19 @@ And once I had that, I could finally start handing those three jobs over.
       </div>
       <p class="punch">Before, I reviewed to find out if it worked. <span class="grad">Now I review to decide if it’s what I want.</span></p>
     </div>
-    <aside class="notes">Now, some of you are thinking. Hang on. It still needs your review. So did slide four. What's the difference?
+    <aside class="notes">Now, you might be thinking, hang on. It still waits for your review. That's what slowed you down before. So what's actually different?
 
-[Point at the outline.] That's what I used to do. Sixteen switches. Every agent stopping mid-task, waiting on me to check its work.
+[Point at the outline.] That's before. Every agent stopping mid-task, waiting for me to check its work.
 
-[Point at the colour.] And this is now. Same three agents. Two switches.
+[Point at the colour.] And this is now. Same three agents. Two reviews.
 
 And look at my lane. That's not idle time. Specing the next feature. Talking to users. Helping the team. The work only I can do.
 
-So what changed? When I review. Before, constantly, mid-task. Now, once per stage, at a gate.
+Three things changed. When I review. Before, constantly, mid-task. Now, once, when a stage is finished.
 
-What arrives. Before, raw output. Did it even run the tests? Now it's already tested, reviewed by another agent, CI is green, and the evidence is attached.
+What reaches me. Before, raw output. Did it even run the tests? Now it's tested, reviewed by another agent, CI is green, and the evidence is attached.
 
-And what I'm actually doing. Before, all three jobs. Checking, directing, reminding. Now just one. Deciding.
+And my job. Before, all three. Checking, directing, reminding. Now just one. Deciding.
 
 Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.
 
@@ -904,21 +900,23 @@ If it fails, read its log and fix.</pre></div></div></div>
         </div>
       </div>
     </div>
-    <aside class="notes">So what stuck with me from all of that?
+    <aside class="notes">Looking back, one idea did most of the work here.
 
-I saw a video a while back, and one line stayed with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
+I saw a video a while back, and one line stuck. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
 
-I'd take it one step further. Get it to build the rod. Then get it to write a skill on how to use it.
+I'd take it one step further. Get it to build the rod, then get it to write a skill on how to use it.
 
-[Point at the chart.] Bare-handed, I ask, the agent works it out, and I get a slightly different answer. Every session. With a rod, the skill picks the tool, and the tool does it the same way every time.
+[Point at the chart.] Bare-handed, I ask, the agent works it out, and I get a slightly different answer every session. With a rod, the skill picks the tool, and the tool does it the same way every time.
 
-I kept pushing harder on the agent. More prompts. More agents. And I got less back. Building rods helped way more than writing better prompts.
+For a long time I just pushed the agent harder. More prompts, more agents. And I got less back. Building rods helped far more than writing better prompts.
 
-And it saves context. The agent spends it on the actual problem, not rediscovering the routine.
+It saves context too. The agent spends it on the actual problem, not rediscovering the routine.
 
-The agent's still the one fishing. It's just not doing it with its bare hands anymore. Code for the process, skills for the judgement. That's the mix from the start.
+The agent's still the one fishing. Just not with its bare hands. Code for the process, skills for the judgement. The mix from the start.
 
 My rough rule now. If I've asked for it twice, it might be worth a tool. And a skill to use it.
+
+And once the whole workflow was a rod, I got something I didn't see coming.
 
 [Chart and lists appear on load. The script on the left stands in for any small tool.]</aside>
   </section>
@@ -941,19 +939,21 @@ verify  gap → bounce → impl
         </div>
       </div>
     </div>
-    <aside class="notes">Here's the thing I didn't see coming. Once the workflow gave the same answer every time, I could trust it to go round again.
+    <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
 [Point at the chart.] This is the whole workflow. Spec, tasks, plan, implement, test, verify. And look at all the little green loops.
 
-Tasks or plan don't validate? Back to the agent, fix it, run it again. Reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? It bounces back to implementation, and round it goes.
+Tasks or plan don't validate? Back to the agent, fix it, run it again. A reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
 None of that needs me. Before, every one of those was me. Checking, re-prompting, reminding.
 
-So what does need me? The indigo. I write the spec. I approve each stage. I make the calls, product, scope, anything risky. And I say when it's done.
+So what does need me? The indigo. I write the spec. I approve each stage. I make the calls on product, scope, anything risky. And I say when it's done.
 
-That's it. Everything in between just loops, until it needs me.
+Everything in between just loops, until it needs me.
 
 [Your story: the first time it ran on its own and you came back to a stage waiting for your approval.]
+
+So, remember those three jobs? Here's where each one went.
 
 [Chart and lists appear on load. The run output on the left is illustrative.]</aside>
   </section>
@@ -971,13 +971,13 @@ That's it. Everything in between just loops, until it needs me.
       </ul>
       <p class="punch">When it reaches me, <span class="grad">it’s already been checked.</span></p>
     </div>
-    <aside class="notes">So, checking. The biggest one.
+    <aside class="notes">Checking first. The biggest one.
 
-Tests and lint? The agent runs them, and when CI fails or a reviewer leaves a comment on the PR, it fixes it. I'm not watching for that anymore.
+Tests and lint, the agent runs them. And when CI fails or a reviewer comments on the PR, it fixes that too. I'm not watching for it anymore.
 
-The review doesn't come from the agent that wrote it. Every stage has its own reviewer. The plan, the code, the tests.
+The review doesn't come from the agent that wrote the work. Every stage has its own reviewer. The plan, the code, the tests.
 
-Every requirement gets an ID. And the testing stage has to show which test covers which requirement. So "did it write tests for this?" isn't a question I ask anymore.
+Every requirement gets an ID, and the testing stage has to show which test covers which requirement. So "did it write tests for this?" isn't a question I ask anymore.
 
 And before anything's done, a verification stage actually walks through the user journeys.
 
@@ -1001,15 +1001,15 @@ So by the time it gets to me, it's already been checked.
       </ul>
       <p class="punch">I stopped switching. <span class="grad">I started deciding.</span></p>
     </div>
-    <aside class="notes">Next, directing.
+    <aside class="notes">Then directing.
 
 I used to break every task down myself. Now a planner does it. Tasks, dependencies, acceptance criteria. I review it, I don't write it.
 
-I used to re-prompt after every step. Now the agent asks the record. pdlc inspect. It says what's due next, and that's what it does.
+I used to re-prompt after every step. Now the agent asks the record what's due next, and does that.
 
 And one loop works through the whole queue. I'm not the one nudging each agent along.
 
-It still stops for me. But only for two things. An approval, or a decision only I can make.
+It still stops for me, but only for two things. An approval, or a decision only I can make.
 
 So I stopped switching all day. Now I mostly just decide.</aside>
   </section>
@@ -1027,11 +1027,11 @@ So I stopped switching all day. Now I mostly just decide.</aside>
       </ul>
       <p class="punch">The chat became disposable. <span class="grad">The record didn’t.</span></p>
     </div>
-    <aside class="notes">And the last one. Reminding.
+    <aside class="notes">And the last one, reminding.
 
 "We've already got a component for that." I said that a lot. Now the plan starts from a spike of the actual code, so it finds that stuff before anyone writes a line.
 
-"Add a Storybook story." That's how my repo works, not how every repo works. So each repo plugs its own skills into each step.
+"Add a Storybook story." That's how my repo works, not every repo. So each repo plugs its own skills into each step.
 
 And the reasons don't die with the chat anymore. Requirements and decisions live on the work item, on the board.
 
@@ -1052,7 +1052,15 @@ The chat's disposable now. The record isn't.</aside>
         <li class="reveal" style="--d:1.3s"><h3>One source of truth</h3><p>Copying a tool’s <code>--help</code> into instructions went stale fast. Pointing at it worked better.</p></li>
       </ul>
     </div>
-    <aside class="notes">[Draft from the repo history: replace with your own "I thought X, then learned Y" stories.]</aside>
+    <aside class="notes">A few things I had to learn the hard way.
+
+Prose drifts, state doesn't. Anything a later step depends on, I ended up turning into checked data. Not a sentence for an agent to interpret.
+
+Hand over the context. When agents gathered their own, I got different results every time. When I built their brief, every run started from the same scope.
+
+And keep one source of truth. I used to copy a tool's help text into the instructions, and it went stale fast. Pointing at the help worked better.
+
+[Your story: swap in your own "I thought X, then learned Y" if you have a sharper one.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="takeaway-title" hidden>
@@ -1067,7 +1075,19 @@ The chat's disposable now. The record isn't.</aside>
       </ul>
       <p class="punch reveal" style="--d:2.4s">I’d love to hear: <span class="grad">what do you keep asking your agent to do?</span></p>
     </div>
-    <aside class="notes">[End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
+    <aside class="notes">So if any of this resonates, here are a few things you might try.
+
+Next time you ask your agent for the same thing twice, see whether a small tool could do it.
+
+Keep the context out of the chat. Somewhere that outlives the session, so you're not repeating yourself.
+
+Agree on what done looks like before an agent starts.
+
+And get a separate reviewer. A fresh agent checking the work against the requirement, not against its own summary.
+
+That's me. I'd love to hear from you. What do you keep asking your agent to do?
+
+[End on the question, then open for discussion. Everyone's setup is different, so invite people to share what worked or didn't for them.]</aside>
   </section>
 </main>
 <aside id="notes" aria-live="polite" hidden></aside>

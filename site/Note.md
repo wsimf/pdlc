@@ -175,3 +175,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 8: bar removed; "routing is code, work is skills" moved under the code/agent/me legend; notes now say "look at the colours". Diamond reads "needs human review?".
 - **2026-11-08** — Slide 8: "routing" became "workflow" in the legend note ("workflow is code, work is skills"), the Liked item and the notes.
 - **2026-11-08** — Slide 8: "workflow is code, work is skills" in Inter 600 (soft), matching the counter line, not mono.
+- **2026-11-08** — Notes for slides 5–17 rewritten for flow: each slide now hands off to the next (5 → "the obvious one", 7 → "interpret the workflow at all", 8 → "show you in practice", 11 → "didn't see coming", 12 → "where each job went"); slide 5 says "just a few, over and over" instead of sixteen; lessons and takeaway now have spoken notes.
