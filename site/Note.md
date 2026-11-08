@@ -174,3 +174,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 7: all-pink bar and "the agent interprets it all" removed (as on slide 6). Slide 8 keeps its half-and-half bar.
 - **2026-11-08** — Slide 8: bar removed; "routing is code, work is skills" moved under the code/agent/me legend; notes now say "look at the colours". Diamond reads "needs human review?".
 - **2026-11-08** — Slide 8: "routing" became "workflow" in the legend note ("workflow is code, work is skills"), the Liked item and the notes.
+- **2026-11-08** — Slide 8: "workflow is code, work is skills" in Inter 600 (soft), matching the counter line, not mono.
