@@ -454,17 +454,15 @@ So, like most of you, I use coding agents every day.
 
 And for a long time I used them the same way. I'd write a prompt. It'd do something. I'd read it, then prompt again.
 
-It's basically taking turns. It's working, I'm waiting. I'm thinking, it's waiting.
+It's basically like taking turns. When it is working, I'm waiting, and when I'm thinking, it's waiting.
 
-And that's fine, it works. But the agent only goes as fast as I do. And honestly, two of those at once is about my limit.
+And that's fine, it works. But the agent only goes as fast as I do. And I felt I can only handle two or three of them at most at a time.
 
 So I tried to get out of that loop.
 
-Plan mode first. Agree the plan, let it run. Less back and forth, which was great. But it'd tell me it was done, and it wasn't. Or it was done, just not what I wanted.
+Tried planning things first. We agree the plan, and let it run. Less back and forth, which was great. But the agent would tell me it was done, and with my expectations, I don't think it was. Or it was done, but not what I wanted.
 
-Then cloud agents. Now it's running without me, nice. But I couldn't really see what it was doing. And I wasn't comfortable putting my name on that.
-
-To be clear, I still use all of these. Every day.
+I still use these tools every day.
 
 But it got me wondering. What would it actually take to trust an agent with work I'm not watching?</aside>
   </section>
@@ -478,21 +476,21 @@ But it got me wondering. What would it actually take to trust an agent with work
         <li><h3>How I arrived here</h3><p>The steps I took, the problems each one solved, and the mistakes along the way.</p></li>
       </ul>
     </div>
-    <aside class="notes">So, short version first.
+    <aside class="notes">So, summary of the talk.
 
-If I want to leave an agent alone, two things have to be true. It can't be waiting on me for every step. And by the time it comes back to me, it's already been checked.
+If I want to leave an agent alone, two things have to be true. It can't be waiting on me for every step. And by the time it comes back to me, it should have already been checked.
 
-Tested. Reviewed by other agents. The small stuff already caught and fixed.
+Tested. Reviewed by other agents. The small stuff should have been already caught and fixed.
 
-So when it lands on my desk, I'm not starting the review from scratch. I'm fairly confident it's already close to what I actually wanted.
+So when it lands on my desk, I'm not starting the review from scratch. And I need to be fairly confident it's already close to what I actually wanted.
 
 Getting there took a while.
 
-When I only used prompts, I was leaving too much up to the agent. Same instructions, different run, slightly different result. It'd skip a step. Or tell me it was done when it wasn't.
+Prompts on their own left too much to the agent. Same instructions, different run, slightly different result. It'd skip a step. Or tell me it was done when it wasn't.
 
-And when I only used scripts, it went the other way. They're great at doing the same steps every time. But they can't make a judgement call. They can't read a requirement and work out what someone actually meant.
+Scripts on their own went the other way. Too little. They're great at doing the same steps every time. But they can't make a judgement call. They can't read a requirement and work out what someone actually meant.
 
-What actually worked was the mix. Code for the process. Skills for the judgement.
+What worked was the mix. Code for the process. Skills for the judgement.
 
 The rest of this is how I got there. What I tried, what broke, and what I'd do differently.</aside>
   </section>
@@ -528,9 +526,9 @@ It comes back. I verify it in the browser, ask for a review, run the tests. And 
 
 Back and forth. All day. Like I said, we take turns.
 
-And look. Only one of us is ever working at a time.
+Look at it. Only one of us is ever working at a time.
 
-And all that grey? That's this task, on hold, until the agent comes back.
+And all that grey? That's this task, on hold, until the agent came back.
 
 So I thought, I could be using that time.
 
@@ -569,23 +567,25 @@ So I thought, I could be using that time.
 
 And at first glance, this looks way better. Much less on hold. Something's always moving. Less time wasted.
 
-But it's not as good as it looks.
+But looks can be deceiving.
 
-That dark line is me. Every jump is me switching to another agent.
+That dark line is me. Every jump is me context switching to another agent.
 
 Every time one finished, I was checking its work, then jumping straight to the next one.
 
 Meanwhile, look at the agents. A bit of work, then red. Blocked. On me.
 
-It looked parallel. But really, I was the bottleneck. Only one of them could have me at a time.
+It looked parallel. But I was the mutex. Only one of them could have me at a time.
 
-Before, I was waiting on the agent. Now they were all waiting on me.
+Earlier, I was waiting on the agent. Now I felt like they were all waiting on me.
 
-And the toll was on me. Honestly, the switching was the hardest part. Two agents was my max. Maybe three, if I was really in the flow. Any more, and I was wasting time. Just working with one agent, back and forth, was better.
+And the toll was on me. Context switching was the hardest part. Two agents was my max. Maybe three, if I was really in the flow. Any more, and I felt like I was going insane, and I am wasting time.
 
-This one didn't stick for me.
+I felt working with one agent, back and forth, was better and somehow faster.
 
-More agents wasn't the fix. I needed a way to switch far less. And all that stuff in between? That needed to happen without me.
+This didn't stick for me.
+
+So more agents wasn't the fix. I needed a way to switch far less. And all that pink stuff in between? That needed to happen without me.
 
 [Let the line draw and the counter run before talking over it. Point at a few pink blocks as you name them. Everything shows on load; no steps. Timeline is illustrative, not measured.]</aside>
   </section>
@@ -602,6 +602,8 @@ More agents wasn't the fix. I needed a way to switch far less. And all that stuf
       <p class="punch reveal" style="--d:1.9s">None of these needed to be me. <span class="grad">So I started handing them over.</span></p>
     </div>
     <aside class="notes">So I went back through all that pink. Every one of those switches.
+
+[Not really happy with this slide. I think it is better to rewrite, maybe use 3 buckets, categorised into…]
 
 And they weren't a pile of different problems. Just a few, over and over. Three jobs, really.
 
@@ -647,19 +649,19 @@ So I started handing them over. And the first thing I tried was the obvious one.
     </div>
     <aside class="notes">I wrote it down. The whole workflow. Every step, every check, what to do when something fails. And I put it in a skill, so the agent reads it every single run.
 
-[Point at the file.] It's about four hundred words. Read the task, check the requirements, look for an existing component, run the tests, open a PR, fix CI.
-
-And look at all the ifs. If it's a UI change, add a story. If a test fails, read the log and fix it. Those were all calls I used to make myself. Now they were written down.
+[Point at the file.] At the beginning it was around four hundred words. Read the task, check the requirements, run the tests, open a PR, fix CI.
 
 And honestly, I liked it. I wrote it once, so no more typing the same thing over and over. The agent did the checks without me asking. And anyone on the team could pick it up and use it.
 
 But it only got followed, mostly. The agent reads it and decides what it means. Every run. Same skill, slightly different result.
 
-And it only ever grew. Something goes wrong, I add another if. Another unless.
+And look at all the ifs. If it's a UI change, add a story. If a test fails, read the log and fix it. Those were all calls I used to make myself, and now the agent had to interpret them.
 
-It had no idea where things stood either. Every new session, it'd ask, which task am I on? Did the tests pass? And someone had to answer that. Usually me.
+And it started to grow. When something went wrong, I added another if. Another unless.
 
-It only did the one job. Working out what's next was still on me.
+The agent had no idea where things stood either. Every new agent session, which task am I on? How much of it have we done? And someone had to answer that. Usually me.
+
+It only did the job. Working out what's next was still on me.
 
 And I couldn't prove it did any of it. It'd say it ran the tests, so I'd go and check anyway. And there's the checking job again.
 
@@ -667,9 +669,9 @@ On top of that, it reads every word, every run. So it's eating up context the ac
 
 [Next step: the workflow boxes turn dashed.]
 
-So I looked at it again. And most of what I'd written wasn't really the work. It was the workflow around it. Read the PBI. Pick the next task. Open the PR. Is CI green? Any more tasks? That's all fetching, checking, and deciding what's next. And I'd mixed it right in with the actual work.
+So I looked at it again. And most of what I'd written wasn't really the work. It was the workflow around it. Read the PBI. Pick the next task. Open the PR. Is CI green? Any more tasks? That's all fetching, checking, and deciding what's next. And I felt I had mixed it right in with the actual work.
 
-That part, I could pull out. And give it to its own agent to run.
+So I tried pulling that part out, and giving it to its own agent to run.
 
 [The slide shows only the headlines; the detail lives here. Lists appear on load; the dashed boxes are the one arrow-key step.]</aside>
   </section>
@@ -698,11 +700,13 @@ And at first, I loved it. One prompt, and the whole thing just runs. I stopped r
 
 But look at the size now. Around fifteen hundred words, across four files. And the agent's not just interpreting each skill anymore. It's interpreting the order too.
 
-So mistakes compound. It skips one small step early on, and everything after that is quietly wrong.
+So mistakes can compound. If an agent skips one small step early on, everything after that can be quietly wrong.
 
-It still didn't know where things stood. If the session died halfway, nothing knew where it got to.
+And also, it still didn't know where things stood. If the session died halfway, nothing knew where it got to.
 
-And it all had to live in one long session. Hard to pause, hard to hand over. With four skills loaded, there's less room left for the actual code. And when it went wrong? Good luck working out which skill, which line, which run.
+And it all had to live in one long session. Hard to pause, hard to hand over.
+
+With four skills loaded, there's less room left for the actual code.
 
 [Optional: a quick story about when the skill of skills went sideways. Skip it and read straight on.]
 
@@ -732,25 +736,29 @@ action: pdlc-plan
 
 Now one command decides what's next. The loop skill just asks it, and does what it says.
 
-[Point at the chart.] And all that branching shrinks down to a loop. Green is code. It inspects the work item, publishes the result, and checks if it needs a human. Purple is the agent, doing the actual work with a skill. No review needed? Back round to inspect. Review needed? It waits for me.
+[Point at the chart.] And all that branching shrinks down to a loop. Green is code. It inspects the work item, publishes the result, and checks if it needs a human. Purple is the agent, doing the actual work with a skill.
 
-So now the workflow is code. It does the same thing every run. And the work itself is still skills. Still judgement. Which is exactly the part I want the agent thinking about.
+Can it continue without my review? Yes? Then the agent is instructed to just keep working. And at specific checkpoints that I have configured, the CLI, the workflow, pauses and waits for my review. The agent cannot continue.
 
-What did I like? It gives the same answer every time. Where things stand lives on the record, not in some chat. A stage can't move on until its evidence is actually there, so it's proof, not a promise. It's code, so I can test it. The skills got smaller, and none of them decides what's next anymore. And it only stops when it needs me.
+So now, when the workflow becomes code, it does the same thing every run. And the work itself is still skills. Still judgement. Which is exactly the part I want the agent thinking about.
+
+What did I like? It gives the same workflow every time. That's deterministic. Where things stand lives on the record, not in some chat. A stage can't move on until its evidence is actually there, so it's proof, not a promise. It's code, so I can test it. The skills got smaller, and no agent decides what's next anymore, the workflow does. And it only stops when it actually needs me. I can configure when and where it needs me, in code.
 
 What didn't I like? Well, it's more to build, and more to maintain. If I want to change the workflow, I'm changing code now, not a sentence. And there are new ways for it to fail. Like a network error halfway through a write. Now that needs a way to recover.
 
-But for me, that trade was worth it. Let me show you what it looks like in practice.
+But honestly, the agents are the ones writing and maintaining that code, and its tests. Writing and maintaining simple software like this isn't that hard these days. So it's not a big deal.
+
+So for me, that trade was worth it. Let me show you what it looks like in practice.
 
 [On load the old tangle shrinks into the loop; green is code, purple the agent, indigo me. Word counts and flowcharts are illustrative, not measured.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="example-title" hidden>
     <div class="wrap">
-      <div class="eyebrow">An example</div>
-      <h2 id="example-title">“What’s next on this <span class="grad">work item?”</span></h2>
+      <div class="eyebrow">An example · what’s next on this work item?</div>
+      <h2 id="example-title">The skill shrank to <span class="grad">one command.</span></h2>
       <div class="versus">
-        <div><h3>Asking the agent</h3>
+        <div><h3>Before: the agent works it out</h3>
           <div class="mdfile" aria-label="An example skill file of step-by-step instructions for reading a PBI from Azure Boards and its pull requests from GitHub">
             <span class="filename">skills/work-on-pbi/SKILL.md</span>
 <pre><span class="m">---
@@ -801,7 +809,7 @@ Don’t forget to link the PR to the PBI.
           </div>
           <p class="note">Every session, the agent reads all of this, runs each step, and decides a little differently.</p>
         </div>
-        <div class="to step"><h3>The tool it built</h3>
+        <div class="to step"><h3>After: run the tool, do what it says</h3>
           <div class="stack">
           <div class="mdfile mini" aria-label="The whole skill file: run pdlc inspect for the PBI to get your context, then do what Due Next says">
             <span class="filename">skills/work-on-pbi/SKILL.md</span>
@@ -854,19 +862,35 @@ The next task pending a Technical Plan is 3054303.</pre>
     </div>
     <aside class="notes">So here's a question I asked all the time. What's next on this work item?
 
-On the left is the skill it used to follow. Authenticate. Find the item. Read every comment. Check the PRs. Check CI. Then work out what's next. Unless this. Unless that.
+On the left is the skill it used to follow. Authenticate. Find the item. Read every comment. Check the PRs. Check CI. Then work out what's next. Unless this. Unless that. There were lots of decisions here, and it became quite complex.
+
+I didn't appreciate how complicated my workflow was until I started writing it down in skills. Then when I started reading those instructions back, it felt very complicated. Even I found it hard to follow. So I can only imagine what an LLM would infer out of this.
+
+But what's next is also crucial. If an agent misses a step, I don't think I can trust the work it did. That work didn't meet my expectations, and I had to throw it out. You get poorly written code if there's no upfront planning, or if the agent skipped an important step where it should have spent time getting more context around the problem.
 
 And every session, it read all of that, ran every step, and came up with a slightly different answer.
 
 [Next step: reveal the tool.]
 
-So I got it to build a tool instead. And now the whole skill is basically two lines. Run this. Do what it says.
+So I got it to build a tool instead. And now the whole skill is very compact. Run this command. Do what it says. No decisions here. All of those decisions have already been taken by the workflow, by the CLI. The agent is asked to do this one thing, which LLMs are really good at.
+
+For example: write the plan for this task. CI is failing, check and fix it. The last agent broke down the tasks, review them. And only that work. Once the agent does that work, it stops, and the CLI takes over.
 
 [Next step: reveal the output.]
 
-The tool does all the gathering and the checking. The agent just reads the answer. And it's the same answer, every time.
+So what does this command do?
+
+It prints a markdown file, generated on the fly from the actual work item. This gives a fresh agent all of the context it needs to carry out the work. What we are doing, any attachments, in case of UI mockups and so on, any comments left on either the PBI or the PR itself.
+
+The sources for this data could be anywhere. And the important part is that the agent doesn't worry about retrieving that information. The CLI does it. Retrieving the PBI, checking GitHub for the PR info. And since it's simply a Python program, we can add as many sources in the future as we want. Confluence, or Elasticsearch, or a service registry, or whatever. And the good thing is, no matter how many sources we add, the agent spends zero tokens on retrieving any of that.
+
+The tool does all of that. The agent just reads the answer. And it's the same answer, every time.
 
 And all that context it used to burn on the routine stuff? That goes into the actual work now.
+
+And the most important part is the what's next. This is machine derived, based on a configured workflow, its status, and its gates. The state and gates are stored in the PBI itself, which means restarting the same work on a fresh agent session is very easy. I'll come back to that in a bit.
+
+There's no decision here to take, just a command. This is what you need to do. No if this, then do that kind of instruction. And the chance for an LLM to hallucinate is very, very slim, because it's directly instructed to do something, rather than derive it. This also means I became very confident using smaller models, like Luna or Haiku. They're very good at following instructions.
 
 [My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
   </section>
@@ -888,11 +912,11 @@ If it fails, read its log and fix.</pre></div></div></div>
         </div>
       </div>
     </div>
-    <aside class="notes">And looking back, that idea, turning it into a tool, did most of the work.
+    <aside class="notes">And looking back, that one idea did most of the work.
 
-I saw a video a while back, and one line really stuck with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
+I saw a YouTube video a while back, and someone said one line that really stuck with me. You can ask your agent to fish for you. Or you can ask it to build you a fishing rod.
 
-I'd take that one step further. Get it to build the rod. Then get it to write a skill on how to use it.
+I was thinking about what she said, and I thought maybe I can take it a bit further. Why not ask it to build the rod, and also a skill on how to use it? So that I no longer need to babysit the agents.
 
 [Point at the chart.] Bare-handed, I ask, the agent works it out, and every session I get a slightly different answer. With a rod, the skill picks the tool, and the tool does it the same way every time.
 
@@ -904,7 +928,7 @@ And the agent's still the one fishing. Just not with its bare hands. Code for th
 
 So my rule now is pretty simple. If it needs the same answer every time, make it a tool. And a skill to use it.
 
-And once the whole workflow was a rod, I got something I really didn't see coming.
+Once the whole workflow became a rod, a deterministic CLI which works the same way every time, I got something I really didn't see coming.
 
 [Chart and lists appear on load. The script on the left stands in for any small tool.]</aside>
   </section>
