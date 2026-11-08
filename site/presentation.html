@@ -1197,25 +1197,25 @@ Passing tests is the agent's job. Deciding it's worth shipping is mine.
     </div>
     <aside class="notes">Before I finish, looking back. What stuck, and what didn't.
 
-Writing rules into a skill. That drifted. What stuck was turning anything a later step depends on into state the tool can check.
+Rules in a skill. I'd write "always run lint before you finish" in the skill. Most runs it did. Then one run it just… didn't. Same skill, same prompt. So anything a later step depends on is now state the tool checks.
 
-Letting agents gather their own context. I got different results every time. What stuck was building the brief for them, so every run starts from the same place.
+Agents gathering their own context. Two agents, same task, and one would read the work item and the other would read half the repo. Different starting points, different answers. Now the brief is built for them, so every run starts from the same place.
 
-An agent reviewing its own work. It mostly checked its own summary. What stuck was a fresh reviewer, checking against the requirement.
+Reviewing its own work. I asked an agent to review what it had just built, and it basically agreed with itself. It was checking its own summary, not the code. Now a fresh reviewer checks against the requirement.
 
-Keeping context in the chat. It's gone when the session ends. What stuck was writing it on the PBI itself.
+Context in the chat. I'd come back after a weekend, and the reason we chose something was gone with the session. Now it's written on the PBI.
 
-Explaining the whole process to every agent. That just gave it more to misread. Now each agent only gets what its step needs. A bit like least privilege. It only hears what it needs to know, so there's less noise.
+Explaining everything. I used to give every agent the whole process, just in case. It got more confused, not less. Now each one hears only what its step needs. Like least privilege.
 
-Free-form write-ups. There was always a section missing. What stuck was a template the tool checks before it accepts it.
+Free-form write-ups. Every handover looked different, and there was always one section missing. Now there's a template, and the tool won't accept it without every section.
 
-And agents improvising when a command failed. They'd retry blindly, or half fix it. Now the command itself says how to recover. Retry, check something first, or stop.
+Improvising on failure. A command failed halfway, and the agent just ran it again. Twice. Now the command tells it how to recover.
 
 [Next step: an example of what it prints.]
 
-Like this. Say GitHub has a blip in the middle of a write. pdlc doesn't guess, and it doesn't retry on its own. It tells the agent exactly how to check whether the change landed, and what to do either way. And if it keeps failing, stop and tell me.
+Like this. GitHub had a blip mid-write. pdlc doesn't guess or retry. It says how to check if it landed, and what to do either way. Keeps failing? Stop and tell me.
 
-[Rows come in on load. One step: the recovery example. Read the left side quickly and land on the right. Swap in your own story for any row if you have a sharper one.]</aside>
+[Rows come in on load. One step: the recovery example. Read the left side quickly and land on the right. Each row is a short story; don't read the slide text.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="next-title" hidden>
