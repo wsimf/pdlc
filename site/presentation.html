@@ -1130,14 +1130,14 @@ const ring = (() => {
   }
   // My review: a page that gets read, then stamped approved or sent back.
   const doc = make('g', { class: 'doc' });
-  const docBody = make('g', { transform: `translate(${CX} 201) scale(1.35) translate(${-CX} -201)` }, doc);
+  const docBody = make('g', { transform: `translate(${CX} 201) scale(0.9) translate(${-CX} -201)` }, doc);
   make('path', { class: 'page', d: `M${CX - 16} 178h22l10 10v36h-32Z` }, docBody);
   for (const [y, w] of [[192, 20], [199, 20], [206, 20], [213, 13]]) make('path', { class: 'ln', d: `M${CX - 10} ${y}h${w}` }, docBody);
   make('rect', { class: 'scan', x: CX - 14, y: 184, width: 28, height: 2, rx: 1 }, docBody);
   const stamp = make('g', { class: 'stamp' }, docBody);
   make('circle', { cx: CX + 16, cy: 220, r: 9 }, stamp);
   const stampText = make('text', { x: CX + 16, y: 220.5 }, stamp);
-  const status = make('text', { class: 'status', x: CX, y: 250 });
+  const status = make('text', { class: 'status', x: CX, y: 238 });
 
   let gen = 0, running = false;
   // Each await rejects once the slide is left, which unwinds play().
