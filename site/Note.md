@@ -75,7 +75,7 @@ Reference example: slide 1's notes.
 | 12 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
 | 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
 | 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
-| 15 | Delegate the task, never the judgment (3 columns: agents do / I decide / one task, one small PR stack; one step: ratification line) | Draft |
+| 15 | Delegate the task, never the judgment (bullets: who does what · how I review now; stacked PR cards right; one step: "Passing tests is the agent’s job. Deciding it’s worth shipping is mine.") | Draft |
 | 16 | What stuck, and what didn't (7 paired rows on load: ✕ didn't stick · ✓ stuck) | Draft |
 | 17 | Where it could go next (4 cards) | Draft |
 | 18 | Thank you. Questions? (title style) | Draft |
@@ -231,3 +231,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 5: removed the "…/Yours might sort differently." column; back to three equal columns. The spoken "not the only buckets" line stays in the notes.
 - **2026-11-09** — Slide 9 notes after the output reveal: shortened and made more conversational (same points: built fresh from the work item, the tool fetches so the agent spends zero tokens, Due Next derived from the workflow and stored on the PBI, no decisions so smaller models work).
 - **2026-11-09** — New slide 15 (17 → 18): "Delegate the task, never the judgment." Agents do the work (style, lint, review follow-ups, bugs, unit tests, handoffs) / I decide (product calls, security, compliance, competing requests, what ships) / one task, one small PR (stacked PR cards, pdlc never merges). Step: "Green tests and good names? That’s not review. That’s ratification." Notes open from slide 14's three jobs, carry the competitor-gap story, the outer-loop point, and lead into "What stuck".
+- **2026-11-09** — Slide 15 rebuilt: chip columns became two bullet groups (Agents/Me; stacked by default, one by one as if paged, behaviour not conventions) beside a larger PR stack. Step line is now "Passing tests is the agent’s job. Deciding it’s worth shipping is mine." Notes add "not really code review anymore… I'm testing the implementation" and "I check out and test the ones that matter".

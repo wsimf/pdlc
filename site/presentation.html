@@ -383,18 +383,23 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .codepaper .err{color:#f48771}
 .stuck li:not(.head):not(:last-child) p{transition:opacity .4s ease}
 .stuck:has(.rec:not(.pending)) li:not(.head):not(:last-child) p{opacity:.25}
-/* Slide 15: what agents do, what I decide, and the small stacked PRs I still read myself. */
-.judge ul.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
-.judge .chips li{padding:9px 14px;border-radius:4px;background:rgba(13,148,136,.14);font:600 clamp(15px,1.45vw,24px)/1.2 var(--mono)}
-.judge .chips.mine li{background:rgba(79,70,229,.14)}
-.prstack{display:grid;gap:10px;margin-top:20px}
-.prstack .pr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 16px;border:1px solid var(--line);border-left:4px solid var(--pink);border-radius:6px;background:rgba(255,255,255,.7);font-size:clamp(15px,1.25vw,21px)}
-.prstack .pr:nth-child(1){margin-left:32px}.prstack .pr:nth-child(2){margin-left:16px}
-.prstack .t{font-weight:600}.prstack b{margin-right:.4em;font:600 .85em var(--mono);color:var(--dim)}
-.prstack .diff{font:600 .85em var(--mono);color:var(--teal)}
-.prstack .checks{grid-column:1/-1;font:500 .75em var(--mono);color:var(--dim)}
+/* Slide 15: who does what and how I review, beside the small stacked PRs I go through myself. */
+.judge{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:56px;align-items:center;margin-top:clamp(22px,4vh,40px)}
+.judge h3{font:600 clamp(12px,1vw,15px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.judge h3+ul{margin-top:12px}
+.judge ul+h3{margin-top:clamp(22px,3.5vh,36px)}
+.judge ul{display:grid;gap:clamp(10px,1.6vh,16px);list-style:none}
+.judge li{position:relative;padding-left:1.1em;font-size:clamp(18px,1.6vw,28px);line-height:1.4;color:var(--soft)}
+.judge li::before{content:"";position:absolute;left:0;top:.62em;width:.4em;height:.4em;border-radius:50%;background:var(--pink)}
+.judge li b{color:var(--ink)}
+.judge b.by-ag{color:var(--teal)}.judge b.by-me{color:var(--indigo)}
+.prstack{display:grid;gap:14px}
+.prstack .pr{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:16px 20px;border:1px solid var(--line);border-left:5px solid var(--pink);border-radius:8px;background:rgba(255,255,255,.75);box-shadow:0 10px 24px -14px rgba(15,23,42,.35);font-size:clamp(17px,1.5vw,26px)}
+.prstack .pr:nth-child(1){margin-left:48px}.prstack .pr:nth-child(2){margin-left:24px}
+.prstack .t{font-weight:600}.prstack b{margin-right:.4em;font:600 .8em var(--mono);color:var(--dim)}
+.prstack .diff{font:600 .8em var(--mono);color:var(--teal)}
+.prstack .checks{grid-column:1/-1;font:500 .7em var(--mono);color:var(--dim)}
 .prstack .checks em{font-style:normal;font-weight:700;color:var(--pink)}
-.judge .note{margin-top:14px;font-size:clamp(15px,1.3vw,21px);line-height:1.4;color:var(--soft)}
 .reveal{animation:enter .5s var(--d,0s) ease both}
 
 /* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
@@ -1130,18 +1135,29 @@ So the chat's disposable now. The record isn't.
     <div class="wrap">
       <div class="eyebrow">What I don’t hand over</div>
       <h2 id="judgment-title">Delegate the task, <span class="grad">never the judgment.</span></h2>
-      <div class="questions judge">
-        <div><h3>Agents do the work</h3><ul class="chips"><li>style and lint</li><li>review follow-ups</li><li>typical bugs</li><li>unit tests</li><li>tracking handoffs</li></ul></div>
-        <div><h3>I decide</h3><ul class="chips mine"><li>product calls</li><li>security boundaries</li><li>compliance</li><li>competing requests</li><li>what ships</li></ul></div>
-        <div><h3>One task, one small PR</h3><div class="prstack" role="img" aria-label="Three stacked pull requests, one per task, each a small diff that has passed CI and a reviewer agent before I read it. pdlc never merges them; that is my call."><div class="pr"><span class="t"><b>TASK-003</b> [UI] Export progress</span><span class="diff">+41 −2</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-002</b> [UI] Export button</span><span class="diff">+64 −3</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-001</b> [CORE] CSV writer</span><span class="diff">+120 −8</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div></div><p class="note">Stacked, small enough to read in one go. pdlc never merges. That’s my call.</p></div>
+      <div class="judge">
+        <div class="pts">
+          <h3>Who does what</h3>
+          <ul>
+            <li class="reveal" style="--d:.3s"><b class="by-ag">Agents:</b> style, lint, review follow-ups, typical bugs, unit tests, handoffs.</li>
+            <li class="reveal" style="--d:.6s"><b class="by-me">Me:</b> product calls, security boundaries, compliance, competing requests, what ships.</li>
+          </ul>
+          <h3>How I review now</h3>
+          <ul>
+            <li class="reveal" style="--d:1.0s"><b>Stacked by default:</b> pdlc opens one small PR per task, each on top of the last.</li>
+            <li class="reveal" style="--d:1.3s"><b>One by one:</b> I go through each PR myself, as if I’ll get paged for it.</li>
+            <li class="reveal" style="--d:1.6s"><b>Behaviour, not conventions:</b> style and lint are already done. I check it does the right thing, and that it should ship.</li>
+          </ul>
+        </div>
+        <div class="prstack reveal" style="--d:1.0s" role="img" aria-label="Three stacked pull requests, one per task, each a small diff that has passed CI and a reviewer agent before I go through it myself."><div class="pr"><span class="t"><b>TASK-003</b> [UI] Export progress</span><span class="diff">+41 −2</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-002</b> [UI] Export button</span><span class="diff">+64 −3</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-001</b> [CORE] CSV writer</span><span class="diff">+120 −8</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div></div>
       </div>
-      <p class="punch step">Green tests and good names? <span class="grad">That’s not review. That’s ratification.</span></p>
+      <p class="punch step">Passing tests is the agent’s job. <span class="grad">Deciding it’s worth shipping is mine.</span></p>
     </div>
     <aside class="notes">So the agents check, they direct, they remember. But there's one thing I never hand over. The judgment.
 
-[Point at the left.] The agent does the work. Style, lint, follow-ups on review comments, the usual bugs, unit tests. It can even keep track of handoffs.
+The agent does the work. Style, lint, follow-ups on review comments, the usual bugs, unit tests. It can even keep track of handoffs.
 
-[Point at the middle.] But I decide the important things. Product calls. Security boundaries. Compliance. Which request wins when two of them compete. And what actually ships.
+But I decide the important things. Product calls. Security boundaries. Compliance. Which request wins when two of them compete. And what actually ships.
 
 No manager can say "my report shipped that, not me." And it's the same with every agent I run.
 
@@ -1149,17 +1165,17 @@ I've fallen into this trap myself. I had an agent research the gaps with our com
 
 And it's an easy trap. A six hundred line diff. The names look reasonable. The tests are green. Approve.
 
-[Point at the right.] So I keep the changes small. pdlc gives every task its own PR, stacked on the one before. Each one is small enough to read in one go, and I can test it on its own if I need to. And it never merges. That's my call.
+[Point at the stack.] So I keep the changes small. pdlc gives every task its own PR by default, stacked on the one before. Each one is small enough to read in one go. And I go through them one by one, myself. I check out and test the ones that matter. I treat every one like I'm going to get paged for it.
 
-I still go through the code myself. I treat every diff like I'm going to get paged for it. The unit of review is the unit of comprehension.
+And honestly, it's not really code review anymore. Not the traditional kind. I'm not hunting for naming or formatting. The agents already sorted that. I'm testing the implementation. Does it behave? Would I put my name on it?
 
 I don't need to be in the inner loop of every change. But I own the outer loop. The constraints. How much of the output I actually read. What evidence we keep. And what a human has to sign off on.
 
 [Next step: the closing line.]
 
-Because green tests and good names isn't code review. That's just code ratification.
+Passing tests is the agent's job. Deciding it's worth shipping is mine.
 
-[Columns come in on load. One step: the closing line.]</aside>
+[Bullets and the stack come in on load. One step: the closing line.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="lessons-title" hidden>
