@@ -245,7 +245,7 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .ring .title{font:800 26px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;letter-spacing:-.02em}
 .ring .item{font-size:9px;fill:var(--dim);text-anchor:middle;letter-spacing:.08em}
 .ring .chip rect{fill:var(--paper);stroke:#cbd5e1;stroke-width:1.5;transition:fill .25s,stroke .25s}
-.ring .chip text,.ring .btn text{font-size:10px;text-anchor:middle;dominant-baseline:central}
+.ring .chip text{font-size:10px;text-anchor:middle;dominant-baseline:central}
 .ring .chip text{fill:var(--dim)}
 .ring .chip.on rect{stroke:var(--k);fill:color-mix(in srgb,var(--k) 14%,white)}
 .ring .chip.on text{fill:var(--k);font-weight:700}
@@ -254,21 +254,25 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .ring .back{fill:none;stroke:var(--green);stroke-width:2;stroke-dasharray:5 4;opacity:0;transition:opacity .25s;animation:ring-march .9s linear infinite reverse}
 .ring .back.on{opacity:1}
 .ring .back-lbl{font-size:9px;fill:var(--green);text-anchor:middle;font-weight:700}
-.ring .btn{transform-box:fill-box;transform-origin:center;transition:opacity .3s,transform .12s}
-.ring .btn.hidden{opacity:0}
-.ring .btn rect{fill:var(--paper);stroke:var(--indigo);stroke-width:2;transition:fill .25s,stroke .25s}
-.ring .btn text{fill:var(--indigo);font-weight:700;font-size:11px}
-.ring .btn.press{transform:scale(.9)}
-.ring .btn.ok rect{fill:var(--green);stroke:var(--green)}.ring .btn.ok text{fill:#fff}
-.ring .btn.reject rect{stroke:var(--amber)}.ring .btn.reject text{fill:var(--amber)}
-.ring .btn.reject.ok rect{fill:var(--amber);stroke:var(--amber)}.ring .btn.reject.ok text{fill:#fff}
-.ring .status.back{fill:var(--amber)}
+.ring .back.talk{stroke:var(--indigo);animation-direction:normal}.ring .back-lbl.talk{fill:var(--indigo)}
+.ring .head{stroke:none}.ring .head.green{fill:var(--green)}.ring .head.amber{fill:var(--amber)}.ring .head.indigo{fill:var(--indigo)}
+.ring .goback{fill:none;stroke-width:2.5;stroke-dasharray:6 5;opacity:0;transition:opacity .3s;animation:ring-march .9s linear infinite reverse}
+.ring .goback.on{opacity:1}.ring .goback.green{stroke:var(--green)}.ring .goback.amber{stroke:var(--amber)}
+.ring .doc{opacity:0;transition:opacity .3s}.ring .doc.show{opacity:1}
+.ring .doc .page{fill:var(--paper);stroke:var(--indigo);stroke-width:1.5;stroke-linejoin:round}
+.ring .doc .ln{stroke:#cbd5e1;stroke-width:2;stroke-linecap:round}
+.ring .doc .scan{fill:var(--indigo);opacity:0}
+.ring .doc.reading .scan{opacity:.45;animation:ring-scan 1.5s ease-in-out forwards}
+@keyframes ring-scan{from{transform:translateY(0)}to{transform:translateY(32px)}}
+.ring .stamp{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(2.2)}
+.ring .doc.ok .stamp,.ring .doc.no .stamp{opacity:1;transform:none;transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .2s}
+.ring .doc.ok .stamp circle{fill:var(--green)}.ring .doc.no .stamp circle{fill:var(--amber)}
+.ring .stamp text{fill:#fff;font:800 11px Inter,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.ring .status.undo{fill:var(--amber)}
 .ring .status{font-size:10px;text-anchor:middle;font-weight:700;fill:var(--dim)}
 .ring .status.wait{fill:var(--indigo);animation:ring-blink 1s ease-in-out infinite}
 .ring .status.go{fill:var(--green)}
 @keyframes ring-blink{50%{opacity:.35}}
-.ring .cursor{fill:var(--ink);stroke:#fff;stroke-width:1.2;opacity:0;transform:translate(330px,290px);transition:transform .8s cubic-bezier(.3,.7,.4,1),opacity .3s}
-.ring .cursor.in{opacity:1;transform:translate(214px,206px)}
 .level.wide .verdict ul{grid-template-columns:1fr 1fr;gap:clamp(8px,1.5vh,16px) clamp(20px,2vw,40px)}
 .level.wide .verdict li{font-size:clamp(17px,1.25vw,24px)}
 .verdict li b{font-weight:650}
@@ -903,7 +907,7 @@ And once the whole workflow was a rod, I got something I didn't see coming.
     </div>
     <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
-[Point at the ring.] This is one work item going round the workflow. You only see the stage it's in. The agent does the work, then the checks. A reviewer, CI. When one fails, it goes back and fixes it, without me. And when it reaches a gate, it waits. For me. I approve, and it carries on. [At Plan.] Or I don't. Here I ask for changes, and it goes all the way back to Product, and round again.
+[Point at the ring.] This is one work item going round the workflow. You only see the stage it's in. Product starts as an interview. The agent asks, I answer, a few rounds. After that the agent does the work, then the checks. A reviewer, CI. When one fails, it goes back and fixes it, without me. And when it reaches a gate, it waits. For me. I read it, I approve, and it carries on. [At Plan.] Or I don't. Here I ask for changes, and it goes all the way back to Product, and round again.
 
 Tasks or plan don't validate? Back to the agent, fix it, run it again. A reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
@@ -1085,8 +1089,9 @@ const ring = (() => {
   const CX = 200, CY = 145, RX = 190, RY = 132;
   // steps: [kind, label]; fail: step that fails once then re-runs; bounce: step that sends the item back to Implement once;
   // reject: I request changes at this gate once, sending the item back to Product. Each happens once per lap.
+  // interview: step that loops back to the first for more questions (ROUNDS in all) before moving on.
   const STAGES = [
-    { name: 'Product', steps: [['me', 'I write it'], ['agent', 'reviewer']], gate: 'me' },
+    { name: 'Product', steps: [['agent', 'asks'], ['me', 'I answer'], ['agent', 'reviewer']], interview: 1, gate: 'me' },
     { name: 'UI + tasks', steps: [['agent', 'draft'], ['agent', 'reviewer']], gate: 'me' },
     { name: 'Plan', steps: [['agent', 'spike + plan'], ['agent', 'reviewer']], fail: 1, gate: 'me', reject: true },
     { name: 'Implement', steps: [['agent', 'code'], ['agent', 'reviewer'], ['code', 'CI']], fail: 2, gate: 'auto' },
@@ -1094,7 +1099,7 @@ const ring = (() => {
     { name: 'Verify', steps: [['agent', 'journeys'], ['agent', 'findings']], bounce: 1, gate: 'me' },
     { name: 'Done', steps: [], gate: 'done' },
   ];
-  const IMPLEMENT = 3, N = STAGES.length;
+  const IMPLEMENT = 3, ROUNDS = 3, N = STAGES.length;
   const angle = i => -Math.PI / 2 + i * 2 * Math.PI / N;
   const at = a => [CX + RX * Math.cos(a), CY + RY * Math.sin(a)];
   const make = (tag, attrs, parent = svg, text) => {
@@ -1119,11 +1124,23 @@ const ring = (() => {
   const back = make('path', { class: 'back' });
   const backLabel = make('text', { class: 'back-lbl', y: 121 });
   const chips = make('g', {});
-  const btn = make('g', { class: 'btn hidden' });
-  make('rect', { x: CX - 58, y: 188, width: 116, height: 28, rx: 14 }, btn);
-  const btnText = make('text', { x: CX, y: 202 }, btn);
-  const status = make('text', { class: 'status', x: CX, y: 234 });
-  const cursor = make('path', { class: 'cursor', d: 'M0 0V17L4.6 12.8L7.8 20L10.6 18.8L7.4 11.8H13Z' });
+  // Arrowheads for the loops back, one per colour.
+  const defs = make('defs', {});
+  for (const c of ['green', 'amber', 'indigo']) {
+    const m = make('marker', { id: `ring-${c}`, viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' }, defs);
+    make('path', { class: `head ${c}`, d: 'M0 0L10 5L0 10Z' }, m);
+  }
+  const goback = make('path', { class: 'goback' });
+  // My review: a page that gets read, then stamped approved or sent back.
+  const doc = make('g', { class: 'doc' });
+  const docBody = make('g', { transform: `translate(${CX} 201) scale(1.35) translate(${-CX} -201)` }, doc);
+  make('path', { class: 'page', d: `M${CX - 16} 178h22l10 10v36h-32Z` }, docBody);
+  for (const [y, w] of [[192, 20], [199, 20], [206, 20], [213, 13]]) make('path', { class: 'ln', d: `M${CX - 10} ${y}h${w}` }, docBody);
+  make('rect', { class: 'scan', x: CX - 14, y: 184, width: 28, height: 2, rx: 1 }, docBody);
+  const stamp = make('g', { class: 'stamp' }, docBody);
+  make('circle', { cx: CX + 16, cy: 220, r: 9 }, stamp);
+  const stampText = make('text', { x: CX + 16, y: 220.5 }, stamp);
+  const status = make('text', { class: 'status', x: CX, y: 250 });
 
   let gen = 0, running = false;
   // Each await rejects once the slide is left, which unwinds play().
@@ -1147,8 +1164,7 @@ const ring = (() => {
     dots.forEach((d, j) => d.classList.toggle('on', j === i));
     title.textContent = stage.name;
     chips.replaceChildren();
-    back.classList.remove('on'); backLabel.textContent = '';
-    btn.setAttribute('class', 'btn hidden'); say('');
+    loopBack(); doc.setAttribute('class', 'doc'); say('');
     const w = 76, gap = 20, x0 = CX - (stage.steps.length * (w + gap) - gap) / 2;
     return stage.steps.map(([kind, label], j) => {
       const x = x0 + j * (w + gap);
@@ -1163,22 +1179,45 @@ const ring = (() => {
   }
   const light = (list, j) => list.forEach((c, n) => { c.classList.toggle('on', n === j); c.classList.remove('fail'); });
 
-  async function approve(label, done, kind = '') {
-    btnText.textContent = label;
-    btn.setAttribute('class', `btn ${kind}`);
-    tint('me');
-    say('waiting for me', 'wait');
-    await wait(1400);
-    cursor.classList.add('in');
+  // Draws (or, with no arguments, hides) the arc from chip `from` back to chip `to`, with an arrowhead and a label.
+  function loopBack(from, to, label, color = 'green') {
+    if (!from) { back.setAttribute('class', 'back'); back.removeAttribute('marker-end'); backLabel.textContent = ''; return; }
+    back.setAttribute('d', `M${from.mid} 141Q${(from.mid + to.mid) / 2} 112 ${to.mid + 4} 139`);
+    back.setAttribute('class', `back on ${color === 'indigo' ? 'talk' : ''}`);
+    back.setAttribute('marker-end', `url(#ring-${color})`);
+    backLabel.setAttribute('x', (from.mid + to.mid) / 2);
+    backLabel.setAttribute('class', `back-lbl ${color === 'indigo' ? 'talk' : ''}`);
+    backLabel.textContent = label;
+  }
+
+  // Goes back round the ring from stage i to stage to, along an arrowed arc just inside the track.
+  async function goBack(i, to, color) {
+    const pts = [];
+    for (let k = 0; k <= 40; k++) {
+      const a = angle(i) + (angle(to) - angle(i)) * k / 40;
+      pts.push(`${CX + (RX - 24) * Math.cos(a)} ${CY + (RY - 22) * Math.sin(a)}`);
+    }
+    goback.setAttribute('d', 'M' + pts.join('L'));
+    goback.setAttribute('class', `goback on ${color}`);
+    goback.setAttribute('marker-end', `url(#ring-${color})`);
     await wait(900);
-    btn.classList.add('press');
-    await wait(160);
-    btn.setAttribute('class', `btn ${kind} ok`);
-    btnText.textContent = done;
-    say('');
-    await wait(700);
-    cursor.classList.remove('in');
-    await wait(250);
+    await travel(angle(i), angle(to), 1400);
+    goback.setAttribute('class', 'goback');
+  }
+
+  // I read the document, then it is stamped: approved (✓) or changes needed (↺).
+  async function review(ok, verdict) {
+    tint('me');
+    doc.setAttribute('class', 'doc show');
+    say('waiting for me', 'wait');
+    await wait(1300);
+    doc.setAttribute('class', 'doc show reading');
+    say('I review it');
+    await wait(1600);
+    stampText.textContent = ok ? '✓' : '↺';
+    doc.setAttribute('class', `doc show ${ok ? 'ok' : 'no'}`);
+    say(verdict, ok ? 'go' : 'undo');
+    await wait(1200);
   }
 
   async function play() {
@@ -1192,20 +1231,24 @@ const ring = (() => {
       for (let i = 0; i < N; i++) {
         const stage = STAGES[i], list = enter(i);
         let sentBack = false;
+        let round = 1;
         for (let j = 0; j < list.length; j++) {
           light(list, j);
           tint(list[j].kind);
-          await wait(900);
-          if (stage.fail === j && !failedOnce.has(i)) {
+          await wait(stage.interview != null && j <= stage.interview ? 700 : 900);
+          if (stage.interview === j && round < ROUNDS) {
+            round++;
+            loopBack(list[j], list[0], `question ${round} of ${ROUNDS}`, 'indigo');
+            await wait(600);
+            loopBack();
+            j = -1;
+          } else if (stage.fail === j && !failedOnce.has(i)) {
             failedOnce.add(i);
             list[j].classList.add('fail');
-            back.setAttribute('d', `M${list[j].mid} 141Q${(list[j].mid + list[0].mid) / 2} 112 ${list[0].mid + 4} 140`);
-            back.classList.add('on');
-            backLabel.setAttribute('x', (list[j].mid + list[0].mid) / 2);
-            backLabel.textContent = 'fix, re-run';
+            loopBack(list[j], list[0], 'fix, re-run');
             tint('code');
             await wait(1400);
-            back.classList.remove('on'); backLabel.textContent = '';
+            loopBack();
             j = -1;
           } else if (stage.bounce === j && !bounced) {
             bounced = sentBack = true;
@@ -1217,7 +1260,7 @@ const ring = (() => {
           }
         }
         if (sentBack) {
-          await travel(angle(i), angle(IMPLEMENT), 1300);
+          await goBack(i, IMPLEMENT, 'green');
           i = IMPLEMENT - 1;
           continue;
         }
@@ -1226,19 +1269,17 @@ const ring = (() => {
           say('checks pass · moves on', 'go');
           await wait(1200);
         } else if (stage.gate === 'done') {
-          await approve('Mark complete', 'Complete ✓');
+          await review(true, 'marked complete');
           say('next work item ↻', 'go');
           await wait(1000);
         } else if (stage.reject && !rejected) {
           rejected = true;
-          await approve('Request changes', 'Changes requested', 'reject');
-          say('back to Product', 'back');
-          await wait(900);
-          await travel(angle(i), angle(0), 1300);
+          await review(false, 'changes needed · back to Product');
+          await goBack(i, 0, 'amber');
           i = -1;
           continue;
         } else {
-          await approve('Approve', 'Approved ✓');
+          await review(true, 'approved');
         }
         tint('agent');
         if (i < N - 1) await travel(angle(i), angle(i + 1));
