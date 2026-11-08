@@ -158,10 +158,11 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .switching .blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
 .switching .idle{background:none}
 /* The one-agent "taking turns" chart: no attention line, so labels sit centred; my waiting time is grey stripes. */
-.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free{align-items:center;padding:0 4px}
+.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free,.switching.turns .mine{align-items:center;padding:0 4px}
 .switching.after{--lane:clamp(46px,7.5vh,80px)}
 .after .switches{--lanes:4}
-.after .free,.after .work{font-size:clamp(10px,.9vw,13px)}
+.mine{background:rgba(79,70,229,.3);color:var(--ink);font-weight:600}
+.after .free,.after .mine,.after .work{font-size:clamp(10px,.9vw,13px)}
 .turns .waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.32) 0 5px,rgba(100,116,139,.06) 5px 11px);color:var(--dim);font:500 clamp(10px,.9vw,13px) var(--mono)}
 .turns .work{font-size:clamp(10px,.9vw,13px)}
 /* The two takeaways under the switching chart, each keyed to the chart by its swatch, sized to match the TL;DR body text. */
@@ -695,11 +696,11 @@ But that trade was worth it. That's where it changed for me.
         </div>
       </div>
       <p class="tl-label now">Now · reviewing work that’s already checked, at a gate</p>
-      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do my own work. The agents work on their own for long stretches. I switch twice: once when Agent C needs a decision, once when Agent A needs an approval. Agent B never needs me.">
+      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do the work only I can do: spec the next feature, talk to users, help a teammate, architecture, plan. The agents work on their own for long stretches. I switch twice: once when Agent C needs a decision, once when Agent A needs an approval. Agent B never needs me.">
         <div class="labels"><span>Me</span><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
         <div class="tracks">
           <div class="track">
-          <div class="block gate" style="--from:0;--to:6"><span>hand off</span></div><div class="block free" style="--from:6;--to:40"><span>my own work</span></div><div class="block gate" style="--from:40;--to:47"><span>decide for C</span></div><div class="block free" style="--from:47;--to:74"><span>my own work</span></div><div class="block gate" style="--from:74;--to:81"><span>approve A</span></div><div class="block free" style="--from:81;--to:100"><span>my own work</span></div>
+          <div class="block gate" style="--from:0;--to:6"><span>hand off</span></div><div class="block mine" style="--from:6.3;--to:23"><span>spec the next feature</span></div><div class="block mine" style="--from:23.3;--to:39.7"><span>talk to users</span></div><div class="block gate" style="--from:40;--to:47"><span>decide for C</span></div><div class="block mine" style="--from:47.3;--to:61"><span>help a teammate</span></div><div class="block mine" style="--from:61.3;--to:73.7"><span>architecture</span></div><div class="block gate" style="--from:74;--to:81"><span>approve A</span></div><div class="block mine" style="--from:81.3;--to:100"><span>plan what’s next</span></div>
           </div>
           <div class="track">
           <div class="block idle" style="--from:0;--to:6"></div><div class="block work" style="--from:6;--to:68"><span>working on its own</span></div><div class="block blocked" style="--from:68;--to:81"></div><div class="block work" style="--from:81;--to:100"><span>next task</span></div>
@@ -720,6 +721,8 @@ But that trade was worth it. That's where it changed for me.
 [Point at the outline.] That's what I used to do. Sixteen switches. Every agent stopping mid-task, waiting on me to check its work.
 
 [Point at the colour.] And this is now. Same three agents. Two switches.
+
+And look at my lane. That's not idle time. Specing the next feature. Talking to users. Helping the team. The work only I can do.
 
 So what changed? When I review. Before, constantly, mid-task. Now, once per stage, at a gate.
 
