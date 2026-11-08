@@ -1065,7 +1065,15 @@ So I stopped switching all day. Now I mostly just decide.
 
 "We've already got a component for that." I must have said that a hundred times. Now the plan starts with a spike of the actual code, so it finds that stuff before anyone writes a line.
 
-"Add a Storybook story." That's how my repo works, not every repo. So each repo plugs its own skills into each step.
+"Add a Storybook story." I used to say that a lot too. But that's how my repo works. Not every repo has Storybook. So I didn't want that baked into the workflow.
+
+Instead, the workflow has slots. Places where a repo can plug in its own skill, or its own agent. Building and running the app. UX and design. Writing tests. Implementing a UI task, or a core task. Reviewing the change.
+
+Each repo just says, in one config file, which of its skills goes in which slot. So in my repo, the UI implementer is my own agent, and it knows to add a Storybook story. The test writer follows our test conventions. In another repo, those could be completely different.
+
+And if a repo doesn't plug anything in? It still works. The agent just does that step itself, following whatever's already in the repo.
+
+So the workflow stays the same everywhere. The how-we-do-it-here part belongs to each repo.
 
 I used to re-explain why we built something a certain way. Now the requirements and the decisions live on the work item, on the board. They don't die with the chat.
 
