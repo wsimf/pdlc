@@ -171,3 +171,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 6 skill box taller (cap 72vh) with type up to 1.1vw (~22px at 2000 wide); runs from 210 to 946px, steps 1–10 visible before the fade. Sizing now targets only the ~2000×1023 presenting window; smaller screens are no longer tuned or checked.
 - **2026-11-08** — Moved the example slide ("What's next on this work item?") to slide 9, straight after the tool slide; before/now is 10, rod is 11, loop stays 12.
 - **2026-11-08** — Slides 7–8 counter lines now plain Inter text like slide 6 ("~1,500 words, across four files", "1 command decides what’s next"); their bars stay.
+- **2026-11-08** — Slide 7: all-pink bar and "the agent interprets it all" removed (as on slide 6). Slide 8 keeps its half-and-half bar.
