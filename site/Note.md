@@ -191,3 +191,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 11 ring: dropped the dry-run chip from UI + tasks and Plan; Plan's reviewer is now the step that fails once and re-runs. Notes match.
 - **2026-11-08** — Slide 11 ring: Product is now an interview (agent asks ↔ I answer, three rounds on an indigo arrowed arc, then reviewer). My gates show a document being read (scan line) and then stamped ✓ approved or ↺ changes needed, replacing the cursor and button. Going back round the ring (Plan → Product in amber, Verify → Implement in green) draws a dashed arrow inside the track; chip loops have arrowheads too. Fixed a class clash that hid the amber status line. Notes match.
 - **2026-11-08** — Slide 11 ring: removed the dashed back arrows on the ring itself (the token just travels back); arrowed loops inside the chip flow stay.
+- **2026-11-08** — Slide 11 ring: Product interview chips renamed "asks"/"I answer" → "clarify"/"decide". Notes match.
