@@ -172,3 +172,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Moved the example slide ("What's next on this work item?") to slide 9, straight after the tool slide; before/now is 10, rod is 11, loop stays 12.
 - **2026-11-08** — Slides 7–8 counter lines now plain Inter text like slide 6 ("~1,500 words, across four files", "1 command decides what’s next"); their bars stay.
 - **2026-11-08** — Slide 7: all-pink bar and "the agent interprets it all" removed (as on slide 6). Slide 8 keeps its half-and-half bar.
+- **2026-11-08** — Slide 8: bar removed; "routing is code, work is skills" moved under the code/agent/me legend; notes now say "look at the colours". Diamond reads "needs human review?".
