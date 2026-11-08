@@ -913,19 +913,17 @@ For example: write the plan for this task. CI is failing, check and fix it. The 
 
 [Next step: reveal the output.]
 
-So what does this command do?
+So what does it actually print?
 
-It prints a markdown file, generated on the fly from the actual work item. This gives a fresh agent all of the context it needs to carry out the work. What we are doing, any attachments, in case of UI mockups and so on, any comments left on either the PBI or the PR itself.
+It's just markdown. Built fresh from the work item, every time. Everything a new agent needs. What we're building, any attachments like UI mockups, and the comments on the PBI and the PR.
 
-The sources for this data could be anywhere. And the important part is that the agent doesn't worry about retrieving that information. The CLI does it. Retrieving the PBI, checking GitHub for the PR info. And since it's simply a Python program, we can add as many sources in the future as we want. Confluence, or Elasticsearch, or a service registry, or whatever. And the good thing is, no matter how many sources we add, the agent spends zero tokens on retrieving any of that.
+And the agent doesn't go and fetch any of it. The tool does. The board, GitHub, whatever. It's just Python, so later it could pull from Confluence too. However many sources we add, the agent spends zero tokens getting them. Same answer, every time. And all that context goes into the actual work.
 
-The tool does all of that. The agent just reads the answer. And it's the same answer, every time.
+[Point at Due Next.]
 
-And all that context it used to burn on the routine stuff? That goes into the actual work now.
+And down here is the bit that matters most. What's next. The tool works that out from the workflow and its gates. And that state lives on the PBI itself. So if a session dies, a fresh agent just picks it up. I'll come back to that.
 
-And the most important part is the what's next. This is machine derived, based on a configured workflow, its status, and its gates. The state and gates are stored in the PBI itself, which means restarting the same work on a fresh agent session is very easy. I'll come back to that in a bit.
-
-There's no decision here to take, just a command. This is what you need to do. No if this, then do that kind of instruction. And the chance for an LLM to hallucinate is very, very slim, because it's directly instructed to do something, rather than derive it. This also means I became very confident using smaller models, like Luna or Haiku. They're very good at following instructions.
+There's no "if this, then that". It just says, do this. So there's a lot less room to make things up. And honestly, that's why I'm happy using smaller models now, like Luna or Haiku. They're great at following instructions.
 
 [My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
   </section>
