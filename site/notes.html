@@ -70,6 +70,9 @@ document.addEventListener('keydown', event => {
   } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) {
     event.preventDefault();
     channel.postMessage({ type: 'backward' });
+  } else if (/^[1-9]$/.test(event.key)) {
+    // Number keys jump the deck to slides 1–9.
+    channel.postMessage({ type: 'goto', index: Number(event.key) - 1 });
   } else if (event.key === '+' || event.key === '=') {
     size = Math.min(size + 2, 48);
   } else if (event.key === '-') {

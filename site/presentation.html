@@ -230,6 +230,11 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .verdict code{font:500 .9em var(--mono)}
 /* Rabbit-hole slides: narrow skill and flowchart columns, and a wide two-up Liked/Disliked column where each headline has a one-line detail under it. */
 .level.wide{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
+/* Loops slide: no left column; the workflow chart takes half the width. */
+.level.wide.flowfirst{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.level.flowfirst .flow{max-height:62vh}
+.level.flowfirst .flow .lbl{font-size:5.6px}
+.level.flowfirst .flow text.title{font-size:6px}
 .level.wide .verdict ul{grid-template-columns:1fr 1fr;gap:clamp(8px,1.5vh,16px) clamp(20px,2vw,40px)}
 .level.wide .verdict li{font-size:clamp(17px,1.25vw,24px)}
 .verdict li b{font-weight:650}
@@ -853,14 +858,8 @@ And once the whole workflow was a rod, I got something I didn't see coming.
     <div class="wrap">
       <div class="eyebrow">Down the rabbit hole · then it could loop</div>
       <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
-      <div class="level wide">
-        <div class="how"><p class="words"><b>↻</b> runs until it needs me</p>
-          <div class="art tool"><div class="file term"><span>a run, shortened</span><pre>plan    dry-run ✕ → fix → ✓
-plan    review: revise → ✓
-impl    CI red → fix → green
-verify  gap → bounce → impl
-→ Approval Required. Needs me.</pre></div></div></div>
-        <div class="chart"><svg class="flow tool" viewBox="0 0 200 156" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The whole workflow: I write the spec; UI and tasks, plan, implement, test and verify each loop on their own checks until clean; verify can bounce work back to implement; I approve between stages and say when it is done"><g class="n me" style="--t:0.00s"><rect x="40" y="4" width="70" height="16" rx="3"/><text x="75" y="12">write the spec</text></g><path class="e" pathLength="1" d="M75 20 V26" style="--t:0.10s"/><g class="n me tiny" style="--t:0.20s"><circle cx="75" cy="23" r="2.2"/></g><g class="n" style="--t:0.30s"><rect x="40" y="26" width="70" height="16" rx="3"/><text x="75" y="34">UI + tasks</text></g><path class="e loop" pathLength="1" d="M110 31 H120 V37 H110" style="--t:0.40s"/><text class="side lbl" x="124" y="34" style="--t:0.50s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 42 V48" style="--t:0.60s"/><g class="n me tiny" style="--t:0.70s"><circle cx="75" cy="45" r="2.2"/></g><g class="n" style="--t:0.80s"><rect x="40" y="48" width="70" height="16" rx="3"/><text x="75" y="56">plan</text></g><path class="e loop" pathLength="1" d="M110 53 H120 V59 H110" style="--t:0.90s"/><text class="side lbl" x="124" y="56" style="--t:1.00s">dry-run · review ×3</text><path class="e" pathLength="1" d="M75 64 V70" style="--t:1.10s"/><g class="n me tiny" style="--t:1.20s"><circle cx="75" cy="67" r="2.2"/></g><g class="n" style="--t:1.30s"><rect x="40" y="70" width="70" height="16" rx="3"/><text x="75" y="78">implement</text></g><path class="e loop" pathLength="1" d="M110 75 H120 V81 H110" style="--t:1.40s"/><text class="side lbl" x="124" y="78" style="--t:1.50s">task by task · CI</text><path class="e" pathLength="1" d="M75 86 V92" style="--t:1.60s"/><g class="n me tiny" style="--t:1.70s"><circle cx="75" cy="89" r="2.2"/></g><g class="n" style="--t:1.80s"><rect x="40" y="92" width="70" height="16" rx="3"/><text x="75" y="100">test</text></g><path class="e loop" pathLength="1" d="M110 97 H120 V103 H110" style="--t:1.90s"/><text class="side lbl" x="124" y="100" style="--t:2.00s">review · CI</text><path class="e" pathLength="1" d="M75 108 V114" style="--t:2.10s"/><g class="n me tiny" style="--t:2.20s"><circle cx="75" cy="111" r="2.2"/></g><g class="n" style="--t:2.30s"><rect x="40" y="114" width="70" height="16" rx="3"/><text x="75" y="122">verify</text></g><path class="e loop" pathLength="1" d="M110 119 H120 V125 H110" style="--t:2.40s"/><text class="side lbl" x="124" y="122" style="--t:2.50s">fix until clean</text><path class="e" pathLength="1" d="M75 130 V136" style="--t:2.60s"/><g class="n me tiny" style="--t:2.70s"><circle cx="75" cy="133" r="2.2"/></g><g class="n me" style="--t:2.80s"><rect x="40" y="136" width="70" height="16" rx="3"/><text x="75" y="144">done</text></g><path class="e loop back" pathLength="1" d="M40 122 H28 V78 H40" style="--t:2.90s"/><text class="side lbl" x="2" y="100" style="--t:3.00s">bounce</text></svg><p class="flow-label"><i class="code"></i>loops <i class="agent"></i>agent <i class="me"></i>me</p></div>
+      <div class="level wide flowfirst">
+        <div class="chart"><svg class="flow tool" viewBox="0 0 300 218" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The whole workflow, simplified from pdlc-workflow.md. I write the spec. pdlc next reads the record and sends the active stage (UI and tasks, plan, implement, test or verify) to its skill. The result is checked by a dry-run, a reviewer agent and CI; each failure loops back to the stage on its own, reviews up to three times, and verify can bounce work back to implement. Then pdlc next asks whether it needs me: if not, it auto-advances; if so, I approve or decide, and it goes round again. After verify, I say it is done."><g class="n me" style="--t:0.00s"><rect x="150" y="2" width="80" height="15" rx="3"/><text x="190.0" y="9.5">write the spec</text></g><path class="e" pathLength="1" d="M190 17 V24" style="--t:0.10s"/><g class="n code" style="--t:0.16s"><rect x="145" y="24" width="90" height="15" rx="3"/><text x="190.0" y="31.5">pdlc next</text></g><g class="n frame" style="--t:0.26s"><rect x="2" y="24" width="76" height="128" rx="4"/></g><text class="title lbl" x="7" y="31" style="--t:0.36s">active stage</text><g class="n " style="--t:0.36s"><rect x="8" y="37" width="64" height="15" rx="3"/><text x="40.0" y="44.5">UI + tasks</text></g><g class="n " style="--t:0.46s"><rect x="8" y="58" width="64" height="15" rx="3"/><text x="40.0" y="65.5">plan</text></g><g class="n " style="--t:0.56s"><rect x="8" y="79" width="64" height="15" rx="3"/><text x="40.0" y="86.5">implement</text></g><g class="n " style="--t:0.66s"><rect x="8" y="100" width="64" height="15" rx="3"/><text x="40.0" y="107.5">test</text></g><g class="n " style="--t:0.76s"><rect x="8" y="121" width="64" height="15" rx="3"/><text x="40.0" y="128.5">verify</text></g><path class="e loop back" pathLength="1" d="M72 128.5 H75 V86.5 H72" style="--t:0.86s"/><text class="side lbl" x="4" y="158" style="--t:0.92s">verify can bounce work back</text><path class="e" pathLength="1" d="M145 31.5 H78" style="--t:0.92s"/><text class="side lbl" x="84" y="27.5" style="--t:0.98s">pending · changes</text><path class="e" pathLength="1" d="M78 52 H190 V56" style="--t:0.98s"/><text class="side lbl" x="84" y="48" style="--t:1.04s">skill finishes</text><g class="n code" style="--t:1.04s"><polygon points="144,65 152,56 228,56 236,65 228,74 152,74"/><text x="190" y="65">dry-run valid?</text></g><path class="e loop" pathLength="1" d="M144 65 H78" style="--t:1.14s"/><text class="side lbl" x="84" y="61" style="--t:1.20s">no: fix, re-run</text><path class="e" pathLength="1" d="M190 74 V82" style="--t:1.20s"/><g class="n " style="--t:1.26s"><rect x="150" y="82" width="80" height="15" rx="3"/><text x="190.0" y="89.5">reviewer agent</text></g><path class="e" pathLength="1" d="M190 97 V104" style="--t:1.36s"/><g class="n " style="--t:1.42s"><polygon points="154,113 162,104 218,104 226,113 218,122 162,122"/><text x="190" y="113">findings?</text></g><path class="e loop" pathLength="1" d="M154 113 H78" style="--t:1.52s"/><text class="side lbl" x="84" y="109" style="--t:1.58s">changes, up to ×3</text><path class="e" pathLength="1" d="M190 122 V130" style="--t:1.58s"/><text class="side lbl" x="194" y="126.5" style="--t:1.64s">clean</text><g class="n code" style="--t:1.64s"><polygon points="156,139 164,130 216,130 224,139 216,148 164,148"/><text x="190" y="139">CI green?</text></g><path class="e loop" pathLength="1" d="M156 139 H78" style="--t:1.74s"/><text class="side lbl" x="84" y="135" style="--t:1.80s">red: back to the stage</text><path class="e" pathLength="1" d="M190 148 V156" style="--t:1.80s"/><g class="n code" style="--t:1.86s"><polygon points="156,165 164,156 216,156 224,165 216,174 164,174"/><text x="190" y="165">needs me?</text></g><path class="e loop" pathLength="1" d="M224 165 H289 V31.5 H235" style="--t:1.96s"/><text class="side lbl" x="228" y="161" style="--t:2.02s">no: auto-advance</text><path class="e" pathLength="1" d="M190 174 V182" style="--t:2.02s"/><text class="side lbl" x="194" y="178.5" style="--t:2.08s">yes</text><g class="n me" style="--t:2.08s"><rect x="145" y="182" width="90" height="15" rx="3"/><text x="190.0" y="189.5">approve · decide</text></g><path class="e back" pathLength="1" d="M235 189.5 H296 V31.5 H235" style="--t:2.18s"/><path class="e" pathLength="1" d="M190 197 V203" style="--t:2.24s"/><text class="side lbl" x="194" y="200.5" style="--t:2.30s">after verify</text><g class="n me" style="--t:2.30s"><rect x="165" y="203" width="50" height="13" rx="3"/><text x="190.0" y="209.5">done</text></g></svg><p class="flow-label"><i class="code"></i>code · loops <i class="agent"></i>agent <i class="me"></i>me</p></div>
         <div class="verdict">
           <h3 class="liked">🔁 Loops on its own</h3><ul class="liked"><li style="--d:0.40s"><b>Doesn’t validate? Fix, re-run.</b><span>Tasks and plans are checked as data. Problems go straight back to the agent.</span></li><li style="--d:0.52s"><b>Reviewer wants changes? Revise.</b><span>Up to three passes before anything reaches me.</span></li><li style="--d:0.64s"><b>CI red? Fix it.</b><span>Failed checks go back to the stage that owns them.</span></li><li style="--d:0.76s"><b>Verify found a gap? Bounce it.</b><span>Back to implementation, rework, re-check. Up to three times.</span></li><li style="--d:0.88s"><b>Next task? Take it.</b><span>Implementation goes task by task until none are open.</span></li></ul>
           <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
@@ -870,7 +869,7 @@ verify  gap → bounce → impl
     </div>
     <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
-[Point at the chart.] This is the whole workflow. Spec, tasks, plan, implement, test, verify. And look at all the little green loops.
+[Point at the chart.] This is the whole workflow, roughly as it lives in the repo. I write the spec. pdlc next reads the record and hands the active stage to its skill. Then the checks. A dry-run, a reviewer agent, CI. And look at all the green lines. Every one of them is a way back, without me.
 
 Tasks or plan don't validate? Back to the agent, fix it, run it again. A reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
@@ -886,7 +885,7 @@ And when it does need me, it's a different kind of review. Before, I reviewed to
 
 So, remember those three jobs? Here's where each one went.
 
-[Chart, lists and the closing line appear on load. The run output on the left is illustrative.]</aside>
+[Chart, lists and the closing line appear on load. The chart is simplified from pdlc-workflow.md.]</aside>
   </section>
 
   <section class="slide answer" aria-labelledby="checking-title" hidden>
@@ -1023,7 +1022,7 @@ That's me. I'd love to hear from you. What do you keep asking your agent to do?
 </main>
 <aside id="notes" aria-live="polite" hidden></aside>
 <nav id="navigation" aria-label="Slide navigation">
-  <span>← → navigate · N notes</span>
+  <span>← → navigate · 1–9 jump · N notes</span>
   <div class="controls">
     <button id="previous" type="button" aria-label="Previous slide">←</button>
     <span id="counter" aria-live="polite" aria-atomic="true"></span>
@@ -1080,6 +1079,7 @@ channel.addEventListener('message', ({ data }) => {
   if (data?.type === 'forward') forward();
   else if (data?.type === 'backward') backward();
   else if (data?.type === 'request') broadcast();
+  else if (data?.type === 'goto' && data.index >= 0 && data.index < slides.length) show(data.index, 0);
 });
 
 // Auto-scrolls each long Markdown box down and back up, pausing at both ends.
@@ -1142,6 +1142,10 @@ document.addEventListener('keydown', event => {
     backward();
   } else if (event.key.toLowerCase() === 'n') {
     notes.hidden = !notes.hidden;
+  } else if (/^[1-9]$/.test(event.key) && Number(event.key) <= slides.length) {
+    // Number keys jump straight to slides 1–9, with no steps revealed.
+    event.preventDefault();
+    show(Number(event.key) - 1, 0);
   }
 });
 
