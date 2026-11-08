@@ -183,3 +183,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Removed the before/now slide ("It still needs my review. Twice, not sixteen times."): it paid off gates and evidence before the loops and job slides set them up. Its punch line ("Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.") moved onto the loops slide (now 11) and its notes. Dropped the unused before/now and after-timeline CSS. Deck is 16 slides. Also removed the stray `.mine` timeline background that was tinting the loops slide's "Stops for me" list.
 - **2026-11-08** — Slide 10 (rod) uses the big type of slides 6–8 (`.level.big`); fits at 2000×1023 (left column ends 837).
 - **2026-11-08** — Slide 10 (rod): "2× asked twice? build a rod" line removed; the tool and skill cards now start the left column.
+- **2026-11-08** — Slide 10 rule: "Asked for it twice?" became "Needs the same answer every time? Make it a tool, and a skill to use it." Notes match.
