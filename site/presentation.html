@@ -158,11 +158,7 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .switching .blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
 .switching .idle{background:none}
 /* The one-agent "taking turns" chart: no attention line, so labels sit centred; my waiting time is grey stripes. */
-.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free,.switching.turns .mine{align-items:center;padding:0 4px}
-.switching.after{--lane:clamp(46px,7.5vh,80px)}
-.after .switches{--lanes:4}
-.mine{background:rgba(79,70,229,.3);color:var(--ink);font-weight:600}
-.after .free,.after .mine,.after .work{font-size:clamp(10px,.9vw,13px)}
+.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free{align-items:center;padding:0 4px}
 .turns .waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.32) 0 5px,rgba(100,116,139,.06) 5px 11px);color:var(--dim);font:500 clamp(10px,.9vw,13px) var(--mono)}
 .turns .work{font-size:clamp(10px,.9vw,13px)}
 /* The two takeaways under the switching chart, each keyed to the chart by its swatch, sized to match the TL;DR body text. */
@@ -207,24 +203,6 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 /* Slide 6 has the longest lists: give them more width and tighter rows. */
 .level.wide.big.long{grid-template-columns:minmax(0,.9fr) minmax(0,1fr) minmax(0,2.1fr)}
 .level.big.long .verdict ul{gap:clamp(8px,1.5vh,18px) clamp(20px,2vw,40px);margin-bottom:clamp(14px,2.4vh,30px)}
-/* Before/now slide: slide 4's timeline as a dark outline, slide 15's in colour, both compact. */
-.compare .tl-label{margin-top:clamp(10px,1.8vh,22px);font:600 clamp(12px,1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-.compare .tl-label.now{color:var(--teal)}
-.compare .timeline{margin-top:6px}
-.compare .switching{--lane:clamp(34px,5.4vh,58px)}
-.compare .switching.after{--lane:clamp(56px,13.5vh,150px)}
-.compare .after .free,.compare .after .mine,.compare .after .work,.compare .after .gate{font-size:clamp(12px,.85vw,17px)}
-.compare .after .labels{font-size:clamp(13px,1vw,19px)}
-.compare .after .block,.compare .after .block span{white-space:normal;text-align:center;line-height:1.25}
-.compare .switching .block{top:6px;bottom:6px}
-.compare .punch{margin-top:clamp(14px,2.4vh,30px)}
-.ghosted .block{background:none;border:1.5px solid rgba(15,23,42,.6);color:var(--dim)}
-.ghosted .idle{border:0}
-.ghosted .blocked{border-style:dashed}
-.ghosted .labels{color:var(--dim)}
-.ghosted .attention{animation:none;clip-path:none}
-.ghosted .attention path{stroke:rgba(15,23,42,.6);stroke-width:2}
-.ghosted .switches b{background:rgba(15,23,42,.7);animation:none;opacity:1}
 @media(prefers-reduced-motion:reduce){.flow .e{stroke-dashoffset:0}.flow .n,.flow .lbl{opacity:1}.flow .ghost{display:none}.attention{animation:none;clip-path:none}.switches b{animation:none;opacity:1}}
 
 /* Down the rabbit hole, as a waterfall: each level starts lower than the last, every level is the same height so the last one lands at the bottom, and each overlaps the one before it, so the levels read as one evolving stack. Each level shows its real artifact, how many words the agent had to read, and how much of it the agent interprets versus code that just runs. */
@@ -833,49 +811,6 @@ And all the context it used to burn on the routine goes into the actual work now
 [My own tool, used only as the example. The pattern matters, not the tool: find the question your agent keeps re-answering, and turn it into a command.]</aside>
   </section>
 
-  <section class="slide" aria-labelledby="diff-title" hidden>
-    <div class="wrap compare">
-      <div class="eyebrow">Down the rabbit hole · so what changed?</div>
-      <h2 id="diff-title">It still needs my review. <span class="grad">Twice, not sixteen times.</span></h2>
-      <p class="tl-label now">Now · reviewing work that’s already checked, at a gate</p>
-      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do the work that needs me: tech planning for PBI 304564, technical refinement, reviewing PR 456, a front end design discussion, specifying the next feature. The agents work on their own for long stretches. I switch twice: once to check and decide for Agent C, once to check and approve Agent A to continue. Agent B never needs me.">
-        <div class="labels"><span>Me</span><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
-        <div class="tracks">
-          <div class="track">
-          <div class="block gate" style="--from:0;--to:5"><span>hand off</span></div><div class="block mine" style="--from:5.3;--to:20.5"><span>Tech planning for PBI 304564</span></div><div class="block mine" style="--from:20.8;--to:33"><span>technical refinement</span></div><div class="block gate" style="--from:33.3;--to:44"><span>check and decide for C</span></div><div class="block mine" style="--from:44.3;--to:53.5"><span>Review PR 456</span></div><div class="block mine" style="--from:53.8;--to:66"><span>front end design discussion</span></div><div class="block gate" style="--from:66.3;--to:78"><span>check and approve A to continue</span></div><div class="block mine" style="--from:78.3;--to:100"><span>spec the next feature</span></div>
-          </div>
-          <div class="track">
-          <div class="block idle" style="--from:0;--to:5"></div><div class="block work" style="--from:5;--to:64"><span>working on its own</span></div><div class="block blocked" style="--from:64;--to:78"></div><div class="block work" style="--from:78;--to:100"><span>next task</span></div>
-          </div>
-          <div class="track">
-          <div class="block idle" style="--from:0;--to:5"></div><div class="block work" style="--from:5;--to:100"><span>working on its own, never needed me</span></div>
-          </div>
-          <div class="track">
-          <div class="block idle" style="--from:0;--to:5"></div><div class="block work" style="--from:5;--to:30"><span>working on its own</span></div><div class="block blocked" style="--from:30;--to:44"></div><div class="block work" style="--from:44;--to:100"><span>working on its own</span></div>
-          </div>
-          <div class="switches" aria-hidden="true"><b style="--x:33.3;--y:0.12;--at:.6s">1</b><b style="--x:66.3;--y:0.12;--at:1.1s">2</b></div>
-        </div>
-      </div>
-      <p class="punch">Before, I reviewed to find out if it worked. <span class="grad">Now I review to decide if it’s what I want.</span></p>
-    </div>
-    <aside class="notes">Now, you might be thinking, hang on. It still waits for your review. That's what slowed you down before. So what's actually different?
-
-Remember slide four? Every agent stopping mid-task, waiting for me to check its work.
-
-[Point at the chart.] This is now. Same three agents. Two reviews. Check and decide for C. Check and approve A to continue. B never needed me at all.
-
-And look at my lane. That's not idle time. Tech planning for the next PBI. Technical refinement. Reviewing a PR. A front end design discussion. The work that actually needs me.
-
-Three things changed. When I review. Before, constantly, mid-task. Now, once, when a stage is finished.
-
-What reaches me. Before, raw output. Did it even run the tests? Now it's tested, reviewed by another agent, CI is green, and the evidence is attached.
-
-And my job. Before, all three. Checking, directing, reminding. Now just one. Deciding.
-
-Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.
-
-[The timeline shows on load. Illustrative, not measured.]</aside>
-  </section>
 
   <section class="slide" aria-labelledby="rod-title" hidden>
     <div class="wrap">
@@ -931,6 +866,7 @@ verify  gap → bounce → impl
           <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
         </div>
       </div>
+      <p class="punch">Before, I reviewed to find out if it worked. <span class="grad">Now I review to decide if it’s what I want.</span></p>
     </div>
     <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
@@ -944,11 +880,13 @@ So what does need me? The indigo. I write the spec. I approve each stage. I make
 
 Everything in between just loops, until it needs me.
 
+And when it does need me, it's a different kind of review. Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.
+
 [Your story: the first time it ran on its own and you came back to a stage waiting for your approval.]
 
 So, remember those three jobs? Here's where each one went.
 
-[Chart and lists appear on load. The run output on the left is illustrative.]</aside>
+[Chart, lists and the closing line appear on load. The run output on the left is illustrative.]</aside>
   </section>
 
   <section class="slide answer" aria-labelledby="checking-title" hidden>

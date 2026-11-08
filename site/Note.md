@@ -70,14 +70,13 @@ Reference example: slide 1's notes.
 | 7 | Rabbit hole 2 of 3: Then the workflow became a skill of skills. (same 1/4 · 1/4 · 2/4 layout as slide 6: left ~1,500 words, `loop/SKILL.md`; middle skills-starting-skills chart; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted; `[Your story]` open |
 | 8 | Rabbit hole 3 of 3: Then the workflow became a tool. (same 1/4 · 1/4 · 2/4 layout: left 1 command, 50/50 bar, `pdlc-loop/SKILL.md` + `pdlc next loop` output; middle loop chart in green code / purple agent / indigo me; right 👍 Liked / 👎 Disliked two-up with detail lines) | Draft. Liked/Disliked drafted from the repo |
 | 9 | Example: "What's next on this work item?" (skill file vs `pdlc inspect`; right side still on steps) | Draft. Spoken-voice notes absorb the old "huge skill file" slide and bridge to the questions |
-| 10 | Rabbit hole, so what changed? It still needs my review. Twice, not sixteen times. (slide 4's timeline as a dark outline labelled "before", the old after-slide timeline in colour labelled "now", both compact; punch: reviewed to find out if it worked → review to decide if it's what I want) | Draft. Answers "slide 4 needed review too" |
-| 11 | Rabbit hole, what stuck: Don't fish bare-handed. Build a rod, and a skill to use it. (slide 8's 1/4 · 1/4 · 2/4 layout: left `2×` rule, sample `check-ci.sh` tool and its skill; middle bare-handed vs with-a-rod chart; right 🎣 What stuck two-up + 📏 My rule now) | Draft. Merges the old lever and fishing-rod slides; Archimedes dropped |
-| 12 | Rabbit hole, then it could loop: Same result every time. So it could loop until it needed me. (slide 8's layout: left ↻ and an illustrative shortened run; middle the whole Feature workflow with green self-loops per stage, a verify→implement bounce, indigo approval dots between stages; right 🔁 Loops on its own two-up + ✋ Stops for me in indigo) | Draft. Drawn from `pdlc-workflow.md`; `[Your story]` open |
-| 13 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
-| 14 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
-| 15 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
-| 16 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
-| 17 | Some things you might try + closing question | Draft, guidance notes only |
+| 10 | Rabbit hole, what stuck: Don't fish bare-handed. Build a rod, and a skill to use it. (slide 8's 1/4 · 1/4 · 2/4 layout: left `2×` rule, sample `check-ci.sh` tool and its skill; middle bare-handed vs with-a-rod chart; right 🎣 What stuck two-up + 📏 My rule now) | Draft. Merges the old lever and fishing-rod slides; Archimedes dropped |
+| 11 | Rabbit hole, then it could loop: Same result every time. So it could loop until it needed me. (slide 8's layout: left ↻ and an illustrative shortened run; middle the whole Feature workflow with green self-loops per stage, a verify→implement bounce, indigo approval dots between stages; right 🔁 Loops on its own two-up + ✋ Stops for me in indigo; punch: reviewed to find out if it worked → review to decide if it's what I want) | Draft. Drawn from `pdlc-workflow.md`; `[Your story]` open |
+| 12 | Checking. Not me, and not the agent that wrote it. (job tabs, 4 "I used to → Now" rows with PDLC piece in grey) | Draft. Spoken-voice notes; `[Your example]` open |
+| 13 | Directing. The state decides what's next, not me. (4 rows) | Draft. Spoken-voice notes |
+| 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
+| 15 | A few things I learnt the hard way (3 cards on load) | Draft, replace with own stories |
+| 16 | Some things you might try + closing question | Draft, guidance notes only |
 
 ## Presenter tooling
 
@@ -181,3 +180,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 6: legend and "the workflow could move out" removed; the arrow-key step now only turns the workflow boxes dashed.
 - **2026-11-08** — Slide 10: before (ghosted slide 4) timeline removed; lanes taller (13.5vh) with bigger type. My lane now: Tech planning for PBI 304564, technical refinement, Review PR 456, front end design discussion, spec the next feature (talk to users / help a teammate / architecture / plan removed). Notes recall slide 4 in words instead of pointing at the outline.
 - **2026-11-08** — Slide 10: gates renamed "check and decide for C" and "check and approve A to continue"; lane spans rebalanced (agent blocked stretches and switch badges moved to match); labels on this timeline wrap. Notes updated.
+- **2026-11-08** — Removed the before/now slide ("It still needs my review. Twice, not sixteen times."): it paid off gates and evidence before the loops and job slides set them up. Its punch line ("Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.") moved onto the loops slide (now 11) and its notes. Dropped the unused before/now and after-timeline CSS. Deck is 16 slides. Also removed the stray `.mine` timeline background that was tinting the loops slide's "Stops for me" list.
