@@ -212,7 +212,9 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .compare .tl-label.now{color:var(--teal)}
 .compare .timeline{margin-top:6px}
 .compare .switching{--lane:clamp(34px,5.4vh,58px)}
-.compare .switching.after{--lane:clamp(30px,4.6vh,50px)}
+.compare .switching.after{--lane:clamp(56px,13.5vh,150px)}
+.compare .after .free,.compare .after .mine,.compare .after .work,.compare .after .gate{font-size:clamp(12px,.85vw,17px)}
+.compare .after .labels{font-size:clamp(13px,1vw,19px)}
 .compare .switching .block{top:6px;bottom:6px}
 .compare .punch{margin-top:clamp(14px,2.4vh,30px)}
 .ghosted .block{background:none;border:1.5px solid rgba(15,23,42,.6);color:var(--dim)}
@@ -834,29 +836,12 @@ And all the context it used to burn on the routine goes into the actual work now
     <div class="wrap compare">
       <div class="eyebrow">Down the rabbit hole · so what changed?</div>
       <h2 id="diff-title">It still needs my review. <span class="grad">Twice, not sixteen times.</span></h2>
-      <p class="tl-label">Before · slide 4 · reviewing raw work, mid-task</p>
-      <div class="timeline switching ghosted" role="img" aria-label="Illustrative timeline: my attention, drawn as a line, jumps between three agents 16 times. Each time I break down the task, check the diff, verify in the browser, ask a reviewer, run the tests, fix lint, check it covers the requirements, check for new tests, ask for a Storybook story, or ask it to reuse an existing component. Each agent works briefly, then sits blocked until I come back to it.">
-        <div class="labels"><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
-        <div class="tracks">
-          <div class="track">
-          <div class="block gate" style="--from:0.3;--to:6.25"><span>break down task</span></div><div class="block work" style="--from:6.25;--to:15.25"></div><div class="block blocked" style="--from:15.25;--to:18.75"></div><div class="block gate" style="--from:19.05;--to:25"><span>check the diff</span></div><div class="block work" style="--from:25;--to:34"></div><div class="block blocked" style="--from:34;--to:37.5"></div><div class="block gate" style="--from:37.8;--to:43.75"><span>run the tests</span></div><div class="block work" style="--from:43.75;--to:52.75"></div><div class="block blocked" style="--from:52.75;--to:56.25"></div><div class="block gate" style="--from:56.55;--to:62.5"><span>new tests written?</span></div><div class="block work" style="--from:62.5;--to:71.5"></div><div class="block blocked" style="--from:71.5;--to:75"></div><div class="block gate" style="--from:75.3;--to:81.25"><span>reuse an existing component</span></div><div class="block work" style="--from:81.25;--to:90.25"></div><div class="block blocked" style="--from:90.25;--to:93.75"></div><div class="block gate" style="--from:94.05;--to:100"><span>re-prompt</span></div><div class="block work" style="--from:100;--to:100"></div>
-          </div>
-          <div class="track">
-          <div class="block idle" style="--from:0;--to:6.25"></div><div class="block gate" style="--from:6.55;--to:12.5"><span>break down task</span></div><div class="block work" style="--from:12.5;--to:21.5"></div><div class="block blocked" style="--from:21.5;--to:25"></div><div class="block gate" style="--from:25.3;--to:31.25"><span>verify in the browser</span></div><div class="block work" style="--from:31.25;--to:40.25"></div><div class="block blocked" style="--from:40.25;--to:43.75"></div><div class="block gate" style="--from:44.05;--to:50"><span>fix lint</span></div><div class="block work" style="--from:50;--to:59"></div><div class="block blocked" style="--from:59;--to:62.5"></div><div class="block gate" style="--from:62.8;--to:68.75"><span>add a Storybook story</span></div><div class="block work" style="--from:68.75;--to:77.75"></div><div class="block blocked" style="--from:77.75;--to:81.25"></div><div class="block gate" style="--from:81.55;--to:87.5"><span>ask a reviewer</span></div><div class="block work" style="--from:87.5;--to:96.5"></div><div class="block blocked" style="--from:96.5;--to:100"></div>
-          </div>
-          <div class="track">
-          <div class="block idle" style="--from:0;--to:12.5"></div><div class="block gate" style="--from:12.8;--to:18.75"><span>break down task</span></div><div class="block work" style="--from:18.75;--to:27.75"></div><div class="block blocked" style="--from:27.75;--to:31.25"></div><div class="block gate" style="--from:31.55;--to:37.5"><span>ask a reviewer</span></div><div class="block work" style="--from:37.5;--to:46.5"></div><div class="block blocked" style="--from:46.5;--to:50"></div><div class="block gate" style="--from:50.3;--to:56.25"><span>covered by requirements?</span></div><div class="block work" style="--from:56.25;--to:65.25"></div><div class="block blocked" style="--from:65.25;--to:68.75"></div><div class="block gate" style="--from:69.05;--to:75"><span>verify in the browser</span></div><div class="block work" style="--from:75;--to:84"></div><div class="block blocked" style="--from:84;--to:87.5"></div><div class="block gate" style="--from:87.8;--to:93.75"><span>run the tests</span></div><div class="block work" style="--from:93.75;--to:100"></div>
-          </div>
-          <svg class="attention" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M0.3 0.3 L6.25 0.3 L6.55 1.3 L12.3 1.3 L12.8 2.3 L18.75 2.3 L19.05 0.3 L25 0.3 L25.3 1.3 L31.25 1.3 L31.55 2.3 L37.3 2.3 L37.8 0.3 L43.75 0.3 L44.05 1.3 L50 1.3 L50.3 2.3 L56.25 2.3 L56.55 0.3 L62.3 0.3 L62.8 1.3 L68.75 1.3 L69.05 2.3 L75 2.3 L75.3 0.3 L81.25 0.3 L81.55 1.3 L87.3 1.3 L87.8 2.3 L93.75 2.3 L94.05 0.3 L100 0.3"/></svg>
-          <div class="switches" aria-hidden="true"><b style="--x:0.3;--y:0.3;--at:0.42s">1</b><b style="--x:6.55;--y:1.3;--at:0.92s">2</b><b style="--x:12.8;--y:2.3;--at:1.42s">3</b><b style="--x:19.05;--y:0.3;--at:1.92s">4</b><b style="--x:25.3;--y:1.3;--at:2.42s">5</b><b style="--x:31.55;--y:2.3;--at:2.92s">6</b><b style="--x:37.8;--y:0.3;--at:3.42s">7</b><b style="--x:44.05;--y:1.3;--at:3.92s">8</b><b style="--x:50.3;--y:2.3;--at:4.42s">9</b><b style="--x:56.55;--y:0.3;--at:4.92s">10</b><b style="--x:62.8;--y:1.3;--at:5.42s">11</b><b style="--x:69.05;--y:2.3;--at:5.92s">12</b><b style="--x:75.3;--y:0.3;--at:6.42s">13</b><b style="--x:81.55;--y:1.3;--at:6.92s">14</b><b style="--x:87.8;--y:2.3;--at:7.42s">15</b><b style="--x:94.05;--y:0.3;--at:7.92s">16</b></div>
-        </div>
-      </div>
       <p class="tl-label now">Now · reviewing work that’s already checked, at a gate</p>
-      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do the work only I can do: spec the next feature, talk to users, help a teammate, architecture, plan. The agents work on their own for long stretches. I switch twice: once when Agent C needs a decision, once when Agent A needs an approval. Agent B never needs me.">
+      <div class="timeline switching turns after" role="img" aria-label="Illustrative timeline: I hand off to three agents, then do the work that needs me: tech planning for PBI 304564, technical refinement, reviewing PR 456, a front end design discussion, specifying the next feature. The agents work on their own for long stretches. I switch twice: once when Agent C needs a decision, once when Agent A needs an approval. Agent B never needs me.">
         <div class="labels"><span>Me</span><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
         <div class="tracks">
           <div class="track">
-          <div class="block gate" style="--from:0;--to:6"><span>hand off</span></div><div class="block mine" style="--from:6.3;--to:23"><span>spec the next feature</span></div><div class="block mine" style="--from:23.3;--to:39.7"><span>talk to users</span></div><div class="block gate" style="--from:40;--to:47"><span>decide for C</span></div><div class="block mine" style="--from:47.3;--to:61"><span>help a teammate</span></div><div class="block mine" style="--from:61.3;--to:73.7"><span>architecture</span></div><div class="block gate" style="--from:74;--to:81"><span>approve A</span></div><div class="block mine" style="--from:81.3;--to:100"><span>plan what’s next</span></div>
+          <div class="block gate" style="--from:0;--to:6"><span>hand off</span></div><div class="block mine" style="--from:6.3;--to:23"><span>Tech planning for PBI 304564</span></div><div class="block mine" style="--from:23.3;--to:39.7"><span>technical refinement</span></div><div class="block gate" style="--from:40;--to:47"><span>decide for C</span></div><div class="block mine" style="--from:47.3;--to:56"><span>Review PR 456</span></div><div class="block mine" style="--from:56.3;--to:73.7"><span>front end design discussion</span></div><div class="block gate" style="--from:74;--to:81"><span>approve A</span></div><div class="block mine" style="--from:81.3;--to:100"><span>spec the next feature</span></div>
           </div>
           <div class="track">
           <div class="block idle" style="--from:0;--to:6"></div><div class="block work" style="--from:6;--to:68"><span>working on its own</span></div><div class="block blocked" style="--from:68;--to:81"></div><div class="block work" style="--from:81;--to:100"><span>next task</span></div>
@@ -874,11 +859,11 @@ And all the context it used to burn on the routine goes into the actual work now
     </div>
     <aside class="notes">Now, you might be thinking, hang on. It still waits for your review. That's what slowed you down before. So what's actually different?
 
-[Point at the outline.] That's before. Every agent stopping mid-task, waiting for me to check its work.
+Remember slide four? Every agent stopping mid-task, waiting for me to check its work.
 
-[Point at the colour.] And this is now. Same three agents. Two reviews.
+[Point at the chart.] This is now. Same three agents. Two reviews. A decision for C, an approval for A. B never needed me at all.
 
-And look at my lane. That's not idle time. Specing the next feature. Talking to users. Helping the team. The work only I can do.
+And look at my lane. That's not idle time. Tech planning for the next PBI. Technical refinement. Reviewing a PR. A front end design discussion. The work that actually needs me.
 
 Three things changed. When I review. Before, constantly, mid-task. Now, once, when a stage is finished.
 
@@ -888,7 +873,7 @@ And my job. Before, all three. Checking, directing, reminding. Now just one. Dec
 
 Before, I reviewed to find out if it worked. Now I review to decide if it's what I want.
 
-[Both timelines show on load; the outline is slide 4, as a reminder. Illustrative, not measured.]</aside>
+[The timeline shows on load. Illustrative, not measured.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="rod-title" hidden>
