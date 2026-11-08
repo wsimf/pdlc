@@ -248,3 +248,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 5 notes rewritten as one story: the pink was the same few things; I was keeping the work honest (checking), moving (directing), and on track (reminding); first try, a skill.
 - **2026-11-09** — Slide 5 subtitles now "Keeping the work honest" / "Keeping it moving" / "Keeping it on track"; notes line "And I realised I was mostly doing three things."
 - **2026-11-09** — Slide 11 notes: removed "You only see the stage it's in right now."
+- **2026-11-09** — Slide 11 notes: "the agent does the work, then the checks run…" now comes after the Plan changes-needed beat.
