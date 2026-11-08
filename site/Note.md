@@ -195,3 +195,4 @@ Reference example: slide 1's notes.
 - **2026-11-08** — Slide 11 ring: gate status reads "waiting for approval"; the "I review it" line is gone (the page scan carries it), then "approved".
 - **2026-11-08** — Slide 11 ring: review document shrunk (scale 1.35 → 0.9); status line moved up to match.
 - **2026-11-08** — Slide 11 ring: agent chips carry a pink robot silhouette at bottom-left, my chips an indigo person at bottom-right.
+- **2026-11-08** — Slide 11 ring: person icon's body now meets the head (no gap).

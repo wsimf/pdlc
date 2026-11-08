@@ -1179,7 +1179,7 @@ const ring = (() => {
     });
   }
   // 12×12 silhouettes (drawn at 1.3×) in the chip's colour.
-  const PERSON = '<circle cx="6" cy="3.2" r="3.2"/><path d="M0 12.5C0 7.6 12 7.6 12 12.5Z"/>';
+  const PERSON = '<circle cx="6" cy="3.2" r="3.2"/><path d="M0 12.5C0 4.2 12 4.2 12 12.5Z"/>';
   const ROBOT = '<path d="M5.4 0h1.2v2.6H5.4Z"/><circle cx="6" cy="0.8" r="1.1"/><rect x="1" y="2.6" width="10" height="8.4" rx="2.2"/><circle class="eye" cx="4" cy="6.6" r="1.2"/><circle class="eye" cx="8" cy="6.6" r="1.2"/><path d="M0 5.5h1v3H0ZM11 5.5h1v3h-1Z"/>';
   const icon = (parent, shape, x, y) => { const g = make('g', { class: 'who', transform: `translate(${x} ${y}) scale(1.3)` }, parent); g.innerHTML = shape; };
   const light = (list, j) => list.forEach((c, n) => { c.classList.toggle('on', n === j); c.classList.remove('fail'); });
