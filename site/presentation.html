@@ -239,7 +239,8 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .level.wide.flowfirst{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 /* Slide 11 step: the stage config falls like a sheet of paper over the right-hand lists. */
 .level.flowfirst{position:relative}
-.level.flowfirst .codepaper{position:absolute;top:-8.5vh;right:-1.5vw;width:58%;z-index:2;background:#1e1e1e;border-radius:10px;box-shadow:0 30px 60px -20px rgba(15,23,42,.55),0 8px 20px rgba(15,23,42,.25);overflow:hidden;transform:rotate(-2.5deg);transition:opacity .35s ease,transform .6s cubic-bezier(.2,.9,.3,1.15)}
+.codepaper{z-index:2;background:#1e1e1e;border-radius:10px;box-shadow:0 30px 60px -20px rgba(15,23,42,.55),0 8px 20px rgba(15,23,42,.25);overflow:hidden;transition:opacity .35s ease,transform .6s cubic-bezier(.2,.9,.3,1.15)}
+.level.flowfirst .codepaper{position:absolute;top:-8.5vh;right:-1.5vw;width:58%;transform:rotate(-2.5deg)}
 .level.flowfirst .codepaper.pending{transform:rotate(-9deg) translate(40px,-70px) scale(1.05)}
 .codepaper .codebar{padding:10px 18px;background:#2a2a2a;font:500 clamp(11px,.8vw,15px) var(--mono);color:#9ca3af}
 .codepaper pre{margin:0;padding:14px 18px 18px;font:400 clamp(11px,.58vw,13px)/1.34 var(--mono);color:#e5e7eb}
@@ -250,7 +251,12 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .codepaper .folded i{color:#9ca3af}
 .level.flowfirst .codepaper.pipes{top:auto;bottom:.5vh;right:12vw;width:50%;z-index:3;transform:rotate(1.5deg)}
 .level.flowfirst .codepaper.pipes.pending{transform:rotate(8deg) translate(-30px,-80px) scale(1.05)}
-.codepaper.pipes .ln{grid-template-columns:1fr}
+.codepaper.pipes .ln,.codepaper.cfg .ln{grid-template-columns:1fr}
+/* Slide 14: the repo's config.toml falls over the rows. */
+.answer .wrap{position:relative}
+.answer .codepaper.cfg{position:absolute;top:24%;right:-1vw;width:40%;transform:rotate(-2deg)}
+.answer .codepaper.cfg.pending{transform:rotate(-8deg) translate(40px,-70px) scale(1.05)}
+.codepaper.cfg pre{padding:18px 22px 22px;font-size:clamp(14px,.95vw,18px);line-height:1.55}
 .codepaper .cm{color:#6b7280;font-style:italic}
 .codepaper .str{color:#98c379}.codepaper .kw{color:#56b6c2}.codepaper .key{color:#e5a46a}.codepaper .call{color:#61afef}
 /* Slide 11 ring: JS in ring() moves the token and sets .on/.fail/.ok classes; sizes are viewBox units. */
@@ -1059,6 +1065,7 @@ So I stopped switching all day. Now I mostly just decide.
         <li><span class="was">Re-explain why we built it that way</span><span class="arrow" aria-hidden="true">→</span><span class="now">Requirements and decisions live on the work item<small>the board</small></span></li>
         <li><span class="was">Carry it on in my own session</span><span class="arrow" aria-hidden="true">→</span><span class="now">Any agent, or teammate, picks up from the record<small>pdlc inspect</small></span></li>
       </ul>
+      <div class="step codepaper cfg" aria-label="flex.2degrees.nz .pdlc/config.toml: build-run is set to the flex-feedback-loop skill; the other skill and agent slots are left unset, so the agent does those steps itself."><div class="codebar">flex.2degrees.nz/.pdlc/config.toml</div><pre><span class="ln"><code><span class="cm"># Plug this repo&#x27;s own skills into the workflow.</span></code></span><span class="ln"><code><span class="call">[skills]</span></code></span><span class="ln"><code><span class="key">build-run</span> = <span class="str">"flex-feedback-loop"</span></code></span><span class="ln"><code><span class="cm"># ux-design         = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># test-authoring    = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># cumulative-review = &quot;…&quot;</span></code></span><span class="ln"><code> </code></span><span class="ln"><code><span class="call">[agents]</span></code></span><span class="ln"><code><span class="cm"># ui-implementer   = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># core-implementer = &quot;…&quot;</span></code></span><span class="ln"><code> </code></span><span class="ln"><code><span class="cm"># Left unset? The agent does that step itself.</span></code></span></pre></div>
       <p class="punch">The chat became disposable. <span class="grad">The record didn’t.</span></p>
     </div>
     <aside class="notes">And the last one. Reminding.
@@ -1069,7 +1076,9 @@ So I stopped switching all day. Now I mostly just decide.
 
 Instead, the workflow has slots. Places where a repo can plug in its own skill, or its own agent. Building and running the app. UX and design. Writing tests. Implementing a UI task, or a core task. Reviewing the change.
 
-Each repo just says, in one config file, which of its skills goes in which slot. So in my repo, the UI implementer is my own agent, and it knows to add a Storybook story. The test writer follows our test conventions. In another repo, those could be completely different.
+Each repo just says, in one config file, which of its skills goes in which slot.
+
+[Next step: the config file drops in.] Here's ours, for flex.2degrees.nz. Building and running the app goes to our own skill, flex-feedback-loop. The rest I've left empty for now. And if I wanted a Storybook story every time, that would go in here too. In another repo, all of this could be completely different.
 
 And if a repo doesn't plug anything in? It still works. The agent just does that step itself, following whatever's already in the repo.
 
@@ -1083,7 +1092,7 @@ Which means anyone can pick it up. Another agent. A teammate. Or me, next week, 
 
 So the chat's disposable now. The record isn't.
 
-[Rows come in on load.]</aside>
+[Rows come in on load. One step: the flex.2degrees.nz config.toml falls over the rows.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="lessons-title" hidden>
