@@ -903,7 +903,7 @@ And once the whole workflow was a rod, I got something I didn't see coming.
     </div>
     <aside class="notes">Because the workflow gave the same answer every time, I could trust it to go round again. On its own.
 
-[Point at the ring.] This is one work item going round the workflow. You only see the stage it's in. The agent does the work, then the checks. A dry-run, a reviewer, CI. When one fails, it goes back and fixes it, without me. And when it reaches a gate, it waits. For me. I approve, and it carries on. [At Plan.] Or I don't. Here I ask for changes, and it goes all the way back to Product, and round again.
+[Point at the ring.] This is one work item going round the workflow. You only see the stage it's in. The agent does the work, then the checks. A reviewer, CI. When one fails, it goes back and fixes it, without me. And when it reaches a gate, it waits. For me. I approve, and it carries on. [At Plan.] Or I don't. Here I ask for changes, and it goes all the way back to Product, and round again.
 
 Tasks or plan don't validate? Back to the agent, fix it, run it again. A reviewer wants changes? Revise, up to three times. CI goes red? Back to whoever owns it. Verification finds a gap? Back to implementation, and round it goes.
 
@@ -1087,8 +1087,8 @@ const ring = (() => {
   // reject: I request changes at this gate once, sending the item back to Product. Each happens once per lap.
   const STAGES = [
     { name: 'Product', steps: [['me', 'I write it'], ['agent', 'reviewer']], gate: 'me' },
-    { name: 'UI + tasks', steps: [['agent', 'draft'], ['code', 'dry-run'], ['agent', 'reviewer']], fail: 1, gate: 'me' },
-    { name: 'Plan', steps: [['agent', 'spike + plan'], ['code', 'dry-run'], ['agent', 'reviewer']], fail: 2, gate: 'me', reject: true },
+    { name: 'UI + tasks', steps: [['agent', 'draft'], ['agent', 'reviewer']], gate: 'me' },
+    { name: 'Plan', steps: [['agent', 'spike + plan'], ['agent', 'reviewer']], fail: 1, gate: 'me', reject: true },
     { name: 'Implement', steps: [['agent', 'code'], ['agent', 'reviewer'], ['code', 'CI']], fail: 2, gate: 'auto' },
     { name: 'Test', steps: [['agent', 'tests'], ['agent', 'reviewer'], ['code', 'CI']], gate: 'auto' },
     { name: 'Verify', steps: [['agent', 'journeys'], ['agent', 'findings']], bounce: 1, gate: 'me' },
