@@ -238,3 +238,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 18: a Sources list on the right (pstack; T3 Code and tstack; Claude dev blog), names only, no links yet.
 - **2026-11-09** — Slide 18 sources now carry authors and URLs: pstack (Lauren Tan, github.com/cursor/plugins/tree/main/pstack); T3 Code and tstack (Theo Browne, t3.codes, github.com/t3dotgg/tstack); "How the Claude Code team does code review" (Addy Osmani, Morgan Westlee Lunt, Qing Wang; claude.dev/blog/solving-code-review-at-anthropic).
 - **2026-11-09** — Slide 18 sources: bigger type in a wider right column (46%), plus a fourth source: Addy Osmani, "Your coding agents made you a manager" (x.com/addyosmani/status/2119332146485891501), the origin of slide 15's delegate/ratification framing.
+- **2026-11-09** — Slide 18 notes: credit line for the sources (they shaped how I design my workflows; some pdlc principles came from them).
