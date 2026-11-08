@@ -1169,12 +1169,6 @@ The agent does the work. Style, lint, follow-ups on review comments, the usual b
 
 But I decide the important things. Product calls. Security boundaries. What's in scope, and what isn't. The trade-offs. Whether it actually feels right to use. Whether it's over-engineered. And what actually ships.
 
-No manager can say "my report shipped that, not me." And it's the same with every agent I run.
-
-I've fallen into this trap myself. I had an agent research the gaps with our competitors, and write local PRs to close them. I read the research, skimmed the code, and I almost pushed it. It added complexity for users, for very little gain. I'd delegated the work, and nearly delegated the decision too.
-
-And it's an easy trap. A six hundred line diff. The names look reasonable. The tests are green. Approve.
-
 [Point at the stack.] So I keep the changes small. pdlc gives every task its own PR by default, stacked on the one before. Each one is small enough to read in one go. And I go through them one by one, myself. I check out and test the ones that matter.
 
 I still read the code, but it feels different now. Less like proofreading, more like an architect walking the site. Where did it put things? What does it depend on? What did it change that it didn't need to? The small stuff, naming and style, the agents have already handled.
