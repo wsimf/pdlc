@@ -77,8 +77,9 @@ Reference example: slide 1's notes.
 | 14 | Reminding. Written down once, not said every time. (4 rows) | Draft. Spoken-voice notes; `[Your story]` open |
 | 15 | Delegate the task, never the judgment (bullets: who does what · how I review now; stacked PR cards right; one step: "Passing tests is the agent’s job. Deciding it’s worth shipping is mine.") | Draft |
 | 16 | What stuck, and what didn't (7 paired rows on load: ✕ didn't stick · ✓ stuck) | Draft |
-| 17 | Where it could go next (4 cards) | Draft |
-| 18 | Thank you. Questions? (title style) | Draft |
+| 17 | It also got cheaper (usage bars ~90% → ~40%, caveat, two reason cards) | Draft |
+| 18 | Where it could go next (4 cards) | Draft |
+| 19 | Thank you. Questions? (title style) | Draft |
 
 ## Presenter tooling
 
@@ -254,3 +255,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 15 notes opener: "But there's one thing I don't feel comfortable handing over. The actual judgment part."
 - **2026-11-09** — Slide 16 notes rewritten as short stories per row (lint rule skipped, two agents reading different context, self-review agreeing with itself, weekend context loss, over-explaining, missing handover sections, blind re-run) instead of reading the slide.
 - **2026-11-09** — Slide 18 notes: special thanks to the Flex team after the sources, "Especially Ewerton, Yue, and the rest of the team." Notes only, not on the slide.
+- **2026-11-09** — New slide 17 (18 → 19): "It also got cheaper." Usage bars ~90% → ~40% of monthly allocation (actual $446 → $132 of $500; rounded up on purpose), caveat that models got cheaper too, cards: small agents with cached prompts, the right model for the job. Notes explain prompt caching (an hour or less), the lunch example, and model routing. No steps. Checked at 2000×1023.

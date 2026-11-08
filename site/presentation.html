@@ -500,6 +500,19 @@ button:disabled{opacity:.3;cursor:default}
   .block{font-size:0}
   .legend{margin-left:0}
 }
+/* Slide: cost side effect. Two usage bars grow to their share of the monthly allocation (--w). */
+.cost{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:72px;align-items:center;margin-top:clamp(28px,5vh,52px)}
+.usage{display:grid;gap:36px}
+.usage .row{display:grid;gap:12px}
+.usage .lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(19px,2vw,32px);color:var(--soft)}
+.usage .lbl b{font-size:clamp(40px,5vw,88px);font-weight:800;letter-spacing:-.04em;color:var(--ink)}
+.usage .bar{height:34px;border-radius:999px;background:var(--line);overflow:hidden}
+.usage .bar i{display:block;height:100%;width:var(--w);border-radius:inherit;background:var(--dim);animation:grow 1s var(--d,0s) ease-out both}
+.usage .row.now .bar i{background:linear-gradient(90deg,var(--teal),var(--indigo))}
+.usage .row.now .lbl b{color:var(--teal)}
+.usage .note{font-size:clamp(17px,1.6vw,26px);color:var(--dim)}
+@keyframes grow{from{width:0}}
+.cost .cards{grid-template-columns:1fr;margin-top:0}
 </style>
 </head>
 <body>
@@ -1216,6 +1229,39 @@ Improvising on failure. A command failed halfway, and the agent just ran it agai
 Like this. GitHub had a blip mid-write. pdlc doesn't guess or retry. It says how to check if it landed, and what to do either way. Keeps failing? Stop and tell me.
 
 [Rows come in on load. One step: the recovery example. Read the left side quickly and land on the right. Each row is a short story; don't read the slide text.]</aside>
+  </section>
+
+  <section class="slide" aria-labelledby="cost-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">A side effect</div>
+      <h2 id="cost-title">It also got <span class="grad">cheaper.</span></h2>
+      <div class="cost">
+        <div class="usage" role="img" aria-label="Monthly usage of my allocation: about 90% two months ago, about 40% last month.">
+          <div class="row reveal" style="--d:.2s"><div class="lbl"><span>Two months ago</span><b>~90%</b></div><div class="bar"><i style="--w:90%;--d:.4s"></i></div></div>
+          <div class="row now reveal" style="--d:.6s"><div class="lbl"><span>Last month</span><b>~40%</b></div><div class="bar"><i style="--w:40%;--d:.8s"></i></div></div>
+          <p class="note reveal" style="--d:1.2s">of my monthly allocation. Not all of it is pdlc: models got cheaper too.</p>
+        </div>
+        <ul class="cards">
+          <li class="reveal" style="--d:1.6s"><h3>Small agents, cached prompts</h3><p>Each agent does one job and finishes. Small context, almost always cached.</p></li>
+          <li class="reveal" style="--d:2.1s"><h3>The right model for the job</h3><p>Cheap models run the orchestration. Opus and Sol get the judgment.</p></li>
+        </ul>
+      </div>
+    </div>
+    <aside class="notes">One side effect I didn't plan for. It got cheaper.
+
+[Point at the bars.] Two months ago I was using about 90% of my monthly allocation. Last month, about 40%.
+
+Now, I can't take credit for all of that. The models got a lot cheaper too, especially Luna and Haiku. But I wanted to know why, so I looked into it, and part of it really is the design.
+
+The first thing is prompt caching. When you send a prompt, the provider remembers it for a while, and reusing that is much cheaper than processing it again. But that memory only lasts an hour or less, depending on the provider.
+
+So say you have one long session going. You go out for lunch, come back, and the cache has expired. Now all that context you've built up gets processed again, at full price.
+
+With pdlc, each agent does one small job, and then it finishes. The context stays small, and its prompt is almost always cached. And the next step starts fresh, so we're not dragging a big expired context around.
+
+The second thing is using the right model at the right time. Most of the small orchestration work goes to cheap models. The steps that need real judgment go to the bigger ones, like Opus or Sol.
+
+[Bars and cards come in on load. No steps. Keep it short, about a minute.]</aside>
   </section>
 
   <section class="slide" aria-labelledby="next-title" hidden>
