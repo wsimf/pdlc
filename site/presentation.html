@@ -1191,10 +1191,10 @@ const ring = (() => {
   async function review(ok, verdict) {
     tint('me');
     doc.setAttribute('class', 'doc show');
-    say('waiting for me', 'wait');
+    say('waiting for approval', 'wait');
     await wait(1300);
     doc.setAttribute('class', 'doc show reading');
-    say('I review it');
+    say('');
     await wait(1600);
     stampText.textContent = ok ? '✓' : '↺';
     doc.setAttribute('class', `doc show ${ok ? 'ok' : 'no'}`);
