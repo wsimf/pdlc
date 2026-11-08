@@ -235,3 +235,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 15 "One by one" bullet: "as if I’ll get paged for it" became "like I’ll be the one fixing it at 2am" (slide and notes).
 - **2026-11-09** — Slide 15 notes: cut the repeated "I go through every one like I’ll be the one fixing it at 2am." (the slide bullet keeps it).
 - **2026-11-09** — Slide 15 notes: the "not really code review anymore" paragraph became "Less like proofreading, more like an architect walking the site" (modules, dependencies, unneeded changes; naming and style left to agents).
+- **2026-11-09** — Slide 18: a Sources list on the right (pstack; T3 Code and tstack; Claude dev blog), names only, no links yet.

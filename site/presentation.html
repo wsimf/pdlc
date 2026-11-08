@@ -400,6 +400,12 @@ cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);fo
 .prstack .diff{font:600 .8em var(--mono);color:var(--teal)}
 .prstack .checks{grid-column:1/-1;font:500 .7em var(--mono);color:var(--dim)}
 .prstack .checks em{font-style:normal;font-weight:700;color:var(--pink)}
+/* Slide 18: the closing title, with the sources I drew on to its right. */
+.thanks{display:grid;grid-template-columns:1fr auto;align-items:end;gap:64px}
+.sources{padding-left:28px;border-left:3px solid var(--line)}
+.sources h3{font:600 clamp(12px,1vw,15px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.sources ul{margin-top:14px;list-style:none;display:grid;gap:10px}
+.sources li{font-size:clamp(18px,1.6vw,28px);font-weight:600;color:var(--soft)}
 .reveal{animation:enter .5s var(--d,0s) ease both}
 
 /* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
@@ -1251,7 +1257,13 @@ And last, more workflows. Features are the only one today. Bugs and spikes don't
   <section class="slide" aria-labelledby="thanks-title" hidden>
     <div class="wrap">
       <div class="eyebrow">That’s it from me</div>
-      <h1 id="thanks-title">Thank you.<br><span class="grad">Questions?</span></h1>
+      <div class="thanks">
+        <h1 id="thanks-title">Thank you.<br><span class="grad">Questions?</span></h1>
+        <aside class="sources reveal" style="--d:.6s" aria-label="Sources">
+          <h3>Sources</h3>
+          <ul><li>pstack</li><li>T3 Code and tstack</li><li>Claude dev blog</li></ul>
+        </aside>
+      </div>
     </div>
     <aside class="notes">That's it from me. Thanks for listening.
 
