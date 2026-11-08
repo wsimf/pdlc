@@ -216,3 +216,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 17 card 3: "not when I open a ticket" → "not when I prompt" (card and notes).
 - **2026-11-09** — Slide 11: the ring no longer starts on its own. It waits at Product (nothing lit) until the first arrow-key step, then loops as before; stepping back returns it to the wait. The code sheets are now steps 2 and 3. Notes add the "[Next step: the loop starts.]" cue.
 - **2026-11-09** — Slide 11: new second step. On the first lap the ring holds at the Plan review (the document being read) until you press the arrow, then stamps "changes needed · back to Product". Later laps don't hold. The code sheets are now steps 3 and 4. Notes cue updated.
+- **2026-11-09** — Slide 13 row: "The record says what’s due next" → "The PBI says what’s due next".
