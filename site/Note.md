@@ -257,3 +257,4 @@ Reference example: slide 1's notes.
 - **2026-11-09** — Slide 18 notes: special thanks to the Flex team after the sources, "Especially Ewerton, Yue, and the rest of the team." Notes only, not on the slide.
 - **2026-11-09** — New slide 17 (18 → 19): "It also got cheaper." Usage bars ~90% → ~40% of monthly allocation (actual $446 → $132 of $500; rounded up on purpose), caveat that models got cheaper too, cards: small agents with cached prompts, the right model for the job. Notes explain prompt caching (an hour or less), the lunch example, and model routing. No steps. Checked at 2000×1023.
 - **2026-11-09** — Slide 17: model card and notes now say small models run the trivial stuff, like writing tests.
+- **2026-11-09** — Added `presentation-share.html`: a copy of the deck with every speaker-notes aside and the "N notes" hint stripped, for sharing with the team. A snapshot: regenerate it if the deck changes.
