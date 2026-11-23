@@ -62,7 +62,7 @@ function Assert-Checkout {
     if ($metadata -notmatch '(?m)^name\s*=\s*"pdlc"\s*$') {
         throw 'Setup cancelled: this is not the PDLC repository.'
     }
-    foreach ($directory in @('agent/skills', 'agent/sub-agents/claude', 'agent/sub-agents/codex', 'agent/sub-agents/copilot')) {
+    foreach ($directory in @('agent/skills', 'agent/sub-agents/claude', 'agent/sub-agents/codex', 'agent/sub-agents/copilot', 'agent/sub-agents/gemini')) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
             throw "Setup cancelled: required directory $directory is missing."
         }
@@ -232,6 +232,9 @@ Let's set up PDLC!
     }
     if (Test-Path -LiteralPath (Join-Path $HOME '.copilot') -PathType Container) {
         Install-Entries symlink (Join-Path $repoRoot 'agent/sub-agents/copilot') (Join-Path $HOME '.copilot/agents')
+    }
+    if (Test-Path -LiteralPath (Join-Path $HOME '.gemini') -PathType Container) {
+        Install-Entries symlink (Join-Path $repoRoot 'agent/sub-agents/gemini') (Join-Path $HOME '.gemini/config/agents')
     }
     Write-Host 'Sub-agent setup finished.'
 

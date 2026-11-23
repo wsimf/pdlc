@@ -183,5 +183,34 @@ class DueNextNamesARealTargetTests(unittest.TestCase):
                     self.assertLessEqual(invoked, {_feature().stage(stage).skill})
 
 
+class SubAgentAlignmentTests(unittest.TestCase):
+    def test_all_harnesses_declare_the_same_sub_agents(self):
+        sub_agents = ROOT / "agent" / "sub-agents"
+        claude = {path.stem for path in (sub_agents / "claude").glob("*.md")}
+        codex = {path.stem for path in (sub_agents / "codex").glob("*.toml")}
+        copilot = {path.name.removesuffix(".agent.md") for path in (sub_agents / "copilot").glob("*.agent.md")}
+        gemini = {path.stem for path in (sub_agents / "gemini").glob("*.md")}
+        self.assertTrue(claude)
+        self.assertEqual(codex, claude)
+        self.assertEqual(copilot, claude)
+        self.assertEqual(gemini, claude)
+
+    def test_gemini_sub_agents_have_valid_frontmatter(self):
+        gemini_dir = ROOT / "agent" / "sub-agents" / "gemini"
+        for path in sorted(gemini_dir.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(file=path.name):
+                self.assertTrue(text.startswith("---\n"))
+                _, frontmatter, body = text.split("---\n", 2)
+                self.assertRegex(frontmatter, rf"(?m)^name:\s+{re.escape(path.stem)}$")
+                self.assertRegex(frontmatter, r'(?m)^description:\s+".+"$')
+                self.assertRegex(frontmatter, r"(?m)^subagent:\s+true$")
+                self.assertRegex(frontmatter, r"(?m)^mainAgent:\s+false$")
+                self.assertRegex(frontmatter, r"(?m)^model:\s+(inherit|flash|pro)$")
+                self.assertRegex(frontmatter, r"(?m)^commandExecutionPolicy:\s+(off|auto|eager|sandbox)$")
+                self.assertRegex(frontmatter, r"(?m)^tools:\n(?:  - [a-z_]+\n)+")
+                self.assertTrue(body.strip())
+
+
 if __name__ == "__main__":
     unittest.main()

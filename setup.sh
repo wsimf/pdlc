@@ -47,7 +47,7 @@ validate_checkout() {
     [[ $(cd "$git_root" && pwd -P) == "$repo_root" ]] || die 'this folder is not the Git repository root.'
     [[ -f pyproject.toml && -f src/pdlc/__init__.py && -f src/pdlc/cli.py ]] || die 'required PDLC package files are missing.'
     [[ $(sed -n 's/^name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' pyproject.toml) == pdlc ]] || die 'this is not the PDLC repository.'
-    for directory in agent/skills agent/sub-agents/claude agent/sub-agents/codex agent/sub-agents/copilot; do
+    for directory in agent/skills agent/sub-agents/claude agent/sub-agents/codex agent/sub-agents/copilot agent/sub-agents/gemini; do
         [[ -d "$directory" ]] || die "required directory $directory is missing."
         found=false
         for entry in "$directory"/*; do
@@ -179,6 +179,9 @@ if [[ -d "$HOME/.codex" ]]; then
 fi
 if [[ -d "$HOME/.copilot" ]]; then
     install_entries symlink "$repo_root/agent/sub-agents/copilot" "$HOME/.copilot/agents"
+fi
+if [[ -d "$HOME/.gemini" ]]; then
+    install_entries symlink "$repo_root/agent/sub-agents/gemini" "$HOME/.gemini/config/agents"
 fi
 printf 'Sub-agent setup finished.\n'
 

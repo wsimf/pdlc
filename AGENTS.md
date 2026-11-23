@@ -27,9 +27,9 @@ When a `pdlc` command fails, follow its printed recovery: exit 75 permits the st
 - `src/pdlc/templates/` owns the evidence templates: `docs/` holds one Markdown template per body a `post` command checks, and `template.py` loads them and validates a body against one. A template is also its own schema — its `### ` headings are the required sections — so a command calls `require_template` rather than hardcoding sections, and `pdlc template NAME` prints the same file.
 - `tests/` contains package-level Python tests.
 - `agent/skills/` contains the agent-facing PDLC skills and their references; they drive the workflow through the installed `pdlc` CLI, which is expected on `PATH`.
-- `agent/sub-agents/` contains Claude, Codex and Github Copilot specialist declarations.
+- `agent/sub-agents/` contains Claude, Codex, Github Copilot, and Gemini specialist declarations.
 
-Keep matching sub-agent declarations in `agent/sub-agents/claude/`, `agent/sub-agents/codex/`, and `agent/sub-agents/copilot/` behaviorally aligned. When updating one, update all three; only harness-specific syntax and capabilities should differ.
+Keep matching sub-agent declarations in `agent/sub-agents/claude/`, `agent/sub-agents/codex/`, `agent/sub-agents/copilot/`, and `agent/sub-agents/gemini/` behaviorally aligned. When updating one, update all four; only harness-specific syntax and capabilities should differ.
 
 When changing a lifecycle command or its evidence contract, inspect the matching package command under `src/pdlc/commands/` and the skills that call it, then update their tests/docs together when both surfaces are affected.
 

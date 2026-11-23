@@ -64,7 +64,8 @@ class SetupScriptTests(unittest.TestCase):
                      "agent/skills/pdlc/SKILL.md",
                      "agent/sub-agents/claude/pdlc-reviewer.md",
                      "agent/sub-agents/codex/pdlc-reviewer.toml",
-                     "agent/sub-agents/copilot/pdlc-reviewer.agent.md"):
+                     "agent/sub-agents/copilot/pdlc-reviewer.agent.md",
+                     "agent/sub-agents/gemini/pdlc-reviewer.md"):
             path = self.repo / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("fixture\n")
@@ -97,7 +98,7 @@ class SetupScriptTests(unittest.TestCase):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
     def test_all_harnesses_and_repeat_run_replace_only_matching_entries(self):
-        for name in (".claude", ".codex", ".copilot"):
+        for name in (".claude", ".codex", ".copilot", ".gemini"):
             (self.home / name).mkdir()
         copied = self.home / ".codex/agents/pdlc-reviewer.toml"
         copied.parent.mkdir()
@@ -114,6 +115,7 @@ class SetupScriptTests(unittest.TestCase):
                 (".claude/skills/pdlc", "agent/skills/pdlc"),
                 (".claude/agents/pdlc-reviewer.md", "agent/sub-agents/claude/pdlc-reviewer.md"),
                 (".copilot/agents/pdlc-reviewer.agent.md", "agent/sub-agents/copilot/pdlc-reviewer.agent.md"),
+                (".gemini/config/agents/pdlc-reviewer.md", "agent/sub-agents/gemini/pdlc-reviewer.md"),
             ):
                 self.assertTrue((self.home / target).is_symlink())
                 self.assertEqual((self.home / target).resolve(), self.repo / source)
@@ -169,18 +171,18 @@ class SetupScriptTests(unittest.TestCase):
         result = self.run_setup("-y")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Azure CLI not found", result.stdout)
-        for harness in (".claude", ".codex", ".copilot"):
+        for harness in (".claude", ".codex", ".copilot", ".gemini"):
             self.assertFalse((self.home / harness).exists())
 
     def test_each_copy_and_link_group_requires_approval(self):
-        for name in (".claude", ".codex", ".copilot"):
+        for name in (".claude", ".codex", ".copilot", ".gemini"):
             (self.home / name).mkdir()
-        result = self.run_setup(answers="n\nn\nn\nn\nn\nn\n")
+        result = self.run_setup(answers="n\nn\nn\nn\nn\nn\nn\n")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.count("[y/N]"), 6)
+        self.assertEqual(result.stdout.count("[y/N]"), 7)
         self.assertFalse((self.home / ".agents").exists())
         self.assertFalse((self.home / ".config").exists())
-        for harness in (".claude", ".codex", ".copilot"):
+        for harness in (".claude", ".codex", ".copilot", ".gemini"):
             self.assertEqual(list((self.home / harness).iterdir()), [])
 
     def test_global_ignore_is_added_once_after_a_newline(self):
@@ -234,7 +236,8 @@ class SetupScriptTests(unittest.TestCase):
             result = self.run_setup("-y", **env)
             self.assertNotEqual(result.returncode, 0)
         for missing in ("src/pdlc/cli.py", "agent/skills/pdlc/SKILL.md",
-                        "agent/sub-agents/codex/pdlc-reviewer.toml"):
+                        "agent/sub-agents/codex/pdlc-reviewer.toml",
+                        "agent/sub-agents/gemini/pdlc-reviewer.md"):
             path = self.repo / missing
             saved = path.read_text()
             path.unlink()
