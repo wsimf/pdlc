@@ -58,7 +58,7 @@ On Windows, run `.\setup.ps1` instead of `./setup.sh`. Windows symbolic links re
 - The `gh stack` extension if missing.
 - The optional `azure-devops` extension if Azure CLI is installed.
 - Skills linked into `~/.agents/skills`, plus `~/.claude/skills` when Claude is present.
-- Sub-agents for detected Claude, Codex, and Copilot directories; Claude/Copilot files are linked, Codex files are copied.
+- Sub-agents for detected Claude, Codex, Copilot, and Gemini directories; Claude/Copilot/Gemini files are linked, Codex files are copied.
 - The PDLC CLI, installed or updated from this checkout through uv.
 
 Setup pulls the latest code first and prompts before Python/extension installs and each link/copy group. Use `./setup.sh -y` or `.\setup.ps1 -Yes` to accept all prompts. Rerun the same script to update or retry; matching links and agent files are replaced, unrelated files are preserved. Keep the checkout in place because skills link to it.
