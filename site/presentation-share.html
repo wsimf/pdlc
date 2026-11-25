@@ -1,0 +1,1310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From taking turns to working apart</title>
+<style>
+:root{
+  --bg:#fafaf7;
+  --paper:#ffffff;
+  --ink:#111827;
+  --soft:#374151;
+  --dim:#6b7280;
+  --line:rgba(15,23,42,.12);
+  --teal:#0d9488;
+  --green:#16a34a;
+  --indigo:#4f46e5;
+  --pink:#c026d3;
+  --amber:#d97706;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
+body::before{
+  background:
+    radial-gradient(45% 45% at 12% 8%,rgba(13,148,136,.08),transparent 60%),
+    radial-gradient(45% 45% at 88% 15%,rgba(79,70,229,.08),transparent 60%),
+    radial-gradient(60% 60% at 50% 110%,rgba(192,38,211,.06),transparent 60%);
+}
+body::after{
+  opacity:.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(75% 75% at 50% 50%,rgba(0,0,0,.35),transparent);
+}
+#deck{position:relative;z-index:1}
+.slide{
+  min-height:100svh;display:flex;align-items:center;justify-content:center;
+  padding:48px clamp(24px,4vw,72px) 92px;
+  animation:enter .35s ease;
+}
+.slide[hidden]{display:none}
+.wrap{width:100%}
+.eyebrow{
+  display:flex;align-items:center;gap:16px;margin-bottom:22px;
+  font:600 clamp(15px,1.3vw,19px)/1.5 var(--mono);
+  letter-spacing:.18em;text-transform:uppercase;color:var(--teal);
+}
+.eyebrow::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,var(--teal),transparent)}
+h1{font-size:clamp(42px,6.8vw,96px);line-height:1.02;font-weight:900;letter-spacing:-.045em}
+h2{font-size:clamp(30px,4vw,56px);line-height:1.08;font-weight:800;letter-spacing:-.035em}
+h3{font-size:clamp(18px,1.7vw,23px);font-weight:650;letter-spacing:-.02em}
+.grad{background:linear-gradient(100deg,var(--teal),var(--indigo) 50%,var(--pink));background-clip:text;-webkit-background-clip:text;color:transparent}
+.lede{margin-top:24px;max-width:58ch;font-size:clamp(18px,1.8vw,25px);line-height:1.5;color:var(--soft);font-weight:400}
+.punch{margin-top:30px;font-size:clamp(20px,2.2vw,30px);font-weight:650;letter-spacing:-.02em}
+.note{margin-top:22px;font-size:clamp(14px,1.25vw,17px);line-height:1.5;color:var(--dim)}
+code{font:500 .92em var(--mono);color:var(--teal)}
+
+/* Revealed one at a time by the arrow keys, keeping their space so the layout never jumps. */
+.step{transition:opacity .3s ease,transform .3s ease}
+.step.pending{visibility:hidden;opacity:0;transform:translateY(8px)}
+
+/* The lever quote. */
+blockquote{margin-top:28px;padding-left:24px;border-left:3px solid var(--indigo);font-size:clamp(22px,2.6vw,36px);line-height:1.25;font-weight:500;font-style:italic;letter-spacing:-.02em;color:var(--soft)}
+cite{display:block;margin-top:14px;font:400 14px var(--mono);color:var(--dim);font-style:normal}
+
+/* Bordered cards used by every list slide, sized large so a few points fill the screen without more text. */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(24px,4.5vh,48px) 48px;margin-top:clamp(28px,5vh,52px);list-style:none}
+.cards li{padding:8px 0 8px 28px;border-left:5px solid var(--teal)}
+.cards li:nth-child(2){border-color:var(--indigo)}
+.cards li:nth-child(3){border-color:var(--pink)}
+.cards li:nth-child(4){border-color:var(--amber)}
+.cards h3{font-size:clamp(28px,3.4vw,60px);font-weight:750;letter-spacing:-.03em;line-height:1.15}
+.cards p{margin-top:12px;max-width:56ch;font-size:clamp(19px,2.1vw,34px);line-height:1.45;color:var(--soft)}
+/* A single column whose items fade in one after another when the slide opens, without arrow-key steps. */
+.cards.cascade{grid-template-columns:1fr}
+.cards.cascade li{animation:enter .5s ease both}
+.cards.cascade li:nth-child(2){animation-delay:.6s}
+.cards.cascade li:nth-child(3){animation-delay:1.2s}
+.cards.cascade li:nth-child(4){animation-delay:1.8s}
+
+/* Three columns that fade in one after another on load. */
+.questions{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:32px}
+.questions>div{padding-top:14px;border-top:3px solid var(--teal)}
+.questions>div:nth-child(2){border-color:var(--indigo)}
+.questions>div:nth-child(3){border-color:var(--pink)}
+.questions ul{list-style:none}
+.questions h3{font-size:clamp(22px,2.3vw,36px)}
+.questions>div{animation:enter .5s ease both}
+.questions>div:nth-child(2){animation-delay:.6s}
+.questions>div:nth-child(3){animation-delay:1.2s}
+/* The three jobs: each column lists the switches from the attention chart, as pink chips like its stints. */
+.jobs{grid-template-columns:repeat(3,1fr)}
+.jobs>div{display:flex;flex-direction:column}
+.jobs .needs{margin-top:auto;padding-top:18px;font-size:clamp(15px,1.3vw,20px);line-height:1.4;color:var(--ink)}
+.jobs>div>p{margin-top:6px;font-size:clamp(17px,1.6vw,24px);color:var(--soft)}
+.jobs ul{display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;margin-top:18px}
+.jobs li{margin:0;padding:8px 12px;border-radius:4px;background:rgba(192,38,211,.16);color:var(--ink);font:600 clamp(14px,1.4vw,21px)/1.2 var(--mono)}
+
+/* The old loop: one 10s cycle where I think, the prompt travels, the agent processes, and the result returns. */
+.loop{display:block;width:100%;max-height:52vh;margin-top:20px}
+.loop *{animation-duration:10s;animation-iteration-count:infinite;animation-timing-function:linear}
+.loop text{text-anchor:middle;font-family:var(--mono)}
+.node{fill:var(--paper);stroke:var(--line);stroke-width:2}
+.glow{opacity:0}
+.me-node .glow{fill:rgba(79,70,229,.12);stroke:var(--indigo);stroke-width:3;opacity:1;animation-name:me-on}
+.agent-node .glow{fill:rgba(13,148,136,.12);stroke:var(--teal);stroke-width:3;animation-name:agent-on}
+.who{font:700 30px var(--mono);fill:var(--ink);font-family:inherit}
+.state{font-size:22px;font-weight:700}
+.on-state{opacity:1}
+.me-node .on-state{fill:var(--indigo);animation-name:me-on}
+.me-node .off-state{fill:var(--amber);opacity:0;animation-name:me-off}
+.agent-node .on-state{fill:var(--teal);opacity:0;animation-name:agent-on}
+.agent-node .off-state{fill:var(--amber);opacity:1;animation-name:agent-off}
+.arc{fill:none;stroke:rgba(15,23,42,.25);stroke-width:3}
+.comet{fill:none;stroke-width:7;stroke-linecap:round;stroke-dasharray:.14 2;stroke-dashoffset:.14;opacity:0}
+.comet-out{stroke:var(--indigo);animation-name:send}
+.comet-back{stroke:var(--teal);animation-name:reply}
+.arc-label{font-size:20px;fill:var(--soft);opacity:.45}
+.label-out{animation-name:label-out}
+.label-back{animation-name:label-back}
+@keyframes me-on{0%,33%{opacity:1}36%,100%{opacity:0}}
+@keyframes me-off{0%,33%{opacity:0}36%,100%{opacity:1}}
+@keyframes agent-on{0%,49%{opacity:0}52%,83%{opacity:1}86%,100%{opacity:0}}
+@keyframes agent-off{0%,49%{opacity:1}52%,83%{opacity:0}86%,100%{opacity:1}}
+@keyframes send{0%,35%{opacity:0;stroke-dashoffset:.14}36%{opacity:1}50%{opacity:1;stroke-dashoffset:-1}51%,100%{opacity:0;stroke-dashoffset:-1}}
+@keyframes reply{0%,85%{opacity:0;stroke-dashoffset:.14}86%{opacity:1}99%{opacity:1;stroke-dashoffset:-1}100%{opacity:0;stroke-dashoffset:-1}}
+@keyframes label-out{0%,35%{opacity:.45}37%,49%{opacity:1}51%,100%{opacity:.45}}
+@keyframes label-back{0%,85%{opacity:.45}87%,98%{opacity:1}100%{opacity:.45}}
+
+/* Swimlane timelines: each block sets --from and --to as a percentage of the track. */
+.timeline{margin-top:32px}
+.lane{display:grid;grid-template-columns:84px 1fr;align-items:center;gap:14px;margin-bottom:10px}
+.lane>span{font:600 12px/1.3 var(--mono);color:var(--soft)}
+.track{position:relative;height:clamp(38px,6vh,54px);border-radius:6px;background:rgba(15,23,42,.05)}
+.block{
+  position:absolute;top:0;bottom:0;left:calc(var(--from)*1%);width:calc((var(--to) - var(--from))*1%);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;
+  font:600 11px/1 var(--mono);white-space:nowrap;color:#fff;
+}
+.work{background:var(--teal)}
+.me{background:var(--indigo)}
+.gate{background:var(--pink)}
+.free{background:rgba(79,70,229,.1);color:var(--soft);font-weight:500}
+.wait{color:var(--ink);font-weight:500;background:repeating-linear-gradient(135deg,rgba(217,119,6,.3) 0 5px,transparent 5px 11px)}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin:14px 0 0 98px;font:400 12px/1 var(--mono);color:var(--dim)}
+.legend i{display:inline-block;width:14px;height:14px;margin-right:7px;border-radius:3px;vertical-align:-2px}
+/* The context-switching timeline: lanes stack edge to edge so an SVG line can trace my attention across them, with a numbered badge at each switch. */
+.switching{--lane:clamp(64px,11vh,112px);display:grid;grid-template-columns:84px 1fr;gap:14px}
+.switching .labels{display:grid;grid-auto-rows:var(--lane);align-items:center;font:600 clamp(12px,1.1vw,15px)/1.3 var(--mono);color:var(--soft)}
+.switching .tracks{position:relative;display:grid;grid-auto-rows:var(--lane)}
+.switching .track{height:auto;border-radius:0;background:linear-gradient(rgba(15,23,42,.05),rgba(15,23,42,.05)) 0 50%/100% calc(100% - 20px) no-repeat}
+.switching .block{top:10px;bottom:10px}
+.switching .gate{background:rgba(192,38,211,.22)}
+.switching .blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
+.switching .idle{background:none}
+/* The one-agent "taking turns" chart: no attention line, so labels sit centred; my waiting time is grey stripes. */
+.switching.turns .gate,.switching.turns .waiting,.switching.turns .work,.switching.turns .free{align-items:center;padding:0 4px}
+.turns .waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.32) 0 5px,rgba(100,116,139,.06) 5px 11px);color:var(--dim);font:500 clamp(10px,.9vw,13px) var(--mono)}
+.turns .work{font-size:clamp(10px,.9vw,13px)}
+/* The two takeaways under the switching chart, each keyed to the chart by its swatch, sized to match the TL;DR body text. */
+.impacts{display:grid;gap:14px;margin-top:28px;list-style:none}
+.impacts li{display:flex;align-items:center;gap:18px;font-size:clamp(19px,2.1vw,34px);line-height:1.45;color:var(--soft)}
+.impacts b{color:var(--ink);font-weight:650}
+.impacts i{flex:none;display:grid;place-items:center;width:2.8em;height:1.65em;border-radius:4px;font:700 .5em var(--mono);font-style:normal;color:#fff}
+.impacts i.blocked{background:repeating-linear-gradient(135deg,rgba(220,38,38,.45) 0 5px,rgba(220,38,38,.08) 5px 11px)}
+.impacts i.work{background:var(--teal)}
+.impacts i.switch{background:var(--pink);border-radius:999px}
+.impacts i.waiting{background:repeating-linear-gradient(135deg,rgba(100,116,139,.45) 0 5px,rgba(100,116,139,.08) 5px 11px)}
+/* Each pink stint names what I did there, below the attention line so the two never overlap. */
+.switching .gate{z-index:1;overflow:visible;align-items:flex-end;padding:0 3px 4px;letter-spacing:-.02em;color:var(--ink);font:600 clamp(9px,.85vw,12px)/1.15 var(--mono);white-space:normal;text-align:center}
+/* The line runs left to right, so a left-to-right wipe draws it; badges pop in as the wipe reaches them. */
+.attention{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;clip-path:inset(-10px 100% -10px 0);animation:trace 8s .4s linear forwards}
+.attention path{fill:none;stroke:var(--ink);stroke-width:3;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.switches{position:absolute;inset:0;pointer-events:none}
+.switches b{position:absolute;left:calc(var(--x)*1%);top:calc(var(--y)/var(--lanes,3)*100%);display:grid;place-items:center;width:22px;height:22px;transform:translate(-50%,-50%);border-radius:50%;background:var(--pink);color:#fff;font:700 11px var(--mono);opacity:0;animation:pop .25s var(--at) ease-out forwards}
+@keyframes trace{to{clip-path:inset(-10px 0 -10px 0)}}
+@keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%)}}
+/* Rabbit-hole slides 6–8: larger type so their content fills the slide like the example slide does. */
+.level.wide.big{grid-template-columns:minmax(0,.95fr) minmax(0,1.3fr) minmax(0,1.75fr);margin-top:clamp(20px,3.5vh,44px)}
+.level.big .words{font-size:clamp(14px,1.25vw,26px)}
+.level.big .words b{font-size:clamp(48px,5vw,104px)}
+.level.big .split-label,.level.big .flow-label{font-size:clamp(14px,1.25vw,26px)}
+.level.big .split{height:18px}
+.level.big .art{max-height:clamp(170px,34vh,400px)}
+.level.big .art.tool{max-height:none}
+.level.big .art .file span{font-size:clamp(12px,1.05vw,21px)}
+.level.big .art .file pre{font-size:clamp(14px,1.3vw,27px)}
+.level.big .flow{max-height:none}
+.level.big .verdict h3{font-size:clamp(15px,1.35vw,27px)}
+.level.big .verdict ul{gap:clamp(12px,2.4vh,30px) clamp(20px,2vw,40px);margin-bottom:clamp(20px,3.6vh,44px)}
+.level.big .verdict li{font-size:clamp(19px,1.6vw,32px)}
+.level.big .verdict li span{margin-top:4px;font-size:clamp(14px,1.1vw,22px)}
+.level .words.plain{font-family:Inter,system-ui,sans-serif;font-weight:600;color:var(--soft)}
+.level .split-note{margin-top:-4px;font-family:Inter,system-ui,sans-serif;font-weight:600;color:var(--soft)}
+/* Slide 6: keep the skill file at its original type and let it run down the column, fading out. */
+.level.big.long .art{max-height:70vh}
+.level.big.long .art .file span{font-size:.95vw}
+.level.big.long .art .file pre{font-size:1.1vw}
+/* Slide 6 has the longest lists: give them more width and tighter rows. */
+.level.wide.big.long{grid-template-columns:minmax(0,.9fr) minmax(0,1fr) minmax(0,2.1fr)}
+.level.big.long .verdict ul{gap:clamp(8px,1.5vh,18px) clamp(20px,2vw,40px);margin-bottom:clamp(14px,2.4vh,30px)}
+@media(prefers-reduced-motion:reduce){.flow .e{stroke-dashoffset:0}.flow .n,.flow .lbl{opacity:1}.flow .ghost{display:none}.attention{animation:none;clip-path:none}.switches b{animation:none;opacity:1}}
+
+/* Down the rabbit hole, as a waterfall: each level starts lower than the last, every level is the same height so the last one lands at the bottom, and each overlaps the one before it, so the levels read as one evolving stack. Each level shows its real artifact, how many words the agent had to read, and how much of it the agent interprets versus code that just runs. */
+/* Rabbit-hole level slides: the skill on the left, its rough flowchart in the middle, what I liked and disliked on the right. */
+.level{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.05fr);align-items:start;gap:clamp(24px,3vw,64px);margin-top:clamp(16px,2.6vh,32px)}
+.level .how,.level .chart{display:flex;flex-direction:column;gap:clamp(10px,1.4vh,16px);min-width:0}
+.level .words{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;font:500 clamp(14px,1.2vw,22px)/1.3 var(--mono);color:var(--dim)}
+.level .words b{flex:none;font:750 clamp(40px,4vw,80px)/1 Inter,system-ui,sans-serif;letter-spacing:-.03em;color:var(--ink)}
+.level .meter{flex-wrap:wrap}
+.level .split{height:14px;flex-basis:100%}
+.level .split-label{font-size:clamp(13px,1.05vw,20px)}
+.level .art{flex:none;max-height:clamp(150px,32vh,380px)}
+.level .art .file span{font-size:clamp(11px,.85vw,16px)}
+.level .art .file pre{font-size:clamp(12px,.95vw,18px)}
+.level .art.tool .file{flex:1}
+.level .art.tool{flex-direction:column}
+.level .flow{flex:none;height:auto;max-height:clamp(260px,56vh,640px)}
+.level .flow-label{font-size:clamp(13px,1.05vw,20px)}
+.verdict h3{font:600 clamp(13px,1.1vw,20px) var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--teal)}
+.verdict h3.disliked{color:var(--pink)}
+.verdict ul{display:grid;gap:clamp(4px,.8vh,10px);margin:clamp(6px,1vh,12px) 0 clamp(16px,2.6vh,30px);list-style:none}
+.verdict li{position:relative;padding-left:1.2em;font-size:clamp(18px,1.5vw,30px);font-weight:600;line-height:1.3;color:var(--ink);animation:enter .5s var(--d,0s) ease both}
+.verdict li::before{content:"✓";position:absolute;left:0;font-weight:700;color:var(--teal)}
+.verdict ul.disliked li::before{content:"✕";color:var(--pink)}
+.verdict code{font:500 .9em var(--mono)}
+/* Rabbit-hole slides: narrow skill and flowchart columns, and a wide two-up Liked/Disliked column where each headline has a one-line detail under it. */
+.level.wide{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}
+/* Loops slide: no left column; the workflow chart takes half the width. */
+.level.wide.flowfirst{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+/* Slide 11 step: the stage config falls like a sheet of paper over the right-hand lists. */
+.level.flowfirst{position:relative}
+.codepaper{z-index:2;background:#1e1e1e;border-radius:10px;box-shadow:0 30px 60px -20px rgba(15,23,42,.55),0 8px 20px rgba(15,23,42,.25);overflow:hidden;transition:opacity .35s ease,transform .6s cubic-bezier(.2,.9,.3,1.15)}
+.level.flowfirst .codepaper{position:absolute;top:-8.5vh;right:-1.5vw;width:58%;transform:rotate(-2.5deg)}
+.level.flowfirst .codepaper.pending{transform:rotate(-9deg) translate(40px,-70px) scale(1.05)}
+.codepaper .codebar{padding:10px 18px;background:#2a2a2a;font:500 clamp(11px,.8vw,15px) var(--mono);color:#9ca3af}
+.codepaper pre{margin:0;padding:14px 18px 18px;font:400 clamp(11px,.58vw,13px)/1.34 var(--mono);color:#e5e7eb}
+.codepaper .ln{display:grid;grid-template-columns:2.4em 1fr}
+.codepaper .ln i{font-style:normal;color:#6b7280;text-align:right;padding-right:1em;user-select:none}
+.codepaper code{white-space:pre-wrap;font:inherit}
+.codepaper .imp{color:#c678dd}.codepaper .fold{margin:0 2px;padding:0 6px;border-radius:4px;background:#3a3a3a;color:#9ca3af}
+.codepaper .folded i{color:#9ca3af}
+.level.flowfirst .codepaper.pipes{top:auto;bottom:.5vh;right:12vw;width:50%;z-index:3;transform:rotate(1.5deg)}
+.level.flowfirst .codepaper.pipes.pending{transform:rotate(8deg) translate(-30px,-80px) scale(1.05)}
+.codepaper.pipes .ln,.codepaper.cfg .ln{grid-template-columns:1fr}
+/* Slide 14: the repo's config.toml drops in between the title and the rows, pushing them down. */
+.answer .codepaper.cfg{width:min(1180px,72%);margin-left:auto;max-height:420px;margin-top:clamp(18px,3vh,32px);transform:rotate(-1.2deg);transition:opacity .35s ease,transform .6s cubic-bezier(.2,.9,.3,1.15),max-height .5s ease,margin .5s ease}
+.answer .codepaper.cfg.pending{max-height:0;margin-top:0;transform:rotate(-6deg) translateY(-40px)}
+.codepaper.cfg pre{display:grid;grid-template-columns:auto auto;column-gap:72px;justify-content:start;padding:16px 24px 20px;font-size:clamp(14px,1vw,19px);line-height:1.55}
+.codepaper.cfg .all{grid-column:1/-1}
+.codepaper.cfg .col{display:block}
+.codepaper .cm{color:#6b7280;font-style:italic}
+.codepaper .str{color:#98c379}.codepaper .kw{color:#56b6c2}.codepaper .key{color:#e5a46a}.codepaper .call{color:#61afef}
+/* Slide 11 ring: JS in ring() moves the token and sets .on/.fail/.ok classes; sizes are viewBox units. */
+.ring{display:block;width:100%;max-height:66vh;overflow:visible;font-family:var(--mono)}
+.ring .k-agent{--k:var(--pink)}.ring .k-code{--k:var(--green)}.ring .k-me{--k:var(--indigo)}
+.ring .track{fill:none;stroke:#cbd5e1;stroke-width:2;stroke-dasharray:7 6;animation:ring-march 1.4s linear infinite}
+@keyframes ring-march{to{stroke-dashoffset:-13}}
+.ring .dot circle{fill:var(--paper);stroke:#cbd5e1;stroke-width:1.5;transition:r .3s,fill .3s,stroke .3s}
+.ring .dot text{font:700 12px Inter,system-ui,sans-serif;fill:var(--ink);opacity:0;transition:opacity .3s}
+.ring .dot.on circle{opacity:0}
+.ring .dot.on text{opacity:1}
+.ring .token{fill:var(--k,var(--pink));transition:fill .3s;filter:drop-shadow(0 0 5px var(--k,var(--pink)))}
+.ring .title{font:800 26px Inter,system-ui,sans-serif;fill:var(--ink);text-anchor:middle;letter-spacing:-.02em}
+.ring .item{font-size:9px;fill:var(--dim);text-anchor:middle;letter-spacing:.08em}
+.ring .chip rect{fill:var(--paper);stroke:#cbd5e1;stroke-width:1.5;transition:fill .25s,stroke .25s}
+.ring .chip text{font-size:10px;text-anchor:middle;dominant-baseline:central}
+.ring .chip text{fill:var(--dim)}
+.ring .chip.on rect{stroke:var(--k);fill:color-mix(in srgb,var(--k) 14%,white)}
+.ring .chip.on text{fill:var(--k);font-weight:700}
+.ring .who{fill:var(--k)}.ring .chip .who rect,.ring .chip.on .who rect,.ring .chip.fail .who rect{fill:var(--k);stroke:none}.ring .who .eye{fill:var(--paper)}
+.ring .chip.fail rect{stroke:#dc2626;fill:#fef2f2}.ring .chip.fail text{fill:#dc2626}
+.ring .arrow{stroke:#cbd5e1;stroke-width:1.5;fill:none}
+.ring .back{fill:none;stroke:var(--green);stroke-width:2;stroke-dasharray:5 4;opacity:0;transition:opacity .25s;animation:ring-march .9s linear infinite reverse}
+.ring .back.on{opacity:1}
+.ring .back-lbl{font-size:9px;fill:var(--green);text-anchor:middle;font-weight:700}
+.ring .back.talk{stroke:var(--indigo);animation-direction:normal}.ring .back-lbl.talk{fill:var(--indigo)}
+.ring .head{stroke:none}.ring .head.green{fill:var(--green)}.ring .head.indigo{fill:var(--indigo)}
+.ring .doc{opacity:0;transition:opacity .3s}.ring .doc.show{opacity:1}
+.ring .doc .page{fill:var(--paper);stroke:var(--indigo);stroke-width:1.5;stroke-linejoin:round}
+.ring .doc .ln{stroke:#cbd5e1;stroke-width:2;stroke-linecap:round}
+.ring .doc .scan{fill:var(--indigo);opacity:0}
+.ring .doc.reading .scan{opacity:.45;animation:ring-scan 1.5s ease-in-out forwards}
+@keyframes ring-scan{from{transform:translateY(0)}to{transform:translateY(32px)}}
+.ring .stamp{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(2.2)}
+.ring .doc.ok .stamp,.ring .doc.no .stamp{opacity:1;transform:none;transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .2s}
+.ring .doc.ok .stamp circle{fill:var(--green)}.ring .doc.no .stamp circle{fill:var(--amber)}
+.ring .stamp text{fill:#fff;font:800 11px Inter,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.ring .status.undo{fill:var(--amber)}
+.ring .status{font-size:10px;text-anchor:middle;font-weight:700;fill:var(--dim)}
+.ring .status.wait{fill:var(--indigo);animation:ring-blink 1s ease-in-out infinite}
+.ring .status.go{fill:var(--green)}
+@keyframes ring-blink{50%{opacity:.35}}
+.level.wide .verdict ul{grid-template-columns:1fr 1fr;gap:clamp(8px,1.5vh,16px) clamp(20px,2vw,40px)}
+.level.wide .verdict li{font-size:clamp(17px,1.25vw,24px)}
+.verdict li b{font-weight:650}
+.verdict li span{display:block;margin-top:2px;font-size:clamp(13px,.88vw,17px);font-weight:400;line-height:1.35;color:var(--soft)}
+.art{display:flex;flex:1;flex-direction:column;gap:6px;min-height:0;overflow:hidden;padding:8px;border:1px solid var(--line);border-radius:6px;background:#f8fafc;mask-image:linear-gradient(#000 72%,transparent)}
+.art.tool{mask-image:none}
+.bubble{align-self:flex-start;max-width:94%;padding:6px 9px;border-radius:10px 10px 10px 2px;background:rgba(79,70,229,.1);font-size:clamp(11px,.95vw,14px);line-height:1.35;color:var(--soft)}
+.art .file{flex:none;overflow:hidden;border:1px solid var(--line);border-radius:5px;background:var(--paper)}
+.art .file span{display:block;padding:3px 7px;background:#eef2f7;font:600 clamp(9px,.75vw,11px) var(--mono);color:var(--dim)}
+.art .file pre{margin:0;padding:5px 7px;background:none;font:400 clamp(9px,.78vw,12px)/1.45 var(--mono);color:var(--soft);white-space:pre-wrap}
+.art .term{background:#0f172a}
+.art .term span{background:#1e293b;color:#94a3b8}
+.art .term pre{color:#e2e8f0}
+.kids{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.kids .lines{display:block;height:160px;margin:5px 6px;background:repeating-linear-gradient(rgba(15,23,42,.14) 0 3px,transparent 3px 8px)}
+.split{display:flex;height:12px;overflow:hidden;border-radius:999px;background:var(--line)}
+.split i{width:calc(var(--w)*1%);transform-origin:left;animation:grow .8s calc(var(--d,0s) + .4s) ease both}
+.split .said{background:var(--pink)}
+.split .code{background:var(--green)}
+.meter{display:flex;align-items:center;gap:10px}
+.meter .split{flex:1;min-width:40px}
+.split-label{flex:none;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+@keyframes grow{from{transform:scaleX(0)}}
+/* Each level's flowchart sits below its card and grows row by row: --t staggers nodes and edges. Indigo is me deciding and checking by hand, pink is branching the agent interprets, teal and dark are code. */
+.flow{display:block;flex:1;width:100%;min-height:0;overflow:visible;--fc:var(--pink);--fill:rgba(192,38,211,.12)}
+.flow.tool .e{stroke:var(--dim)}
+.flow .e{fill:none;stroke:var(--fc);stroke-width:1;stroke-dasharray:1;stroke-dashoffset:1;animation:draw .3s linear calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow .e.back{stroke-opacity:.7}
+.flow .e.starts{stroke:var(--ink);stroke-width:1.2}
+.flow .n{fill:var(--fill);stroke:var(--fc);stroke-width:1;opacity:0;transform-box:fill-box;transform-origin:center;animation:node .3s calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow .n.me{--fc:var(--indigo);--fill:rgba(79,70,229,.14)}
+.flow .n.faint{opacity:0;stroke-dasharray:2 2;fill:none}
+.flow .n.frame{fill:rgba(192,38,211,.04);stroke-dasharray:3 2}
+/* Slide 6: the empty .wf-step is the slide's one arrow-key step; once revealed, the workflow steps (.orch) turn dashed and the dashes march, showing they could move out of the skill. */
+.chart:has(.wf-step:not(.pending)) .flow .n.orch{stroke-dasharray:3 2;animation:node .3s calc(var(--d,0s) + .5s + var(--t)) forwards,march .9s linear infinite}
+@keyframes march{to{stroke-dashoffset:-5}}
+.flow .n.code{--fc:var(--green);--fill:rgba(22,163,74,.14)}
+.flow .n.code text{fill:#166534}
+.flow text{stroke:none;fill:var(--ink);font:600 7.2px var(--mono);text-anchor:middle;dominant-baseline:central}
+.flow text.side,.flow text.title{text-anchor:start;fill:var(--dim)}
+.flow text.title{font-size:6.5px}
+.flow .lbl{font-size:6px;fill:var(--dim);opacity:0;animation:fade .3s calc(var(--d,0s) + .5s + var(--t)) forwards}
+.flow.tool text{font-size:7.5px}
+.flow.tool .e.loop{stroke:var(--green)}
+.flow .n.tiny{stroke-width:.8}
+.verdict h3.mine{color:var(--indigo)}
+.verdict ul.mine li::before{content:"●";font-size:.7em;top:.25em;color:var(--indigo)}
+.flow .ghost{transform-box:view-box;transform-origin:108px 44px;animation:collapse .9s calc(var(--d,0s) + .2s) ease-in forwards}
+.flow .ghost .n,.flow .ghost .e{--fc:var(--pink);--fill:rgba(192,38,211,.14);animation:none;opacity:.55;stroke-dashoffset:0}
+.flow-label i{display:inline-block;width:10px;height:10px;margin:0 5px 0 0;border-radius:2px;vertical-align:-1px}
+.flow-label i.me{background:var(--indigo)}
+.flow-label i.agent{margin-left:6px;background:var(--pink)}
+.flow-label i.code{background:var(--green)}
+.flow-label i.code+i,.flow-label i.agent+i.me{margin-left:6px}
+.flow-label{flex:none;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes node{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+@keyframes fade{to{opacity:1}}
+@keyframes collapse{to{opacity:0;transform:scale(.08)}}
+
+
+/* Content that shows on load, one piece after another: set --d for each piece's delay. */
+/* Slide 15: what didn't stick (dimmed, ✕) beside what stuck (bold, ✓), one row per lesson. */
+.stuck{display:grid;margin-top:clamp(22px,4vh,40px);list-style:none}
+.stuck li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:baseline;padding:clamp(10px,1.6vh,16px) 0;border-top:1px solid var(--line)}
+.stuck li.head{border:0;padding-top:0;font:600 clamp(11px,1vw,14px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.stuck li.head p{font:inherit;color:inherit}
+.stuck li:not(.head) p{position:relative;padding-left:1.4em;line-height:1.3}
+.stuck li:not(.head) p::before{position:absolute;left:0;font-weight:700}
+.stuck .no{font-size:clamp(17px,1.7vw,30px);color:var(--dim)}
+.stuck li:not(.head) .no::before{content:"✕";color:var(--pink)}
+.stuck .no span{margin-left:.5em;font-size:.8em;font-style:italic}
+.stuck .no span::before{content:"· "}
+.stuck .yes{font-size:clamp(19px,2vw,36px);font-weight:650}
+.stuck .yes small{display:block;margin-top:4px;font-size:.65em;font-weight:400;color:var(--soft)}
+.stuck li:not(.head) .yes::before{content:"✓";color:var(--teal)}
+/* Slide 15 step: a real pdlc recovery message rises above the last row; the other rows dim. */
+.stuck li{position:relative}
+.stuck .codepaper.rec{position:absolute;bottom:calc(100% + 14px);left:-1vw;width:49%;transform:rotate(-1.5deg)}
+.stuck .codepaper.rec.pending{transform:rotate(-5deg) translateY(40px) scale(1.04)}
+.codepaper.rec .ln{grid-template-columns:1fr}
+.codepaper.rec pre{padding:16px 24px 20px;font-size:clamp(14px,1vw,19px);line-height:1.55}
+.codepaper .err{color:#f48771}
+.stuck li:not(.head):not(:last-child) p{transition:opacity .4s ease}
+.stuck:has(.rec:not(.pending)) li:not(.head):not(:last-child) p{opacity:.25}
+/* Slide 15: who does what and how I review, beside the small stacked PRs I go through myself. */
+.judge{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:56px;align-items:center;margin-top:clamp(22px,4vh,40px)}
+.judge h3{font:600 clamp(12px,1vw,15px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.judge h3+ul{margin-top:12px}
+.judge ul+h3{margin-top:clamp(22px,3.5vh,36px)}
+.judge ul{display:grid;gap:clamp(10px,1.6vh,16px);list-style:none}
+.judge li{position:relative;padding-left:1.1em;font-size:clamp(18px,1.6vw,28px);line-height:1.4;color:var(--soft)}
+.judge li::before{content:"";position:absolute;left:0;top:.62em;width:.4em;height:.4em;border-radius:50%;background:var(--pink)}
+.judge li b{color:var(--ink)}
+.judge b.by-ag{color:var(--teal)}.judge b.by-me{color:var(--indigo)}
+.prstack{display:grid;gap:14px}
+.prstack .pr{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:16px 20px;border:1px solid var(--line);border-left:5px solid var(--pink);border-radius:8px;background:rgba(255,255,255,.75);box-shadow:0 10px 24px -14px rgba(15,23,42,.35);font-size:clamp(17px,1.5vw,26px)}
+.prstack .pr:nth-child(1){margin-left:48px}.prstack .pr:nth-child(2){margin-left:24px}
+.prstack .t{font-weight:600}.prstack b{margin-right:.4em;font:600 .8em var(--mono);color:var(--dim)}
+.prstack .diff{font:600 .8em var(--mono);color:var(--teal)}
+.prstack .checks{grid-column:1/-1;font:500 .7em var(--mono);color:var(--dim)}
+.prstack .checks em{font-style:normal;font-weight:700;color:var(--pink)}
+/* Slide 18: the closing title, with the sources I drew on to its right. */
+.thanks{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,40%);align-items:center;gap:56px}
+.tryit{padding-left:28px;border-left:3px solid var(--teal)}
+.tryit h3{font:600 clamp(13px,1.1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.tryit .repo{margin-top:14px;font:600 clamp(16px,1.35vw,24px) var(--mono);color:var(--teal);overflow-wrap:anywhere}
+.tryit p:not(.repo){margin-top:12px;font-size:clamp(17px,1.4vw,25px);line-height:1.4;color:var(--soft)}
+.sources{padding-left:28px;border-left:3px solid var(--line)}
+.sources h3{font:600 clamp(13px,1.1vw,18px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.sources ul{margin-top:14px;list-style:none;display:grid;gap:10px}
+.sources ul{gap:26px}
+.sources li{display:grid;gap:4px}
+.sources li b{font-size:clamp(20px,1.75vw,32px);font-weight:650;line-height:1.2;color:var(--ink)}
+.sources .by{font-size:clamp(16px,1.3vw,23px);color:var(--soft)}
+.sources .url{font:500 clamp(13px,1.05vw,19px) var(--mono);color:var(--teal);overflow-wrap:anywhere}
+.reveal{animation:enter .5s var(--d,0s) ease both}
+
+/* One slide per question from "What it would take": the three questions as tabs with this one lit, then what I noticed and what I built for it. */
+.qtabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px;list-style:none}
+.qtabs li{padding:5px 14px;border:1px solid var(--line);border-radius:999px;font:600 clamp(11px,1vw,14px) var(--mono);color:var(--dim)}
+.qtabs li.on{border-color:transparent;color:#fff;background:var(--teal)}
+.qtabs li:nth-child(2).on{background:var(--indigo)}
+.qtabs li:nth-child(3).on{background:var(--pink)}
+.fixes{display:grid;gap:clamp(12px,2.4vh,24px);margin-top:clamp(22px,4vh,40px);list-style:none}
+.fixes li{display:grid;grid-template-columns:minmax(0,.85fr) auto minmax(0,1.15fr);align-items:baseline;gap:22px;font-size:clamp(18px,1.9vw,30px);line-height:1.35;animation:enter .5s ease both}
+.fixes li:nth-child(2){animation-delay:.3s}
+.fixes li:nth-child(3){animation-delay:.8s}
+.fixes li:nth-child(4){animation-delay:1.3s}
+.fixes li:nth-child(5){animation-delay:1.8s}
+.fixes li.head{font:600 clamp(11px,1vw,14px) var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.fixes .was,.fixes .arrow{color:var(--dim)}
+.fixes .now{color:var(--ink);font-weight:650}
+.fixes .now small{display:block;margin-top:2px;font:500 clamp(11px,.95vw,14px) var(--mono);color:var(--dim)}
+.answer .punch{animation:enter .5s 2.4s ease both}
+
+/* The do-it versus build-it comparison. */
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px}
+.versus>div{padding:24px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.versus .to{border:2px solid var(--teal)}
+.versus ul{margin-top:14px;list-style:none}
+.versus li{padding:7px 0;font-size:clamp(15px,1.4vw,19px);line-height:1.45;color:var(--soft)}
+.versus pre{margin-top:14px;padding:14px 16px;border-radius:8px;background:#0f172a;color:#e2e8f0;font:500 clamp(13px,1.2vw,16px)/1.5 var(--mono);white-space:pre-wrap}
+.versus pre span{color:#5eead4}
+.versus .result{margin-top:10px;padding:12px 16px;border-left:3px solid var(--teal);background:rgba(13,148,136,.06);font:500 clamp(12px,1.1vw,15px)/1.6 var(--mono);color:var(--soft)}
+
+/* A long instruction file, faded out to suggest it keeps going. */
+.skillfile{
+  margin-top:14px;max-height:clamp(150px,30vh,240px);overflow:hidden;
+  font:400 clamp(11px,1vw,14px)/1.65 var(--mono);color:var(--soft);
+  mask-image:linear-gradient(#000 55%,transparent);
+}
+.skillfile b{color:var(--ink);font-weight:600}
+
+/* A Markdown skill file that slowly scrolls, to show how long it runs; the script below drives the scroll and hands it to the presenter on wheel or touch. */
+.mdfile{--md-height:max(200px,calc(100svh - 480px));position:relative;margin-top:14px;height:var(--md-height);overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;border-radius:8px;background:#f8fafc;border:1px solid var(--line);mask-image:linear-gradient(#000 80%,transparent)}
+.mdfile .filename{position:sticky;top:0;display:block;z-index:1;padding:6px 12px;background:#eef2f7;border-bottom:1px solid var(--line);font:600 12px var(--mono);color:var(--dim)}
+.mdfile pre{margin:0;border-radius:0;background:none;padding:10px 14px calc(var(--md-height) * .2);font:400 clamp(12px,1.15vw,16px)/1.6 var(--mono);color:var(--soft);white-space:pre-wrap}
+.mdfile .h{color:var(--ink);font-weight:700}
+.mdfile .c{color:var(--teal)}
+.mdfile .m{color:var(--dim)}
+.mdfile.output{--md-height:max(130px,calc(100svh - 560px));margin-top:0}
+.mdfile.mini{height:auto;overflow:hidden;mask-image:none}
+.mdfile.mini pre{padding:14px 18px 16px;font-size:clamp(15px,1.5vw,21px)}
+/* The command's output lands on top of its skill, offset down and right like a stacked card. */
+.stack{display:grid;margin-top:14px}
+.stack>*{grid-area:1/1}
+.stack .mdfile.mini{margin-top:0;align-self:start}
+.stack .layer{position:relative;z-index:1;margin:84px 0 0 48px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 18px 40px -12px rgba(17,24,39,.28)}
+.stack .layer .note{margin-top:10px}
+.versus .note{color:#000;font-size:clamp(16px,1.5vw,21px);font-weight:600}
+
+/* Speaker notes, toggled with N and only ever shown on demand. */
+.notes{display:none}
+#notes{
+  position:fixed;left:0;right:0;bottom:73px;z-index:2;max-height:34vh;overflow:auto;
+  padding:16px 26px;background:#f1f5f9;border-top:2px solid var(--teal);
+  font-size:16px;line-height:1.5;color:var(--soft);
+}
+#navigation{
+  position:fixed;bottom:0;left:0;right:0;z-index:2;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:18px 26px;background:var(--bg);border-top:1px solid var(--line);
+  font:400 11px/1.5 var(--mono);color:var(--dim);
+}
+.controls{display:flex;align-items:center;gap:16px}
+button{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:var(--paper);color:var(--ink);font-size:18px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
+button:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
+button:disabled{opacity:.3;cursor:default}
+@keyframes enter{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.slide,.loop *,.cards.cascade li,.questions>div,.verdict li,.split i,.flow *,.reveal,.fixes li,.answer .punch{animation:none}.step{transition:none}}
+@media(max-width:800px){
+  .cards,.versus,.questions{grid-template-columns:1fr}
+  .fixes li{grid-template-columns:1fr}
+  .fixes .arrow,.fixes li.head{display:none}
+  .level,.level.wide{grid-template-columns:1fr}
+  .level.wide .verdict ul{grid-template-columns:1fr}
+  .level .flow{height:220px}
+  .block{font-size:0}
+  .legend{margin-left:0}
+}
+/* Slide: cost side effect. Two usage bars grow to their share of the monthly allocation (--w). */
+.cost{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:72px;align-items:center;margin-top:clamp(28px,5vh,52px)}
+.usage{display:grid;gap:36px}
+.usage .row{display:grid;gap:12px}
+.usage .lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(19px,2vw,32px);color:var(--soft)}
+.usage .lbl b{font-size:clamp(40px,5vw,88px);font-weight:800;letter-spacing:-.04em;color:var(--ink)}
+.usage .bar{height:34px;border-radius:999px;background:var(--line);overflow:hidden}
+.usage .bar i{display:block;height:100%;width:var(--w);border-radius:inherit;background:var(--dim);animation:grow 1s var(--d,0s) ease-out both}
+.usage .row.now .bar i{background:linear-gradient(90deg,var(--teal),var(--indigo))}
+.usage .row.now .lbl b{color:var(--teal)}
+.usage .note{font-size:clamp(17px,1.6vw,26px);color:var(--dim)}
+@keyframes grow{from{width:0}}
+.cost .cards{grid-template-columns:1fr;margin-top:0}
+</style>
+</head>
+<body>
+<main id="deck" aria-label="From prompts to process presentation">
+  <!-- Add slides as sibling sections with class="slide" and hidden. Mark anything revealed in sequence with class="step", and put speaker notes in an aside with class="notes". -->
+
+  <section class="slide" aria-labelledby="title">
+    <div class="wrap">
+      <div class="eyebrow">Notes from down the rabbit hole</div>
+      <h1 id="title">From taking turns<br><span class="grad">to working apart.</span></h1>
+      <p class="lede">How I got my agents working on their own, safely, with the right mix of skills and code. What I tried, what stuck, and what didn't.</p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="tldr-title" hidden>
+    <div class="wrap">
+      <h2 id="tldr-title"><span class="grad">TL;DR</span></h2>
+      <ul class="cards cascade">
+        <li><h3>Prompting alone keeps work synchronous</h3><p>Each step waits on a new prompt, so the agent progresses only as fast as I respond.</p></li>
+        <li><h3>Combining skills and code works best</h3><p>Skills provide judgement and code enforces the process. Together they let agents work independently and safely.</p></li>
+        <li><h3>How I arrived here</h3><p>The steps I took, the problems each one solved, and the mistakes along the way.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="turns-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Where I started</div>
+      <h2 id="turns-title">One agent, and me. <span class="grad">We took turns waiting.</span></h2>
+      <div class="timeline switching turns" role="img" aria-label="Illustrative timeline: one agent and me take turns. While I break down the task, verify in the browser, ask a reviewer, run the tests, or re-prompt, the agent sits blocked. While the agent works, the task is on hold for me. Only one of us is working at any time.">
+        <div class="labels"><span>Me</span><span>Agent</span></div>
+        <div class="tracks">
+          <div class="track">
+          <div class="block gate" style="--from:0;--to:9"><span>break down task</span></div><div class="block waiting" style="--from:9;--to:24"><span>on hold</span></div><div class="block gate" style="--from:24;--to:31"><span>verify in the browser</span></div><div class="block waiting" style="--from:31;--to:41"><span>on hold</span></div><div class="block gate" style="--from:41;--to:47"><span>ask a reviewer</span></div><div class="block waiting" style="--from:47;--to:56"><span>on hold</span></div><div class="block gate" style="--from:56;--to:63"><span>run the tests</span></div><div class="block waiting" style="--from:63;--to:74"><span>on hold</span></div><div class="block gate" style="--from:74;--to:80"><span>re-prompt</span></div><div class="block waiting" style="--from:80;--to:94"><span>on hold</span></div><div class="block gate" style="--from:94;--to:100"><span>check the diff</span></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:9"></div><div class="block work" style="--from:9;--to:24"><span>working</span></div><div class="block blocked" style="--from:24;--to:31"></div><div class="block work" style="--from:31;--to:41"><span>working</span></div><div class="block blocked" style="--from:41;--to:47"></div><div class="block work" style="--from:47;--to:56"><span>working</span></div><div class="block blocked" style="--from:56;--to:63"></div><div class="block work" style="--from:63;--to:74"><span>working</span></div><div class="block blocked" style="--from:74;--to:80"></div><div class="block work" style="--from:80;--to:94"><span>working</span></div><div class="block blocked" style="--from:94;--to:100"></div>
+          </div>
+        </div>
+      </div>
+      <ul class="impacts">
+        <li><i class="waiting" aria-hidden="true"></i><span><b>I waited on the agent.</b> Until it came back, I couldn’t move that task forward.</span></li>
+        <li><i class="blocked" aria-hidden="true"></i><span><b>The agent waited on me.</b> Every time I checked its work, it stopped.</span></li>
+      </ul>
+      <p class="punch">Only one of us was ever working. <span class="grad">I wanted that waiting time back.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="more-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What I did</div>
+      <h2 id="more-title">I tried running more agents at once. <span class="grad">Each one still needed me.</span></h2>
+      <div class="timeline switching" role="img" aria-label="Illustrative timeline: my attention, drawn as a line, jumps between three agents 16 times. Each time I break down the task, check the diff, verify in the browser, ask a reviewer, run the tests, fix lint, check it covers the requirements, check for new tests, ask for a Storybook story, or ask it to reuse an existing component. Each agent works briefly, then sits blocked until I come back to it.">
+        <div class="labels"><span>Agent A</span><span>Agent B</span><span>Agent C</span></div>
+        <div class="tracks">
+          <div class="track">
+          <div class="block gate" style="--from:0.3;--to:6.25"><span>break down task</span></div><div class="block work" style="--from:6.25;--to:15.25"></div><div class="block blocked" style="--from:15.25;--to:18.75"></div><div class="block gate" style="--from:19.05;--to:25"><span>check the diff</span></div><div class="block work" style="--from:25;--to:34"></div><div class="block blocked" style="--from:34;--to:37.5"></div><div class="block gate" style="--from:37.8;--to:43.75"><span>run the tests</span></div><div class="block work" style="--from:43.75;--to:52.75"></div><div class="block blocked" style="--from:52.75;--to:56.25"></div><div class="block gate" style="--from:56.55;--to:62.5"><span>new tests written?</span></div><div class="block work" style="--from:62.5;--to:71.5"></div><div class="block blocked" style="--from:71.5;--to:75"></div><div class="block gate" style="--from:75.3;--to:81.25"><span>reuse an existing component</span></div><div class="block work" style="--from:81.25;--to:90.25"></div><div class="block blocked" style="--from:90.25;--to:93.75"></div><div class="block gate" style="--from:94.05;--to:100"><span>re-prompt</span></div><div class="block work" style="--from:100;--to:100"></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:6.25"></div><div class="block gate" style="--from:6.55;--to:12.5"><span>break down task</span></div><div class="block work" style="--from:12.5;--to:21.5"></div><div class="block blocked" style="--from:21.5;--to:25"></div><div class="block gate" style="--from:25.3;--to:31.25"><span>verify in the browser</span></div><div class="block work" style="--from:31.25;--to:40.25"></div><div class="block blocked" style="--from:40.25;--to:43.75"></div><div class="block gate" style="--from:44.05;--to:50"><span>fix lint</span></div><div class="block work" style="--from:50;--to:59"></div><div class="block blocked" style="--from:59;--to:62.5"></div><div class="block gate" style="--from:62.8;--to:68.75"><span>add a Storybook story</span></div><div class="block work" style="--from:68.75;--to:77.75"></div><div class="block blocked" style="--from:77.75;--to:81.25"></div><div class="block gate" style="--from:81.55;--to:87.5"><span>ask a reviewer</span></div><div class="block work" style="--from:87.5;--to:96.5"></div><div class="block blocked" style="--from:96.5;--to:100"></div>
+          </div>
+          <div class="track">
+          <div class="block idle" style="--from:0;--to:12.5"></div><div class="block gate" style="--from:12.8;--to:18.75"><span>break down task</span></div><div class="block work" style="--from:18.75;--to:27.75"></div><div class="block blocked" style="--from:27.75;--to:31.25"></div><div class="block gate" style="--from:31.55;--to:37.5"><span>ask a reviewer</span></div><div class="block work" style="--from:37.5;--to:46.5"></div><div class="block blocked" style="--from:46.5;--to:50"></div><div class="block gate" style="--from:50.3;--to:56.25"><span>covered by requirements?</span></div><div class="block work" style="--from:56.25;--to:65.25"></div><div class="block blocked" style="--from:65.25;--to:68.75"></div><div class="block gate" style="--from:69.05;--to:75"><span>verify in the browser</span></div><div class="block work" style="--from:75;--to:84"></div><div class="block blocked" style="--from:84;--to:87.5"></div><div class="block gate" style="--from:87.8;--to:93.75"><span>run the tests</span></div><div class="block work" style="--from:93.75;--to:100"></div>
+          </div>
+          <svg class="attention" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M0.3 0.3 L6.25 0.3 L6.55 1.3 L12.3 1.3 L12.8 2.3 L18.75 2.3 L19.05 0.3 L25 0.3 L25.3 1.3 L31.25 1.3 L31.55 2.3 L37.3 2.3 L37.8 0.3 L43.75 0.3 L44.05 1.3 L50 1.3 L50.3 2.3 L56.25 2.3 L56.55 0.3 L62.3 0.3 L62.8 1.3 L68.75 1.3 L69.05 2.3 L75 2.3 L75.3 0.3 L81.25 0.3 L81.55 1.3 L87.3 1.3 L87.8 2.3 L93.75 2.3 L94.05 0.3 L100 0.3"/></svg>
+          <div class="switches" aria-hidden="true"><b style="--x:0.3;--y:0.3;--at:0.42s">1</b><b style="--x:6.55;--y:1.3;--at:0.92s">2</b><b style="--x:12.8;--y:2.3;--at:1.42s">3</b><b style="--x:19.05;--y:0.3;--at:1.92s">4</b><b style="--x:25.3;--y:1.3;--at:2.42s">5</b><b style="--x:31.55;--y:2.3;--at:2.92s">6</b><b style="--x:37.8;--y:0.3;--at:3.42s">7</b><b style="--x:44.05;--y:1.3;--at:3.92s">8</b><b style="--x:50.3;--y:2.3;--at:4.42s">9</b><b style="--x:56.55;--y:0.3;--at:4.92s">10</b><b style="--x:62.8;--y:1.3;--at:5.42s">11</b><b style="--x:69.05;--y:2.3;--at:5.92s">12</b><b style="--x:75.3;--y:0.3;--at:6.42s">13</b><b style="--x:81.55;--y:1.3;--at:6.92s">14</b><b style="--x:87.8;--y:2.3;--at:7.42s">15</b><b style="--x:94.05;--y:0.3;--at:7.92s">16</b></div>
+        </div>
+      </div>
+      <ul class="impacts">
+        <li><i class="blocked" aria-hidden="true"></i><span><b>The agents sat waiting on me.</b> Each one stayed blocked until I got back to it.</span></li>
+        <li><i class="switch" aria-hidden="true">16</i><span><b>I never stopped switching.</b> A different problem every few minutes. It got really hard to keep up.</span></li>
+      </ul>
+      <p class="punch">The hardest part was the switching. <span class="grad">I needed a way to switch far less.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="jobs-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">How I sorted the switches</div>
+      <h2 id="jobs-title">Mine fell into <span class="grad">three jobs.</span></h2>
+      <div class="questions jobs">
+        <div><h3>Checking</h3><p>Keeping the work honest</p><ul><li>check the diff</li><li>verify in the browser</li><li>ask a reviewer</li><li>run the tests</li><li>fix lint</li><li>covered by requirements?</li><li>new tests written?</li></ul><p class="needs">To hand it over, it needs <b>proof</b>, not “I ran the tests”.</p></div>
+        <div><h3>Directing</h3><p>Keeping it moving</p><ul><li>break down the task</li><li>what’s next?</li></ul><p class="needs">To hand it over, it needs to <b>know where things stand</b>.</p></div>
+        <div><h3>Reminding</h3><p>Keeping it on track</p><ul><li>CI failing?</li><li>what did we decide?</li><li>update the board</li></ul><p class="needs">To hand it over, it needs <b>writing down once</b>, somewhere that lasts.</p></div>
+      </div>
+      <p class="punch step">My first try, for all three? <span class="grad">Write it down in a skill.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="skills-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 1 of 3</div>
+      <h2 id="skills-title">To hand them over, I wrote down the workflow. <span class="grad">In a skill.</span></h2>
+      <div class="level wide big long">
+        <div class="how"><p class="words plain">~400 words, read every run</p>
+          <div class="art"><div class="file"><span>implement/SKILL.md</span><pre># Implement a task
+1. Read the task and its acceptance criteria.
+2. Check the requirements doc covers it.
+3. Look for an existing component first.
+   Don't build a new Button if…
+4. Write the code. Follow the style guide.
+5. Add unit tests for every new…
+6. Run lint. Fix every warning unless…
+7. UI change? Add a Storybook story.
+8. Run the tests. If one fails…
+9. Open a PR. Link the ticket.
+10. If CI fails, read the log and…
+11. Ask a reviewer agent to check…
+12. If it asks for changes, then…</pre></div></div></div>
+        <div class="chart"><svg class="flow" viewBox="0 0 200 253" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The workflow written into one skill: read the PBI, pick the next task, plan the change, write code and tests, add a Storybook story, run the tests and fix them, open a PR, get its details, fix CI and comments until it is green and approved, and loop while there are more tasks. On the next step, the workflow steps (read the PBI, pick the task, open the PR, get its details, the CI check, more tasks) turn dashed: they could move out of the skill."><g class="n" style="--t:0.00s"><circle cx="62" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M62 10.5 V18" style="--t:0.10s"/><g class="n orch" style="--t:0.15s"><rect x="22.0" y="18" width="80" height="15" rx="3"/><text x="62.0" y="25.5">read the PBI</text></g><path class="e" pathLength="1" d="M62 33 V40" style="--t:0.25s"/><g class="n orch" style="--t:0.30s"><rect x="17.0" y="40" width="90" height="15" rx="3"/><text x="62.0" y="47.5">pick the next task</text></g><path class="e" pathLength="1" d="M62 55 V62" style="--t:0.40s"/><g class="n" style="--t:0.45s"><rect x="17.0" y="62" width="90" height="15" rx="3"/><text x="62.0" y="69.5">plan the change</text></g><path class="e" pathLength="1" d="M62 77 V84" style="--t:0.55s"/><g class="n" style="--t:0.60s"><rect x="11.0" y="84" width="102" height="15" rx="3"/><text x="62.0" y="91.5">write code and tests</text></g><path class="e" pathLength="1" d="M62 99 V106" style="--t:0.70s"/><g class="n" style="--t:0.75s"><rect x="8.0" y="106" width="108" height="15" rx="3"/><text x="62.0" y="113.5">add a Storybook story</text></g><path class="e" pathLength="1" d="M62 121 V128" style="--t:0.85s"/><g class="n" style="--t:0.90s"><rect x="13.0" y="128" width="98" height="15" rx="3"/><text x="62.0" y="135.5">run tests, fix them</text></g><path class="e" pathLength="1" d="M62 143 V150" style="--t:1.00s"/><g class="n orch" style="--t:1.05s"><rect x="22.0" y="150" width="80" height="15" rx="3"/><text x="62.0" y="157.5">open a PR</text></g><path class="e" pathLength="1" d="M62 165 V172" style="--t:1.15s"/><g class="n orch" style="--t:1.20s"><rect x="17.0" y="172" width="90" height="15" rx="3"/><text x="62.0" y="179.5">get PR details</text></g><path class="e" pathLength="1" d="M62 187 V194" style="--t:1.30s"/><g class="n orch" style="--t:1.35s"><polygon points="12.0,203 21.0,194 103.0,194 112.0,203 103.0,212 21.0,212"/><text x="62" y="203">CI green, approved?</text></g><path class="e" pathLength="1" d="M112 203 H120" style="--t:1.45s"/><text class="lbl" x="116" y="198" style="--t:1.50s">no</text><g class="n" style="--t:1.50s"><rect x="120" y="195.5" width="77" height="15" rx="3"/><text x="158.5" y="203.0">fix CI, comments</text></g><path class="e back" pathLength="1" d="M158.5 195.5 V179.5 H107" style="--t:1.60s"/><path class="e" pathLength="1" d="M62 212 V219" style="--t:1.65s"/><text class="lbl" x="70" y="216" style="--t:1.70s">yes</text><g class="n orch" style="--t:1.70s"><polygon points="28.0,228 37.0,219 87.0,219 96.0,228 87.0,237 37.0,237"/><text x="62" y="228">more tasks?</text></g><path class="e back" pathLength="1" d="M28 228 H4 V47.5 H17" style="--t:1.80s"/><text class="lbl" x="16" y="223" style="--t:1.85s">yes</text><path class="e" pathLength="1" d="M62 237 V244" style="--t:1.85s"/><text class="lbl" x="69" y="241" style="--t:1.90s">no</text><g class="n faint" style="--t:1.90s"><rect x="42.0" y="244" width="40.0" height="7" rx="3"/><text x="62" y="247.5">unless…</text></g></svg><p class="flow-label">one skill, growing</p><div class="step wf-step" aria-hidden="true"></div></div>
+        <div class="verdict">
+          <h3 class="liked">👍 Liked</h3><ul class="liked"><li style="--d:0.40s"><b>Written once.</b><span>No more retyping. Every session starts from the same instructions.</span></li><li style="--d:0.52s"><b>The agent does the checks.</b><span>Tests, diff and review happen without me asking.</span></li><li style="--d:0.64s"><b>Shareable.</b><span>Teammates and other agents get the same playbook.</span></li><li style="--d:0.76s"><b>Cheap to start.</b><span>It’s just Markdown. Nothing to build.</span></li></ul>
+          <h3 class="disliked">👎 Disliked</h3><ul class="disliked"><li style="--d:1.08s"><b>“Mostly” followed.</b><span>The agent decides what it means every run. Same skill, different result.</span></li><li style="--d:1.20s"><b>It only grows.</b><span>Every failure adds another “if… unless…”, and the key lines get buried.</span></li><li style="--d:1.32s"><b>There’s no state.</b><span>Each session asks “which task? did the tests pass?”, and someone has to answer.</span></li><li style="--d:1.44s"><b>“What’s next?” is still on you.</b><span>One skill, one job. Picking the next one is still re-prompting.</span></li><li style="--d:1.56s"><b>You can’t prove it did it.</b><span>No evidence, just “I ran the tests”. So you check anyway.</span></li><li style="--d:1.68s"><b>It costs context.</b><span>Every word is read every run, crowding out the actual code.</span></li><li style="--d:1.80s"><b>It’s hard to test.</b><span>You can’t unit-test prose. You find out when a run goes wrong.</span></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="slide" aria-labelledby="loop-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 2 of 3</div>
+      <h2 id="loop-title">Then the workflow <span class="grad">became a skill of skills.</span></h2>
+      <div class="level wide big">
+        <div class="how"><p class="words plain">~1,500 words, across four files</p>
+          <div class="art"><div class="file"><span>loop/SKILL.md</span><pre>1. Run the write skill.
+2. Then the plan skill.
+3. Then implement each task.
+4. Then review. If it fails…</pre></div><div class="kids"><div class="file"><span>write/</span><i class="lines"></i></div><div class="file"><span>plan/</span><i class="lines"></i></div><div class="file"><span>implement/</span><i class="lines"></i></div></div></div></div>
+        <div class="chart"><svg class="flow" viewBox="0 0 200 148" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Flowcharts that start each other: the write skill starts the plan skill, which starts the review skill, which can send work back to plan"><g class="n frame" style="--t:0.00s"><rect x="4" y="2" width="88" height="62" rx="5"/><text class="title" x="9" y="10">write/SKILL.md</text></g><g class="n tiny" style="--t:0.15s"><circle cx="48" cy="19" r="4.5"/></g><path class="e" pathLength="1" d="M48 23 V31" style="--t:0.25s"/><g class="n" style="--t:0.35s"><polygon points="48,31 55,37 48,43 41,37"/></g><path class="e" pathLength="1" d="M48 43 V47 H34 V52" style="--t:0.45s"/><g class="n" style="--t:0.55s"><rect x="26" y="52" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M48 43 V47 H62 V52" style="--t:0.45s"/><g class="n" style="--t:0.55s"><rect x="54" y="52" width="16" height="7" rx="2"/></g><g class="n frame" style="--t:0.62s"><rect x="108" y="42" width="88" height="62" rx="5"/><text class="title" x="113" y="50">plan/SKILL.md</text></g><g class="n tiny" style="--t:0.77s"><circle cx="152" cy="59" r="4.5"/></g><path class="e" pathLength="1" d="M152 63 V71" style="--t:0.87s"/><g class="n" style="--t:0.97s"><polygon points="152,71 159,77 152,83 145,77"/></g><path class="e" pathLength="1" d="M152 83 V87 H138 V92" style="--t:1.07s"/><g class="n" style="--t:1.17s"><rect x="130" y="92" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M152 83 V87 H166 V92" style="--t:1.07s"/><g class="n" style="--t:1.17s"><rect x="158" y="92" width="16" height="7" rx="2"/></g><g class="n frame" style="--t:1.23s"><rect x="4" y="84" width="88" height="62" rx="5"/><text class="title" x="9" y="92">review/SKILL.md</text></g><g class="n tiny" style="--t:1.38s"><circle cx="48" cy="101" r="4.5"/></g><path class="e" pathLength="1" d="M48 105 V113" style="--t:1.48s"/><g class="n" style="--t:1.58s"><polygon points="48,113 55,119 48,125 41,119"/></g><path class="e" pathLength="1" d="M48 125 V129 H34 V134" style="--t:1.68s"/><g class="n" style="--t:1.78s"><rect x="26" y="134" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M48 125 V129 H62 V134" style="--t:1.68s"/><g class="n" style="--t:1.78s"><rect x="54" y="134" width="16" height="7" rx="2"/></g><path class="e starts" pathLength="1" d="M92 22 H170 V42" style="--t:0.50s"/><text class="lbl" x="131" y="18" style="--t:0.65s">starts</text><path class="e starts" pathLength="1" d="M108 90 H100 V115 H92" style="--t:1.12s"/><text class="lbl" x="120" y="113" style="--t:1.27s">starts</text><path class="e back" pathLength="1" d="M92 136 H176 V104" style="--t:1.74s"/><text class="lbl" x="138" y="131" style="--t:1.89s">changes? re-plan</text></svg><p class="flow-label">one workflow, split across skills</p></div>
+        <div class="verdict">
+          <h3 class="liked">👍 Liked</h3><ul class="liked"><li style="--d:0.40s"><b>One prompt, the whole workflow.</b><span>Write, plan, implement, review, chained together.</span></li><li style="--d:0.52s"><b>I stopped re-prompting.</b><span>“What’s next?” moved into the skill.</span></li><li style="--d:0.64s"><b>Small skills, wired together.</b><span>Each one stays focused on its own job.</span></li><li style="--d:0.76s"><b>Work gets sent back.</b><span>Review can return it to planning before it reaches me.</span></li></ul>
+          <h3 class="disliked">👎 Disliked</h3><ul class="disliked"><li style="--d:1.08s"><b>The order is interpreted too.</b><span>The agent decides what each skill means, and which comes next.</span></li><li style="--d:1.20s"><b>Mistakes compound.</b><span>A step skipped early quietly breaks everything after it.</span></li><li style="--d:1.32s"><b>Still no state.</b><span>If the session dies halfway, nothing knows where it got to.</span></li><li style="--d:1.44s"><b>One long session.</b><span>Hard to pause, hand over, or run side by side.</span></li><li style="--d:1.56s"><b>Context runs out.</b><span>Four skills loaded at once leaves less room for the code.</span></li><li style="--d:1.68s"><b>Debugging is archaeology.</b><span>Which skill, which line, which run?</span></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="slide" aria-labelledby="tool-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · 3 of 3</div>
+      <h2 id="tool-title">Then the workflow <span class="grad">became a tool.</span></h2>
+      <div class="level wide big">
+        <div class="how"><p class="words plain">1 command decides what’s next</p>
+          <div class="art tool"><div class="file"><span>pdlc-loop/SKILL.md</span><pre>Run pdlc next loop.
+Do what # Due Next says.
+Decide nothing yourself.</pre></div><div class="file term"><span>terminal</span><pre>$ pdlc next loop
+action: pdlc-plan
+# Due Next …</pre></div></div></div>
+        <div class="chart"><svg class="flow tool" viewBox="0 0 200 86" preserveAspectRatio="xMidYMin meet" role="img" aria-label="The old tangle collapses into a loop: code runs pdlc inspect, the agent runs the skill, code publishes with pdlc post and checks whether it needs human review; if not, back to inspect; if so, it waits for my review"><g class="ghost"><g class="n tiny" style="--t:0.00s"><circle cx="60" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M60 10 V18" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="60,18 67,24 60,30 53,24"/></g><path class="e" pathLength="1" d="M60 30 V34 H46 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="38" y="39" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M60 30 V34 H74 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="66" y="39" width="16" height="7" rx="2"/></g><g class="n tiny" style="--t:0.00s"><circle cx="100" cy="30" r="4.5"/></g><path class="e" pathLength="1" d="M100 34 V42" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="100,42 107,48 100,54 93,48"/></g><path class="e" pathLength="1" d="M100 54 V58 H86 V63" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="78" y="63" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M100 54 V58 H114 V63" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="106" y="63" width="16" height="7" rx="2"/></g><g class="n tiny" style="--t:0.00s"><circle cx="140" cy="6" r="4.5"/></g><path class="e" pathLength="1" d="M140 10 V18" style="--t:0.10s"/><g class="n" style="--t:0.20s"><polygon points="140,18 147,24 140,30 133,24"/></g><path class="e" pathLength="1" d="M140 30 V34 H126 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="118" y="39" width="16" height="7" rx="2"/></g><path class="e" pathLength="1" d="M140 30 V34 H154 V39" style="--t:0.30s"/><g class="n" style="--t:0.40s"><rect x="146" y="39" width="16" height="7" rx="2"/></g></g><g class="n" style="--t:1.00s"><circle cx="8" cy="14" r="4.5"/></g><path class="e" pathLength="1" d="M12.5 14 H22" style="--t:1.10s"/><g class="n code" style="--t:1.20s"><rect x="22" y="6" width="80" height="16" rx="3"/><text x="62" y="14">$ pdlc inspect …</text></g><path class="e" pathLength="1" d="M102 14 H114" style="--t:1.35s"/><g class="n" style="--t:1.45s"><rect x="114" y="6" width="80" height="16" rx="3"/><text x="154" y="14">run the skill</text></g><path class="e" pathLength="1" d="M154 22 V36" style="--t:1.60s"/><g class="n code" style="--t:1.70s"><rect x="114" y="36" width="80" height="16" rx="3"/><text x="154" y="44">$ pdlc post …</text></g><path class="e" pathLength="1" d="M114 44 H112" style="--t:1.85s"/><g class="n code" style="--t:1.95s"><polygon points="12,44 20,35 104,35 112,44 104,53 20,53"/><text x="62" y="44" style="font-size:6px">needs human review?</text></g><path class="e back" pathLength="1" d="M62 35 V22" style="--t:2.10s"/><text class="lbl" x="70" y="29" style="--t:2.20s">no</text><path class="e" pathLength="1" d="M62 53 V66" style="--t:2.10s"/><text class="lbl" x="71" y="60" style="--t:2.20s">yes</text><g class="n me" style="--t:2.25s"><rect x="22" y="66" width="80" height="16" rx="3"/><text x="62" y="74" style="font-size:6.5px">wait for my review</text></g></svg><p class="flow-label"><i class="code"></i>code <i class="agent"></i>agent <i class="me"></i>me</p><p class="flow-label split-note">workflow is code, work is skills</p></div>
+        <div class="verdict">
+          <h3 class="liked">👍 Liked</h3><ul class="liked"><li style="--d:0.40s"><b>Same answer every time.</b><span><code>pdlc next loop</code> decides what’s next. In code, not prose.</span></li><li style="--d:0.52s"><b>State lives on the record.</b><span>Any session or teammate can pick up where it left off.</span></li><li style="--d:0.64s"><b>Proof, not promises.</b><span>Evidence is checked against a template before a stage moves on.</span></li><li style="--d:0.76s"><b>It’s tested.</b><span>The workflow is code with unit tests.</span></li><li style="--d:0.88s"><b>Skills got focused.</b><span>Each one does its job. None decides what comes next.</span></li><li style="--d:1.00s"><b>It stops when it needs me.</b><span>Approvals, decisions and blockers come to me.</span></li></ul>
+          <h3 class="disliked">👎 Disliked</h3><ul class="disliked"><li style="--d:1.32s"><b>More to build.</b><span>A CLI, its tests, and tracker backends to maintain.</span></li><li style="--d:1.44s"><b>Less flexible.</b><span>Changing the workflow means changing code, not a sentence.</span></li><li style="--d:1.56s"><b>New failure modes.</b><span>Network errors and half-finished writes need recovery.</span></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="example-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">An example · what’s next on this work item?</div>
+      <h2 id="example-title">The skill shrank to <span class="grad">one command.</span></h2>
+      <div class="versus">
+        <div><h3>Before: the agent works it out</h3>
+          <div class="mdfile" aria-label="An example skill file of step-by-step instructions for reading a PBI from Azure Boards and its pull requests from GitHub">
+            <span class="filename">skills/work-on-pbi/SKILL.md</span>
+<pre><span class="m">---
+name: work-on-pbi
+description: Use when asked to continue a PBI
+---</span>
+<span class="h"># Work on a PBI</span>
+
+<span class="h">## 1. Authenticate</span>
+Export the PAT so az can reach the board:
+<span class="c">export AZURE_DEVOPS_EXT_PAT=…</span>
+<span class="c">az devops configure --defaults \
+  organization=… project=…</span>
+If this fails, ask the user to sign in and stop.
+
+<span class="h">## 2. Find the PBI</span>
+<span class="c">az boards work-item show --id 3054301</span>
+Check it’s a Product Backlog Item. If it’s a
+Bug or a Task, find its parent first, unless…
+
+<span class="h">## 3. Read the description and comments</span>
+Read <span class="c">System.Description</span> and the acceptance
+criteria. Then fetch every comment:
+<span class="c">az devops invoke --area wit \
+  --resource comments …</span>
+Ignore bot comments, unless they mention CI.
+Newer comments override older ones.
+
+<span class="h">## 4. Check GitHub</span>
+<span class="c">gh pr list --search "AB#3054301" --state all</span>
+For each PR:
+<span class="c">gh pr checks &lt;number&gt;</span>
+<span class="c">gh pr view &lt;number&gt; --comments</span>
+If CI is failing, fix that first, unless the
+failure is unrelated, in which case…
+
+<span class="h">## 5. Work out what’s next</span>
+If the description changed since the plan was
+written, re-plan before coding, unless…
+If a reviewer asked for changes, do those first.
+If everything is merged, update the PBI state
+and remember to add a comment saying…
+
+<span class="h">## 6. Before you finish</span>
+Don’t forget to move the card on the board.
+Don’t forget to link the PR to the PBI.
+…</pre>
+          </div>
+          <p class="note">Every session, the agent reads all of this, runs each step, and decides a little differently.</p>
+        </div>
+        <div class="to step"><h3>After: run the tool, do what it says</h3>
+          <div class="stack">
+          <div class="mdfile mini" aria-label="The whole skill file: run pdlc inspect for the PBI to get your context, then do what Due Next says">
+            <span class="filename">skills/work-on-pbi/SKILL.md</span>
+<pre><span class="h"># Work on a PBI</span>
+Run <span class="c">pdlc inspect &lt;pbi&gt;</span> to get your context.
+Then do what <span class="h"># Due Next</span> says.</pre>
+          </div>
+          <div class="layer step">
+          <div class="mdfile output" aria-label="An outline of what the command prints: the work item's state, its tasks, and what is due next">
+            <span class="filename">$ pdlc inspect 3054301 (output shortened)</span>
+<pre><span class="m">---
+Status: "Technical Plan"
+Gate State: "Pending"
+Lifecycle: "Planning"
+---</span>
+<span class="h"># Work Item</span>
+Full inspection in .pdlc/cache/3054301/pdlc-3054301.md
+
+<span class="h">## Attachments</span>
+None
+
+<span class="h">## User Comments</span>
+None
+
+<span class="h"># Tasks</span>
+<span class="m">---
+number: 3054302
+title: "WORK-3054301-TASK-001 [CORE] CSV writer"
+completed: true
+---
+number: 3054303
+title: "WORK-3054301-TASK-002 [UI] Export button"
+needsPlan: true
+---</span>
+
+<span class="h"># Due Next</span>
+<span class="c">Due next: TechnicalPlan.Pending</span> → This work
+item is due for the Technical Plan stage.
+Invoke pdlc-plan skill and continue with
+instructions specified there.
+
+<span class="h">### Next Pending Task</span>
+The next task pending a Technical Plan is 3054303.</pre>
+          </div>
+          <p class="note">Already gathered and checked. The agent just reads the answer, and gets the same one every time.</p>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="slide" aria-labelledby="rod-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · what stuck</div>
+      <h2 id="rod-title">Don’t fish bare-handed. <span class="grad">Build a rod, and a skill to use it.</span></h2>
+      <div class="level wide big">
+        <div class="how">
+          <div class="art tool"><div class="file term"><span>the rod · a tool</span><pre>$ ./check-ci.sh
+✓ same answer, every time</pre></div><div class="file"><span>check-ci/SKILL.md · when to cast</span><pre>Before opening a PR, run check-ci.sh.
+If it fails, read its log and fix.</pre></div></div></div>
+        <div class="chart"><svg class="flow tool" viewBox="0 0 200 92" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Bare-handed: I ask, the agent works it out, and gets a new answer every session. With a rod: I ask, the agent picks the rod, and the rod does it the same way every time"><text class="title lbl" x="4" y="5" style="--t:0.00s">bare-handed</text><g class="n me" style="--t:0.10s"><rect x="4" y="10" width="58" height="16" rx="3"/><text x="33" y="18">ask</text></g><path class="e" pathLength="1" d="M62 18 H71" style="--t:0.25s"/><g class="n" style="--t:0.35s"><rect x="71" y="10" width="58" height="16" rx="3"/><text x="100" y="18">work it out</text></g><path class="e" pathLength="1" d="M129 18 H138" style="--t:0.50s"/><g class="n" style="--t:0.60s"><rect x="138" y="10" width="58" height="16" rx="3"/><text x="167" y="18">new answer</text></g><path class="e back" pathLength="1" d="M167 26 V34 H33 V26" style="--t:0.75s"/><text class="lbl" x="100" y="39" style="--t:0.90s">every session</text><text class="title lbl" x="4" y="53" style="--t:1.10s">with a rod</text><g class="n me" style="--t:1.20s"><rect x="4" y="58" width="58" height="16" rx="3"/><text x="33" y="66">ask</text></g><path class="e" pathLength="1" d="M62 66 H71" style="--t:1.35s"/><g class="n" style="--t:1.45s"><rect x="71" y="58" width="58" height="16" rx="3"/><text x="100" y="66">pick the rod</text></g><path class="e" pathLength="1" d="M129 66 H138" style="--t:1.60s"/><g class="n code" style="--t:1.70s"><rect x="138" y="58" width="58" height="16" rx="3"/><text x="167" y="66">rod does it</text></g><text class="lbl" x="167" y="82" style="--t:1.90s">same every time</text></svg><p class="flow-label"><i class="code"></i>code <i class="agent"></i>agent <i class="me"></i>me</p></div>
+        <div class="verdict">
+          <h3 class="liked">🎣 What stuck</h3><ul class="liked"><li style="--d:0.40s"><b>Rods over prompts.</b><span>Building tools helped more than writing better prompts.</span></li><li style="--d:0.52s"><b>A skill to use it.</b><span>The rod does the same thing every time. The skill knows when to cast.</span></li><li style="--d:0.64s"><b>Saves context.</b><span>The agent spends it on the problem, not rediscovering the routine.</span></li><li style="--d:0.76s"><b>Code for the process.</b><span>Skills for the judgement.</span></li></ul>
+          <h3 class="liked">📏 My rule now</h3><ul class="liked"><li style="--d:1.08s;grid-column:1/-1"><b>Needs the same answer every time?</b><span>Make it a tool, and a skill to use it.</span></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="loops-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Down the rabbit hole · then it could loop</div>
+      <h2 id="loops-title">Same result every time. <span class="grad">So it could loop until it needed me.</span></h2>
+      <i class="step ring-go" aria-hidden="true" style="position:absolute"></i><i class="step ring-reject" aria-hidden="true" style="position:absolute"></i>
+      <div class="level wide flowfirst">
+        <div class="chart"><svg id="ring" class="ring" viewBox="-50 -6 490 296" role="img" aria-label="One work item going round the workflow forever. Only the active stage is shown. Its checks run in the middle; failures loop back without me. At the human gates it waits until I approve, then carries on."></svg><p class="flow-label"><i class="agent"></i>agent <i class="code"></i>code checks <i class="me"></i>me</p></div>
+        <div class="step codepaper" aria-label="Excerpt of src/pdlc/domain/workflows/stages.py: imports, the Product stage, the UI, Tasks and Plan stages folded, and the Implementation stage, all declared as data."><div class="codebar">src/pdlc/domain/workflows/stages.py</div><pre><span class="ln"><i>8</i><code><span class="imp">from</span> __future__ <span class="imp">import</span> annotations</code></span><span class="ln"><i>9</i><code> </code></span><span class="ln"><i>10</i><code><span class="imp">from</span> pdlc.domain.stages <span class="imp">import</span> Action, Gate, ReviewerTarget, ReviewPolicy, Stage</code></span><span class="ln"><i>11</i><code> </code></span><span class="ln"><i>12</i><code>PRODUCT_STAGE = <span class="call">Stage</span>(</code></span><span class="ln"><i>13</i><code>    <span class="key">name</span>=<span class="str">&quot;Product&quot;</span>,</code></span><span class="ln"><i>14</i><code>    <span class="key">marker</span>=<span class="str">&quot;PRODUCT&quot;</span>,</code></span><span class="ln"><i>15</i><code>    <span class="key">action</span>=Action.HUMAN_INPUT,</code></span><span class="ln"><i>16</i><code>    <span class="key">autonomous</span>=<span class="kw">False</span>,</code></span><span class="ln"><i>17</i><code>    <span class="key">result_gate</span>=Gate.APPROVAL_REQUIRED,</code></span><span class="ln"><i>18</i><code>    <span class="key">reason</span>=<span class="str">&quot;product artifact is due; user must invoke pdlc-write interactively, and it is not possible to continue autonomously&quot;</span>,</code></span><span class="ln"><i>19</i><code>    <span class="key">review</span>=<span class="call">ReviewPolicy</span>(</code></span><span class="ln"><i>20</i><code>        <span class="call">ReviewerTarget</span>(<span class="str">&quot;The Product artifact&quot;</span>, <span class="str">&quot;pdlc-product-reviewer&quot;</span>),</code></span><span class="ln"><i>21</i><code>    ),</code></span><span class="ln"><i>22</i><code>    <span class="key">skippable</span>=<span class="kw">False</span>,</code></span><span class="ln"><i>23</i><code>    <span class="key">reauthor_in_place</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>24</i><code>    <span class="key">skill</span>=<span class="str">&quot;pdlc-write&quot;</span>,</code></span><span class="ln"><i>25</i><code>)</code></span><span class="ln"><i>26</i><code> </code></span><span class="ln folded"><i>27</i><code>UI_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln folded"><i>41</i><code>TASKS_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln folded"><i>55</i><code>TECHNICAL_PLAN_STAGE = <span class="call">Stage</span>(<span class="fold">…</span>)</code></span><span class="ln"><i>68</i><code> </code></span><span class="ln"><i>69</i><code>IMPLEMENTATION_STAGE = <span class="call">Stage</span>(</code></span><span class="ln"><i>70</i><code>    <span class="key">name</span>=<span class="str">&quot;Implementation&quot;</span>,</code></span><span class="ln"><i>71</i><code>    <span class="key">marker</span>=<span class="str">&quot;IMPLEMENTATION&quot;</span>,</code></span><span class="ln"><i>72</i><code>    <span class="key">action</span>=Action.IMPLEMENT,</code></span><span class="ln"><i>73</i><code>    <span class="key">autonomous</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>74</i><code>    <span class="key">result_gate</span>=Gate.REVIEW_REQUIRED,</code></span><span class="ln"><i>75</i><code>    <span class="key">reason</span>=<span class="str">&quot;next eligible delivery task is due&quot;</span>,</code></span><span class="ln"><i>76</i><code>    <span class="key">review</span>=<span class="call">ReviewPolicy</span>(</code></span><span class="ln"><i>77</i><code>        <span class="call">ReviewerTarget</span>(<span class="str">&quot;Production PRs and each task&#x27;s implementation&quot;</span>, <span class="str">&quot;pdlc-implementation-reviewer&quot;</span>),</code></span><span class="ln"><i>78</i><code>    ),</code></span><span class="ln"><i>79</i><code>    <span class="key">ci_gated</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>80</i><code>    <span class="key">publishes_pull_requests</span>=<span class="kw">True</span>,</code></span><span class="ln"><i>81</i><code>    <span class="key">skill</span>=<span class="str">&quot;pdlc-implement&quot;</span>,</code></span><span class="ln"><i>82</i><code>)</code></span></pre></div>
+        <div class="step codepaper pipes" aria-label="Two pipelines over the same stages: the Feature pipeline runs all eight stages; a Bug pipeline runs only Implementation, Testing, Verification and Complete."><div class="codebar">src/pdlc/domain/workflows/</div><pre><span class="ln"><code><span class="cm"># workflow_feature.py</span></code></span><span class="ln"><code>FEATURE_PIPELINE = <span class="call">Pipeline</span>(</code></span><span class="ln"><code>    <span class="key">work_type</span>=WorkType.FEATURE,</code></span><span class="ln"><code>    <span class="key">stages</span>=(PRODUCT_STAGE, UI_STAGE, TASKS_STAGE, TECHNICAL_PLAN_STAGE,</code></span><span class="ln"><code>            IMPLEMENTATION_STAGE, TESTING_STAGE, VERIFICATION_STAGE, COMPLETE_STAGE),</code></span><span class="ln"><code>)</code></span><span class="ln"><code> </code></span><span class="ln"><code><span class="cm"># workflow_bug.py</span></code></span><span class="ln"><code>BUG_PIPELINE = <span class="call">Pipeline</span>(</code></span><span class="ln"><code>    <span class="key">work_type</span>=WorkType.BUG,</code></span><span class="ln"><code>    <span class="key">stages</span>=(IMPLEMENTATION_STAGE, TESTING_STAGE, VERIFICATION_STAGE, COMPLETE_STAGE),</code></span><span class="ln"><code>)</code></span></pre></div>
+        <div class="verdict">
+          <h3 class="liked">🔁 Loops on its own</h3><ul class="liked"><li style="--d:0.40s"><b>Doesn’t validate? Fix, re-run.</b><span>Tasks and plans are checked as data. Problems go straight back to the agent.</span></li><li style="--d:0.52s"><b>Reviewer wants changes? Revise.</b><span>Up to three passes before anything reaches me.</span></li><li style="--d:0.64s"><b>CI red? Fix it.</b><span>Failed checks go back to the stage that owns them.</span></li><li style="--d:0.76s"><b>Verify found a gap? Bounce it.</b><span>Back to implementation, rework, re-check. Up to three times.</span></li><li style="--d:0.88s"><b>Next task? Take it.</b><span>Implementation goes task by task until none are open.</span></li></ul>
+          <h3 class="mine">✋ Stops for me</h3><ul class="mine"><li style="--d:1.20s"><b>Write the spec.</b><span>The idea and the requirements start with me.</span></li><li style="--d:1.32s"><b>Approve each stage.</b><span>Nothing moves to the next stage without my sign-off.</span></li><li style="--d:1.44s"><b>Make the calls.</b><span>Product, scope, UX or safety decisions come to me.</span></li><li style="--d:1.56s"><b>Say it’s done.</b><span>Only I mark it complete.</span></li></ul>
+        </div>
+      </div>
+      <p class="punch">Before, I reviewed to find out if it worked. <span class="grad">Now I review to decide if it’s what I want.</span></p>
+    </div>
+  </section>
+
+  <section class="slide answer" aria-labelledby="checking-title" hidden>
+    <div class="wrap">
+      <ol class="qtabs" aria-label="The three jobs"><li class="on">Checking</li><li>Directing</li><li>Reminding</li></ol>
+      <h2 id="checking-title">Checking. <span class="grad">Not me, and not the agent that wrote it.</span></h2>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">Run the tests, fix lint</span><span class="arrow" aria-hidden="true">→</span><span class="now">It fixes failing CI and review comments itself<small>pdlc-implement</small></span></li>
+        <li><span class="was">Ask another agent to review</span><span class="arrow" aria-hidden="true">→</span><span class="now">A separate reviewer signs off every stage<small>reviewer agents</small></span></li>
+        <li><span class="was">Covered by requirements? New tests?</span><span class="arrow" aria-hidden="true">→</span><span class="now">Every requirement is traced to a test<small>pdlc-test · FR-* traceability</small></span></li>
+        <li><span class="was">Verify in the browser</span><span class="arrow" aria-hidden="true">→</span><span class="now">Verification walks the user journeys<small>pdlc-verify</small></span></li>
+      </ul>
+      <p class="punch">When it reaches me, <span class="grad">it’s already been checked.</span></p>
+    </div>
+  </section>
+
+  <section class="slide answer" aria-labelledby="directing-title" hidden>
+    <div class="wrap">
+      <ol class="qtabs" aria-label="The three jobs"><li>Checking</li><li class="on">Directing</li><li>Reminding</li></ol>
+      <h2 id="directing-title">Directing. <span class="grad">The state decides what’s next, not me.</span></h2>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">Break down every task</span><span class="arrow" aria-hidden="true">→</span><span class="now">A planner splits it into tasks, with acceptance criteria<small>pdlc-tasks</small></span></li>
+        <li><span class="was">Re-prompt after every step</span><span class="arrow" aria-hidden="true">→</span><span class="now">The PBI says what’s due next<small>pdlc inspect → Due Next</small></span></li>
+        <li><span class="was">Keep every agent moving</span><span class="arrow" aria-hidden="true">→</span><span class="now">One loop works through the queue<small>pdlc-loop</small></span></li>
+        <li><span class="was">Get pinged for everything</span><span class="arrow" aria-hidden="true">→</span><span class="now">It stops only for approvals and decisions<small>gates</small></span></li>
+      </ul>
+      <p class="punch">I stopped switching. <span class="grad">I started deciding.</span></p>
+    </div>
+  </section>
+
+  <section class="slide answer" aria-labelledby="reminding-title" hidden>
+    <div class="wrap">
+      <ol class="qtabs" aria-label="The three jobs"><li>Checking</li><li>Directing</li><li class="on">Reminding</li></ol>
+      <h2 id="reminding-title">Reminding. <span class="grad">Written down once, not said every time.</span></h2>
+      <div class="step codepaper cfg" aria-label="flex.2degrees.nz .pdlc/config.toml: build-run uses the flex-feedback-loop skill, ux-design the flex-design-system-v2 skill, and ui-implementer the frontend-vue-expert agent; the other slots are left unset, so the agent does those steps itself."><div class="codebar">flex.2degrees.nz/.pdlc/config.toml</div><pre><span class="ln all"><code><span class="cm"># Plug this repo&#x27;s own skills into the workflow.</span></code></span><span class="col"><span class="ln"><code><span class="call">[skills]</span></code></span><span class="ln"><code><span class="key">build-run</span> = <span class="str">"flex-feedback-loop"</span></code></span><span class="ln"><code><span class="key">ux-design</span> = <span class="str">"flex-design-system-v2"</span></code></span><span class="ln"><code><span class="cm"># test-authoring    = &quot;…&quot;</span></code></span><span class="ln"><code><span class="cm"># cumulative-review = &quot;…&quot;</span></code></span></span><span class="col"><span class="ln"><code><span class="call">[agents]</span></code></span><span class="ln"><code><span class="key">ui-implementer</span> = <span class="str">"frontend-vue-expert"</span></code></span><span class="ln"><code><span class="cm"># core-implementer = &quot;…&quot;</span></code></span></span><span class="ln all"><code><span class="cm"># Left unset? The agent does that step itself.</span></code></span></pre></div>
+      <ul class="fixes">
+        <li class="head" aria-hidden="true"><span>I used to</span><span></span><span>Now</span></li>
+        <li><span class="was">“Reuse the existing component”</span><span class="arrow" aria-hidden="true">→</span><span class="now">Plans start from a spike of the current code<small>pdlc-plan</small></span></li>
+        <li><span class="was">“Add a Storybook story”</span><span class="arrow" aria-hidden="true">→</span><span class="now">My repo’s own skills plug into each step<small>.pdlc/config.toml</small></span></li>
+        <li><span class="was">Re-explain why we built it that way</span><span class="arrow" aria-hidden="true">→</span><span class="now">Requirements and decisions live on the work item<small>the board</small></span></li>
+        <li><span class="was">Carry it on in my own session</span><span class="arrow" aria-hidden="true">→</span><span class="now">Any agent, or teammate, picks up from the record<small>pdlc inspect</small></span></li>
+      </ul>
+      <p class="punch">The chat became disposable. <span class="grad">The record didn’t.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="judgment-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What I don’t hand over</div>
+      <h2 id="judgment-title">Delegate the task, <span class="grad">never the judgment.</span></h2>
+      <div class="judge">
+        <div class="pts">
+          <h3>Who does what</h3>
+          <ul>
+            <li class="reveal" style="--d:.3s"><b class="by-ag">Agents:</b> style, lint, review follow-ups, typical bugs, unit tests, handoffs.</li>
+            <li class="reveal" style="--d:.6s"><b class="by-me">Me:</b> product calls, security boundaries, scope, trade-offs, user experience, catching over-engineering, and what ships.</li>
+          </ul>
+          <h3>How I review now</h3>
+          <ul>
+            <li class="reveal" style="--d:1.0s"><b>Stacked by default:</b> pdlc opens one small PR per task, each on top of the last.</li>
+            <li class="reveal" style="--d:1.3s"><b>One by one:</b> I go through each PR myself, as if I wrote it.</li>
+            <li class="reveal" style="--d:1.6s"><b>Behaviour, not conventions:</b> style and lint are already done. I check it does the right thing, and that it should ship.</li>
+          </ul>
+        </div>
+        <div class="prstack reveal" style="--d:1.0s" role="img" aria-label="Three stacked pull requests, one per task, each a small diff that has passed CI and a reviewer agent before I go through it myself."><div class="pr"><span class="t"><b>TASK-003</b> [UI] Export progress</span><span class="diff">+41 −2</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-002</b> [UI] Export button</span><span class="diff">+64 −3</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div><div class="pr"><span class="t"><b>TASK-001</b> [CORE] CSV writer</span><span class="diff">+120 −8</span><span class="checks">✓ CI · ✓ reviewer · <em>me</em></span></div></div>
+      </div>
+      <p class="punch reveal" style="--d:2.0s">Passing tests is the agent’s job. <span class="grad">Deciding it’s worth shipping is mine.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="lessons-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">Looking back</div>
+      <h2 id="lessons-title">What stuck, <span class="grad">and what didn’t.</span></h2>
+      <ul class="stuck">
+        <li class="head"><p class="no">Didn’t stick</p><p class="yes">Stuck</p></li>
+        <li class="reveal" style="--d:0.30s"><p class="no">Rules written in a skill<span>drifted, run to run</span></p><p class="yes">Checked state, in code</p></li>
+        <li class="reveal" style="--d:0.55s"><p class="no">Agents gathering their own context<span>different every run</span></p><p class="yes">Building the brief for them</p></li>
+        <li class="reveal" style="--d:0.80s"><p class="no">An agent reviewing its own work<span>checked its own summary</span></p><p class="yes">A fresh reviewer, against the requirement</p></li>
+        <li class="reveal" style="--d:1.05s"><p class="no">Context living in the chat<span>gone with the session</span></p><p class="yes">Context written on the PBI itself</p></li>
+        <li class="reveal" style="--d:1.30s"><p class="no">Explaining the whole process to every agent<span>more to misread</span></p><p class="yes">Telling each agent only what its step needs<small>Like least privilege: it only hears what it needs to know, so there’s less noise.</small></p></li>
+        <li class="reveal" style="--d:1.55s"><p class="no">Free-form write-ups<span>a section missing every time</span></p><p class="yes">A template the tool checks</p></li>
+        <li class="reveal" style="--d:1.80s"><p class="no">Agents improvising when a command failed<span>retried blindly</span></p><p class="yes">The command says how to recover</p><div class="step codepaper rec" aria-label="Example: pdlc post ci 304564 fails with a transient HTTP 502. pdlc says it may have partly applied and was not retried, then lists how to recover: run pdlc inspect 304564; if the gate has left CI Pending it landed, continue; otherwise re-run the same command; if it fails three times, stop and report."><div class="codebar">terminal · exit 76</div><pre><span class="ln"><code><span class="cm">$</span> <span class="call">pdlc post ci 304564</span></code></span><span class="ln"><code><span class="err">pdlc: transient: gh: HTTP 502: Bad Gateway</span></code></span><span class="ln"><code><span class="err">pdlc: this command may have partly applied, so it was not retried.</span></code></span><span class="ln"><code><span class="key">To recover:</span></code></span><span class="ln"><code>  1. Run <span class="str">`pdlc inspect 304564`</span>.</code></span><span class="ln"><code>  2. If the gate has left CI Pending, it landed. Continue.</code></span><span class="ln"><code>  3. Otherwise re-run: <span class="str">pdlc post ci 304564</span></code></span><span class="ln"><code>  4. If the same failure repeats 3 times, stop and report it.</code></span></pre></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="cost-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">A side effect</div>
+      <h2 id="cost-title">It also got <span class="grad">cheaper.</span></h2>
+      <div class="cost">
+        <div class="usage" role="img" aria-label="Monthly usage of my allocation: about 90% two months ago, about 40% last month.">
+          <div class="row reveal" style="--d:.2s"><div class="lbl"><span>Two months ago</span><b>~90%</b></div><div class="bar"><i style="--w:90%;--d:.4s"></i></div></div>
+          <div class="row now reveal" style="--d:.6s"><div class="lbl"><span>Last month</span><b>~40%</b></div><div class="bar"><i style="--w:40%;--d:.8s"></i></div></div>
+          <p class="note reveal" style="--d:1.2s">of my monthly allocation. Not all of it is pdlc: models got cheaper too.</p>
+        </div>
+        <ul class="cards">
+          <li class="reveal" style="--d:1.6s"><h3>Small agents, cached prompts</h3><p>Each agent does one job and finishes. Small context, almost always cached.</p></li>
+          <li class="reveal" style="--d:2.1s"><h3>The right model for the job</h3><p>Small models run the trivial stuff, like writing tests. Opus and Sol get the judgment.</p></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="next-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">What’s next</div>
+      <h2 id="next-title">Where it <span class="grad">could go next.</span></h2>
+      <ul class="cards">
+        <li class="reveal" style="--d:.3s"><h3>Cheaper agents for decisions</h3><p>When a step needs a structured answer, hand it to an agent built for deciding, like Jev, instead of a lightweight LLM call.</p></li>
+        <li class="reveal" style="--d:.8s"><h3>Starting agents from code</h3><p>The CLI can say what’s next, but can’t start an agent. A GitHub Copilot SDK integration could run that step the same way every time.</p></li>
+        <li class="reveal" style="--d:1.3s"><h3>Proactive, not reactive</h3><p>Feed in what’s happening, like production logs, user feedback and outside events, so workflows start on their own, not when I prompt.</p></li>
+        <li class="reveal" style="--d:1.8s"><h3>More workflows</h3><p>Features are the only workflow today. Bugs and spikes need their own stages and gates.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" aria-labelledby="thanks-title" hidden>
+    <div class="wrap">
+      <div class="eyebrow">That’s it from me</div>
+      <div class="thanks">
+        <h1 id="thanks-title">Thank you.<br><span class="grad">Questions?</span></h1>
+        <aside class="tryit reveal" style="--d:.4s" aria-label="Try it">
+          <h3>Try it</h3>
+          <p class="repo">github.com/t3i-tahi-bss/adlc</p>
+          <p>Have a look. Or point your agent at it and ask it what it is.</p>
+        </aside>
+        <aside class="sources reveal" style="--d:.6s" aria-label="Sources">
+          <h3>Sources</h3>
+          <ul><li><b>pstack</b><span class="by">Lauren Tan (@poteto)</span><span class="url">github.com/cursor/plugins/tree/main/pstack</span></li><li><b>T3 Code and tstack</b><span class="by">Theo Browne (@t3dotgg)</span><span class="url">t3.codes · github.com/t3dotgg/tstack</span></li><li><b>How the Claude Code team does code review</b><span class="by">Addy Osmani, Morgan Westlee Lunt, Qing Wang · claude.dev blog</span><span class="url">claude.dev/blog/solving-code-review-at-anthropic</span></li><li><b>Your coding agents made you a manager</b><span class="by">Addy Osmani (@addyosmani) · Anthropic</span><span class="url">x.com/addyosmani/status/2119332146485891501</span></li></ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+</main>
+<aside id="notes" aria-live="polite" hidden></aside>
+<nav id="navigation" aria-label="Slide navigation">
+  <span>← → navigate · 1–9 jump</span>
+  <div class="controls">
+    <button id="previous" type="button" aria-label="Previous slide">←</button>
+    <span id="counter" aria-live="polite" aria-atomic="true"></span>
+    <button id="next" type="button" aria-label="Next slide">→</button>
+  </div>
+</nav>
+<script>
+const slides = [...document.querySelectorAll('#deck .slide')];
+const previous = document.getElementById('previous');
+const next = document.getElementById('next');
+const counter = document.getElementById('counter');
+const notes = document.getElementById('notes');
+let current = 0;
+let revealed = 0;
+
+const stepsOf = index => [...slides[index].querySelectorAll('.step')];
+
+// Shows a slide with its first `steps` reveals visible, and keeps the URL hash in sync so a reload stays put.
+// Slide 11: one work item going round the workflow forever. Only the active stage is labelled;
+// its checks run in the middle, failures loop back on green, and human gates wait for an animated approval.
+// show() calls ring.run(onScreen, started): on screen but not started holds it at Product; the slide's first step (.ring-go) starts it.
+const ring = (() => {
+  const svg = document.getElementById('ring');
+  if (!svg) return { run() {} };
+  const NS = 'http://www.w3.org/2000/svg';
+  const CX = 200, CY = 145, RX = 190, RY = 132;
+  // steps: [kind, label]; fail: step that fails once then re-runs; bounce: step that sends the item back to Implement once;
+  // reject: I request changes at this gate once, sending the item back to Product. Each happens once per lap.
+  // interview: step that loops back to the first for more questions (ROUNDS in all) before moving on.
+  const STAGES = [
+    { name: 'Product', steps: [['agent', 'clarify'], ['me', 'decide'], ['agent', 'reviewer']], interview: 1, gate: 'me' },
+    { name: 'UI + tasks', steps: [['agent', 'draft'], ['agent', 'reviewer']], gate: 'me' },
+    { name: 'Plan', steps: [['agent', 'spike + plan'], ['agent', 'reviewer']], fail: 1, gate: 'me', reject: true },
+    { name: 'Implement', steps: [['agent', 'code'], ['agent', 'reviewer'], ['code', 'CI']], fail: 2, gate: 'auto' },
+    { name: 'Test', steps: [['agent', 'tests'], ['agent', 'reviewer'], ['code', 'CI']], gate: 'auto' },
+    { name: 'Verify', steps: [['agent', 'journeys'], ['agent', 'findings']], bounce: 1, gate: 'me' },
+    { name: 'Done', steps: [], gate: 'done' },
+  ];
+  const IMPLEMENT = 3, ROUNDS = 3, N = STAGES.length;
+  const angle = i => -Math.PI / 2 + i * 2 * Math.PI / N;
+  const at = a => [CX + RX * Math.cos(a), CY + RY * Math.sin(a)];
+  const make = (tag, attrs, parent = svg, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.append(e);
+    return e;
+  };
+
+  make('ellipse', { class: 'track', cx: CX, cy: CY, rx: RX, ry: RY });
+  const dots = STAGES.map((stage, i) => {
+    const a = angle(i), [x, y] = at(a), c = Math.cos(a), sn = Math.sin(a);
+    const g = make('g', { class: 'dot' });
+    make('circle', { cx: x, cy: y, r: 3.5 }, g);
+    make('text', { x: x + c * 14, y: y + sn * 16 + 4, 'text-anchor': c > .3 ? 'start' : c < -.3 ? 'end' : 'middle' }, g, stage.name);
+    return g;
+  });
+  const token = make('circle', { class: 'token', r: 7 });
+  const title = make('text', { class: 'title', x: CX, y: 92 });
+  const item = make('text', { class: 'item', x: CX, y: 108 });
+  const back = make('path', { class: 'back' });
+  const backLabel = make('text', { class: 'back-lbl', y: 121 });
+  const chips = make('g', {});
+  // Arrowheads for the chip loops, one per colour.
+  const defs = make('defs', {});
+  for (const c of ['green', 'indigo']) {
+    const m = make('marker', { id: `ring-${c}`, viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' }, defs);
+    make('path', { class: `head ${c}`, d: 'M0 0L10 5L0 10Z' }, m);
+  }
+  // My review: a page that gets read, then stamped approved or sent back.
+  const doc = make('g', { class: 'doc' });
+  const docBody = make('g', { transform: `translate(${CX} 201) scale(0.9) translate(${-CX} -201)` }, doc);
+  make('path', { class: 'page', d: `M${CX - 16} 178h22l10 10v36h-32Z` }, docBody);
+  for (const [y, w] of [[192, 20], [199, 20], [206, 20], [213, 13]]) make('path', { class: 'ln', d: `M${CX - 10} ${y}h${w}` }, docBody);
+  make('rect', { class: 'scan', x: CX - 14, y: 184, width: 28, height: 2, rx: 1 }, docBody);
+  const stamp = make('g', { class: 'stamp' }, docBody);
+  make('circle', { cx: CX + 16, cy: 220, r: 9 }, stamp);
+  const stampText = make('text', { x: CX + 16, y: 220.5 }, stamp);
+  const status = make('text', { class: 'status', x: CX, y: 238 });
+
+  let gen = 0, running = false;
+  // Each await rejects once the slide is left, which unwinds play().
+  const wait = ms => new Promise((ok, stop) => { const g = gen; setTimeout(() => g === gen ? ok() : stop(), ms); });
+  const place = a => { const [x, y] = at(a); token.setAttribute('cx', x); token.setAttribute('cy', y); };
+  const tint = kind => token.setAttribute('class', `token k-${kind}`);
+  const say = (text, cls = '') => { status.textContent = text; status.setAttribute('class', `status ${cls}`); };
+  function travel(from, to, ms = 1000) {
+    const g = gen, t0 = performance.now();
+    return new Promise((ok, stop) => (function step(now) {
+      if (g !== gen) return stop();
+      const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      place(from + (to - from) * e);
+      t < 1 ? requestAnimationFrame(step) : ok();
+    })(t0));
+  }
+
+  // Shows stage i alone: its dot and name, and its steps as chips in the middle.
+  function enter(i) {
+    const stage = STAGES[i];
+    dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    title.textContent = stage.name;
+    chips.replaceChildren();
+    loopBack(); doc.setAttribute('class', 'doc'); say('');
+    const w = 76, gap = 20, x0 = CX - (stage.steps.length * (w + gap) - gap) / 2;
+    return stage.steps.map(([kind, label], j) => {
+      const x = x0 + j * (w + gap);
+      if (j) make('path', { class: 'arrow', d: `M${x - gap + 3} 155H${x - 4}M${x - 8} 151.5L${x - 4} 155L${x - 8} 158.5` }, chips);
+      const g = make('g', { class: `chip k-${kind}` }, chips);
+      make('rect', { x, y: 143, width: w, height: 24, rx: 6 }, g);
+      make('text', { x: x + w / 2, y: 155 }, g, label);
+      // Who does the step, on the bottom-left corner: robot = agent (inferred), gear = deterministic code, person = me.
+      icon(g, { agent: ROBOT, code: GEAR, me: PERSON }[kind], x - 7, 158);
+      g.mid = x + w / 2;
+      g.kind = kind;
+      return g;
+    });
+  }
+  // 12×12 silhouettes (drawn at 1.3×) in the chip's colour.
+  const PERSON = '<circle cx="6" cy="3.2" r="3.2"/><path d="M0 12.5C0 4.2 12 4.2 12 12.5Z"/>';
+  const ROBOT = '<path d="M5.4 0h1.2v2.6H5.4Z"/><circle cx="6" cy="0.8" r="1.1"/><rect x="1" y="2.6" width="10" height="8.4" rx="2.2"/><circle class="eye" cx="4" cy="6.6" r="1.2"/><circle class="eye" cx="8" cy="6.6" r="1.2"/><path d="M0 5.5h1v3H0ZM11 5.5h1v3h-1Z"/>';
+  const GEAR = [0, 45, 90, 135].map(r => `<rect x="5" y="0.2" width="2" height="11.6" rx="0.6" transform="rotate(${r} 6 6)"/>`).join('') + '<circle cx="6" cy="6" r="4.1"/><circle class="eye" cx="6" cy="6" r="1.7"/>';
+  const icon = (parent, shape, x, y) => { const g = make('g', { class: 'who', transform: `translate(${x} ${y}) scale(1.3)` }, parent); g.innerHTML = shape; };
+  const light = (list, j) => list.forEach((c, n) => { c.classList.toggle('on', n === j); c.classList.remove('fail'); });
+
+  // Draws (or, with no arguments, hides) the arc from chip `from` back to chip `to`, with an arrowhead and a label.
+  function loopBack(from, to, label, color = 'green') {
+    if (!from) { back.setAttribute('class', 'back'); back.removeAttribute('marker-end'); backLabel.textContent = ''; return; }
+    back.setAttribute('d', `M${from.mid} 141Q${(from.mid + to.mid) / 2} 112 ${to.mid + 4} 139`);
+    back.setAttribute('class', `back on ${color === 'indigo' ? 'talk' : ''}`);
+    back.setAttribute('marker-end', `url(#ring-${color})`);
+    backLabel.setAttribute('x', (from.mid + to.mid) / 2);
+    backLabel.setAttribute('class', `back-lbl ${color === 'indigo' ? 'talk' : ''}`);
+    backLabel.textContent = label;
+  }
+
+  // I read the document, then it is stamped: approved (✓) or changes needed (↺).
+  // The slide's second step (.ring-reject) releases the Plan review, so I can talk over it before the stamp.
+  const rejectReleased = () => !svg.closest('.slide').querySelector('.ring-reject.pending');
+  async function review(ok, verdict, hold) {
+    tint('me');
+    doc.setAttribute('class', 'doc show');
+    say('waiting for approval', 'wait');
+    await wait(1300);
+    doc.setAttribute('class', 'doc show reading');
+    say('');
+    await wait(1600);
+    if (hold) while (!hold()) await wait(150);
+    stampText.textContent = ok ? '✓' : '↺';
+    doc.setAttribute('class', `doc show ${ok ? 'ok' : 'no'}`);
+    say(verdict, ok ? 'go' : 'undo');
+    await wait(1200);
+  }
+
+  async function play() {
+    gen++;
+    let pbi = 304564;
+    for (;;) {
+      item.textContent = `PBI ${pbi}`;
+      place(angle(0));
+      let bounced = false, rejected = false;
+      const failedOnce = new Set();
+      for (let i = 0; i < N; i++) {
+        const stage = STAGES[i], list = enter(i);
+        let sentBack = false;
+        let round = 1;
+        for (let j = 0; j < list.length; j++) {
+          light(list, j);
+          tint(list[j].kind);
+          await wait(stage.interview != null && j <= stage.interview ? 700 : 900);
+          if (stage.interview === j && round < ROUNDS) {
+            round++;
+            loopBack(list[j], list[0], `question ${round} of ${ROUNDS}`, 'indigo');
+            await wait(600);
+            loopBack();
+            j = -1;
+          } else if (stage.fail === j && !failedOnce.has(i)) {
+            failedOnce.add(i);
+            list[j].classList.add('fail');
+            loopBack(list[j], list[0], 'fix, re-run');
+            tint('code');
+            await wait(1400);
+            loopBack();
+            j = -1;
+          } else if (stage.bounce === j && !bounced) {
+            bounced = sentBack = true;
+            list[j].classList.add('fail');
+            say('gap found · back to Implement', 'go');
+            tint('code');
+            await wait(1400);
+            break;
+          }
+        }
+        if (sentBack) {
+          await travel(angle(i), angle(IMPLEMENT), 1400);
+          i = IMPLEMENT - 1;
+          continue;
+        }
+        if (stage.gate === 'auto') {
+          tint('code');
+          say('checks pass · moves on', 'go');
+          await wait(1200);
+        } else if (stage.gate === 'done') {
+          await review(true, 'marked complete');
+          say('next work item ↻', 'go');
+          await wait(1000);
+        } else if (stage.reject && !rejected) {
+          rejected = true;
+          await review(false, 'changes needed · back to Product', rejectReleased);
+          await travel(angle(i), angle(0), 1400);
+          i = -1;
+          continue;
+        } else {
+          await review(true, 'approved');
+        }
+        tint('agent');
+        if (i < N - 1) await travel(angle(i), angle(i + 1));
+      }
+      await travel(angle(N - 1), angle(N));
+      pbi++;
+    }
+  }
+
+  // Before the first step: the item sits at Product, nothing lit, waiting to start.
+  function hold() {
+    item.textContent = 'PBI 304564';
+    place(angle(0));
+    tint('agent');
+    enter(0);
+  }
+
+  return {
+    run(on, started = true) {
+      const go = on && started;
+      if (!go && running) { running = false; gen++; }
+      if (on && !started) hold();
+      if (go && !running) { running = true; play().catch(() => {}); }
+    },
+  };
+})();
+
+function show(index, steps) {
+  current = index;
+  revealed = steps;
+  slides.forEach((slide, position) => {
+    slide.hidden = position !== current;
+  });
+  stepsOf(current).forEach((step, position) => {
+    step.classList.toggle('pending', position >= revealed);
+  });
+  previous.disabled = current === 0 && revealed === 0;
+  next.disabled = current === slides.length - 1 && revealed === stepsOf(current).length;
+  counter.textContent = `${current + 1} / ${slides.length}`;
+  notes.textContent = notesOf(current);
+  history.replaceState(null, '', `#${current + 1}`);
+  const ringGo = slides[current].querySelector('.ring-go');
+  ring.run(slides[current].contains(document.getElementById('ring')), !ringGo || !ringGo.classList.contains('pending'));
+  broadcast();
+}
+
+// Presenter sync with notes.html, open in another window of the same browser on the same origin.
+// The deck sends its state on every change; notes.html asks for it on load and can drive the deck with forward/backward.
+const channel = new BroadcastChannel('presentation');
+const notesOf = index => slides[index].querySelector('.notes')?.textContent.trim() ?? '';
+const titleOf = index => slides[index]?.querySelector('h1, h2')?.textContent.trim() ?? '';
+function broadcast() {
+  channel.postMessage({
+    type: 'state',
+    index: current,
+    total: slides.length,
+    revealed,
+    steps: stepsOf(current).length,
+    title: titleOf(current),
+    notes: notesOf(current),
+    nextTitle: titleOf(current + 1),
+  });
+}
+channel.addEventListener('message', ({ data }) => {
+  if (data?.type === 'forward') forward();
+  else if (data?.type === 'backward') backward();
+  else if (data?.type === 'request') broadcast();
+  else if (data?.type === 'goto' && data.index >= 0 && data.index < slides.length) show(data.index, 0);
+});
+
+// Auto-scrolls each long Markdown box down and back up, pausing at both ends.
+// Wheel, touch, or pointer input hands the scroll to the presenter; auto-scroll resumes 3s after their last input.
+const autoScroll = [...document.querySelectorAll('.mdfile:not(.mini)')].map(box => {
+  const state = { box, position: 0, direction: 1, pausedUntil: 0, visible: false };
+  const takeOver = () => { state.pausedUntil = performance.now() + 3000; };
+  ['wheel', 'touchstart', 'touchmove', 'pointerdown'].forEach(type => box.addEventListener(type, takeOver, { passive: true }));
+  return state;
+});
+let lastFrame = performance.now();
+function scrollFrame(now) {
+  const elapsed = Math.min(now - lastFrame, 100) / 1000;
+  lastFrame = now;
+  autoScroll.forEach(state => {
+    const { box } = state;
+    const range = box.scrollHeight - box.clientHeight;
+    const visible = box.clientHeight > 0;
+    // Restart from the top whenever the box comes back on screen.
+    if (visible && !state.visible) Object.assign(state, { position: 0, direction: 1, pausedUntil: now + 2000 }), box.scrollTop = 0;
+    state.visible = visible;
+    if (!visible || range <= 0 || now < state.pausedUntil) {
+      state.position = box.scrollTop;
+      return;
+    }
+    // Cross the whole box in about 24 seconds, then hold for 2 seconds before turning around.
+    state.position += state.direction * Math.max(range / 24, 12) * elapsed;
+    if (state.position >= range || state.position <= 0) {
+      state.position = Math.min(Math.max(state.position, 0), range);
+      state.direction = state.position >= range ? -1 : 1;
+      state.pausedUntil = now + 2000;
+    }
+    box.scrollTop = state.position;
+  });
+  requestAnimationFrame(scrollFrame);
+}
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(scrollFrame);
+
+// Reveals the next step, or moves to the next slide once all are showing.
+function forward() {
+  if (revealed < stepsOf(current).length) show(current, revealed + 1);
+  else if (current < slides.length - 1) show(current + 1, 0);
+}
+
+// Hides the last step, or returns to the previous slide fully revealed.
+function backward() {
+  if (revealed > 0) show(current, revealed - 1);
+  else if (current > 0) show(current - 1, stepsOf(current - 1).length);
+}
+
+previous.addEventListener('click', backward);
+next.addEventListener('click', forward);
+document.addEventListener('keydown', event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(event.key)) {
+    event.preventDefault();
+    forward();
+  } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(event.key)) {
+    event.preventDefault();
+    backward();
+  } else if (event.key.toLowerCase() === 'n') {
+    notes.hidden = !notes.hidden;
+  } else if (/^[1-9]$/.test(event.key) && Number(event.key) <= slides.length) {
+    // Number keys jump straight to slides 1–9, with no steps revealed.
+    event.preventDefault();
+    show(Number(event.key) - 1, 0);
+  }
+});
+
+const start = Number(location.hash.slice(1)) - 1;
+show(start >= 0 && start < slides.length ? start : 0, 0);
+</script>
+</body>
+</html>
